@@ -87,6 +87,29 @@ python3 forense_gui.py          # Python 3.12; servono The Sleuth Kit, libewf e 
 
 Come costruire i pacchetti: [docs/COSTRUZIONE.md](docs/COSTRUZIONE.md).
 
+## IA, tracciabilità e normativa
+
+- **Nessuna API di terze parti.** Il modello linguistico è open-weight e gira sul computer dell'analista (LM Studio,
+  llama-server od Ollama) o, se lo si sceglie, su un server della rete interna, indicato nel report. RepertIA ci parla con
+  il protocollo compatibile OpenAI ma solo verso quel server: niente cloud, account o telemetria. Internet serve solo per
+  installare o aggiornare gli strumenti, mai durante l'analisi. Chi vuole tutta la catena open source può usare llama-server.
+- **Tutto è registrato.** Il registro del caso (`audit_log.jsonl`, concatenato con SHA-256 e verificabile con *Verifica
+  hash*) contiene ogni domanda, ogni risposta del modello (con il «ragionamento», se il modello lo espone), ogni strumento
+  richiamato con i parametri e il risultato, e il modello, il server e il contesto usati. Si può ricostruire la catena
+  domanda → ricerche → dati letti → risposta. Non sono spiegabili i pesi interni del modello, come per ogni LLM, e le
+  risposte non sono riproducibili alla lettera.
+- **L'IA non decide.** Usa solo strumenti in sola lettura (al massimo 40 passaggi per domanda), cita file, offset e inode
+  da verificare e propone spunti investigativi; le conclusioni restano all'analista. Senza modello il programma funziona
+  comunque. RepertIA **non fa riconoscimento biometrico** (gli hash percettivi trovano immagini simili, non persone).
+- **Permessi.** Non servono diritti di amministratore per RepertIA (servono solo per installare gli strumenti di sistema:
+  Homebrew sul Mac, apt su Linux). La copia forense è aperta in sola lettura; l'interfaccia ascolta solo su 127.0.0.1 con
+  un codice casuale a ogni avvio.
+- **Normativa.** L'uso di sistemi di IA da parte di forze di polizia e uffici giudiziari è regolato dal regolamento
+  europeo sull'IA (Reg. UE 2024/1689) e, in Italia, dalla legge 132/2025 e dai decreti di attuazione. RepertIA è un
+  progetto personale, non certificato: **chi lo usa per attività d'ufficio deve valutarne la conformità e farlo autorizzare
+  secondo le regole della propria amministrazione** (per esempio valutazione d'impatto e supervisione umana). Questa
+  sezione non è un parere legale.
+
 ## Collaudo
 
 `src/forense_collaudo.py` prepara un caso per ogni immagine di prova e confronta i risultati con i valori attesi di

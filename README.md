@@ -88,6 +88,28 @@ python3 forense_gui.py          # Python 3.12+; requires The Sleuth Kit, libewf 
 
 Building the packages: [docs/BUILDING.md](docs/BUILDING.md).
 
+## AI, traceability and regulation
+
+- **No third-party APIs.** The language model is open-weight and runs on the analyst's computer (LM Studio, llama-server
+  or Ollama) or, if chosen, on a server of the internal network, which is stated in the report. RepertIA talks to it with
+  the OpenAI-compatible protocol but only to that server: no cloud, accounts or telemetry. Internet is needed only to
+  install or update the tools, never during the analysis. For a fully open-source chain use llama-server.
+- **Everything is logged.** The case log (`audit_log.jsonl`, chained with SHA-256 and verifiable with *Verify hashes*)
+  contains every question, every model answer (with its "reasoning", if the model exposes it), every tool called with its
+  parameters and result, and the model, server and context used. The chain question → searches → data read → answer can
+  be reconstructed. The model's internal weights cannot be explained, as with any LLM, and answers are not literally
+  reproducible.
+- **The AI does not decide.** It uses read-only tools only (at most 40 steps per question), cites files, offsets and
+  inodes to be verified and proposes investigative leads; conclusions stay with the analyst. Without a model the program
+  still works. RepertIA does **no biometric recognition** (perceptual hashes find similar images, not people).
+- **Permissions.** RepertIA needs no administrator rights (they are needed only to install the system tools: Homebrew on
+  the Mac, apt on Linux). The forensic image is opened read-only; the interface listens only on 127.0.0.1 with a random
+  code at every start.
+- **Regulation.** The use of AI systems by police forces and judicial offices is regulated by the EU AI Act (Regulation
+  (EU) 2024/1689) and, in Italy, by Law 132/2025 and its implementing decrees. RepertIA is a personal, uncertified
+  project: **anyone using it for official work must assess its compliance and have it authorised under their own
+  organisation's rules** (for example impact assessment and human oversight). This section is not legal advice.
+
 ## Acceptance test
 
 `src/forense_collaudo.py` prepares a case for each test image and compares the results with the expected values in
