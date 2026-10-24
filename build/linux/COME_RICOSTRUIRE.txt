@@ -1,0 +1,21 @@
+Pacchetto Linux x86_64 (RepertIA-<versione>-Linux.tar.gz)
+
+RepertIA/
+  RepertIA.sh              avvio: se manca python/ esegue installa.sh, controlla gli strumenti, avvia forense_gui.py
+  installa.sh              apt (strumenti forensi, zenity, compilatore, python3-venv/-dev), python/ = venv del Python
+                           di sistema (3.12 o successivo) con pip install -r requirements-linux.txt, voce di menu
+  collaudo.sh              collaudo con la cartella RepertIA-collaudo (accetta --lingua en)
+  aggiorna-strumenti.sh    versioni e aggiornamento con apt degli strumenti di sistema
+  requirements-linux.txt   moduli Python alle stesse versioni dei pacchetti Mac e Windows (+ xattr, solo Mac/Linux)
+  repertia.png             icona (da build/mac/repertia.icns)
+  LEGGIMI.txt, README_EN.txt, LICENSE, THIRD_PARTY_LICENSES.md, VALIDAZIONE.md
+  RepertIA/                i file di src/ (forense_*.py, forense_*.html, lingua_en.json, README.md)
+  strumenti/7zip/7zz       7-Zip 26.01 per Linux x64 (7z2601-linux-x64.tar.xz) + License.txt
+  strumenti/tessdata/      eng, ita, osd .traineddata (tessdata_fast, gli stessi del pacchetto Mac)
+
+Il Python e i moduli NON sono nell'archivio: installa.sh li prepara sul computer di destinazione (le librerie
+libyal hanno solo sorgenti per Linux e si compilano). Gli strumenti forensi vengono dalla distribuzione:
+le loro versioni (diverse da quelle dei pacchetti Mac e Windows) sono riportate nel report del caso.
+
+Archivio:  tar --owner=0 --group=0 -czf RepertIA-<versione>-Linux.tar.gz RepertIA
+(gli script e 7zz devono avere il permesso di esecuzione).

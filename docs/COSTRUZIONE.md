@@ -7,12 +7,12 @@ indicate in [THIRD_PARTY_LICENSES.md](../THIRD_PARTY_LICENSES.md).
 ## Prima di ogni versione
 
 1. Numero di versione in: `src/forense_agent.py` (`APP_VERSION`), `build/windows/repertia.nsi` (`VER`),
-   `build/windows/LEGGIMI.txt` e `build/mac/LEGGIMI.txt` (prima riga), `build/mac/Info.plist`, `src/README.md`
+   `build/windows/LEGGIMI.txt`, `build/mac/LEGGIMI.txt` e `build/linux/LEGGIMI.txt` (prima riga), i README_EN.txt, `build/mac/Info.plist`, `src/README.md`
    (intestazione e nomi dei pacchetti), voce in `CHANGELOG.md`.
 2. `python3 -m py_compile src/*.py` (Python 3.12) e controllo del JavaScript dei due HTML
    (estrarre `<script>` e `node --check`). `python3 tools/lingua_controlla.py`: nessun testo senza traduzione in
    `src/lingua_en.json` e nessun segnaposto diverso.
-3. Collaudo su Mac e su Windows, in italiano e in inglese (`--lingua en`; vedi `collaudo/README.md`): tutti i controlli superati.
+3. Collaudo su Mac, Windows e Linux, in italiano e in inglese (`--lingua en`; vedi `collaudo/README.md`): tutti i controlli superati.
 4. `python3 tools/controlla_pubblicazione.py . --parole <elenco privato>`: nessun dato sensibile.
 
 ## Mac (Apple Silicon)
@@ -29,6 +29,18 @@ zip -qry -X RepertIA-<versione>-Mac.zip RepertIA      # -y conserva i link simbo
 
 Per una nuova versione basta estrarre lo zip precedente, sostituire i file di `Resources/RepertIA/`, aggiornare
 `Info.plist` e `LEGGIMI.txt` e ricomprimere.
+
+## Linux
+
+Struttura in [build/linux/COME_RICOSTRUIRE.txt](../build/linux/COME_RICOSTRUIRE.txt): cartella `RepertIA/` con gli script
+di `build/linux/` (`installa.sh`, `RepertIA.sh`, `collaudo.sh`, `aggiorna-strumenti.sh`, `requirements-linux.txt`,
+`repertia.png`, `LEGGIMI.txt`, `README_EN.txt`), `LICENSE`, `THIRD_PARTY_LICENSES.md`, `VALIDAZIONE.md`, `RepertIA/`
+(i file di `src/`), `strumenti/7zip/7zz` (7z2601-linux-x64.tar.xz) e `strumenti/tessdata` (come nel pacchetto Mac).
+Python, plaso e le librerie si installano sul computer di destinazione con `installa.sh`.
+
+```
+tar --owner=0 --group=0 -czf RepertIA-<versione>-Linux.tar.gz RepertIA     # script e 7zz eseguibili
+```
 
 ## Windows
 
@@ -68,10 +80,10 @@ risultato: `python3 nsis_x.py <nuovo>.exe prova/` e confronto con la cartella at
 
 ## Pubblicare una versione
 
-1. Collaudo su Mac e Windows e controllo dei dati: `python3 tools/controlla_pubblicazione.py .` (con `--parole` e un
+1. Collaudo su Mac, Windows e Linux e controllo dei dati: `python3 tools/controlla_pubblicazione.py .` (con `--parole` e un
    elenco privato, mai nel repository) deve dire «nessun dato sensibile».
 2. `git commit -s`, `git tag v<versione>`, `git push origin main v<versione>`.
-3. Release dal tag con: i pacchetti Mac e Windows, `RepertIA-collaudo.zip`, gli archivi dei sorgenti dei componenti
+3. Release dal tag con: i pacchetti Mac, Windows e Linux, `RepertIA-collaudo.zip`, gli archivi dei sorgenti dei componenti
    GPL/LGPL inclusi nei pacchetti Windows (vedi THIRD_PARTY_LICENSES.md) e `SHA256SUMS.txt`
    (`shasum -a 256 *.zip *.exe > SHA256SUMS.txt`).
 4. Nel testo della Release: le novità (dal CHANGELOG), cosa non è stato provato, il richiamo al collaudo.

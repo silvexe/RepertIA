@@ -1,7 +1,7 @@
 # RepertIA — By silvexe
 
 **Analisi forense di copie di dischi e pendrive con intelligenza artificiale locale.**
-Versione 2.19.0 · macOS (funziona anche su Linux) · interfaccia in italiano o in inglese
+Versione 2.19.0 · macOS, Windows e Linux (sperimentale) · interfaccia in italiano o in inglese
 
 RepertIA prende una copia forense (raw, dd, img o E01), la indicizza con strumenti forensi
 riconosciuti e permette di esaminarla in due modi complementari:
@@ -663,6 +663,8 @@ Nulla si aggiorna da solo, di proposito: ogni caso registra le versioni degli st
 Per aggiornare, tra un caso e l'altro e con internet, doppio clic su
 `Aggiorna strumenti.command`: mostra le versioni prima e dopo.
 
+**Versione 2.19.0 – pacchetto Linux (sperimentale)** - Nuovo pacchetto **`RepertIA-2.19.0-Linux.tar.gz`** per Linux x86_64 con Python 3.12 o successivo (Ubuntu 24.04+, Debian 13). Il programma non cambia: stessi file e stessa impronta dei pacchetti Mac e Windows 2.19.0. `installa.sh` installa con apt Sleuth Kit, libewf, PhotoRec, Poppler, ExifTool, Tesseract e zenity, crea in `python/` l'ambiente con plaso, libyal, pytsk3, Pillow e openai alle stesse versioni degli altri pacchetti (`requirements-linux.txt`) e aggiunge RepertIA al menu; `RepertIA.sh` avvia, `collaudo.sh` esegue il collaudo, `aggiorna-strumenti.sh` aggiorna gli strumenti di sistema. Inclusi 7-Zip 26.01 per Linux e i dati OCR. **Prova:** nell'ambiente Linux di sviluppo collaudo 112/112 in italiano e 112/112 in inglese, caso con plaso, analisi estese e OCR, interfaccia nel browser. **Non provato:** `installa.sh` su un computer reale (apt e PyPI), bulk_extractor, zenity, il client openai.
+
 **Versione 2.19.0** - Interfaccia e testi del caso **in italiano o in inglese**. Selettore della lingua in alto a destra (la pagina si ricarica); nel modulo del nuovo caso si sceglie la **lingua dei testi del caso** (artefatti, riepiloghi, report Markdown/Word/PDF, report portatile, CSV esportati), salvata in `case.json` e indicata nell'elenco dei casi e nel report (*Ambiente di analisi*); i casi precedenti restano in italiano. Cambia solo il testo: dati, hash, percorsi e valori letti dal disco non cambiano. Tecnica: i testi restano in italiano nei sorgenti e fanno da chiave (`tr()` nel Python, `T()`/`TF()` nelle pagine) del dizionario `lingua_en.json` (2.400 testi), incluso nell'impronta del programma; nuovo `tools/lingua_controlla.py` per i controlli; date e numeri delle pagine nel formato della lingua. **Collaudo** con `--lingua it|en` (in inglese accetta i titoli attesi tradotti). **Windows**: installer bilingue (scelta della lingua all'avvio, che diventa quella predefinita di RepertIA), `README_EN.txt` accanto a `LEGGIMI.txt`; nel Mac `README_EN.txt` nello zip. Il modello linguistico riceve le istruzioni e risponde nella lingua dell'interfaccia. **Prova:** collaudo 112/112 in italiano e 112/112 in inglese sul Mac; interfaccia e report portatile in inglese controllati sezione per sezione su un caso di prova. Collaudo eseguito anche su Windows. Il manuale e VALIDAZIONE.md restano in italiano.
 
 **Versione 2.18.1** - Correzioni di affidabilità su journal NTFS e registri eventi. **Journal NTFS: percorsi con il numero di sequenza.** La cartella di un'operazione si cercava solo per numero di record MFT: se quel record era stato riutilizzato da un'altra cartella, il file risultava nella cartella sbagliata (percorso plausibile ma falso). Ora il riferimento è completo (record e sequenza): il percorso attuale della MFT vale solo se il record è ancora quella cartella (sequenza uguale, o aumentata di 1 se il record è libero); altrimenti si usa il nome registrato nel journal per quel riferimento, altrimenti «cartella MFT n sequenza s: record poi riutilizzato da …». A parità di record vince la voce presente su quella cancellata. **Journal: limite e stato dichiarati.** Oltre 500.000 operazioni si tengono le più recenti e la nuova voce di sistema «Journal NTFS $UsnJrnl letto» dice quante, il periodo, quante sono state escluse e quante cartelle hanno il record riutilizzato o la sequenza non verificabile; un journal assente (disattivato) o non leggibile è dichiarato («Journal NTFS assente» / «non letto») invece di dare zero operazioni in silenzio. **Registri eventi: record recuperati e illeggibili.** I record ricavati dallo spazio libero del file .evtx sono indicati come «recuperato» (titolo, dettaglio e campo `recuperato`); quelli identici a un record attivo non si contano due volte (prima un accesso poteva risultare doppio); i record illeggibili si contano. La scheda dell'account dice quanti accessi e sessioni vengono da record recuperati; ogni registro letto ha una voce di sistema con record attivi, recuperati e illeggibili, e per gli eventi di sistema anche il limite di 20.000 se raggiunto; registri non estratti o non leggibili e modulo pyevtx mancante sono dichiarati. **Prova:** journal costruito (record v2 con cartella attuale, cartella riutilizzata nota e ignota al journal, cartella cancellata non riutilizzata, limite, sequenza non verificabile; journal assente e volume non apribile) e libevtx simulato (record attivi, recuperati, recuperati doppi, illeggibili) con accessi ed eventi di sistema. **Non provato:** pytsk3 reale (`open_meta(...).info.meta.seq`) e libevtx reale su un disco: rifare «Artefatti» su una copia reale e confrontare con MFTECmd / EvtxECmd.
@@ -962,6 +964,33 @@ in `%USERPROFILE%\CasiForensi`, le impostazioni in `%APPDATA%\RepertIA`.
   firmato digitalmente: *Ulteriori informazioni* → *Esegui comunque*.
 - Per ricostruire l'installer vedi `build/windows/COME_RICOSTRUIRE.txt` nel repository e `docs/COSTRUZIONE.md`.
 
+## Versione Linux (sperimentale)
+
+`RepertIA-2.19.0-Linux.tar.gz` è per **Linux x86_64** con Python 3.12 o successivo (Ubuntu 24.04 o
+successivo, Debian 13). Il programma è lo stesso delle versioni Mac e Windows (stessa impronta dei sorgenti).
+
+```
+tar -xzf RepertIA-2.19.0-Linux.tar.gz
+cd RepertIA
+./installa.sh          # una volta, con internet: chiede la password di amministratore
+./RepertIA.sh          # oppure dal menu delle applicazioni
+```
+
+- `installa.sh` installa con **apt** Sleuth Kit, libewf, PhotoRec, Poppler, ExifTool, Tesseract (con
+  l'italiano), zenity (finestre di scelta dei file) e, se la distribuzione lo ha, bulk_extractor; poi crea
+  in `python/` un ambiente con **plaso, le librerie libyal, pytsk3, Pillow e openai alle stesse versioni dei
+  pacchetti Mac e Windows** (`requirements-linux.txt`; le librerie libyal si compilano, 10-20 minuti) e
+  aggiunge RepertIA al menu. Il registro è in `installa.log`; lo script si può rieseguire.
+- Inclusi nell'archivio: 7-Zip 26.01 (`strumenti/7zip`) e i dati OCR italiano/inglese (`strumenti/tessdata`).
+- **Differenze rispetto a Mac e Windows**: gli strumenti forensi sono quelli della distribuzione, con le sue
+  versioni (riportate come sempre nel report, sezione *Ambiente di analisi*); bulk_extractor può mancare
+  in alcune distribuzioni (il carving usa allora PhotoRec); niente acquisizione da disco.
+- `./collaudo.sh` esegue il collaudo con la cartella `RepertIA-collaudo` (anche `--lingua en`);
+  `./aggiorna-strumenti.sh` mostra e aggiorna con apt le versioni degli strumenti.
+- **Sperimentale**: collaudata dall'autore in un ambiente Linux di sviluppo; prima dell'uso in un caso esegui
+  il collaudo sul tuo computer e conserva il rapporto.
+- Per ricostruire il pacchetto vedi `build/linux/COME_RICOSTRUIRE.txt` nel repository.
+
 ## Da terminale
 
 ```
@@ -1028,7 +1057,7 @@ Copyright (C) 2026 silvexe. RepertIA è software libero, rilasciato con licenza 
 
 ## Validazione
 
-Versione del programma: 2.19.0 · Documento aggiornato al 23/10/2026
+Versione del programma: 2.19.0 · Documento aggiornato al 24/10/2026
 
 Questo documento descrive **come è stato verificato RepertIA, con quali dati, con quali risultati e con quali
 limiti noti**. Serve a chi usa il programma in una consulenza per dichiarare l'affidabilità del metodo
@@ -1079,13 +1108,16 @@ di un Mac (plist, sqlite con WAL, bookmark); APFS (dfvfs) in chiaro e cifrato co
 | 2.16.0 | Windows dell'utente | tutti superati |
 | 2.16.0 | Mac dell'utente | 110/112: doppia conversione del fuso FAT (DFTT 5) dovuta a un errore di Sleuth Kit su macOS → corretto nella 2.16.1, verificato nel container (50/50 anche con simulazione Mac e Windows) |
 | 2.17.x – 2.19.0 | Windows dell'utente | tutti superati |
+| 2.19.0 | Linux: ambiente di sviluppo (Ubuntu 24.04, Python 3.13; Sleuth Kit 4.15.0, PhotoRec 7.2 e libewf 20140814 compilati dai sorgenti; senza bulk_extractor) | 112/112 in italiano e 112/112 in inglese (46/46 su immagini pubbliche); carving DFTT 11: 13/15 come sul Mac |
 
 Carving DFTT 11: 2 file su 15 (enterprise.wav, haxor2.jpg) non vengono recuperati da PhotoRec: è un limite di
 PhotoRec, dichiarato come «misura» e non come requisito.
 
-**Da fare a ogni nuova versione:** eseguire il collaudo su Mac e su Windows prima dell'uso in un caso e conservare
+**Da fare a ogni nuova versione:** eseguire il collaudo su Mac, Windows e Linux prima dell'uso in un caso e conservare
 il rapporto `collaudo_<data>.md` con la consulenza. Collaudo completo sul Mac: 2.18.1 112/112; 2.19.0 112/112 in italiano e
 112/112 in inglese. Collaudo completo eseguito dall'autore anche su Windows per le versioni dalla 2.17.x alla 2.19.0.
+**Linux (sperimentale, 2.19.0)**: collaudo superato nell'ambiente Linux di sviluppo; da ripetere su un computer Linux
+installato con `installa.sh` prima dell'uso in un caso.
 
 ### 3. Verifiche su copie reali
 
@@ -1158,6 +1190,13 @@ Nella **2.19.0** (lingua): i testi prodotti dal programma si traducono con un di
 toccare dati, hash, percorsi e valori letti dal disco; la lingua di un caso si sceglie alla creazione e resta quella.
 Collaudo completo eseguito in entrambe le lingue sul Mac e anche su Windows. Sul Mac: 112/112 in italiano, 112/112 in inglese (il collaudo in
 inglese riconosce i titoli attesi tradotti). Il dizionario è incluso nell'impronta del programma.
+
+**Pacchetto Linux (2.19.0)**: stessi file del programma dei pacchetti Mac e Windows (impronta identica,
+`6d5b05c9…`). Prove nell'ambiente Linux di sviluppo: collaudo 112/112 in italiano e in inglese; caso con plaso
+(log2timeline 20260720, modalità multiprocesso con pyzmq), analisi estese e OCR su DFTT 7 (NTFS); interfaccia aperta nel
+browser senza errori. **Non provati**: `installa.sh` con apt e PyPI su un computer reale (l'ambiente di sviluppo non
+raggiunge PyPI: i moduli sono stati compilati dai sorgenti alle stesse versioni), bulk_extractor, finestre di scelta
+dei file con zenity, il client openai (modello linguistico).
 
 
 ### 7. Controllo delle modifiche

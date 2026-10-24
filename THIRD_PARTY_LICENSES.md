@@ -37,7 +37,15 @@ L'app contiene Python 3.12 (python-build-standalone), i moduli Python elencati s
 e i dati di Tesseract. Sleuth Kit, libewf, PhotoRec, Poppler, ExifTool, Tesseract e bulk_extractor **non sono inclusi**:
 li installa Homebrew al primo avvio dai rispettivi progetti, con le loro licenze.
 
-## Moduli Python inclusi (Mac e Windows)
+## Pacchetto Linux
+
+L'archivio contiene i file di RepertIA, 7-Zip 26.01 per Linux x64 (`strumenti/7zip/7zz`, licenze come sopra, con
+`License.txt`) e i dati di Tesseract (`strumenti/tessdata`, Apache-2.0). **Python e i moduli non sono inclusi**: lo script
+`installa.sh` li scarica da PyPI sul computer dell'utente, alle versioni elencate sotto (`requirements-linux.txt`, più
+`xattr`, MIT). Sleuth Kit, libewf, PhotoRec, Poppler, ExifTool, Tesseract e bulk_extractor vengono dalla distribuzione
+Linux (apt), con le loro licenze.
+
+## Moduli Python inclusi (Mac e Windows; installati da `installa.sh` su Linux)
 
 | Modulo | Versione | Licenza |
 |---|---|---|

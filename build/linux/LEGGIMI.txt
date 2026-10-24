@@ -1,0 +1,52 @@
+RepertIA 2.19.0 - By silvexe (Linux x86_64)
+Analisi forense di copie di dischi con un modello linguistico (LLM) locale.
+
+VERSIONE LINUX (SPERIMENTALE)
+Stesso programma delle versioni Mac e Windows (stessa impronta dei sorgenti). Il collaudo è stato
+eseguito dall'autore in un ambiente Linux di sviluppo; prima dell'uso in un caso esegui il collaudo
+sul tuo computer (vedi sotto) e conserva il rapporto.
+Sistemi: Ubuntu 24.04 o successivo, Debian 13 o altre distribuzioni con Python 3.12 o successivo,
+processore Intel/AMD a 64 bit.
+
+LINGUA
+L'interfaccia è in italiano o in inglese: si sceglie con il selettore in alto a destra.
+Ogni caso mantiene la lingua scelta alla sua creazione (artefatti e report). In inglese: README_EN.txt.
+
+INSTALLAZIONE
+1. Estrai l'archivio dove preferisci (ad esempio nella cartella personale):
+     tar -xzf RepertIA-2.19.0-Linux.tar.gz
+2. Apri un terminale nella cartella RepertIA ed esegui:
+     ./installa.sh
+   Serve internet e la password di amministratore. Lo script:
+   - installa con apt Sleuth Kit, libewf, PhotoRec, Poppler, ExifTool, Tesseract (OCR) e zenity
+     (finestre di scelta dei file) e, se la distribuzione lo ha, bulk_extractor;
+   - crea in python/ l'ambiente Python con plaso, le librerie libyal, pytsk3, Pillow e il client
+     openai, alle stesse versioni dei pacchetti Mac e Windows (requirements-linux.txt); le librerie
+     libyal si compilano: servono 10-20 minuti;
+   - aggiunge RepertIA al menu delle applicazioni.
+   Il registro dell'installazione è in installa.log. Lo script si può rieseguire.
+3. Avvia RepertIA dal menu delle applicazioni oppure con ./RepertIA.sh: si apre il browser.
+
+Inclusi nell'archivio: 7-Zip 26.01 (strumenti/7zip) e i dati OCR italiano/inglese (strumenti/tessdata).
+Gli strumenti di sistema si aggiornano con ./aggiorna-strumenti.sh; le versioni effettivamente usate
+sono sempre riportate nel report del caso (sezione Ambiente di analisi).
+
+RISERVATEZZA
+RepertIA lavora solo su questo computer: la copia forense è aperta in sola lettura e i dati
+del caso non vengono inviati a terzi. L'interfaccia ascolta solo su 127.0.0.1. Unica eccezione
+voluta: se nel riquadro "Server LLM" scegli "Server in rete", domande e contenuti letti
+dall'agente vanno a quel server della rete interna (il report lo indica).
+
+I casi stanno in ~/CasiForensi.
+
+INTEGRITA' E COLLAUDO
+- Il caso confronta l'hash dei dati con quello di acquisizione registrato nell'E01 o nel log
+  dell'acquisitore (FTK Imager, Guymager...); il registro del caso è a catena di hash.
+- ./collaudo.sh: con la cartella RepertIA-collaudo (dallo zip RepertIA-collaudo.zip, accanto a
+  questo file, sulla Scrivania o in Scaricati) verifica che RepertIA dia i risultati attesi su
+  immagini di riferimento (anche quelle pubbliche DFTT, con i valori pubblicati) e scrive il
+  rapporto in ~/CasiForensi/_collaudo. Con ./collaudo.sh --lingua en i casi di prova sono in inglese.
+- RISCONTRO: pulsante "Riscontro con altro strumento" nel caso: confronta i file e gli hash con
+  l'elenco esportato da Autopsy, FTK Imager, X-Ways... sulla stessa copia.
+
+Progetto personale di silvexe, realizzato a titolo privato e non collegato ad alcun ufficio o amministrazione. Sviluppato con l'ausilio di Claude, modello di intelligenza artificiale di Anthropic; scelte, verifiche e collaudi sono dell'autore.

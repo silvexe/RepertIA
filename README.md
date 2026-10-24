@@ -3,7 +3,8 @@
 **Analisi forense di copie di dischi e pendrive, con intelligenza artificiale locale e offline.**
 *Forensic analysis of disk images with a local, offline AI assistant — Italian or English user interface (English summary below).*
 
-RepertIA analizza copie forensi (E01, raw/dd, dmg) da un'unica interfaccia web locale, su Mac Apple Silicon o Windows.
+RepertIA analizza copie forensi (E01, raw/dd, dmg) da un'unica interfaccia web locale, su Mac Apple Silicon, Windows o
+Linux (sperimentale).
 Usa strumenti forensi riconosciuti (The Sleuth Kit, libewf, plaso, PhotoRec, bulk_extractor, ExifTool, libyal) e ne
 raccoglie i risultati in un caso consultabile con filtri, timeline e anteprime. Un modello linguistico che gira sul
 computer dell'analista (facoltativo) risponde a domande in italiano citando file, offset e inode.
@@ -39,12 +40,12 @@ Documentazione completa (in italiano): [src/README.md](src/README.md). Metodo, c
 
 I pacchetti pronti sono nella sezione **Releases**:
 
-| | Mac (Apple Silicon) | Windows 10/11 64 bit |
-|---|---|---|
-| Pacchetto | `RepertIA-<versione>-Mac.zip` (app con Python, plaso e librerie) | `RepertIA-<versione>-Setup.exe` (senza diritti di amministratore) oppure `RepertIA-<versione>-Windows.zip` portatile |
-| Strumenti esterni | installati al primo avvio con Homebrew | inclusi |
-| Collaudo | `RepertIA-collaudo.zip` + *Collaudo RepertIA.command* | stesso zip, menu Start › RepertIA › Collaudo |
-| Modello IA (facoltativo) | LM Studio, llama-server o Ollama, sullo stesso computer o in rete interna | come Mac |
+| | Mac (Apple Silicon) | Windows 10/11 64 bit | Linux x86_64 (sperimentale) |
+|---|---|---|---|
+| Pacchetto | `RepertIA-<versione>-Mac.zip` (app con Python, plaso e librerie) | `RepertIA-<versione>-Setup.exe` (senza diritti di amministratore) oppure `RepertIA-<versione>-Windows.zip` portatile | `RepertIA-<versione>-Linux.tar.gz` + `./installa.sh` (Ubuntu 24.04+, Debian 13) |
+| Strumenti esterni | installati al primo avvio con Homebrew | inclusi | installati con apt da `installa.sh`, che prepara anche Python, plaso e le librerie |
+| Collaudo | `RepertIA-collaudo.zip` + *Collaudo RepertIA.command* | stesso zip, menu Start › RepertIA › Collaudo | stesso zip, `./collaudo.sh` |
+| Modello IA (facoltativo) | LM Studio, llama-server o Ollama, sullo stesso computer o in rete interna | come Mac | come Mac |
 
 **Consiglio:** subito dopo l'installazione esegui il collaudo e conserva il rapporto `collaudo_<data>.md`:
 dimostra che su quel computer, con quelle versioni, il programma dà i risultati attesi.
@@ -95,7 +96,8 @@ cosa cambia, come è stata provata e cosa non è stato provato.
 
 ## English summary
 
-RepertIA is a desktop forensic analysis tool for disk images (E01, raw/dd, dmg) on Apple Silicon Macs and Windows.
+RepertIA is a desktop forensic analysis tool for disk images (E01, raw/dd, dmg) on Apple Silicon Macs, Windows and
+Linux (experimental).
 It wraps established open-source forensic tools (The Sleuth Kit, libewf, plaso, PhotoRec, bulk_extractor, ExifTool,
 libyal) behind a local web interface and optionally lets an analyst ask questions to a **local** LLM (LM Studio,
 llama-server, Ollama) that answers with references to files, offsets and inodes. Nothing leaves the machine.

@@ -8,7 +8,7 @@ THIRD_PARTY_LICENSES.md).
 ## Eseguirlo
 
 1. Estrai `RepertIA-collaudo.zip` sul Desktop (si crea la cartella `RepertIA-collaudo`).
-2. Mac: doppio clic su *Collaudo RepertIA.command* accanto all'app. Windows: menu Start › RepertIA › Collaudo.
+2. Mac: doppio clic su *Collaudo RepertIA.command* accanto all'app. Windows: menu Start › RepertIA › Collaudo. Linux: `./collaudo.sh` nella cartella di RepertIA.
    Dai sorgenti: `python3 src/forense_collaudo.py <cartella RepertIA-collaudo> <cartella di uscita>`.
 3. Il rapporto `collaudo_<data>.md` riporta l'esito di ogni controllo, le versioni degli strumenti e l'impronta del
    programma. Conservalo; **non pubblicare** i rapporti fatti sul tuo computer se contengono percorsi personali.
