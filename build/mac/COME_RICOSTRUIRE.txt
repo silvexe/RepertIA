@@ -1,0 +1,21 @@
+Pacchetto Mac Apple Silicon (RepertIA-2.5-Mac.zip)
+
+RepertIA/
+  RepertIA.app/Contents/Info.plist
+  RepertIA.app/Contents/MacOS/RepertIA         (= RepertIA_eseguibile: apre avvia.command nel Terminale)
+  RepertIA.app/Contents/Resources/avvia.command   (controlla Homebrew, avvia python/bin/python3 forense_gui.py)
+  RepertIA.app/Contents/Resources/repertia.icns
+  RepertIA.app/Contents/Resources/RepertIA/      forense_agent.py, forense_gui.py, forense_gui.html,
+       forense_portatile.py, forense_portatile.html, forense_estesa.py, forense_apfs.py, forense_collaudo.py, forense_riscontro.py, forense_lingua.py,
+       lingua_en.json (dizionario inglese), README.md
+  RepertIA.app/Contents/Resources/python/        cpython-3.12.x-aarch64-apple-darwin-install_only_stripped
+       + in lib/python3.12/site-packages: openai, pillow, plaso==20260720 e dipendenze
+         (wheel macosx arm64 cp312 scaricati con --no-deps; acstore, artifacts, dfwinreg, dtfabric dai sorgenti)
+       + libpff-python (pypff) wheel cp312 macosx_11_0_arm64 estratto in site-packages
+  RepertIA.app/Contents/Resources/strumenti/7zip/7zz        (7z2601-mac.tar.xz, binario universale)
+  RepertIA.app/Contents/Resources/strumenti/tessdata/       eng, ita, osd .traineddata (tessdata_fast)
+       (tesseract stesso viene da Homebrew, installato da avvia.command)
+  Aggiorna strumenti.command
+  Collaudo RepertIA.command      (2.14: collaudo con la cartella RepertIA-collaudo)
+  LEGGIMI.txt, README_EN.txt (in inglese)
+Zip con: zip -qry -X RepertIA-2.5-Mac.zip RepertIA   (-y conserva i link simbolici di Python)

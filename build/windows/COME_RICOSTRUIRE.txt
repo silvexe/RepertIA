@@ -1,0 +1,37 @@
+Come ricostruire l'installer Windows di RepertIA
+
+Struttura installata (cartella app\ dell'installer):
+  RepertIA.bat, Aggiorna strumenti.bat, Collaudo.bat (2.14), LEGGIMI.txt, README_EN.txt, repertia.ico
+  RepertIA\    forense_agent.py, forense_gui.py, forense_gui.html, forense_portatile.py,
+               forense_portatile.html, forense_estesa.py, forense_apfs.py, forense_collaudo.py, forense_riscontro.py, forense_lingua.py,
+       lingua_en.json (dizionario inglese), README.md (gli stessi del Mac)
+  python\      Python 3.12 per Windows (python-build-standalone, install_only_stripped)
+               + in Lib\site-packages i pacchetti openai e pillow (pip download --platform win_amd64)
+               + plaso==20260720 e dipendenze: wheel win_amd64 scaricati uno per uno con --no-deps
+                 (escluso xattr, solo Mac/Linux); acstore, artifacts, dfwinreg, dtfabric come wheel
+                 costruiti dai sorgenti (puro Python). Si avvia con python -m plaso.scripts.log2timeline
+               + tzdata (wheel py3-none-any, estratto in Lib\site-packages): senza, zoneinfo non trova
+                 Europe/Rome su Windows e le date in ora italiana userebbero la regola UE semplificata (dal 2.13.7)
+               + libpff-python (pypff, posta PST/OST): wheel cp312 win_amd64 estratto in site-packages
+                 (le altre libyal - pyregf, pyscca, pylnk, pyolecf, pyvshadow, pybde, pyluksde,
+                 pyfvde, pyfsapfs, pytsk3, pyewf - arrivano già con plaso)
+  strumenti\sleuthkit\bin      sleuthkit-x.y-win32.zip (cartella bin)
+  strumenti\exiftool           exiftool-xx_64.zip, con "exiftool(-k).exe" rinominato exiftool.exe
+  strumenti\poppler            Release-xx.zip di poppler-windows (Library\bin)
+  strumenti\testdisk           testdisk-x.win64.zip, con photorec_win.exe copiato come photorec.exe
+  strumenti\7zip               7z.exe e 7z.dll da 7z2601-x64.exe (estratto con 7z x)
+  strumenti\tesseract          tesseract.exe e solo le DLL che usa (dall'installer UB Mannheim
+                               tesseract-ocr-w64-setup-5.4.0, estratto con 7z x; elenco ricavato con
+                               objdump -p); libtesseract-5.dll ridotta con strip --strip-debug
+  strumenti\tessdata           eng, ita, osd .traineddata (github.com/tesseract-ocr/tessdata_fast)
+  strumenti\bulk_extractor    bulk_extractor.exe (v2.2.0, cross-compilato su Linux con MinGW-w64 posix,
+                               tutto statico, solo DLL di sistema) + LICENSE.md, COPYING e licenses\
+                               Ricetta: .github/workflows/mingw.yml del repository simsong/bulk_extractor
+                               (tag v2.2.0): abseil 20260107.1, re2 2025-11-05, expat 2.8.2 e
+                               libewf-20140814 (legacy) compilati statici; poi
+                               ../configure --host=x86_64-w64-mingw32 e make LDFLAGS=-all-static.
+                               L'exe prodotto va rinominato bulk_extractor.exe e ridotto con
+                               x86_64-w64-mingw32-strip --strip-debug.
+
+Compilazione (Linux con nsis, o Windows con NSIS):
+  makensis -DVER=2.6 repertia.nsi     -> RepertIA-2.6-Setup.exe

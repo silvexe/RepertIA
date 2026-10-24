@@ -1,0 +1,40 @@
+RepertIA 2.19.0 - By silvexe (Mac Apple Silicon)
+Analisi forense di copie di dischi con un modello linguistico (LLM) locale.
+
+LINGUA
+L'interfaccia è in italiano o in inglese: si sceglie con il selettore in alto a destra.
+Ogni caso mantiene la lingua scelta alla sua creazione (artefatti e report); i casi creati
+con le versioni precedenti sono in italiano. In inglese: README_EN.txt.
+
+INSTALLAZIONE
+1. Trascina RepertIA.app nella cartella Applicazioni (o dove preferisci).
+2. Primo avvio: tasto destro su RepertIA.app > Apri > Apri. Se macOS lo blocca comunque,
+   vai in Impostazioni di Sistema > Privacy e sicurezza e premi "Apri comunque".
+   (L'app non è firmata con un certificato Apple.)
+3. Si apre il Terminale: al primo avvio installa con Homebrew (serve internet)
+   Sleuth Kit, libewf, exiftool, poppler, PhotoRec, bulk_extractor e Tesseract (OCR).
+   Poi si apre il browser.
+
+Python, openai, Pillow, plaso (timeline di sistema), 7-Zip (archivi), le librerie per posta
+Outlook, copie shadow, volumi cifrati e volumi APFS dei Mac e i dati OCR italiano/inglese sono già inclusi
+nell'app: non serve Docker. Per aggiornare gli strumenti di Homebrew usa "Aggiorna strumenti.command".
+
+RISERVATEZZA
+RepertIA lavora solo su questo computer: la copia forense è aperta in sola lettura e i dati
+del caso non vengono inviati a terzi. Unica eccezione voluta: se nel riquadro "Server LLM"
+scegli "Server in rete", domande e contenuti letti dall'agente vanno a quel server della
+rete interna (il report lo indica).
+
+I casi stanno in ~/CasiForensi (anche quelli creati con le versioni precedenti).
+
+INTEGRITA' E COLLAUDO (2.14)
+- Il caso confronta l'hash dei dati con quello di acquisizione registrato nell'E01 o nel log
+  dell'acquisitore (FTK Imager, Guymager...); il registro del caso è a catena di hash.
+- "Collaudo RepertIA.command": con la cartella RepertIA-collaudo (dallo zip
+  RepertIA-collaudo.zip, accanto all'app, sulla Scrivania o in Download) verifica che RepertIA
+  dia i risultati attesi su immagini di riferimento (anche quelle pubbliche DFTT, con i valori
+  pubblicati) e scrive il rapporto in ~/CasiForensi/_collaudo.
+- RISCONTRO (2.15): pulsante "Riscontro con altro strumento" nel caso: confronta i file e gli
+  hash con l'elenco esportato da Autopsy, FTK Imager, X-Ways... sulla stessa copia.
+
+Progetto personale di silvexe, realizzato a titolo privato e non collegato ad alcun ufficio o amministrazione. Sviluppato con l'ausilio di Claude, modello di intelligenza artificiale di Anthropic; scelte, verifiche e collaudi sono dell'autore.

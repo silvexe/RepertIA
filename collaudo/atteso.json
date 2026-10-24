@@ -1,0 +1,140 @@
+{
+  "set": "RepertIA – immagini di riferimento sintetiche e dfvfs",
+  "fonte": "immagini preparate per RepertIA (sintetiche) e immagini di prova del progetto dfvfs; valori attesi ricavati con strumenti indipendenti (md5sum, sha256sum, ewfinfo, icat di Sleuth Kit)",
+  "indipendente": false,
+  "nota": "Valori attesi ricavati con strumenti indipendenti: md5sum/sha1sum del disco di origine, sha256sum dei file messi nelle immagini, icat di Sleuth Kit per APFS. Le immagini apfs*.raw/dmg e bdetogo.raw sono i dati di prova pubblici del progetto dfvfs (log2timeline).",
+  "prove": [
+    {
+      "nome": "01_E01_integro",
+      "immagine": "ext4e01.E01",
+      "opzioni": [
+        "--no-indice"
+      ],
+      "descrizione": "E01 (ewfacquire) di un disco ext4 con tre JPEG, uno cancellato, un testo e /etc/timezone = Asia/Kolkata.",
+      "atteso": {
+        "hash_esito": "corrisponde",
+        "hash_md5": "1a8d39ae1ce89b189a47a18fc1d453f5",
+        "hash_sha1": "8c89d55b351c985666787ef2b0ecc2cf2a258014",
+        "partizioni_leggibili": 1,
+        "file_system": "Ext4",
+        "file_sha256": {
+          "docs/f0.jpg": "13181ff799ac9a8c2af3dcea866dde1277cec32ca564846bcbd752c0021e1ba1",
+          "docs/f2.jpg": "0b63e84460e568be33be3156a9d491b097a365aaafb8fceeeb838ce4c30d96d2",
+          "docs/nota.txt": "690c4fb11c6157b1fdd2eaca1c72458c21ef583d90d883707037e0a621387533"
+        },
+        "file_cancellati": [
+          "docs/f1.jpg"
+        ],
+        "fuso": "Asia/Kolkata",
+        "manomissione_registro": true
+      }
+    },
+    {
+      "nome": "02_E01_alterato",
+      "immagine": "ext4_alterato.E01",
+      "opzioni": [
+        "--no-indice"
+      ],
+      "descrizione": "Lo stesso E01 con 4 byte dei dati modificati dopo l'acquisizione: la verifica deve segnalarlo.",
+      "atteso": {
+        "hash_esito": "diverso"
+      }
+    },
+    {
+      "nome": "03_raw_con_log_FTK",
+      "immagine": "pendrive.dd",
+      "opzioni": [
+        "--no-indice"
+      ],
+      "descrizione": "Copia raw (dd) con il log di acquisizione in stile FTK Imager accanto (pendrive.dd.txt).",
+      "atteso": {
+        "hash_esito": "corrisponde",
+        "hash_md5": "1a8d39ae1ce89b189a47a18fc1d453f5",
+        "partizioni_leggibili": 1
+      }
+    },
+    {
+      "nome": "04_Mac_volume_Dati",
+      "immagine": "mac_dati.raw",
+      "opzioni": [
+        "--no-indice",
+        "--estese"
+      ],
+      "descrizione": "Struttura del volume Dati di un Mac (senza SystemVersion.plist, come nei Mac da Catalina in poi) con utente, reti, quarantena, LaunchAgents, TCC, iMessage solo nel -wal, documenti recenti (.sfl2), Safari, KnowledgeC, Bluetooth, Finder, Time Machine.",
+      "atteso": {
+        "hash_esito": "nessun_hash_di_acquisizione",
+        "fuso": "America/New_York",
+        "artefatti_titoli": [
+          "Account mario",
+          "Rete Wi-Fi: CasaRossi",
+          "https://evil.example/payload.zip",
+          "com.malware.updater",
+          "com.evil.agent",
+          "SystemPolicyAllFiles: com.evil.agent",
+          "Ci vediamo alle 10",
+          "Porta i documenti",
+          "/Users/mario/Documents/Contratto_segreto.docx",
+          "~/Downloads/tool.dmg",
+          "/app/inFocus: com.apple.Safari",
+          "AirPods di Mario",
+          "KINGSTON",
+          "Disco di backup: Backup Mario",
+          "Nome del computer: MacBook di Mario",
+          "Ultimo utente che ha effettuato l'accesso: mario",
+          "ssh root@10.0.0.5"
+        ],
+        "artefatti_min": {
+          "messaggi": 2,
+          "avvio": 2,
+          "download": 2
+        }
+      }
+    },
+    {
+      "nome": "05_APFS",
+      "immagine": "apfs.raw",
+      "opzioni": [
+        "--no-indice"
+      ],
+      "descrizione": "Contenitore APFS non cifrato (dfvfs): lettura con libfsapfs confrontata con icat di Sleuth Kit.",
+      "atteso": {
+        "partizioni_leggibili": 1,
+        "file_system": "APFS",
+        "file_sha256": {
+          "passwords.txt": "02a2a6af2f1ecf4720d7d49d640f0d0a269a7ec733e41973bdd34f09dad0e252",
+          "a_directory/another_file": "c7fbc0e821c0871805a99584c6a384533909f68a6bbe9a2a687d28d9f3b10c16"
+        }
+      }
+    },
+    {
+      "nome": "06_APFS_cifrato",
+      "immagine": "apfs_encrypted.dmg",
+      "opzioni": [
+        "--no-indice"
+      ],
+      "ambiente": {
+        "REPERTIA_APFS_SECRETS": "[{\"tipo\":\"password\",\"valore\":\"apfs-TEST\"}]"
+      },
+      "descrizione": "Volume APFS cifrato (FileVault) sbloccato con la password apfs-TEST.",
+      "atteso": {
+        "partizioni_leggibili": 1,
+        "file_system": "APFS",
+        "file_sha256": {
+          "passwords.txt": "02a2a6af2f1ecf4720d7d49d640f0d0a269a7ec733e41973bdd34f09dad0e252"
+        }
+      }
+    },
+    {
+      "nome": "07_BitLocker_To_Go",
+      "immagine": "bdetogo.raw",
+      "opzioni": [
+        "--no-indice"
+      ],
+      "puo_fallire": true,
+      "descrizione": "Pendrive BitLocker To Go (dfvfs): il volume cifrato deve essere segnalato, non analizzato come un FAT vuoto.",
+      "atteso": {
+        "volumi_cifrati_min": 1
+      }
+    }
+  ]
+}

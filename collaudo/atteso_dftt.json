@@ -1,0 +1,263 @@
+{
+  "set": "DFTT – Digital Forensics Tool Testing Images (dftt.sourceforge.net)",
+  "fonte": "valori pubblicati sulle pagine del progetto DFTT (https://dftt.sourceforge.net), immagini riconosciute dal loro MD5 pubblicato",
+  "indipendente": true,
+  "nota": "Le immagini DFTT (licenza GPL, file COPYING-GNU negli zip) sono incluse nello zip di collaudo così come scaricate da SourceForge: il collaudo le estrae e riconosce ogni immagine dal suo MD5 pubblicato. Se mancano, si scaricano da https://sourceforge.net/projects/dftt/files/ e si mettono, senza estrarle, nella cartella RepertIA-collaudo. Le voci «misura» sono limiti noti degli strumenti basati sul file system e non contano nell'esito.",
+  "prove": [
+    {
+      "nome": "DFTT_05_FAT_ora_legale",
+      "md5_immagine": "9fb582f3361ba0bc5a3b0f7c17a082cb",
+      "opzioni": [
+        "--no-indice",
+        "--fuso",
+        "Europe/Rome"
+      ],
+      "scarica": "https://dftt.sourceforge.net/test5/index.html",
+      "descrizione": "FAT: due file creati in inverno e in estate; l'ora mostrata nel fuso del dispositivo deve essere quella scritta, senza lo spostamento di un'ora dell'ora legale.",
+      "atteso": {
+        "ora_dispositivo": [
+          {
+            "path": "winter.txt",
+            "evento": "B",
+            "atteso": "2004-01-01 14:00"
+          },
+          {
+            "path": "summer.txt",
+            "evento": "B",
+            "atteso": "2004-06-01 15:00"
+          }
+        ]
+      }
+    },
+    {
+      "nome": "DFTT_06_FAT_cancellati",
+      "md5_immagine": "4aeb06ecd361777242ab78735d51ace6",
+      "opzioni": [
+        "--no-indice"
+      ],
+      "scarica": "http://prdownloads.sourceforge.net/dftt/6-undel-fat.zip?download",
+      "descrizione": "FAT: recupero di file cancellati (singolo cluster, più cluster, frammentati, in cartelle cancellate).",
+      "atteso": {
+        "cancellati_md5": [
+          {
+            "nome": "\\sing.dat",
+            "md5": "59b20779f69ff9f0ac5fcd2c38835a79"
+          },
+          {
+            "nome": "\\mult1.dat",
+            "md5": "ffd27bd782bdce67750b6b9ee069d2ef"
+          },
+          {
+            "nome": "\\frag1.dat",
+            "md5": "7a3bc5b763bef201202108f4ba128149",
+            "misura": true,
+            "nota": "file frammentato: nella FAT cancellata la catena dei cluster è azzerata, gli strumenti basati sul file system ricostruiscono solo cluster contigui"
+          },
+          {
+            "nome": "\\frag2.dat",
+            "md5": "0e80ab84ef0087e60dfc67b88a1cf13e",
+            "misura": true,
+            "nota": "file frammentato (vedi sopra)"
+          },
+          {
+            "nome": "\\dir1\\mult2.dat",
+            "md5": "59cf0e9cd107bc1e75afb7374f6e05bb"
+          },
+          {
+            "nome": "\\dir1\\dir2\\frag3.dat",
+            "md5": "21121699487f3fbbdb9a4b3391b6d3e0",
+            "misura": true,
+            "nota": "file frammentato in cartelle cancellate (vedi sopra)"
+          }
+        ]
+      }
+    },
+    {
+      "nome": "DFTT_07_NTFS_cancellati",
+      "md5_immagine": "e7dbb96759d9cd62b729463ebfe61dab",
+      "opzioni": [
+        "--no-indice"
+      ],
+      "scarica": "http://prdownloads.sourceforge.net/dftt/7-undel-ntfs.zip?download",
+      "descrizione": "NTFS: recupero di file cancellati (residente, singolo, più cluster, flusso alternativo ADS, frammentati, in cartelle cancellate).",
+      "atteso": {
+        "cancellati_md5": [
+          {
+            "nome": "\\res1.dat",
+            "md5": "9036637712b491904cd0bfbdbe648453"
+          },
+          {
+            "nome": "\\sing1.dat",
+            "md5": "59b20779f69ff9f0ac5fcd2c38835a79"
+          },
+          {
+            "nome": "\\mult1.dat",
+            "md5": "ffd27bd782bdce67750b6b9ee069d2ef"
+          },
+          {
+            "nome": "\\mult1.dat:ADS",
+            "md5": "ba1b9eedb1c091ddca253d35dde8f616"
+          },
+          {
+            "nome": "\\frag1.dat",
+            "md5": "7a3bc5b763bef201202108f4ba128149"
+          },
+          {
+            "nome": "\\frag2.dat",
+            "md5": "0e80ab84ef0087e60dfc67b88a1cf13e"
+          },
+          {
+            "nome": "\\dir1\\mult2.dat",
+            "md5": "59cf0e9cd107bc1e75afb7374f6e05bb"
+          },
+          {
+            "nome": "\\dir1\\dir2\\frag3.dat",
+            "md5": "21121699487f3fbbdb9a4b3391b6d3e0"
+          },
+          {
+            "nome": "\\dir3\\sing2.dat",
+            "md5": "c229626f6a71b167ad7e50c4f2fccdb1"
+          }
+        ]
+      }
+    },
+    {
+      "nome": "DFTT_08_NTFS_JPEG",
+      "md5_immagine": "9bdb9c76b80e90d155806a1fc7846db5",
+      "opzioni": [
+        "--estese"
+      ],
+      "scarica": "http://prdownloads.sourceforge.net/dftt/8-jpeg-search.zip?download",
+      "descrizione": "NTFS: JPEG con estensione giusta o sbagliata, cancellati, dentro archivi ZIP e tar.gz, in un flusso ADS, in un documento Word.",
+      "atteso": {
+        "file_md5": {
+          "alloc/file1.jpg": "75b8d00568815a36c3809b46fc84ba6d",
+          "alloc/file2.dat": "de5d83153339931371719f4e5c924eba",
+          "invalid/file3.jpg": "1ba4e91591f0541eda255ee26f7533bc",
+          "invalid/file4.jpg": "c8de721102617158e8492121bdad3711",
+          "invalid/file5.rtf": "86f14fc525648c39d878829f288c0543",
+          "archive/file8.zip": "d41b56e0a9f84eb2825e73c24cedd963",
+          "archive/file9.boo": "73c3029066aee9416a5aeb98a5c55321",
+          "archive/file10.tar.gz": "d4f8cf643141f0c2911c539750e18ef2",
+          "misc/file11.dat": "f407ab92da959c7ab03292cfe596a99d",
+          "misc/file12.doc": "61c0b55639e52d1ce82aba834ada2bab",
+          "misc/file13.dll:here": "9b787e63e3b64562730c5aecaab1e1f8"
+        },
+        "cancellati_md5": [
+          {
+            "nome": "\\del1\\file6.jpg",
+            "md5": "afd55222024a4e22f7f5a3a665320763"
+          },
+          {
+            "nome": "\\del2\\file7.hmm",
+            "md5": "0c452c5800fcfa7c66027ae89c4f068a"
+          }
+        ],
+        "estratti_md5": [
+          {
+            "nome": "file8.jpg (in file8.zip)",
+            "md5": "f9956284a89156ef6967b49eced9d1b1"
+          },
+          {
+            "nome": "file9.jpg (in file9.boo, ZIP con estensione diversa: riconosciuto dal contenuto)",
+            "md5": "c5a6917669c77d20f30ecb39d389eb7d"
+          },
+          {
+            "nome": "file10.jpg (in file10.tar.gz)",
+            "md5": "c476a66ccdc2796b4f6f8e27273dd788"
+          }
+        ]
+      }
+    },
+    {
+      "nome": "DFTT_11_carving_FAT",
+      "md5_immagine": "0069813c892a462f88dc6d376624f7d9",
+      "opzioni": [
+        "--no-indice",
+        "--carving"
+      ],
+      "puo_fallire": true,
+      "scarica": "http://prdownloads.sourceforge.net/dftt/11-carve-fat.zip?download",
+      "descrizione": "FAT32 con il settore di avvio danneggiato: i file si recuperano solo con il carving (PhotoRec). Misura informativa: nessun programma di carving li recupera tutti identici.",
+      "atteso": {
+        "carving_md5": [
+          {
+            "nome": "2003_document.doc",
+            "md5": "e72f388b36f9370f19696b164c308482",
+            "settore": 281
+          },
+          {
+            "nome": "enterprise.wav",
+            "md5": "7629b89adade055f6783dc1773274215",
+            "settore": 16021
+          },
+          {
+            "nome": "haxor2.jpg (intestazione danneggiata)",
+            "md5": "84e1dceac2eb127fef5bfdcb0eae324b",
+            "settore": 16645
+          },
+          {
+            "nome": "holly.xls",
+            "md5": "7917baf0219645afef8b381570c41211",
+            "settore": 16693
+          },
+          {
+            "nome": "lin_1.2.pdf",
+            "md5": "e026ec863410725ba1f5765a1874800d",
+            "settore": 16741
+          },
+          {
+            "nome": "nlin_14.pdf",
+            "md5": "5b3e806e8c9c06a475cd45bf821af709",
+            "settore": 19477
+          },
+          {
+            "nome": "paul.jpg",
+            "md5": "37a49f97ed279832cd4f7bd002c826a2",
+            "settore": 19717
+          },
+          {
+            "nome": "pumpkin.jpg",
+            "md5": "6c9859e5121ff54d5d6298f65f0bf3b3",
+            "settore": 19777
+          },
+          {
+            "nome": "shark.jpg",
+            "md5": "d83428b8742a075b57b0dc424cd297c4",
+            "settore": 20645
+          },
+          {
+            "nome": "sm1.gif",
+            "md5": "d25fb845e6a41395adaed8bd14db7bf2",
+            "settore": 20841
+          },
+          {
+            "nome": "surf.mov",
+            "md5": "5328d2b066f428ea95b2793849ab97fa",
+            "settore": 20853
+          },
+          {
+            "nome": "surf.wmv",
+            "md5": "ff085d0c4d0e0fdc8f3427db68e26266",
+            "settore": 21929
+          },
+          {
+            "nome": "test.ppt (cancellato)",
+            "md5": "7b74c2c608d92f4bb76c1d3b6bd1decc",
+            "settore": 23957
+          },
+          {
+            "nome": "wword60t.zip",
+            "md5": "c0be59d49b7ee0fdc492d2df32f2c6c6",
+            "settore": 23981
+          },
+          {
+            "nome": "domopers.wmv (cancellato)",
+            "md5": "63c0c6986cf0a446cb54b0ac65a921a5",
+            "settore": 321
+          }
+        ]
+      }
+    }
+  ]
+}

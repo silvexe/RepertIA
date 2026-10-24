@@ -1,0 +1,10 @@
+#!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 silvexe
+# RepertIA - By silvexe: apre il Terminale con l'avvio del programma.
+RES="$(cd "$(dirname "$0")/../Resources" && pwd)"
+APP="$(cd "$RES/../.." && pwd)"
+# file scaricati o copiati: macOS li mette in quarantena e bloccherebbe Python incluso
+xattr -dr com.apple.quarantine "$APP" 2>/dev/null
+chmod +x "$RES/avvia.command" "$RES/python/bin/"* 2>/dev/null
+open -a Terminal "$RES/avvia.command"

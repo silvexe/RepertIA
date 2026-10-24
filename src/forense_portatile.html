@@ -1,0 +1,1541 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!-- Copyright (C) 2026 silvexe -->
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__TITLE__ · Report portatile RepertIA</title>
+<style>
+:root{
+  --bg:#f3f1ec; --panel:#fffdf9; --panel2:#f7f4ee; --ink:#1c2228; --muted:#68707a;
+  --line:#dcd6cb; --accent:#0e6b6b; --accent-ink:#ffffff; --accent-soft:#e1efee;
+  --warn:#9a5b00; --warn-soft:#fbefd9; --bad:#b0261c; --bad-soft:#fbe4e1;
+  --ok:#2c7a3a; --ok-soft:#e3f2e5; --mono:"SF Mono",Menlo,Consolas,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --shadow:0 1px 2px rgba(0,0,0,.05),0 4px 14px rgba(0,0,0,.04);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#14181c; --panel:#1b2026; --panel2:#20262d; --ink:#e6e9ec; --muted:#98a1ab;
+  --line:#2e363f; --accent:#4fb3ad; --accent-ink:#0d1a1a; --accent-soft:#18302f;
+  --warn:#e7a948; --warn-soft:#33281a; --bad:#ef7b70; --bad-soft:#3a1f1d;
+  --ok:#73c67f; --ok-soft:#1c2f20; --shadow:none; color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#14181c; --panel:#1b2026; --panel2:#20262d; --ink:#e6e9ec; --muted:#98a1ab;
+  --line:#2e363f; --accent:#4fb3ad; --accent-ink:#0d1a1a; --accent-soft:#18302f;
+  --warn:#e7a948; --warn-soft:#33281a; --bad:#ef7b70; --bad-soft:#3a1f1d;
+  --ok:#73c67f; --ok-soft:#1c2f20; --shadow:none; color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--ink);font:14px/1.45 var(--sans);display:flex;flex-direction:column;overflow:hidden}
+button,input,select,textarea{font:inherit;color:inherit}
+code,pre,.mono{font-family:var(--mono);font-size:12.5px}
+.hidden{display:none!important}
+a{color:var(--accent)}
+header{display:flex;align-items:center;gap:14px;padding:10px 18px;border-bottom:1px solid var(--line);background:var(--panel);flex:none}
+.brand{display:flex;align-items:center;gap:10px;font-weight:650;min-width:0}
+.brand .mark{width:26px;height:26px;border-radius:7px;background:var(--accent);display:grid;place-items:center;color:var(--accent-ink);flex:none}
+.brand .t{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.brand small{font-weight:400;color:var(--muted)}
+.grow{flex:1}
+.pill{font-size:12px;border:1px solid var(--line);border-radius:99px;padding:2px 9px;color:var(--muted);white-space:nowrap}
+.btn{border:1px solid var(--line);background:var(--panel2);border-radius:8px;padding:6px 12px;cursor:pointer}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.small{padding:3px 9px;font-size:13px}
+.btn:disabled{opacity:.5;cursor:default}
+.themebtn{border:1px solid var(--line);background:var(--panel2);border-radius:99px;width:34px;height:30px;cursor:pointer}
+.app{flex:1;display:flex;min-height:0}
+nav{width:190px;flex:none;border-right:1px solid var(--line);background:var(--panel);padding:10px 8px;overflow:auto}
+nav button{display:flex;width:100%;align-items:center;gap:8px;text-align:left;border:0;background:none;padding:8px 10px;border-radius:8px;cursor:pointer;color:var(--ink)}
+nav button:hover{background:var(--panel2)}
+nav button.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+nav button .n{margin-left:auto;font-size:11.5px;color:var(--muted)}
+nav .sep{height:1px;background:var(--line);margin:8px 4px}
+nav .foot{font-size:11.5px;color:var(--muted);padding:8px 10px;line-height:1.4}
+main{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden}
+.view{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.scroll{overflow:auto;flex:1;min-height:0}
+.pad{padding:18px 22px}
+.bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 14px;border-bottom:1px solid var(--line);background:var(--panel)}
+.bar input[type=text],.bar input[type=search],.bar select{border:1px solid var(--line);border-radius:7px;padding:5px 9px;background:var(--panel2)}
+.bar input[type=search]{min-width:240px;flex:1;max-width:520px}
+.hint{color:var(--muted);font-size:12.5px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);padding:14px 16px;margin-bottom:14px}
+.card h2{margin:0 0 8px;font-size:15px}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:3px 14px;font-size:13.5px}
+.kv b{color:var(--muted);font-weight:500}
+.kv span{overflow-wrap:anywhere}
+.warnbox{background:var(--warn-soft);color:var(--warn);border-radius:8px;padding:8px 12px;font-size:13px;margin-bottom:12px}
+.md h1{font-size:19px;margin:6px 0 10px}.md h2{font-size:16px;margin:16px 0 6px}.md h3{font-size:14.5px;margin:14px 0 4px}
+.md table{border-collapse:collapse;font-size:13px;margin:6px 0}.md td,.md th{border:1px solid var(--line);padding:3px 8px;text-align:left}
+.md code{background:var(--panel2);padding:0 4px;border-radius:4px;overflow-wrap:anywhere}
+.find{border-left:3px solid var(--accent);padding:6px 12px;margin:10px 0;background:var(--panel2);border-radius:0 8px 8px 0}
+.find h3{margin:0 0 4px;font-size:14.5px}
+.find .refs{font-size:12.5px;color:var(--muted);margin-top:6px;overflow-wrap:anywhere}
+a.ref{cursor:pointer;text-decoration:underline}
+/* esplora */
+.split{flex:1;display:flex;min-height:0}
+.tree{width:240px;flex:none;border-right:1px solid var(--line);overflow:auto;padding:6px 0;background:var(--panel)}
+.tn{display:flex;align-items:center;gap:4px;padding:2px 8px;cursor:pointer;white-space:nowrap;font-size:13px}
+.tn:hover{background:var(--panel2)}.tn.on{background:var(--accent-soft);color:var(--accent)}
+.tn .tw{width:14px;text-align:center;color:var(--muted);flex:none}
+.tn .del{color:var(--bad)}
+.crumbs{font-size:13px;color:var(--muted);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.crumbs a{cursor:pointer}
+/* lista virtuale */
+.vl{flex:1;min-height:0;display:flex;flex-direction:column}
+.vh,.vr{display:grid;align-items:center;gap:10px;padding:0 12px;font-size:13px}
+.vh{height:30px;border-bottom:1px solid var(--line);color:var(--muted);font-size:12px;background:var(--panel);flex:none}
+.vf{display:grid;gap:10px;padding:3px 12px 4px;border-bottom:1px solid var(--line);background:var(--panel);flex:none;align-items:start;font-size:12px}
+.vf>span{display:flex;flex-direction:column;gap:2px;min-width:0}
+.vf input{width:100%;min-width:0;font-size:11.5px;padding:2px 5px;border:1px solid var(--line);border-radius:5px;background:var(--panel2);color:var(--ink)}
+.vf input:focus{outline:none;border-color:var(--accent)}
+.vf input[type=date]{font-family:var(--mono);font-size:11px;padding:1px 3px}
+.vf .r input{text-align:right}
+.cft{display:flex;gap:2px}.cft input{flex:1}
+.cfd{border:1px solid var(--line);background:var(--panel2);color:var(--ink);border-radius:5px;font-size:11px;padding:0 5px;cursor:pointer}
+.cfd.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.vh .srt{cursor:pointer;user-select:none}.vh .srt:hover{color:var(--ink)}.vh .sa{margin-left:4px;color:var(--accent);font-size:11px}
+.cfpop{position:fixed;z-index:60;width:300px;max-height:70vh;display:flex;flex-direction:column;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 28px rgba(0,0,0,.28);padding:8px;gap:6px;font-size:12.5px}
+.cfpop button{border:1px solid var(--line);background:var(--panel2);color:var(--ink);border-radius:6px;padding:3px 9px;cursor:pointer;font-size:12px}
+.cfpop button:hover{border-color:var(--accent)}
+.cfpb{display:flex;flex-direction:column;gap:4px}.cfpb button{text-align:left}
+.cfps{font-size:12px;padding:3px 6px;border:1px solid var(--line);border-radius:5px;background:var(--panel2);color:var(--ink)}
+.cfpl{overflow:auto;max-height:42vh;border:1px solid var(--line);border-radius:5px}
+.cfpi{display:flex;gap:6px;align-items:center;padding:3px 8px;cursor:pointer}.cfpi:hover{background:var(--panel2)}
+.cfpv{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.cfpn{color:var(--muted);font-size:11.5px}
+.cfpf{display:flex;gap:6px;justify-content:flex-end}
+.vfx{border:1px solid var(--accent);color:var(--accent);background:none;border-radius:99px;font-size:11px;padding:0 7px;margin-left:6px;cursor:pointer}
+.vb{flex:1;overflow:auto;position:relative}
+.vr{position:absolute;left:0;right:0;height:30px;border-bottom:1px solid var(--line);cursor:pointer;white-space:nowrap}
+.vr:hover{background:var(--panel2)}.vr.on{background:var(--accent-soft)}
+.vr>span{overflow:hidden;text-overflow:ellipsis}
+.vr .r{text-align:right}.vh .r{text-align:right}
+.del{color:var(--bad)}
+.tag{font-size:11px;border-radius:99px;padding:0 6px;margin-left:5px;border:1px solid var(--line)}
+.tag.del{border-color:var(--bad);color:var(--bad)}
+.tag.att{border-color:var(--accent);color:var(--accent)}
+.tag.note{border-color:var(--warn);color:var(--warn)}
+.empty{padding:30px;color:var(--muted);text-align:center}
+/* anteprima */
+.pv{width:min(42vw,700px);flex:none;border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-height:0}
+.pvh{padding:10px 14px;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:flex-start}
+.pvh .nm{font-weight:600;overflow-wrap:anywhere}
+.pvh .pt{font-size:12px;color:var(--muted);overflow-wrap:anywhere}
+.pvt{display:flex;gap:2px;padding:6px 10px 0;border-bottom:1px solid var(--line)}
+.pvt button{border:0;background:none;padding:6px 10px;border-radius:7px 7px 0 0;cursor:pointer;color:var(--muted)}
+.pvt button.on{background:var(--panel2);color:var(--ink);font-weight:600}
+.pvb{flex:1;overflow:auto;background:var(--panel2)}
+.pvb pre{margin:0;padding:12px 14px;white-space:pre-wrap;overflow-wrap:anywhere}
+.pvb img.full{display:block;max-width:100%;margin:12px auto;background:#fff;box-shadow:0 1px 6px rgba(0,0,0,.15)}
+.pages{display:flex;flex-direction:column;align-items:center;gap:12px;padding:12px}
+.pages img{width:100%;max-width:820px;height:auto;aspect-ratio:auto 1 / 1.414;background:#fff;box-shadow:0 1px 6px rgba(0,0,0,.18)}
+.pvb .note{margin:14px;padding:10px 12px;border-radius:8px;background:var(--panel);border:1px solid var(--line);color:var(--muted)}
+.docframe{display:block;width:calc(100% - 24px);height:calc(100vh - 240px);min-height:420px;margin:12px;border:1px solid var(--line);border-radius:8px;background:#fff}
+.hex{font-family:var(--mono);font-size:12px;padding:10px 14px;white-space:pre}
+table.dt{border-collapse:collapse;width:100%;font-size:13px}
+table.dt td,table.dt th{border-bottom:1px solid var(--line);padding:4px 10px;text-align:left;vertical-align:top}
+table.dt td:first-child{color:var(--muted);white-space:nowrap;width:1%}
+table.dt td{overflow-wrap:anywhere}
+.notebox{padding:14px;display:flex;flex-direction:column;gap:8px}
+.notebox textarea{min-height:160px;border:1px solid var(--line);border-radius:8px;padding:8px;background:var(--panel)}
+.notebox select{border:1px solid var(--line);border-radius:7px;padding:5px;background:var(--panel)}
+/* timeline */
+.months{display:flex;gap:3px;align-items:flex-end;height:110px;padding:10px 14px 4px;overflow-x:auto;border-bottom:1px solid var(--line);background:var(--panel)}
+.mb{flex:0 0 auto;width:34px;display:flex;flex-direction:column;align-items:center;cursor:pointer}
+.mb i{display:block;width:100%;background:var(--accent);opacity:.55;border-radius:3px 3px 0 0;min-height:2px}
+.mb.on i{opacity:1}.mb:hover i{opacity:.85}
+.mb span{font-size:10px;color:var(--muted);white-space:nowrap;margin-top:3px;line-height:1.1;text-align:center}
+.days{display:flex;gap:2px;align-items:flex-end;height:78px;padding:8px 14px 2px;background:var(--panel);border-bottom:1px solid var(--line)}
+.db{flex:1;min-width:6px;max-width:30px;cursor:pointer;display:flex;flex-direction:column;justify-content:flex-end;height:100%}
+.db b{font-size:9.5px;font-weight:400;color:var(--muted);text-align:center;line-height:14px}
+.db i{display:block;background:var(--accent);opacity:.5;border-radius:2px 2px 0 0;min-height:1px}
+.db.on i{opacity:1;background:var(--warn)}
+/* allegati */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px;padding:14px}
+.tile{border:1px solid var(--line);border-radius:10px;background:var(--panel);overflow:hidden;cursor:pointer}
+.tile:hover{border-color:var(--accent)}
+.tile .im{height:130px;background:var(--panel2);display:grid;place-items:center;overflow:hidden}
+.tile .im img{max-width:100%;max-height:100%;object-fit:contain}
+.tile .im .ic{font-size:34px;color:var(--muted)}
+.tile .cap{padding:6px 9px;font-size:12.5px}
+.tile .cap div{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.loading{position:fixed;inset:0;background:var(--bg);display:grid;place-items:center;z-index:50}
+.loading .box{width:min(440px,90vw);text-align:center}
+.prog{height:6px;border-radius:99px;background:var(--line);overflow:hidden;margin:14px 0 6px}
+.prog i{display:block;height:100%;width:0;background:var(--accent);transition:width .2s}
+.toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:8px;font-size:13px;z-index:60}
+mark{background:var(--warn-soft);color:inherit;border-radius:3px}
+.vr .ckc,.vh .ckc{display:flex;align-items:center;justify-content:center}
+.vr input[type=checkbox],.vh input[type=checkbox]{margin:0;cursor:pointer}
+.tag.bm{border-color:#c79a00;color:#a07800}
+.tzl::after{content:var(--tzl,"UTC")}
+#selbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:7px 14px;background:var(--accent-soft);border-bottom:1px solid var(--line);font-size:13.5px}
+.mod{position:fixed;inset:0;background:rgba(0,0,0,.35);display:grid;place-items:center;z-index:70}
+.mod .box{background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,.25);width:min(560px,92vw);max-height:88vh;overflow:auto;padding:18px 20px}
+.mod h3{margin:0 0 10px;font-size:17px}
+.mod .acts{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
+.mod input[type=text],.mod textarea,.mod select{width:100%;border:1px solid var(--line);border-radius:7px;padding:6px 9px;background:var(--panel2)}
+.mod label.opt{display:flex;gap:8px;align-items:center;margin:4px 0}
+.bmcats{width:250px;flex:none;border-right:1px solid var(--line);overflow:auto;background:var(--panel);padding:6px}
+.bmc{display:flex;gap:6px;align-items:center;padding:7px 9px;border-radius:8px;cursor:pointer;font-size:13.5px}
+.bmc:hover{background:var(--panel2)}.bmc.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.bmc .k{margin-left:auto;font-size:11.5px;color:var(--muted)}
+#printArea{display:none}
+@media print{
+  html,body{height:auto;overflow:visible;display:block;background:#fff;color:#000}
+  body>*:not(#printArea){display:none!important}
+  #printArea{display:block;font:11pt/1.4 -apple-system,"Segoe UI",Roboto,Arial,sans-serif;color:#000}
+  #printArea h1{font-size:18pt;margin:0 0 4pt}#printArea h2{font-size:14pt;margin:16pt 0 6pt;border-bottom:1px solid #999;page-break-after:avoid}
+  #printArea h3{font-size:12pt;margin:12pt 0 4pt;page-break-after:avoid}
+  #printArea table{border-collapse:collapse;width:100%;font-size:9pt}#printArea td,#printArea th{border:1px solid #bbb;padding:3pt 5pt;vertical-align:top;text-align:left;overflow-wrap:anywhere}
+  #printArea tr{page-break-inside:avoid}#printArea img.pth{max-width:110pt;max-height:110pt}
+  #printArea .mono{font-family:Menlo,Consolas,monospace;font-size:8pt}
+  #printArea .meta{color:#444;font-size:9.5pt}
+}
+@media (max-width:1000px){nav{width:58px}nav button span.l,nav .n,nav .foot{display:none}.tree{display:none}.pv{position:fixed;inset:56px 0 0 0;width:auto;z-index:20}}
+</style>
+</head>
+<body>
+<div class="loading" id="loading"><div class="box">
+  <div class="brand" style="justify-content:center"><span class="mark">⌕</span><span>RepertIA · Report portatile</span></div>
+  <div class="prog"><i id="loadBar"></i></div><div class="hint" id="loadMsg">Carico i dati del caso…</div>
+</div></div>
+<header>
+  <div class="brand"><span class="mark">⌕</span><span class="t" id="hTitle">Report portatile</span><small>· RepertIA</small></div>
+  <span class="grow"></span>
+  <span class="pill" id="hRO">Sola consultazione</span>
+  <select id="tzSel" title="Fuso orario con cui mostrare date e orari in tutte le sezioni (i dati restano in UTC). «Fuso del dispositivo» è quello rilevato dal sistema del disco o scelto per il caso" style="border:1px solid var(--line);border-radius:8px;padding:5px 8px;background:var(--panel);color:var(--ink);font-size:13px"><option value="utc">🕒 UTC</option><option value="rome">🕒 Ora italiana</option><option value="dev">🕒 Fuso del dispositivo</option></select>
+  <button class="btn small" id="pdfBtn" title="Crea un nuovo report (PDF, Word o HTML) con preferiti, reperti e note">📄 Nuovo report</button>
+  <button class="themebtn" id="themeBtn" title="Tema chiaro/scuro">◐</button>
+</header>
+<div class="app">
+  <nav id="nav">
+    <button data-v="sum" class="on">📋 <span class="l">Riepilogo</span></button>
+    <button data-v="exp">🗂 <span class="l">File System</span><span class="n" id="nFiles"></span></button>
+    <button data-v="src">🔎 <span class="l">Ricerca</span></button>
+    <button data-v="tl">📈 <span class="l">Timeline</span><span class="n" id="nEv"></span></button>
+    <button data-v="meta">📷 <span class="l">Metadati</span><span class="n" id="nMeta"></span></button>
+    <button data-v="att">📎 <span class="l">File inclusi</span><span class="n" id="nAtt"></span></button>
+    <button data-v="carv" id="navCarv">♻️ <span class="l">Recuperati</span><span class="n" id="nCarv"></span></button>
+    <button data-v="trc" id="navTrc">🧩 <span class="l">Evidenze di interesse</span><span class="n" id="nTrc"></span></button>
+    <button data-v="art" id="navArt" class="hidden">🪟 <span class="l">Artefatti di sistema</span><span class="n" id="nArt"></span></button>
+    <button data-v="mail" id="navMail" class="hidden">✉️ <span class="l">Posta</span><span class="n" id="nMail"></span></button>
+    <button data-v="xarch" id="navX" class="hidden">📦 <span class="l">Archivi e allegati</span><span class="n" id="nX"></span></button>
+    <button data-v="anom" id="navAnom" class="hidden">⚠️ <span class="l">Anomalie</span><span class="n" id="nAnom"></span></button>
+    <div class="sep"></div>
+    <button data-v="bm">⭐ <span class="l">Preferiti</span><span class="n" id="nBm"></span></button>
+    <button data-v="notes">📝 <span class="l">Note</span><span class="n" id="nNotes"></span></button>
+    <div class="foot" id="navFoot"></div>
+  </nav>
+  <main>
+    <div id="selbar" class="hidden"></div>
+    <section class="view" id="v-sum"><div class="scroll"><div class="pad" id="sumBody"></div></div></section>
+    <section class="view hidden" id="v-exp">
+      <div class="bar"><span class="crumbs grow" id="crumbs"></span>
+        <input type="search" id="expFilter" placeholder="Filtra questa cartella…" style="max-width:260px">
+        <label class="hint"><input type="checkbox" id="expDel"> solo cancellati</label>
+        <label class="hint"><input type="checkbox" id="expSub"> anche sottocartelle</label><button class="btn small" data-csv="exp">Esporta CSV</button></div>
+      <div class="split"><div class="tree" id="tree"></div><div class="vl" id="expList"></div></div>
+    </section>
+    <section class="view hidden" id="v-src">
+      <div class="bar">
+        <select id="srcMode"><option value="name">Nome o percorso</option><option value="text">Contenuto dei file (testo e stringhe)</option><option value="meta">Metadati</option><option value="hash">Hash (anche lista)</option></select>
+        <input type="search" id="srcQ" placeholder="Cosa cerchi?">
+        <label class="hint"><input type="checkbox" id="srcCase"> maiuscole/minuscole</label>
+        <label class="hint"><input type="checkbox" id="srcDel"> solo cancellati</label>
+        <input type="text" id="srcExt" placeholder="estensioni: jpg, pdf" style="width:150px">
+        <button class="btn primary small" id="srcGo">Cerca</button><button class="btn small" data-csv="src">Esporta CSV</button><button class="btn small hidden" id="srcStop">Interrompi</button>
+      </div>
+      <div class="prog hidden" id="srcProg" style="margin:8px 14px 0"><i></i></div>
+      <div class="hint" id="srcInfo" style="padding:6px 14px"></div>
+      <div class="vl" id="srcList"></div>
+    </section>
+    <section class="view hidden" id="v-tl">
+      <div class="months" id="months"></div>
+      <div class="days hidden" id="days"></div>
+      <div class="bar"><span class="hint grow" id="tlInfo">Scegli un mese</span>
+        <select id="tlOrig"><option value="">Tutte le origini</option><option value="tsk">File system</option><option value="plaso">plaso</option></select>
+        <input type="search" id="tlQ" placeholder="Filtra eventi…" style="max-width:260px"><button class="btn small" data-csv="tl">Esporta CSV</button></div>
+      <div class="vl" id="tlList"></div>
+    </section>
+    <section class="view hidden" id="v-meta">
+      <div class="bar"><input type="search" id="metaQ" placeholder="Filtra per file, dispositivo, autore…"><label class="hint"><input type="checkbox" id="metaGps"> solo con GPS</label><span class="hint grow" id="metaInfo"></span><button class="btn small" data-csv="meta">Esporta CSV</button></div>
+      <div class="vl" id="metaList"></div>
+    </section>
+    <section class="view hidden" id="v-att">
+      <div class="bar"><input type="search" id="attQ" placeholder="Filtra per nome o percorso…"><select id="attKind"><option value="">Tutti i tipi</option><option value="image">Immagini</option><option value="pdf">PDF</option><option value="office">Documenti Office</option><option value="text">Testo</option><option value="video">Video</option><option value="audio">Audio</option><option value="other">Altro</option></select>
+        <label class="hint"><input type="checkbox" id="attFull"> solo reperti e selezioni</label><label class="hint"><input type="checkbox" id="attDel"> solo cancellati</label><span class="hint grow" id="attInfo"></span><button class="btn small" data-csv="att">Esporta CSV</button></div>
+      <div class="scroll" id="attScroll"><div class="grid" id="attGrid"></div><div style="text-align:center;padding:0 0 18px"><button class="btn hidden" id="attMore">Mostra altri</button></div></div></section>
+    <section class="view hidden" id="v-carv">
+      <div class="bar"><input type="search" id="carvQ" placeholder="Filtra per nome o tipo…"><span class="hint grow" id="carvInfo"></span><button class="btn small" data-csv="carv">Esporta CSV</button></div>
+      <div class="vl" id="carvList"></div>
+    </section>
+    <section class="view hidden" id="v-trc">
+      <div class="bar"><select id="trcKind"><option value="">Tutti i tipi</option></select><input type="search" id="trcQ" placeholder="Filtra valori…"><span class="hint grow" id="trcInfo"></span><button class="btn small" data-csv="trc">Esporta CSV</button></div>
+      <div class="vl" id="trcList"></div>
+    </section>
+    <section class="view hidden" id="v-art">
+      <div class="bar"><select id="artCat"><option value="">Tutte le categorie</option></select><input type="search" id="artQ" placeholder="Cerca in elemento, dettagli, utente…"><span class="hint grow" id="artInfo"></span><button class="btn small" data-csv="art">Esporta CSV</button></div>
+      <div class="vl" id="artList"></div>
+    </section>
+    <section class="view hidden" id="v-mail">
+      <div class="bar"><input type="search" id="mailQ" placeholder="Cerca in oggetto, mittente, destinatari, testo…"><label class="hint"><input type="checkbox" id="mailAtt"> solo con allegati</label><span class="hint grow" id="mailInfo"></span><button class="btn small" data-csv="mail">Esporta CSV</button></div>
+      <div class="vl" id="mailList"></div>
+    </section>
+    <section class="view hidden" id="v-xarch">
+      <div class="bar"><select id="xKind"><option value="">Tutti</option><option value="archivio">Contenuto di archivi</option><option value="allegato">Allegati di posta</option><option value="vss">Copie shadow</option></select><input type="search" id="xQ" placeholder="Cerca nel percorso…"><span class="hint grow" id="xInfo"></span><button class="btn small" data-csv="xarch">Esporta CSV</button></div>
+      <div class="vl" id="xList"></div>
+    </section>
+    <section class="view hidden" id="v-anom">
+      <div class="bar"><select id="anKind"><option value="">Tutte</option></select><input type="search" id="anQ" placeholder="Cerca…"><span class="hint grow" id="anInfo"></span><button class="btn small" data-csv="anom">Esporta CSV</button></div>
+      <div class="vl" id="anList"></div>
+    </section>
+    <section class="view hidden" id="v-bm">
+      <div class="bar"><span class="hint grow" id="bmInfo">Seleziona dei file in qualsiasi elenco (caselle a sinistra) e premi «⭐ Preferiti», oppure usa ⭐ nell'anteprima di un file.</span>
+        <button class="btn small" id="bmNew">Nuova categoria</button><button class="btn small" id="bmRen">Rinomina</button><button class="btn small" id="bmDel">Elimina categoria</button><button class="btn small" id="bmCsv">Esporta CSV</button><button class="btn small" id="bmJson" title="Salva i preferiti creati qui in un file da passare a un altro analista">Esporta preferiti</button><label class="btn small" title="Aggiunge i preferiti da un file esportato da questo report">Importa<input type="file" id="bmImp" accept=".json,application/json" hidden></label></div>
+      <div class="split"><div class="bmcats" id="bmCats"></div><div class="vl" id="bmList"></div></div>
+    </section>
+    <section class="view hidden" id="v-notes"><div class="scroll"><div class="pad">
+      <div class="card"><h2>Note</h2>
+        <p class="hint">Le note restano solo in questo browser, su questo computer. Per consegnarle o spostarle, esportale; il file si può reimportare qui o su un altro computer con lo stesso report.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <label class="hint">Autore <input type="text" id="noteAuthor" style="border:1px solid var(--line);border-radius:7px;padding:4px 8px;background:var(--panel2)"></label>
+          <button class="btn small" id="noteExpJ">Esporta JSON</button><button class="btn small" id="noteExpC">Esporta CSV</button>
+          <label class="btn small">Importa…<input type="file" id="noteImp" accept=".json" hidden></label>
+        </div></div>
+      <div id="notesBody"></div></div></div></section>
+  </main>
+  <aside class="pv hidden" id="pv">
+    <div class="pvh"><div class="grow"><div class="nm" id="pvName"></div><div class="pt" id="pvPath"></div></div><button class="btn small" id="pvBm" title="Aggiungi questo file ai preferiti">⭐ Preferiti</button> <button class="btn small" id="pvClose">✕</button></div>
+    <div class="pvt" id="pvTabs"><button data-t="view" class="on">Anteprima</button><button data-t="text">Testo</button><button data-t="hex">Esadecimale</button><button data-t="info">Dettagli</button><button data-t="note">Nota</button></div>
+    <div class="pvb" id="pvBody"></div>
+  </aside>
+</div>
+<div id="printArea"></div>
+<script src="dati/lingua.js"></script>
+<script>
+const LG = window.LG || {lingua: "it", diz: {}};
+// Lingua (forense_lingua.py): i testi sono in italiano e fanno da chiave; T() li traduce, TF() riempie {0}, {1}…
+// trDom() traduce il testo statico della pagina: blocchi con solo formattazione in linea (per intero) e attributi.
+const T = s => (LG.diz && LG.diz[s]) || s;
+const TF = (s, ...a) => T(s).replace(/\{(\d+)\}/g, (m, i) => a[i] === undefined ? m : a[i]);
+const _INLINE = new Set(["B", "I", "EM", "STRONG", "CODE", "A", "BR", "SPAN", "SMALL", "KBD", "U", "SUB", "SUP"]);
+const _inl = n => n.nodeType === 3 || (n.nodeType === 1 && _INLINE.has(n.tagName) && [...n.childNodes].every(_inl));
+function trDom(el){
+  if (!LG.diz || !Object.keys(LG.diz).length || el.nodeType !== 1 || el.tagName === "SCRIPT" || el.tagName === "STYLE") return;
+  for (const a of ["title", "placeholder", "aria-label", "alt"]){
+    const v = el.getAttribute(a);
+    if (v && LG.diz[v.trim()]) el.setAttribute(a, LG.diz[v.trim()]);
+  }
+  const kids = [...el.childNodes];
+  if (kids.some(n => n.nodeType === 3 && n.nodeValue.trim()) && kids.every(_inl)){
+    const t = LG.diz[el.innerHTML.replace(/\s+/g, " ").trim()];
+    if (t){ el.innerHTML = t; return; }
+  }
+  for (const n of kids){
+    if (n.nodeType === 3){ const k = n.nodeValue.trim(); if (k && LG.diz[k]) n.nodeValue = n.nodeValue.replace(k, LG.diz[k]); }
+    else trDom(n);
+  }
+}
+document.documentElement.lang = LG.lingua || "it";
+// formati di data e numeri nella lingua dell'interfaccia
+const LOC = LG.lingua === "en" ? "en-GB" : "it-IT";
+trDom(document.body);
+"use strict";
+/* RepertIA - report portatile. I dati arrivano dai file dati/*.js tramite FD.push. Nessun
+   contenuto delle prove viene interpretato come HTML: tutto passa da esc() o textContent. */
+const FD = {case: null, files: [], atts: [], texts: [], meta: [], traces: [], carved: [], ev: {}, det: {}, _wait: {},
+  push(name, obj){
+    if (name === "case") this.case = obj;
+    else if (name === "files") for (const r of obj) this.files.push(r);
+    else if (name === "texts") for (const r of obj) this.texts.push(r);
+    else if (name === "atts") for (const r of obj) this.atts.push(r);
+    else if (name === "meta") this.meta = obj;
+    else if (name === "traces") this.traces = obj;
+    else if (name === "carved") this.carved = obj;
+    else if (name === "events") this.ev[obj.m] = obj.rows;
+    else if (name === "detail") this.det[obj.id] = obj;
+    else if (name === "ext") this.ext = obj;
+  }};
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+/* data dei metadati (EXIF, QuickTime, PDF…): come scritta nel file, con il fuso solo se il file lo indica */
+function fmtTaken(s){
+  s = String(s || "").trim(); if (!s) return "";
+  const m = /^(\d{4})[:\-](\d\d)[:\-](\d\d)[T ](\d\d:\d\d:\d\d)(?:\.\d+)?\s*(Z|[+-]\d\d:?\d\d)?$/.exec(s);
+  if (!m) return esc(s);
+  const z = m[5] ? (m[5] === "Z" ? "UTC" : m[5].replace(/^([+-]\d\d)(\d\d)$/, "$1:$2")) : "";
+  const conv = z ? tzConv(`${m[1]}-${m[2]}-${m[3]} ${m[4]}${m[5]}`, false, tzZone()) : null;
+  return esc(`${m[1]}-${m[2]}-${m[3]} ${m[4]}`) + (z ? ` <span class="hint">${esc(z)}</span>` + (conv ? TF(" <span class=\"hint\" title=\"Stesso istante nel fuso scelto ({0})\">→ {1}</span>", esc(tzLbl()), esc(conv)) : "")
+    : T(" <span class=\"hint\" title=\"Nel file non c'è il fuso orario: è l'ora scritta dal dispositivo o dal programma\">ora locale, fuso n.d.</span>"));
+}
+function takenTz(s){ const m = /(Z|[+-]\d\d:?\d\d)$/.exec(String(s || "").trim()); return !String(s || "").trim() ? "" : !m ? T("non indicato (ora locale del dispositivo)") : m[1] === "Z" ? "UTC" : m[1]; }
+/* data e ora di adesso nel computer in uso, con lo scostamento dal UTC: senza sarebbe ambigua in un documento giudiziario */
+function nowStamp(){ const d = new Date(), o = -d.getTimezoneOffset(), a = Math.abs(o), p = n => String(n).padStart(2, "0");
+  return d.toLocaleString(LOC) + ` (UTC${o < 0 ? "-" : "+"}${p(Math.floor(a / 60))}:${p(a % 60)})`; }
+const nf = n => Number(n || 0).toLocaleString(LOC);
+const fsize = n => n == null ? "" : n < 1024 ? n + " B" : n < 1048576 ? (n / 1024).toFixed(1) + " KB" : n < 1073741824 ? (n / 1048576).toFixed(1) + " MB" : (n / 1073741824).toFixed(2) + " GB";
+const U = p => String(p || "").split("/").map(encodeURIComponent).join("/");   // percorso → indirizzo relativo
+const fts = s => s ? (TZ !== "utc" ? (tzConv(s) || ftsRaw(s, true)) : ftsRaw(s)) : "";
+/* fuso orario: i dati restano in UTC; si possono mostrare in UTC, in ora italiana o nel fuso del dispositivo
+   (quello rilevato dal sistema del disco, o scelto dall'operatore, registrato nel caso) */
+let TZ = (() => { try{ const v = JSON.parse(localStorage.getItem("repertia_fuso")); return v === "rome" || v === "dev" ? v : "utc"; }catch(e){ return "utc"; } })();
+function devTz(){ return (FD && FD.case && FD.case.fuso_tz) || ""; }
+function tzMode(){ return TZ === "dev" && !devTz() ? "utc" : TZ; }
+function tzZone(){ const m = tzMode(); return m === "rome" ? "Europe/Rome" : m === "dev" ? devTz() : "UTC"; }
+function devTzLabel(){ const c = FD && FD.case; if (!(c && c.fuso_tz)) return ""; return (c.fuso_stato === "rilevato" || c.fuso_stato === "confermato" ? T("fuso rilevato ") : T("fuso impostato ")) + c.fuso_tz; }
+const tzLbl = () => { const m = tzMode(); return m === "rome" ? T("ora italiana") : m === "dev" ? devTzLabel() : "UTC"; };
+const _tzFmts = {};
+function tzFmt(zone){
+  if (!(zone in _tzFmts)){
+    try{ _tzFmts[zone] = new Intl.DateTimeFormat("en-CA", {timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23"}); }catch(e){ _tzFmts[zone] = null; }
+  }
+  return _tzFmts[zone];
+}
+function tzParts(ms, zone){ const p = {}; for (const x of tzFmt(zone).formatToParts(new Date(ms))) p[x.type] = x.value; return p; }
+function tzOff(ms, zone){ const p = tzParts(ms, zone); return Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour % 24, +p.minute, +p.second) - ms; }
+function tzTag(off, zone){
+  if (zone === "UTC") return "UTC";
+  if (zone === "Europe/Rome" && (off === 7200000 || off === 3600000)) return off === 7200000 ? "CEST" : "CET";
+  const m = Math.round(off / 60000), a = Math.abs(m);
+  return "UTC" + (m < 0 ? "-" : "+") + String(Math.floor(a / 60)).padStart(2, "0") + ":" + String(a % 60).padStart(2, "0");
+}
+function tzConv(s, bare, zone){
+  // "2024-03-01T10:00:00" (UTC; anche con Z o +HH:MM) -> "2024-03-01 11:00:00 CET" nel fuso scelto (con la sigla:
+  // nell'ora doppia due istanti diversi hanno la stessa ora e si distinguono solo dalla sigla); null se non convertibile
+  zone = zone || tzZone();
+  const m = /^(\d{4})-(\d\d)-(\d\d)[T ](\d\d):(\d\d):(\d\d)(?:\.\d+)?\s*(Z|[+-]\d\d:?\d\d)?$/.exec(String(s).trim());
+  if (!m || !tzFmt(zone) || +m[1] < 1900) return null;
+  let ms = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]); if (isNaN(ms)) return null;
+  if (m[7] && m[7] !== "Z"){ const o = /^([+-])(\d\d):?(\d\d)$/.exec(m[7]); ms -= (o[1] === "-" ? -1 : 1) * (+o[2] * 60 + +o[3]) * 60000; }
+  const p = tzParts(ms, zone), off = tzOff(ms, zone);
+  return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}:${p.second}` + (bare ? "" : " " + tzTag(off, zone));
+}
+function ftsRaw(s, conv){
+  // data non convertibile (o in UTC): si mostra com'è, con il fuso se c'è; in una vista diversa da UTC si dichiara che è UTC
+  const t = String(s).replace("T", " "), m = /^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d)(?:T| )?(?:\.\d+)?\s*(Z|[+-]\d\d:?\d\d|locale)?/.exec(t);
+  if (!m) return t;
+  const z = m[2] ? (m[2] === "Z" ? "UTC" : m[2] === "locale" ? T("(ora locale, fuso n.d.)") : m[2]) : (conv ? "UTC" : "");
+  return m[1] + (z ? " " + z : "");
+}
+/* orari scritti nel report in markdown (UTC) -> fuso scelto, senza toccare nomi di file, percorsi o testo tra apici */
+function mdTz(src){
+  if (tzMode() === "utc") return src;
+  const re = /(\d{4}-\d\d-\d\d)[T ](\d\d:\d\d:\d\d)(?:\.\d+)?(?:Z|[+-]00:?00)?/g;
+  const out = src.replace(re, (t, d, h, off, str) => {
+    const ls = str.lastIndexOf("\n", off - 1) + 1, le = str.indexOf("\n", off + t.length), line = str.slice(ls, le < 0 ? str.length : le);
+    const before = line.slice(0, off - ls), after = line.slice(off - ls + t.length);
+    if ((before.match(/`/g) || []).length % 2 === 1) return t;
+    if (before && /[\/\\_\-\w]$/.test(before)) return t;
+    if (/^(?:\.[A-Za-z0-9]{1,6}\b|[ \t]?[\w\-]+\.[A-Za-z0-9]{1,6}\b)/.test(after)) return t;
+    if (before.trimStart().startsWith("|")){ const a = before.lastIndexOf("|") + 1, b = after.indexOf("|"); if ((before.slice(a) + t + (b >= 0 ? after.slice(0, b) : after)).trim() !== t) return t; }
+    return tzConv(`${d} ${h}`) || t;
+  });
+  const i = out.indexOf("\n");
+  return (i < 0 ? out : out.slice(0, i)) + TF("\n\n- Orari mostrati in: **{0}** ({1}), ciascuno con la sigla del fuso; nel report originale e nei dati del caso restano in UTC. Nomi di file, percorsi e testo tra apici non sono stati modificati.", tzLbl(), tzZone()) + (i < 0 ? "" : out.slice(i));
+}
+/* istat: gli orari arrivano come ⟦UTC⟧ e si riscrivono nel fuso scelto */
+function istatTz(txt){
+  const z = tzZone();
+  return String(txt).replace(/\u27e6(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d)(\.\d+)?\u27e7/g, (t, a, fr) => (tzConv(a, true) || a.replace("T", " ")) + (fr || "") + " " + (z === "UTC" ? "UTC" : tzTag(tzOff(Date.parse(a + "Z"), z), z)));
+}
+/* exiftool: le date restano come scritte nel file; dove c'è il fuso (o è UTC per specifica) si aggiunge l'orario nel fuso scelto */
+function exifTz(k, v, all){
+  const t = String(v), m = /^(\d{4}):(\d\d):(\d\d) (\d\d:\d\d:\d\d)(?:\.\d+)?\s*(Z|[+-]\d\d:?\d\d)?$/.exec(t);
+  const name = k.split(":").pop();
+  if (!m || !/(Date|Time)/.test(name) || (/^GPS/.test(name) && /Stamp/.test(name))) return esc(t);
+  let off = m[5], via = ""; const grp = k.includes(":") ? k.slice(0, k.lastIndexOf(":") + 1) : "";
+  const pair = {DateTimeOriginal: "OffsetTimeOriginal", CreateDate: "OffsetTimeDigitized", ModifyDate: "OffsetTime"};
+  if (!off && pair[name] && all && typeof all[grp + pair[name]] === "string" && /^([+-]\d\d:?\d\d|Z)$/.test(all[grp + pair[name]])){ off = all[grp + pair[name]]; via = pair[name]; }
+  const qt = /^QuickTime/i.test(k) && !off; if (qt) off = "Z";
+  if (!off) return esc(t) + T(" <span class=\"hint\">[fuso non indicato nel file: ora locale del dispositivo]</span>");
+  const c = tzConv(`${m[1]}-${m[2]}-${m[3]} ${m[4]}${off}`);
+  return esc(t) + (c ? ` <span class="hint">→ ${esc(c)}${qt ? T(" [UTC per specifica QuickTime]") : via ? T(" [fuso da ") + via + "]" : ""}</span>` : "");
+}
+function tzSelRefresh(){
+  const sel = $("tzSel"); if (!sel) return;
+  const d = devTz(), o = sel.querySelector('option[value="dev"]');
+  if (o){ o.disabled = !d; o.textContent = d ? "🕒 " + devTzLabel().replace(/^f/, "F") : T("🕒 Fuso del dispositivo (non registrato)"); }
+  sel.value = tzMode(); document.documentElement.dataset.tz = tzMode();
+  document.documentElement.style.setProperty("--tzl", JSON.stringify(tzLbl()));
+}
+function zsuf(){ const m = tzMode(); return m === "utc" ? "utc" : m === "rome" ? "ora_italiana" : "fuso_" + tzZone().replace(/\W+/g, "_").toLowerCase(); }
+const cvt = s => !s ? "" : tzMode() === "utc" ? s : (tzConv(s) || ftsRaw(s, true));
+function toast(msg){ const t = document.createElement("div"); t.className = "toast"; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 2600); }
+const store = {get(k, d){ try{ const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); }catch(e){ return d; } },
+               set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); return true; }catch(e){ return false; } }};
+/* tema */
+(function(){ const t = store.get("repertia_tema", null); if (t) document.documentElement.dataset.theme = t; })();
+$("themeBtn").onclick = () => {
+  const dark = document.documentElement.dataset.theme ? document.documentElement.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  document.documentElement.dataset.theme = dark ? "light" : "dark"; store.set("repertia_tema", document.documentElement.dataset.theme);
+};
+function loadScript(src, drop){
+  return new Promise((ok, ko) => { const s = document.createElement("script"); s.src = src;
+    s.onload = () => { if (drop) s.remove(); ok(); }; s.onerror = () => { s.remove(); ko(new Error(T("File mancante: ") + src)); }; document.head.appendChild(s); });
+}
+/* testi a blocchi: un blocco alla volta (in coda), gli ultimi tenuti in memoria */
+const TCACHE = new Map(); let TQ = Promise.resolve();
+function textChunk(n){
+  if (TCACHE.has(n)) return Promise.resolve(TCACHE.get(n));
+  const job = TQ.then(async () => {
+    if (TCACHE.has(n)) return TCACHE.get(n);
+    FD.texts = [];
+    try{ await loadScript("dati/" + FD.case.text_chunks[n], true); }catch(e){ FD.texts = []; }
+    const rows = FD.texts; FD.texts = [];
+    TCACHE.set(n, rows); if (TCACHE.size > 3) TCACHE.delete(TCACHE.keys().next().value);
+    return rows;
+  });
+  TQ = job.catch(() => {});
+  return job;
+}
+
+/* ---------- dati ---------- */
+let C, F, KEY = new Map(), KIDS = new Map(), ATT = new Map(), ATT_BY_KEY = new Map(), META_BY_KEY = new Map();
+const PATH = i => F[i][1] ? F[i][1] + "/" + F[i][2] : F[i][2];
+const keyOf = (part, inode) => part + ":" + inode;
+async function boot(){
+  try{ await loadScript("dati/caso.js"); }
+  catch(e){ $("loadMsg").textContent = T("Dati del report non trovati: apri index.html dalla cartella completa del report (con la cartella «dati»)."); return; }
+  const c = FD.case;
+  const ttl = (c.info_caso || {}).nome || c.case; $("hTitle").textContent = ttl; document.title = ttl + T(" · Report portatile RepertIA");
+  const list = [...c.file_chunks.map(f => "dati/" + f), ...(c.att_chunks || []).map(f => "dati/" + f), "dati/meta.js", "dati/carving.js", "dati/tracce.js", ...(c.ext ? ["dati/estese.js"] : [])];
+  for (let i = 0; i < list.length; i++){
+    $("loadMsg").textContent = TF("Carico il catalogo… {0} di {1}", i + 1, list.length);
+    $("loadBar").style.width = (100 * (i + 1) / list.length) + "%";
+    try{ await loadScript(list[i]); }catch(e){ toast(e.message); }
+  }
+  C = {}; c.cols.forEach((k, i) => C[k] = i); F = FD.files;
+  $("loadMsg").textContent = T("Preparo l'albero…");
+  await new Promise(r => setTimeout(r, 10));
+  for (let i = 0; i < F.length; i++){
+    const r = F[i];
+    if (r[C.inode] != null && !r[C.isdir]){ const k = keyOf(r[C.part], r[C.inode]); const p = KEY.get(k); if (p == null || (F[p][C.deleted] && !r[C.deleted])) KEY.set(k, i); }
+    const pk = r[C.part] + "\u0000" + (r[C.parent] || "");
+    let a = KIDS.get(pk); if (!a){ a = []; KIDS.set(pk, a); } a.push(i);
+  }
+  const AC = {}; (c.att_cols || []).forEach((k, i) => AC[k] = i);
+  for (const r of FD.atts){
+    const a = {}; for (const k in AC) a[k] = r[AC[k]];
+    const fi = a.source === "fs" ? KEY.get(keyOf(a.part, a.inode)) : null;
+    a.path = fi != null ? PATH(fi) : a.source === "carving" ? "recuperati/" + a.name : a.file;
+    if (a.source === "fs") a.name = fi != null ? F[fi][C.name] : a.file.split("/").pop();
+    const dir = "anteprime/" + String(a.id).padStart(6, "0") + "/";
+    a.pageList = Array.from({length: a.pages || 0}, (_, i) => dir + "pagina_" + String(i + 1).padStart(3, "0") + ".jpg");
+    a.prev = a.preview ? dir + "anteprima.jpg" : null;
+    ATT.set(a.id, a); ATT_BY_KEY.set(a.source === "carving" ? "c:" + a.name : keyOf(a.part, a.inode), a);
+  }
+  FD.atts = null;
+  for (const m of FD.meta) META_BY_KEY.set(keyOf(m[1], m[2]), m);
+  $("nFiles").textContent = nf(F.filter(r => !r[C.isdir]).length);
+  $("nEv").textContent = nf(c.counts.eventi); $("nMeta").textContent = nf(FD.meta.length);
+  $("nAtt").textContent = nf(ATT.size); $("nCarv").textContent = nf(FD.carved.length); $("nTrc").textContent = nf(FD.traces.length);
+  if (!FD.carved.length) $("navCarv").classList.add("hidden");
+  if (!FD.traces.length) $("navTrc").classList.add("hidden");
+  const X = FD.ext || {};
+  [["art", "navArt", "nArt"], ["mail", "navMail", "nMail"], ["x", "navX", "nX"], ["anom", "navAnom", "nAnom"]].forEach(([k, nav, n]) => {
+    const L = (X[k] || []).length; $(nav).classList.toggle("hidden", !L); $(n).textContent = L ? nf(L) : ""; });
+  $("navFoot").innerHTML = TF("Generato il {0}<br>{1}<br>Solo consultazione, senza IA.", esc(ftsRaw(c.generated, true)), esc(c.app));
+  tzSelRefresh(); initNotes(); initBmStore(); renderSummary(); $("loading").remove();
+}
+
+/* ---------- navigazione tra le viste ---------- */
+let VIEW = "sum";
+const inited = {};
+document.querySelectorAll("nav button[data-v]").forEach(b => b.onclick = () => show(b.dataset.v));
+function show(v){
+  VIEW = v;
+  document.querySelectorAll("nav button[data-v]").forEach(b => b.classList.toggle("on", b.dataset.v === v));
+  document.querySelectorAll("main .view").forEach(s => s.classList.toggle("hidden", s.id !== "v-" + v));
+  if (!inited[v]){ inited[v] = true; ({exp: initExplore, src: initSearch, tl: initTimeline, meta: initMeta, att: renderAtt, carv: initCarved, trc: initTraces, bm: initBm, art: initArt, mail: initMail, xarch: initX, anom: initAnom}[v] || (() => {}))(); }
+  if (v === "notes") renderNotes();
+  if (v === "bm") renderBmCats();
+  renderSelBar();
+}
+
+/* ---------- lista virtuale ---------- */
+/* filtri per colonna: testo (contiene; più parole = tutte; "-parola" = non deve esserci), dimensione
+   (min/max, es. 500KB o 2MB) e data (dal/al, nel fuso orario scelto in alto). */
+function parseSize(s){
+  const m = /^\s*(\d+(?:[.,]\d+)?)\s*([kmgt]?)i?b?\s*$/i.exec(String(s == null ? "" : s));
+  return m ? Math.round(parseFloat(m[1].replace(",", ".")) * Math.pow(1024, m[2] ? "kmgt".indexOf(m[2].toLowerCase()) + 1 : 0)) : null;
+}
+function cfTerms(t){
+  const out = []; String(t || "").toLowerCase().replace(/(-?)"([^"]+)"|(-?)(\S+)/g, (m, n1, w1, n2, w2) => { const w = w1 != null ? w1 : w2; if (w) out.push([!!(w1 != null ? n1 : n2), w]); return m; });
+  return out;
+}
+function fdate(v){
+  // data (AAAA-MM-GG) nel fuso mostrato; le date EXIF (AAAA:MM:GG) sono ora locale della fotocamera e non si convertono
+  const m = /^(\d{4})([-:])(\d\d)[-:](\d\d)(?:[T ](\d\d):(\d\d):(\d\d))?/.exec(String(v || "").trim());
+  if (!m) return "";
+  if (m[2] === ":" || m[5] == null) return `${m[1]}-${m[3]}-${m[4]}`;
+  return (fts(`${m[1]}-${m[3]}-${m[4]}T${m[5]}:${m[6]}:${m[7]}`) || "").slice(0, 10);
+}
+function cfPopClose(){ const o = document.getElementById("cfPop"); if (o) o.remove(); document.removeEventListener("mousedown", cfPopOut, true); document.removeEventListener("keydown", cfPopEsc, true); }
+function cfPopOut(e){ const o = document.getElementById("cfPop"); if (o && !o.contains(e.target) && !(e.target.closest && e.target.closest(".cfd"))) cfPopClose(); }
+function cfPopEsc(e){ if (e.key === "Escape") cfPopClose(); }
+function cfMenu(list, j, btn, run, getSrt, cfs, drawHead, drawCf){
+  const had = document.getElementById("cfPop") && document.getElementById("cfPop").dataset.j === String(j) && document.getElementById("cfPop").dataset.l === String(LISTS.indexOf(list));
+  cfPopClose(); if (had) return;
+  const sp0 = list.cfCfg.cols[j], cur = ((cfs[j] || {}).sel || []).slice();
+  const cnt = new Map();
+  for (const r of run(list.lastIn || [], j)){ const v = String(sp0.get(r) ?? ""); if (v.length <= 200) cnt.set(v, (cnt.get(v) || 0) + 1); }
+  const all = [...cnt.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], LOC, {sensitivity: "base"}));
+  const more = all.length > 300, vals = all.slice(0, 300);
+  const chk = new Set(cur.length ? cur : (more ? [] : vals.map(x => x[0])));
+  const pop = document.createElement("div");
+  pop.id = "cfPop"; pop.className = "cfpop"; pop.dataset.j = j; pop.dataset.l = LISTS.indexOf(list);
+  pop.innerHTML = T("<div class=\"cfpb\"><button data-so=\"1\">↑ A→Z / dal più piccolo</button><button data-so=\"-1\">↓ Z→A / dal più grande</button></div>\n    <input class=\"cfps\" type=\"text\" placeholder=\"Cerca nei valori…\"><div class=\"cfpl\"></div>\n    <div class=\"cfpf\"><button data-ok>OK</button><button data-reset>Azzera colonna</button><button data-cancel>Annulla</button></div>");
+  document.body.appendChild(pop);
+  const r = btn.getBoundingClientRect(), W = 300;
+  pop.style.left = Math.max(6, Math.min(window.innerWidth - W - 6, r.left - W + r.width + 20)) + "px";
+  pop.style.top = Math.max(6, Math.min(window.innerHeight - 340, r.top - 330 > 6 && r.bottom + 330 > window.innerHeight ? r.top - 330 : r.bottom + 4)) + "px";
+  document.addEventListener("mousedown", cfPopOut, true); document.addEventListener("keydown", cfPopEsc, true);
+  const done = () => { cfPopClose(); drawHead(); drawCf(); list.cfCfg.onChange(); };
+  pop.querySelectorAll("[data-so]").forEach(b => b.onclick = () => { cfPopClose(); list.setSort(j, +b.dataset.so); });
+  pop.querySelector("[data-cancel]").onclick = cfPopClose;
+  pop.querySelector("[data-reset]").onclick = () => { if (cfs[j]){ cfs[j].sel = []; cfs[j].v = ""; } done(); };
+  const box = pop.querySelector(".cfpl"), search = pop.querySelector(".cfps");
+  const draw = () => {
+    const t = search.value.trim().toLowerCase(), vis = vals.filter(x => !t || x[0].toLowerCase().includes(t));
+    const allOn = vis.length && vis.every(x => chk.has(x[0]));
+    box.innerHTML = (vals.length ? TF("<label class=\"cfpi\"><input type=\"checkbox\" data-all {0}> <b>(Seleziona tutti{1})</b></label>", allOn ? "checked" : "", t ? T(" i trovati") : "") : T('<div class="hint" style="padding:8px">Nessun valore.</div>')) +
+      vis.map(x => `<label class="cfpi"><input type="checkbox" data-v="${vals.indexOf(x)}" ${chk.has(x[0]) ? "checked" : ""}> <span class="cfpv">${x[0] === "" ? T("<i>(vuoto)</i>") : esc(x[0])}</span><span class="cfpn">${nf(x[1])}</span></label>`).join("") +
+      (more ? T("<div class=\"hint\" style=\"padding:6px 8px\">Mostrati i 300 valori più frequenti: per gli altri usa il campo di testo.</div>") : "");
+    const a = box.querySelector("[data-all]");
+    if (a) a.onchange = () => { vis.forEach(x => a.checked ? chk.add(x[0]) : chk.delete(x[0])); draw(); };
+    box.querySelectorAll("[data-v]").forEach(c => c.onchange = () => { const v = vals[+c.dataset.v][0]; c.checked ? chk.add(v) : chk.delete(v); const a2 = box.querySelector("[data-all]"); if (a2) a2.checked = vis.every(x => chk.has(x[0])); });
+  };
+  draw(); search.oninput = draw; search.focus();
+  pop.querySelector("[data-ok]").onclick = () => {
+    const x = cfs[j] || (cfs[j] = {});
+    x.sel = (chk.size >= vals.length && !more) ? [] : [...chk];
+    if (!x.sel.length && !chk.size && vals.length) x.sel = ["\u0001__nessuno__"];
+    done();
+  };
+}
+function VList(el, cols0, rowFn0, onClick, selCfg, cfCfg){
+  // cols: [titolo, larghezza, classe, larghezza minima del riquadro per mostrarla]
+  // selCfg: {view, itemOf(i)} → colonna di caselle per la selezione multipla
+  // cfCfg: {cols: [null | {t: "t"|"n"|"d", get: riga → valore}, …] (una per colonna di cols0), onChange()} → filtri per colonna
+  const cols = selCfg ? [[T("<input type=\"checkbox\" class=\"ckall\" title=\"Seleziona tutti\">"), "26px", "ckc"], ...cols0] : cols0;
+  const rowFn = selCfg ? (i => { const it = selCfg.itemOf(i); return [`<span class="ckc">${it ? `<input type="checkbox" data-ck="${i}" ${SELV(selCfg.view).has(it.key) ? "checked" : ""}>` : ""}</span>`, ...rowFn0(i)]; }) : rowFn0;
+  el.innerHTML = `<div class="vh"></div>${cfCfg ? '<div class="vf"></div>' : ""}<div class="vb"><div class="sp"></div></div>`;
+  const head = el.querySelector(".vh"), body = el.querySelector(".vb"), sp = el.querySelector(".sp"), H = 30, foot = el.querySelector(".vf");
+  let vis = cols.map((c, i) => i), tpl = "";
+  const off = selCfg ? 1 : 0, cfs = {};
+  const cfActive = () => Object.values(cfs).some(x => x && (x.v || x.min || x.max || x.from || x.to || (x.sel && x.sel.length)));
+  let srt = null;     // ordinamento scelto con un clic sull'intestazione: {j, dir: 1 | -1}
+  const drawHead = () => {
+    const first = vis.find(i => i >= off);
+    head.innerHTML = vis.map(i => {
+      const j = i - off, sortable = cfCfg && j >= 0 && cfCfg.cols[j];
+      const ar = sortable && srt && srt.j === j ? `<b class="sa">${srt.dir > 0 ? "▲" : "▼"}</b>` : "";
+      return `<span class="${cols[i][2] || ""}${sortable ? " srt" : ""}"${sortable ? TF(" data-sj=\"{0}\" title=\"Clic: ordina (crescente, decrescente, ordine normale)\"", j) : ""}>${cols[i][0]}${ar}${cfCfg && i === first && cfActive() ? T("<button class=\"vfx\" data-cfclear=\"1\" title=\"Toglie tutti i filtri delle colonne\">✕ filtri</button>") : ""}</span>`;
+    }).join("");
+  };
+  const drawCf = () => {
+    foot.style.gridTemplateColumns = tpl;
+    foot.innerHTML = vis.map(i => {
+      const j = i - off, sp0 = j >= 0 ? cfCfg.cols[j] : null, v = cfs[j] || {};
+      if (!sp0) return "<span></span>";
+      const at = f => `data-j="${j}" data-f="${f}"`;
+      if (sp0.t === "t") return TF("<span><div class=\"cft\"><input type=\"text\" {0} placeholder=\"filtra…\" value=\"{1}\" title=\"Contiene (maiuscole/minuscole indifferenti). Più parole: devono esserci tutte. Con - davanti una parola deve mancare. Frasi tra virgolette.\"><button class=\"cfd{2}\" data-dd=\"{3}\" title=\"{4}Elenco dei valori presenti (come in Excel)\">▾</button></div></span>", at("v"), esc(v.v || ""), v.sel && v.sel.length ? " on" : "", j, v.sel && v.sel.length ? v.sel.length + T(" valori scelti · ") : "");
+      if (sp0.t === "n") return TF("<span class=\"r\"><input type=\"text\" {0} placeholder=\"min\" value=\"{1}\" title=\"Minimo: 500KB, 2MB, 1,5GB\"><input type=\"text\" {2} placeholder=\"max\" value=\"{3}\" title=\"Massimo: 500KB, 2MB, 1,5GB\"></span>", at("min"), esc(v.min || ""), at("max"), esc(v.max || ""));
+      return TF("<span><input type=\"date\" {0} value=\"{1}\" title=\"Dal (incluso)\"><input type=\"date\" {2} value=\"{3}\" title=\"Al (incluso)\"></span>", at("from"), esc(v.from || ""), at("to"), esc(v.to || ""));
+    }).join("");
+  };
+  const layout = () => {
+    const w = el.clientWidth || 1000;
+    vis = cols.map((c, i) => i).filter(i => !cols[i][3] || w >= cols[i][3]);
+    tpl = vis.map(i => cols[i][1]).join(" ");
+    head.style.gridTemplateColumns = tpl;
+    drawHead();
+    if (cfCfg) drawCf();
+  };
+  const cells = i => { const all = rowFn(i); return vis.length === cols.length ? all.join("") : vis.map(k => all[k]).join(""); };
+  const o = {n: 0, sel: -1, set(n){ this.n = n; sp.style.height = (n * H) + "px"; body.scrollTop = 0; this.draw(true); },
+    draw(force){
+      const a = Math.max(0, Math.floor(body.scrollTop / H) - 10), b = Math.min(this.n, Math.ceil((body.scrollTop + body.clientHeight) / H) + 10);
+      if (!force && a === this._a && b === this._b) return; this._a = a; this._b = b;
+      let h = ""; for (let i = a; i < b; i++) h += `<div class="vr${i === this.sel ? " on" : ""}" data-i="${i}" style="top:${i * H}px;grid-template-columns:${tpl}">${cells(i)}</div>`;
+      sp.innerHTML = h;
+      if (!this.n) sp.innerHTML = T("<div class=\"empty\">Nessun elemento</div>");
+    }};
+  if (cfCfg){
+    let tt;
+    const apply = (t, delay) => {
+      const x = cfs[t.dataset.j] || (cfs[t.dataset.j] = {}); x[t.dataset.f] = t.value;
+      clearTimeout(tt); tt = setTimeout(() => { drawHead(); cfCfg.onChange(); }, delay);
+    };
+    foot.addEventListener("input", e => { if (e.target.dataset.j != null && e.target.type !== "date") apply(e.target, 250); });
+    foot.addEventListener("change", e => { if (e.target.dataset.j != null && e.target.type === "date") apply(e.target, 0); });
+    foot.addEventListener("click", e => { const b = e.target.closest("[data-dd]"); if (b) o.openMenu(+b.dataset.dd, b); });
+    head.addEventListener("click", e => {
+      if (e.target.dataset.cfclear){ for (const k of Object.keys(cfs)) delete cfs[k]; drawHead(); drawCf(); cfCfg.onChange(); return; }
+      const th = e.target.closest("[data-sj]"); if (!th) return;
+      const j = +th.dataset.sj;
+      if (!srt || srt.j !== j) srt = {j, dir: 1}; else if (srt.dir > 0) srt.dir = -1; else srt = null;
+      drawHead(); cfCfg.onChange();
+    });
+    o.setSort = (j, dir) => { srt = {j, dir}; drawHead(); cfCfg.onChange(); };
+    o.cfCfg = cfCfg; o.cfActive = cfActive;
+    const sortKey = (sp0, r) => { const v = sp0.get(r); if (v == null || v === "") return null; return sp0.t === "n" ? +v : sp0.t === "d" ? String(v).replace(/^(\d{4}):(\d\d):(\d\d)/, "$1-$2-$3") : String(v); };
+    const collator = new Intl.Collator(LOC, {numeric: true, sensitivity: "base"});
+    const run = (rows, skipJ) => {
+      const tests = [];
+      for (const [j, x] of Object.entries(cfs)){
+        const sp0 = cfCfg.cols[j]; if (!sp0 || !x || j === String(skipJ)) continue;
+        if (sp0.t === "t"){
+          if (x.sel && x.sel.length){ const set = new Set(x.sel); tests.push(r => set.has(String(sp0.get(r) ?? ""))); }
+          const terms = cfTerms(x.v); if (terms.length) tests.push(r => { const t = String(sp0.get(r) ?? "").toLowerCase(); return terms.every(([neg, w]) => t.includes(w) !== neg); });
+        }
+        else if (sp0.t === "n"){ const mn = parseSize(x.min), mx = parseSize(x.max); if (mn != null || mx != null) tests.push(r => { const n = sp0.get(r); return n != null && n !== "" && (mn == null || n >= mn) && (mx == null || n <= mx); }); }
+        else if (x.from || x.to) tests.push(r => { const d = fdate(sp0.get(r)); return !!d && (!x.from || d >= x.from) && (!x.to || d <= x.to); });
+      }
+      return tests.length ? rows.filter(r => tests.every(f => f(r))) : rows;
+    };
+    o.filterRows = rows => {
+      o.lastIn = rows;
+      let out = run(rows);
+      if (srt && cfCfg.cols[srt.j]){
+        const sp0 = cfCfg.cols[srt.j], d = srt.dir, pin = cfCfg.pin;
+        const keyed = out.map((r, n) => [r, sortKey(sp0, r), n]);
+        keyed.sort((x, y) => {
+          if (pin){ const px = pin(x[0]) ? 0 : 1, py = pin(y[0]) ? 0 : 1; if (px !== py) return px - py; }
+          const a = x[1], b = y[1];
+          if (a == null || b == null) return a == null && b == null ? x[2] - y[2] : a == null ? 1 : -1;
+          const c = sp0.t === "t" ? collator.compare(a, b) : a < b ? -1 : a > b ? 1 : 0;
+          return c ? c * d : x[2] - y[2];
+        });
+        out = keyed.map(k => k[0]);
+      }
+      return out;
+    };
+    /* menu a tendina di una colonna di testo: ordina e scegli tra i valori presenti (con gli altri filtri attivi) */
+    o.openMenu = (j, btn) => cfMenu(o, j, btn, run, () => srt, cfs, drawHead, drawCf);
+  }
+  layout();
+  body.onscroll = () => o.draw();
+  try{ new ResizeObserver(() => { const old = tpl; layout(); if (tpl !== old) o.draw(true); else o.draw(); }).observe(el); }
+  catch(e){ window.addEventListener("resize", () => { layout(); o.draw(true); }); }
+  sp.onclick = e => {
+    const r = e.target.closest(".vr"); if (!r) return;
+    const i = +r.dataset.i;
+    if (selCfg && e.target.matches("input[data-ck]")){
+      const S = SELV(selCfg.view), on = e.target.checked;
+      const range = e.shiftKey && o.lastCk != null ? [Math.min(o.lastCk, i), Math.max(o.lastCk, i)] : [i, i];
+      for (let k = range[0]; k <= range[1]; k++){ const it = selCfg.itemOf(k); if (it){ on ? S.set(it.key, it) : S.delete(it.key); } }
+      o.lastCk = i; o.draw(true); renderSelBar(); return;
+    }
+    o.sel = i; o.draw(true); onClick(i, e);
+  };
+  if (selCfg){
+    head.addEventListener("click", e => {
+      if (!e.target.matches(".ckall")) return;
+      const S = SELV(selCfg.view), on = e.target.checked;
+      if (on && o.n > 100000){ e.target.checked = false; return toast(T("Troppi elementi: restringi con i filtri (massimo 100.000)")); }
+      for (let k = 0; k < o.n; k++){ const it = selCfg.itemOf(k); if (it){ on ? S.set(it.key, it) : S.delete(it.key); } }
+      o.draw(true); renderSelBar();
+    });
+    o.selCfg = selCfg;
+  }
+  LISTS.push(o);
+  return o;
+}
+const LISTS = [];
+function redrawLists(){ for (const l of LISTS) l.draw(true); }
+function flags(i){
+  const r = F[i], k = keyOf(r[C.part], r[C.inode]);
+  const a = r[C.att] ? ATT.get(r[C.att]) : null;
+  const at = !a ? "" : FD.case.mode === "tutti" ? (a.full ? `<span class="tag att">★ ${esc(a.why[0])}</span>` : "") : T("<span class=\"tag att\">📎 incluso</span>");
+  return (r[C.deleted] ? T('<span class="tag del">cancellato</span>') : "") + at + (BMKEYS.has(k) ? `<span class="tag bm">⭐</span>` : "") + (NOTES[k] ? `<span class="tag note">nota</span>` : "");
+}
+const icon = r => r[C.isdir] ? "📁" : r[C.att] ? "📎" : "📄";
+
+/* ---------- riepilogo ---------- */
+function md(src){
+  const lines = esc(src).split("\n"); let h = "", inList = false, tbl = null;
+  const inl = s => s.replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>");
+  const flushT = () => { if (tbl){ h += "<table>" + tbl.map((r, i) => "<tr>" + r.map(c => i ? `<td>${inl(c)}</td>` : `<th>${inl(c)}</th>`).join("") + "</tr>").join("") + "</table>"; tbl = null; } };
+  for (const l of lines){
+    if (/^\|/.test(l)){ if (/^\|[\s|:-]+\|$/.test(l)) continue; (tbl = tbl || []).push(l.replace(/^\||\|$/g, "").split("|").map(s => s.trim())); continue; }
+    flushT();
+    if (/^\s*- /.test(l)){ if (!inList){ h += "<ul>"; inList = true; } h += "<li>" + inl(l.replace(/^\s*- /, "")) + "</li>"; continue; }
+    if (inList){ h += "</ul>"; inList = false; }
+    const m = l.match(/^(#{1,4}) (.*)/);
+    if (m) h += `<h${m[1].length}>${inl(m[2])}</h${m[1].length}>`; else if (l.trim()) h += `<p>${inl(l)}</p>`;
+  }
+  flushT(); if (inList) h += "</ul>"; return h;
+}
+function linkRefs(escaped){
+  return escaped.replace(/offset\s+(\d+)\s*,\s*inode\s+(\d+(?:-\d+-\d+)?)/gi, (m, p, i) => `<a class="ref" data-k="${p}:${i}">${m}</a>`)
+                .replace(/file recuperato\s+([^\s,;()&]+)/gi, (m, n) => `<a class="ref" data-c="${n}">${m}</a>`);
+}
+function renderSummary(){
+  const c = FD.case, hs = Object.entries(c.sha256 || {}), ver = (c.verifiche || []).slice(-1)[0];
+  const parts = (c.partitions || []).map(p => `<div>${p.readable ? "●" : "○"} <b>${esc(p.fs || T("non leggibile"))}</b> · offset ${esc(p.offset)}${p.files != null ? TF(" · {0} voci ({1} cancellate)", nf(p.files), nf(p.deleted)) : ""}${p.os ? " · " + esc(p.os) : ""}</div>`).join("");
+  let h = TF("<div class=\"warnbox\">Report portatile in sola consultazione: contiene il catalogo completo del supporto{0}. Per l'integrità confronta <code>impronte.csv</code> e <code>IMPRONTA_REPORT.txt</code> con quanto comunicato da chi ha generato il report.</div>\n  <div class=\"card\"><h2>Caso</h2><div class=\"kv\">\n    <b>Caso</b><span>{1}{2}</span>\n    {3}\n    {4}\n    {5}\n    <b>Fuso del dispositivo</b><span>{6}</span>\n    <b>Copia forense</b><span class=\"mono\">{7}{8}</span>\n    <b>Supporto</b><span>{9}</span>\n    <b>SHA-256 copia</b><span class=\"mono\">{10}{11}</span>\n    {12}\n    {13}\n    <b>Ultima verifica</b><span>{14}</span>\n    <b>Caso creato</b><span>{15}</span>\n    <b>Report generato</b><span>{16} con {17}</span>\n    <b>Contenuto</b><span>{18} voci del file system · {19} eventi · {20} documenti con testo · {21} file con metadati</span>\n    <b>File inclusi</b><span>{22} file ({23}) · {24}</span>\n    <b>Partizioni</b><span>{25}</span>\n    <b>Strumenti</b><span class=\"hint\">{26}</span>\n  </div></div>", c.mode === "tutti" ? T(" e il contenuto di tutti i file") : T(" e il contenuto dei soli file inclusi"), esc((c.info_caso || {}).nome || c.case), (c.info_caso || {}).nome ? TF(" <span class=\"hint\">(cartella {0})</span>", esc(c.case)) : "", (c.info_caso || {}).operatore ? TF("<b>Operatore</b><span>{0}</span>", esc(c.info_caso.operatore)) : "", (c.info_caso || {}).reperto ? TF("<b>Tipo di reperto</b><span>{0}</span>", esc(c.info_caso.reperto)) : "", (c.info_caso || {}).note ? TF("<b>Note</b><span style=\"white-space:pre-wrap\">{0}</span>", esc(c.info_caso.note)) : "", c.fuso_dispositivo ? esc(c.fuso_dispositivo) : T("<span class='hint'>non registrato (date FAT/exFAT convertite con il fuso del PC usato per la preparazione)</span>"), esc(c.evidence), c.converted ? T(" (analizzata tramite conversione raw)") : "", esc(c.disk_type || "-"), hs.length ? hs.map(([k, v]) => esc(k) + ": " + esc(v)).join("<br>") : T("non calcolato"), c.sha256_differito ? T(" <span class='hint'>(calcolato dopo l'avvio dell'analisi)</span>") : "", c.hash_acquisizione != null ? TF("<b>Hash acquisizione</b><span>{0}</span>", c.hash_acquisizione ? "corrispondente" : "<span class='del'>diverso</span>") : "", c.hash_dati ? TF("<b>Hash dei dati acquisiti</b><span>{0}{1}</span>", c.hash_dati.esito === "diverso" ? "<span class='del'>" + esc(c.hash_dati_testo) + "</span>" : esc(c.hash_dati_testo), Object.entries(c.hash_dati.calcolati || {}).map(([a, v]) => `<br><span class="mono">${esc(a.toUpperCase())} ${esc(v)}</span>`).join("")) : "", ver ? (ver.ok ? "integra" : "<span class='del'>diversa</span>") + " · " + esc(ftsRaw(ver.ts, true)) : "-", esc(ftsRaw(c.created, true)), esc(ftsRaw(c.generated, true)), esc(c.app), nf(c.counts.file), nf(c.counts.eventi), nf(c.counts.testi), nf(c.counts.metadati), nf(c.counts.allegati), fsize(c.counts.allegati_byte), {tutti: T("tutti i file del supporto"), piccoli: T("reperti, selezioni e documenti e immagini fino alla dimensione scelta"), scelti: T("solo i file dei reperti e delle selezioni esportate")}[c.mode] || "", parts || "-", Object.entries(c.tools || {}).map(([k, v]) => esc(k) + ": " + esc(v)).join("<br>"));
+  if (c.skipped_n) h += TF("<div class=\"warnbox\">{0} file previsti non sono stati inclusi perché non leggibili dalla copia: {1}{2}</div>", nf(c.skipped_n), c.skipped.slice(0, 20).map(s => "inode " + esc(s.file) + " (" + esc(s.motivo) + ")").join("; "), c.skipped_n > 20 ? "…" : "");
+  if (c.text_truncated) h += T("<div class=\"warnbox\">I testi dei documenti sono stati inclusi solo in parte (limite di dimensione del report).</div>");
+  h += TF("<div class=\"card\"><h2>Reperti</h2>{0}</div>\n  <div class=\"card\"><h2>Report dell'analisi</h2><div class=\"md\">{1}</div></div>", (c.findings || []).length ? c.findings.map(f => `<div class="find"><h3>${f.n}. ${esc(f.title)}</h3><div style="white-space:pre-wrap">${linkRefs(esc(f.description))}</div><div class="refs">${T("Riferimenti:")} ${linkRefs(esc(f.references))}</div></div>`).join("") : T("<p class='hint'>Nessun reperto registrato.</p>"), linkRefs(md(mdTz(c.report_md || ""))));
+  $("sumBody").innerHTML = h;
+}
+document.addEventListener("click", e => {
+  const a = e.target.closest("a.ref"); if (!a) return;
+  if (a.dataset.k){ const i = KEY.get(a.dataset.k); if (i != null) openFile(i); else toast(T("File non presente nel catalogo")); }
+  else if (a.dataset.c){ const at = ATT_BY_KEY.get("c:" + a.dataset.c); if (at) openAtt(at); else { const r = FD.carved.find(x => x[0] === a.dataset.c); r ? openCarved(r) : toast(T("File recuperato non presente")); } }
+});
+
+/* ---------- esplora ---------- */
+let EXP = {part: null, dir: "", rows: [], list: null}, TREE_OPEN = new Set();
+function initExplore(){
+  EXP.list = VList($("expList"), [[T("Nome"), "minmax(180px,1fr)"], [T("Dimensione"), "84px", "r", 360], [T("Modificato (<span class=\"tzl\"></span>)"), "196px", "", 520], [T("Creato (<span class=\"tzl\"></span>)"), "196px", "", 680]],
+    i => { const r = F[EXP.rows[i]]; return [`<span>${icon(r)} <span class="${r[C.deleted] ? "del" : ""}">${esc(r[C.name])}</span>${flags(EXP.rows[i])}</span>`, `<span class="r">${r[C.isdir] ? "" : fsize(r[C.size])}</span>`, `<span>${fts(r[C.mtime])}</span>`, `<span>${fts(r[C.crtime])}</span>`]; },
+    i => { const fi = EXP.rows[i]; if (F[fi][C.isdir]) openDir(F[fi][C.part], PATH(fi)); else openFile(fi); },
+    {view: "exp", itemOf: i => fsItem(EXP.rows[i])},
+    {cols: [{t: "t", get: i => $("expSub").checked ? PATH(i) : F[i][C.name]}, {t: "n", get: i => F[i][C.isdir] ? null : F[i][C.size]}, {t: "d", get: i => F[i][C.mtime]}, {t: "d", get: i => F[i][C.crtime]}], pin: i => F[i][C.isdir], onChange: () => listDir()});
+  const parts = [...new Set(F.map(r => r[C.part]))];
+  EXP.parts = parts; renderTree(); openDir(parts[0], "");
+  $("expFilter").oninput = () => listDir(); $("expDel").onchange = () => listDir(); $("expSub").onchange = () => listDir();
+}
+function showUnalloc(part){
+  const ua = FD.case.non_allocato[String(part)], nfx = v => Number(v).toLocaleString(LOC);
+  const rows = ua.runs.map(([s, l]) => `<tr><td>Unalloc_${part}_${Math.floor(s / 512)}_${Math.floor((s + l) / 512) - 1}</td><td class="r">${nfx(Math.floor(s / 512))}–${nfx(Math.floor((s + l) / 512) - 1)}</td><td class="r">${nfx(s)}</td><td class="r">${fsize(l)}</td></tr>`).join("");
+  modal(TF("$Unalloc · {0}", partLabel(part)), TF("<p>Spazio che il file system segna come libero (Sleuth Kit): {0} tratti, {1} byte in tutto. Qui ci sono solo le posizioni: il contenuto si esamina in RepertIA con la copia forense.</p>", ua.tratti, nfx(ua.byte)) +
+    TF("<div style=\"max-height:55vh;overflow:auto\"><table class=\"dt\"><tr><th>Nome</th><th>Settori (512 byte)</th><th>Byte iniziale</th><th>Dimensione</th></tr>{0}</table></div>", rows) +
+    (ua.tratti > ua.runs.length ? TF("<p class=\"hint\">Mostrati i primi {0} tratti.</p>", nfx(ua.runs.length)) : ""), []);
+}
+function partFs(p){ const x = (FD.case.partitions || []).find(q => q.offset === p); return x && x.fs ? " · " + x.fs : ""; }
+function partLabel(p){ const x = (FD.case.partitions || []).find(q => q.offset === p); return x && x.apfs ? TF("Volume APFS «{0}»", x.apfs.name || "?") : TF("Partizione offset {0}{1}", p, x && x.fs ? " · " + x.fs : ""); }
+function renderTree(){
+  let h = "";
+  const node = (part, path, depth) => {
+    const kids = (KIDS.get(part + "\u0000" + path) || []).filter(i => F[i][C.isdir]);
+    for (const i of kids){
+      const p = PATH(i), k = part + "\u0000" + p, open = TREE_OPEN.has(k), has = (KIDS.get(k) || []).some(j => F[j][C.isdir]);
+      h += `<div class="tn${EXP.part === part && EXP.dir === p ? " on" : ""}" data-p="${part}" data-d="${esc(p)}" style="padding-left:${8 + depth * 14}px"><span class="tw" data-tw="1">${has ? (open ? "▾" : "▸") : ""}</span>📁 <span class="${F[i][C.deleted] ? "del" : ""}">${esc(F[i][C.name])}</span></div>`;
+      if (open) node(part, p, depth + 1);
+    }
+  };
+  const partNode = (part, depth, label) => {
+    const k = part + "\u0000", open = !TREE_OPEN.has("chiuso" + k);
+    h += `<div class="tn${EXP.part === part && EXP.dir === "" ? " on" : ""}" data-p="${part}" data-d="" style="font-weight:600;padding-left:${8 + depth * 14}px"><span class="tw">💽</span>${esc(label || partLabel(part))}</div>`;
+    if (open) node(part, "", depth + 1);
+    const ua = (FD.case.non_allocato || {})[String(part)];
+    if (open && ua) h += `<div class="tn" data-ua="${part}" style="padding-left:${8 + (depth + 1) * 14}px" title="${T("Spazio non allocato del file system")}"><span class="tw">░</span>$Unalloc <span style="color:var(--muted)">(${TF("{0} tratti", ua.tratti)}, ${fsize(ua.byte)})</span></div>`;
+  };
+  const L = FD.case.layout;
+  if (L && L.voci && L.voci.length){
+    // suddivisione del disco come la stampa mmls (come la vista dei volumi di Autopsy)
+    const shown = new Set();
+    h += TF("<div class=\"tn lay\" style=\"font-weight:600\" title=\"Suddivisione del disco letta con mmls (Sleuth Kit)\"><span class=\"tw\">🖴</span>Disco · {0}</div>", esc(L.tipo));
+    for (const v of L.voci){
+      const lab = `vol${v.n} (${v.desc}: ${v.start}-${v.end})`, ps = (v.parts || []).filter(p => EXP.parts.includes(p));
+      ps.forEach(p => shown.add(p));
+      const tip = TF("{0} · {1} settori da 512 byte ({2})", lab, v.length, fsize(v.length * 512));
+      const apfs = ps.length && ((FD.case.partitions || []).find(q => q.offset === ps[0]) || {}).apfs;
+      if (ps.length === 1 && !apfs){ partNode(ps[0], 1, lab + partFs(ps[0])); continue; }
+      const note = v.kind === "vol" && !ps.length ? T(" · non analizzato (file system non letto)") : "";
+      h += `<div class="tn lay" style="padding-left:22px;color:var(--muted);cursor:default" title="${esc(tip)}"><span class="tw">${v.kind === "unalloc" ? "░" : v.kind === "meta" ? "≡" : "▭"}</span>${esc(lab + note)}</div>`;
+      for (const p of ps) partNode(p, 2);
+    }
+    for (const part of EXP.parts) if (!shown.has(part)) partNode(part, 1);
+  } else for (const part of EXP.parts) partNode(part, 0);
+  $("tree").innerHTML = h;
+}
+$("tree").onclick = e => {
+  const n = e.target.closest(".tn");
+  if (n && n.dataset.ua != null) return showUnalloc(+n.dataset.ua);
+  if (!n || n.dataset.p == null) return;
+  const part = +n.dataset.p, d = n.dataset.d, k = part + "\u0000" + d;
+  if (e.target.dataset.tw && d){ TREE_OPEN.has(k) ? TREE_OPEN.delete(k) : TREE_OPEN.add(k); renderTree(); return; }
+  openDir(part, d);
+};
+function openDir(part, dir){
+  EXP.part = part; EXP.dir = dir;
+  let p = ""; for (const seg of dir.split("/").filter(Boolean)){ p = p ? p + "/" + seg : seg; TREE_OPEN.add(part + "\u0000" + p); }
+  TREE_OPEN.delete(part + "\u0000" + dir); if (dir) TREE_OPEN.add(part + "\u0000" + dir);
+  const segs = dir.split("/").filter(Boolean);
+  $("crumbs").innerHTML = `<a data-p="${part}" data-d="">${esc(partLabel(part))}</a>` + segs.map((s, i) => ` / <a data-p="${part}" data-d="${esc(segs.slice(0, i + 1).join("/"))}">${esc(s)}</a>`).join("");
+  renderTree(); listDir();
+}
+$("crumbs").onclick = e => { const a = e.target.closest("a"); if (a) openDir(+a.dataset.p, a.dataset.d); };
+function listDir(){
+  const q = $("expFilter").value.trim().toLowerCase(), del = $("expDel").checked, sub = $("expSub").checked;
+  let rows;
+  if (sub){ const pre = EXP.dir ? EXP.dir + "/" : ""; rows = []; for (let i = 0; i < F.length; i++){ const r = F[i]; if (r[C.part] === EXP.part && !r[C.isdir] && (!pre || (r[C.parent] + "/").startsWith(pre))) rows.push(i); } }
+  else rows = (KIDS.get(EXP.part + "\u0000" + EXP.dir) || []).slice();
+  if (q) rows = rows.filter(i => F[i][C.name].toLowerCase().includes(q));
+  if (del) rows = rows.filter(i => F[i][C.deleted]);
+  rows = EXP.list.filterRows(rows);
+  EXP.rows = rows; EXP.list.sel = -1; EXP.list.set(rows.length);
+}
+
+/* ---------- ricerca ---------- */
+let SRC = {rows: [], all: [], list: null};
+function srcShow(all){
+  if (all) SRC.all = all;
+  SRC.rows = SRC.list.filterRows(SRC.all); SRC.list.sel = -1; SRC.list.set(SRC.rows.length);
+  if (SRC.all.length !== SRC.rows.length) $("srcInfo").textContent = TF("{0} di {1} risultati (filtri di colonna attivi)", nf(SRC.rows.length), nf(SRC.all.length));
+}
+$("srcStop").onclick = () => { SRC.stop = true; };
+function initSearch(){
+  SRC.list = VList($("srcList"), [[T("File"), "minmax(200px,1fr)"], [T("Trovato"), "minmax(160px,1.2fr)", "", 520], [T("Dimensione"), "84px", "r", 720], [T("Modificato (<span class=\"tzl\"></span>)"), "196px", "", 880]],
+    i => { const x = SRC.rows[i]; const r = x.i != null ? F[x.i] : null;
+      return [`<span>${r ? icon(r) : "📄"} <span class="${x.del ? "del" : ""}">${esc(x.path)}</span>${x.i != null ? flags(x.i) : ""}</span>`, `<span class="hint">${x.snip}</span>`, `<span class="r">${r ? fsize(r[C.size]) : ""}</span>`, `<span>${r ? fts(r[C.mtime]) : ""}</span>`]; },
+    i => { const x = SRC.rows[i]; if (x.i != null) openFile(x.i); else if (x.att) openAtt(x.att); },
+    {view: "src", itemOf: i => { const x = SRC.rows[i]; return x.i != null ? fsItem(x.i) : x.att ? attItem(x.att) : null; }},
+    {cols: [{t: "t", get: x => x.path}, {t: "t", get: x => String(x.snip || "").replace(/<[^>]+>/g, "")}, {t: "n", get: x => x.i != null ? F[x.i][C.size] : null}, {t: "d", get: x => x.i != null ? F[x.i][C.mtime] : null}], onChange: () => srcShow()});
+  $("srcGo").onclick = runSearch; $("srcQ").onkeydown = e => { if (e.key === "Enter") runSearch(); };
+  $("srcMode").onchange = () => { $("srcQ").placeholder = {name: T("parte del nome o del percorso"), text: T("parole nel testo dei documenti e nel contenuto dei file"), meta: T("dispositivo, autore, data…"), hash: T("uno o più hash MD5, SHA-1 o SHA-256")}[$("srcMode").value]; };
+}
+async function runSearch(){
+  const mode = $("srcMode").value, raw = $("srcQ").value.trim(), cs = $("srcCase").checked, del = $("srcDel").checked;
+  const exts = $("srcExt").value.split(/[,\s]+/).map(s => s.replace(/^\./, "").toLowerCase()).filter(Boolean);
+  if (!raw) return toast(T("Scrivi cosa cercare"));
+  if (SRC.busy) return;
+  const norm = s => cs ? String(s ?? "") : String(s ?? "").toLowerCase(), q = norm(raw), out = [], MAX = 20000;
+  const extOk = p => !exts.length || exts.includes((p.split(".").pop() || "").toLowerCase());
+  const snip = (text, pos, len) => { const a = Math.max(0, pos - 40), s = text.slice(a, pos + len + 60); return (a ? "…" : "") + esc(s.slice(0, pos - a)) + "<mark>" + esc(s.slice(pos - a, pos - a + len)) + "</mark>" + esc(s.slice(pos - a + len)); };
+  const t0 = performance.now();
+  if (mode === "name"){
+    for (let i = 0; i < F.length && out.length < MAX; i++){ const r = F[i]; if (r[C.isdir]) continue; const p = PATH(i); const pos = norm(p).indexOf(q);
+      if (pos >= 0 && (!del || r[C.deleted]) && extOk(p)) out.push({i, path: p, del: r[C.deleted], snip: T("nome/percorso")}); }
+  } else if (mode === "text"){
+    const N = FD.case.text_chunks.length;
+    SRC.busy = true; SRC.stop = false; $("srcStop").classList.remove("hidden"); $("srcGo").disabled = true; $("srcProg").classList.remove("hidden");
+    try{
+      for (let n = 0; n < N && out.length < MAX && !SRC.stop; n++){
+        $("srcProg").firstElementChild.style.width = (100 * n / N) + "%";
+        $("srcInfo").textContent = TF("Cerco nel contenuto dei file… blocco {0} di {1} · {2} trovati", n + 1, N, nf(out.length));
+        const rows = await textChunk(n);
+        for (const t of rows){ if (out.length >= MAX) break; const [source, part, inode, path, d, kind, body] = t; const pos = norm(body).indexOf(q);
+          if (pos < 0 || (del && !d) || !extOk(path || "")) continue;
+          const i = source === "carving" ? null : KEY.get(keyOf(part, inode));
+          out.push({i, att: source === "carving" ? ATT_BY_KEY.get("c:" + inode) : null, path: path || inode, del: d, snip: esc(kind) + ": " + snip(body, pos, raw.length)}); }
+        if (n % 5 === 4){ srcShow(out.slice()); }
+      }
+    } finally {
+      SRC.busy = false; $("srcStop").classList.add("hidden"); $("srcGo").disabled = false; $("srcProg").classList.add("hidden");
+    }
+  } else if (mode === "meta"){
+    for (const m of FD.meta){ const [source, part, inode, d, path, make, model, taken, lat, lon, author] = m;
+      const hay = [path, make, model, taken, author].map(norm).join(" | "); if (!hay.includes(q) || (del && !d) || !extOk(path || "")) continue;
+      out.push({i: KEY.get(keyOf(part, inode)), path, del: d, snip: esc([make, model, taken, author].filter(Boolean).join(" · "))}); }
+  } else {
+    const hs = new Set((raw.match(/(?<![0-9a-f])(?:[0-9a-f]{64}|[0-9a-f]{40}|[0-9a-f]{32})(?![0-9a-f])/gi) || []).map(h => h.toLowerCase()));
+    if (!hs.size) return toast(T("Nessun hash valido"));
+    const found = new Set();
+    for (let i = 0; i < F.length; i++){ const r = F[i]; for (const [c, lab] of [[C.md5, "MD5"], [C.sha1, "SHA-1"], [C.sha256, "SHA-256"]]) if (r[c] && hs.has(r[c])){ out.push({i, path: PATH(i), del: r[C.deleted], snip: lab + " " + r[c]}); found.add(r[c]); } }
+    for (const a of ATT.values()) for (const h of [a.md5, a.sha256]) if (hs.has(h) && !found.has(h)){ out.push({i: a.source === "fs" ? KEY.get(keyOf(a.part, a.inode)) : null, att: a, path: a.path, del: a.deleted, snip: T("hash del file incluso ") + h}); found.add(h); }
+    const miss = [...hs].filter(h => !found.has(h));
+    SRC.miss = miss;
+    if (!FD.case.hash_file) toast(T("Gli hash dei singoli file non erano stati calcolati: confronto solo con i file inclusi"));
+  }
+  SRC.all = out; SRC.rows = SRC.list.filterRows(out); SRC.list.sel = -1; SRC.list.set(SRC.rows.length);
+  $("srcInfo").textContent = `${nf(out.length)} ${out.length === 1 ? T("risultato") : T("risultati")}${out.length >= MAX ? T(" (mostrati i primi ") + nf(MAX) + ")" : ""} in ${((performance.now() - t0) / 1000).toFixed(1)} s` + (mode === "text" && SRC.stop ? T(" · ricerca interrotta") : "") + (mode === "text" ? T(" · nel testo dei documenti e nelle stringhe degli altri file inclusi (foto, video e audio: usa i Metadati)") : "") + (mode === "hash" && SRC.miss.length ? TF(" · {0} hash non trovati: {1}{2}", SRC.miss.length, SRC.miss.slice(0, 5).join(", "), SRC.miss.length > 5 ? "…" : "") : "");
+  if (SRC.rows.length !== out.length) $("srcInfo").textContent += TF(" · {0} dopo i filtri di colonna", nf(SRC.rows.length));
+}
+
+/* ---------- timeline ---------- */
+const MESI = Array.from({length: 12}, (_, i) => new Date(Date.UTC(2000, i, 1)).toLocaleString(LOC, {month: "short", timeZone: "UTC"}).replace(".", ""));
+const KIND = {M: T("modifica contenuto"), A: T("accesso"), C: T("modifica metadati"), B: T("creazione")};
+let TL = {month: null, day: null, rows: [], list: null};
+function initTimeline(){
+  const ms = Object.entries(FD.case.months).sort(), mx = Math.max(1, ...ms.map(m => m[1]));
+  $("months").innerHTML = ms.length ? ms.map(([m, n]) => `<div class="mb" data-m="${m}" title="${m}: ${TF("{0} eventi", nf(n))}"><i style="height:${Math.max(2, 66 * n / mx)}px"></i><span>${MESI[+m.slice(5, 7) - 1]}<br>${m.slice(0, 4)}</span></div>`).join("") : T("<div class=\"hint\">Nessun evento</div>");
+  $("months").onclick = e => { const b = e.target.closest(".mb"); if (b) pickMonth(b.dataset.m); };
+  TL.list = VList($("tlList"), [[T("Data e ora (<span class=\"tzl\"></span>)"), "196px"], [T("Evento"), "140px", "", 560], [T("Origine"), "110px", "", 720], [T("File o messaggio"), "minmax(200px,1fr)"]],
+    i => { const e = TL.rows[i]; const what = e[4] ? esc(e[4]) + (e[5] ? ` <span class="hint">${esc(e[5])}</span>` : "") : `<span class="hint">${esc(e[5] || "")}</span>`;
+      return [`<span>${fts(e[0])}</span>`, `<span>${esc(KIND[e[1]] || e[1])}</span>`, `<span class="hint">${e[2] === "tsk" ? T("file system") : esc(e[3] || e[2])}</span>`, `<span>${what}</span>`]; },
+    i => { const e = TL.rows[i]; if (e[7] != null){ const fi = KEY.get(keyOf(e[6], e[7])); if (fi != null) openFile(fi); } },
+    {view: "tl", itemOf: i => { const e = TL.rows[i]; return e[7] != null ? fsItem(KEY.get(keyOf(e[6], e[7]))) : null; }},
+    {cols: [{t: "d", get: e => e[0]}, {t: "t", get: e => KIND[e[1]] || e[1]}, {t: "t", get: e => e[2] === "tsk" ? T("file system") : (e[3] || e[2])}, {t: "t", get: e => (e[4] || "") + " " + (e[5] || "")}], onChange: () => filterTl()});
+  $("tlQ").oninput = filterTl; $("tlOrig").onchange = filterTl;
+  if (ms.length) pickMonth(ms.reduce((a, b) => b[1] > a[1] ? b : a)[0]);
+}
+async function pickMonth(m){
+  TL.month = m; TL.day = null;
+  document.querySelectorAll(".mb").forEach(b => b.classList.toggle("on", b.dataset.m === m));
+  if (!FD.ev[m]){ $("tlInfo").textContent = T("Carico gli eventi di ") + m + "…"; try{ await loadScript(`dati/eventi/${m}.js`); }catch(e){ return toast(e.message); } }
+  const days = Object.entries(FD.case.days).filter(([d]) => d.startsWith(m)).sort(), mx = Math.max(1, ...days.map(d => d[1][0] + d[1][1]));
+  $("days").classList.remove("hidden");
+  $("days").innerHTML = days.map(([d, n]) => `<div class="db" data-d="${d}" title="${d}: ${TF("{0} eventi", nf(n[0] + n[1]))}"><i style="height:${Math.max(1, 50 * (n[0] + n[1]) / mx)}px"></i><b>${+d.slice(8)}</b></div>`).join("");
+  $("days").onclick = e => { const b = e.target.closest(".db"); if (!b) return; TL.day = TL.day === b.dataset.d ? null : b.dataset.d; document.querySelectorAll(".db").forEach(x => x.classList.toggle("on", x.dataset.d === TL.day)); filterTl(); };
+  filterTl();
+}
+function filterTl(){
+  const q = $("tlQ").value.trim().toLowerCase(), o = $("tlOrig").value;
+  let rows = FD.ev[TL.month] || [];
+  if (TL.day) rows = rows.filter(e => e[0].startsWith(TL.day));
+  if (o) rows = rows.filter(e => e[2] === o);
+  if (q) rows = rows.filter(e => ((e[4] || "") + " " + (e[5] || "") + " " + (e[3] || "")).toLowerCase().includes(q));
+  rows = TL.list.filterRows(rows);
+  TL.rows = rows; TL.list.sel = -1; TL.list.set(rows.length);
+  $("tlInfo").textContent = TF("{0}: {1} eventi", TL.day || TL.month, nf(rows.length)) + (TL.day ? T(" · clic sullo stesso giorno per tornare al mese") : T(" · clic su un giorno per restringere"));
+}
+
+/* ---------- metadati ---------- */
+let MT = {rows: [], list: null};
+function initMeta(){
+  MT.list = VList($("metaList"), [[T("File"), "minmax(180px,1fr)"], [T("Dispositivo"), "160px", "", 520], [T("Data (dai metadati)"), "220px", "", 680], ["GPS", "180px", "", 860], [T("Autore"), "130px", "", 1000]],
+    i => { const m = MT.rows[i]; return [`<span class="${m[3] ? "del" : ""}">${esc(m[4])}</span>`, `<span>${esc([m[5], m[6]].filter(Boolean).join(" "))}</span>`, `<span>${fmtTaken(m[7])}</span>`, `<span class="mono">${m[8] != null ? m[8].toFixed(6) + ", " + m[9].toFixed(6) : ""}</span>`, `<span>${esc(m[10] || "")}</span>`]; },
+    i => { const m = MT.rows[i]; const fi = KEY.get(keyOf(m[1], m[2])); if (fi != null) openFile(fi); else { const a = ATT_BY_KEY.get("c:" + m[2]); if (a) openAtt(a); } },
+    {view: "meta", itemOf: i => { const m = MT.rows[i]; const fi = KEY.get(keyOf(m[1], m[2])); return fi != null ? fsItem(fi) : ATT_BY_KEY.get("c:" + m[2]) ? attItem(ATT_BY_KEY.get("c:" + m[2])) : null; }},
+    {cols: [{t: "t", get: m => m[4]}, {t: "t", get: m => [m[5], m[6]].filter(Boolean).join(" ")}, {t: "d", get: m => m[7]}, null, {t: "t", get: m => m[10]}], onChange: () => f()});
+  const f = () => { const q = $("metaQ").value.trim().toLowerCase(), gps = $("metaGps").checked;
+    MT.rows = MT.list.filterRows(FD.meta.filter(m => (!gps || m[8] != null) && (!q || [m[4], m[5], m[6], m[7], m[10]].join(" ").toLowerCase().includes(q))));
+    MT.list.set(MT.rows.length); $("metaInfo").textContent = nf(MT.rows.length) + " file"; };
+  $("metaQ").oninput = f; $("metaGps").onchange = f; f();
+}
+
+/* ---------- file inclusi ---------- */
+const KICON = {pdf: "📕", office: "📘", text: "📝", video: "🎞", audio: "🎵", other: "📦", image: "🖼", image_conv: "🖼"};
+function thumbOf(a){ return a.kind === "image" ? U(a.file) : a.prev ? a.prev : a.pageList.length ? a.pageList[0] : null; }
+let ATTV = {rows: [], shown: 0};
+function renderAtt(){
+  const f = () => {
+    const q = $("attQ").value.trim().toLowerCase(), k = $("attKind").value, full = $("attFull").checked, del = $("attDel").checked;
+    if (!ATTV.sorted){ ATTV.sorted = [...ATT.values()].sort((x, y) => (y.full - x.full) || x.path.localeCompare(y.path)); }
+    ATTV.rows = ATTV.sorted.filter(a => (!k || a.kind === k || (k === "image" && a.kind === "image_conv")) && (!full || a.full) && (!del || a.deleted) && (!q || a.path.toLowerCase().includes(q)));
+    ATTV.shown = 0; $("attGrid").innerHTML = ""; more();
+    $("attInfo").textContent = ATT.size ? TF("{0} di {1} file inclusi con il contenuto", nf(ATTV.rows.length), nf(ATT.size)) : T("Nessun file incluso con il contenuto.");
+  };
+  const more = () => {
+    const part = ATTV.rows.slice(ATTV.shown, ATTV.shown + 240); ATTV.shown += part.length;
+    $("attGrid").insertAdjacentHTML("beforeend", part.map(a => { const t = thumbOf(a);
+      return `<div class="tile" data-a="${a.id}"><div class="im">${t ? `<img loading="lazy" src="${esc(t)}" alt="">` : `<span class="ic">${KICON[a.kind] || "📦"}</span>`}</div><div class="cap"><div title="${esc(a.path)}" class="${a.deleted ? "del" : ""}">${a.full && FD.case.mode !== "scelti" ? "★ " : ""}${esc(a.name)}</div><div class="hint">${fsize(a.size)} · ${esc(a.why.join(", "))}</div></div></div>`; }).join(""));
+    $("attMore").classList.toggle("hidden", ATTV.shown >= ATTV.rows.length);
+    $("attMore").textContent = TF("Mostra altri ({0})", nf(ATTV.rows.length - ATTV.shown));
+  };
+  $("attMore").onclick = more;
+  $("attGrid").onclick = e => { const t = e.target.closest(".tile"); if (t) openAtt(ATT.get(+t.dataset.a)); };
+  $("attQ").oninput = f; $("attKind").onchange = f; $("attFull").onchange = f; $("attDel").onchange = f; f();
+}
+
+/* ---------- recuperati e tracce ---------- */
+let CV = {rows: [], list: null}, TR = {rows: [], list: null};
+function initCarved(){
+  CV.list = VList($("carvList"), [[T("File recuperato"), "minmax(180px,1fr)"], [T("Tipo"), "70px"], [T("Dimensione"), "84px", "r", 460], [T("Offset nell'immagine"), "150px", "r", 640], ["SHA-256", "190px", "", 840]],
+    i => { const r = CV.rows[i]; return [`<span>${r[5] ? "📎 " : ""}${esc(r[0])}</span>`, `<span>${esc(r[2])}</span>`, `<span class="r">${fsize(r[1])}</span>`, `<span class="r mono">${nf(r[3])}</span>`, `<span class="mono" title="${esc(r[4])}">${esc((r[4] || "").slice(0, 20))}…</span>`]; },
+    i => openCarved(CV.rows[i]), {view: "carv", itemOf: i => carvedItem(CV.rows[i])},
+    {cols: [{t: "t", get: r => r[0]}, {t: "t", get: r => r[2]}, {t: "n", get: r => r[1]}, {t: "n", get: r => r[3]}, {t: "t", get: r => r[4]}], onChange: () => f()});
+  const f = () => { const q = $("carvQ").value.trim().toLowerCase(); CV.rows = CV.list.filterRows(FD.carved.filter(r => !q || (r[0] + " " + r[2]).toLowerCase().includes(q))); CV.list.set(CV.rows.length); $("carvInfo").textContent = nf(CV.rows.length) + T(" file recuperati (spazio non allocato)"); };
+  $("carvQ").oninput = f; f();
+}
+function initTraces(){
+  const kinds = [...new Set(FD.traces.map(t => t[0]))].sort();
+  $("trcKind").innerHTML += kinds.map(k => `<option>${esc(k)}</option>`).join("");
+  TR.list = VList($("trcList"), [[T("Tipo"), "100px"], [T("Valore"), "minmax(180px,1fr)"], [T("Offset"), "130px", "", 560], [T("Contesto"), "minmax(180px,1fr)", "", 760]],
+    i => { const t = TR.rows[i]; return [`<span>${esc(t[0])}</span>`, `<span>${esc(t[2])}</span>`, `<span class="mono">${esc(t[1])}</span>`, `<span class="hint mono">${esc(t[3])}</span>`]; }, () => {}, null,
+    {cols: [{t: "t", get: t => t[0]}, {t: "t", get: t => t[2]}, {t: "t", get: t => t[1]}, {t: "t", get: t => t[3]}], onChange: () => f()});
+  const f = () => { const k = $("trcKind").value, q = $("trcQ").value.trim().toLowerCase(); TR.rows = TR.list.filterRows(FD.traces.filter(t => (!k || t[0] === k) && (!q || (t[2] + " " + t[3]).toLowerCase().includes(q)))); TR.list.set(TR.rows.length); $("trcInfo").textContent = nf(TR.rows.length) + T(" evidenze di interesse"); };
+  $("trcKind").onchange = f; $("trcQ").oninput = f; f();
+}
+
+/* ---------- analisi estese: artefatti, posta, archivi e allegati, anomalie ---------- */
+const EXV = {art: {}, mail: {}, x: {}, anom: {}};
+function initArt(){
+  const X = FD.ext, cats = X.art_cats || {};
+  $("artCat").innerHTML += [...new Set(X.art.map(r => r[0]))].map(k => `<option value="${esc(k)}">${esc(cats[k] || k)}</option>`).join("");
+  EXV.art.list = VList($("artList"), [[T("Data e ora (<span class=\"tzl\"></span>)"), "196px"], [T("Categoria"), "130px", "", 620], [T("Elemento"), "minmax(180px,1fr)"], [T("Dettagli"), "minmax(180px,1.4fr)", "", 760]],
+    i => { const r = EXV.art.rows[i]; return [`<span>${fts(r[1])}</span>`, `<span class="hint">${esc(cats[r[0]] || r[0])}</span>`, `<span><b>${esc(r[2])}</b>${r[4] ? ` <span class="hint">· ${esc(r[4])}</span>` : ""}</span>`, `<span class="hint">${esc(r[3])}</span>`]; },
+    i => { const r = EXV.art.rows[i]; modal(r[2], `<table class="dt">${[[T("Categoria"), cats[r[0]] || r[0]], [TF("Data ({0})", tzLbl()), fts(r[1])], [T("Dettagli"), r[3]], [T("Utente"), r[4]], [T("Fonte"), r[5] ? `${r[5]} (offset ${r[6]}, inode ${r[7]})` : ""]].filter(x => x[1]).map(([k, v]) => `<tr><th>${esc(k)}</th><td style="white-space:pre-wrap">${esc(v)}</td></tr>`).join("")}</table>`,
+      r[6] != null && KEY.get(keyOf(r[6], r[7])) != null ? [[T("Apri la fonte"), () => { openFile(KEY.get(keyOf(r[6], r[7]))); }]] : []); }, null,
+    {cols: [{t: "d", get: r => r[1]}, {t: "t", get: r => cats[r[0]] || r[0]}, {t: "t", get: r => r[2] + " " + (r[4] || "")}, {t: "t", get: r => r[3]}], onChange: () => f()});
+  const f = () => { const c = $("artCat").value, q = $("artQ").value.trim().toLowerCase(); EXV.art.rows = EXV.art.list.filterRows(X.art.filter(r => (!c || r[0] === c) && (!q || (r[2] + " " + r[3] + " " + r[4]).toLowerCase().includes(q)))); EXV.art.list.set(EXV.art.rows.length); $("artInfo").textContent = nf(EXV.art.rows.length) + " artefatti"; };
+  $("artCat").onchange = f; $("artQ").oninput = f; f();
+}
+function xOpen(r){
+  if (r[10]) return window.open(r[10], "_blank");
+  modal(r[3] || T("File estratto"), TF("<p style=\"word-break:break-word\">{0}</p><p class=\"hint\">{1}{2}{3}</p><p class=\"hint\">Il contenuto di questo file non è incluso nel report portatile.</p>", esc(r[2]), fsize(r[4]), r[7] ? " · SHA-256 " + esc(r[7]) : "", r[8] ? " · " + esc(r[8]) : ""), []);
+}
+function initMail(){
+  const X = FD.ext, XB = new Map((X.x || []).map(r => [r[0], r]));
+  EXV.mail.list = VList($("mailList"), [[T("Data e ora (<span class=\"tzl\"></span>)"), "196px"], ["Da", "minmax(140px,0.8fr)", "", 620], [T("Oggetto"), "minmax(180px,1.4fr)"], [T("Cartella"), "minmax(120px,0.8fr)", "", 820]],
+    i => { const r = EXV.mail.rows[i]; return [`<span>${fts(r[1])}</span>`, `<span>${esc(r[2])}</span>`, `<span><b>${esc(r[5])}</b>${r[6] ? ` <span class="hint">📎 ${r[6]}</span>` : ""}</span>`, `<span class="hint">${esc(r[7])} ${esc(r[8] || "")}</span>`]; },
+    i => { const r = EXV.mail.rows[i], atts = (X.x || []).filter(x => x[9] === r[0]);
+      const m = modal(r[5], `<table class="dt">${[["Da", r[2]], ["A", r[3]], ["Cc", r[4]], [TF("Data ({0})", tzLbl()), fts(r[1])], [T("Fonte"), `${r[9]} › ${r[8] || ""}`]].filter(x => x[1]).map(([k, v]) => `<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>`).join("")}</table>
+        ${atts.length ? TF("<p style=\"margin:10px 0 4px\"><b>Allegati</b></p>{0}", atts.map(a => `<button class="btn small" data-xa="${a[0]}">📎 ${esc(a[3])} <span class="hint">${fsize(a[4])}</span></button> `).join("")) : ""}
+        <pre style="white-space:pre-wrap;max-height:50vh;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:10px;margin-top:10px">${esc(r[10] || T("(testo non incluso)"))}</pre>`, []);
+      m.querySelectorAll("[data-xa]").forEach(b => b.onclick = () => xOpen(XB.get(+b.dataset.xa))); }, null,
+    {cols: [{t: "d", get: r => r[1]}, {t: "t", get: r => r[2] + " " + (r[3] || "")}, {t: "t", get: r => r[5]}, {t: "t", get: r => (r[7] || "") + " " + (r[8] || "")}], onChange: () => f()});
+  const f = () => { const q = $("mailQ").value.trim().toLowerCase(), a = $("mailAtt").checked; EXV.mail.rows = EXV.mail.list.filterRows(X.mail.filter(r => (!a || r[6]) && (!q || [r[2], r[3], r[5], r[10]].join(" ").toLowerCase().includes(q)))); EXV.mail.list.set(EXV.mail.rows.length); $("mailInfo").textContent = nf(EXV.mail.rows.length) + " messaggi"; };
+  $("mailQ").oninput = f; $("mailAtt").onchange = f; f();
+}
+function initX(){
+  const X = FD.ext;
+  EXV.x.list = VList($("xList"), [[T("File"), "minmax(220px,1.6fr)"], [T("Dimensione"), "84px", "r", 560], [T("Data (<span class=\"tzl\"></span>)"), "196px", "", 700], [T("SHA-256 / note"), "minmax(140px,0.8fr)", "", 860]],
+    i => { const r = EXV.x.rows[i]; return [`<span>${r[10] ? "📎 " : ""}${esc(r[2])}${r[6] ? T(' <span class="tag del">protetto</span>') : ""}</span>`, `<span class="r">${fsize(r[4])}</span>`, `<span>${fts(r[5])}</span>`, `<span class="hint mono">${r[7] ? esc(r[7].slice(0, 20)) + "…" : esc(r[8] || "")}</span>`]; },
+    i => xOpen(EXV.x.rows[i]), null,
+    {cols: [{t: "t", get: r => r[2]}, {t: "n", get: r => r[4]}, {t: "d", get: r => r[5]}, {t: "t", get: r => (r[7] || "") + " " + (r[8] || "")}], onChange: () => f()});
+  const f = () => { const k = $("xKind").value, q = $("xQ").value.trim().toLowerCase(); EXV.x.rows = EXV.x.list.filterRows(X.x.filter(r => (!k || r[1] === k) && (!q || r[2].toLowerCase().includes(q)))); EXV.x.list.set(EXV.x.rows.length); $("xInfo").textContent = nf(EXV.x.rows.length) + T(" file (📎 = contenuto incluso nel report)"); };
+  $("xKind").onchange = f; $("xQ").oninput = f; f();
+}
+function initAnom(){
+  const X = FD.ext, K = X.anom_kinds || {};
+  $("anKind").innerHTML += [...new Set(X.anom.map(r => r[0]))].map(k => `<option value="${esc(k)}">${esc(K[k] || k)}</option>`).join("");
+  EXV.anom.list = VList($("anList"), [[T("Tipo"), "170px"], [T("File"), "minmax(200px,1.2fr)"], [T("Dettaglio"), "minmax(200px,1.4fr)", "", 640], [T("Dimensione"), "84px", "r", 820]],
+    i => { const r = EXV.anom.rows[i]; return [`<span style="color:${r[4] >= 3 ? "var(--bad)" : r[4] == 2 ? "#b07000" : "var(--muted)"};font-weight:600">${esc(K[r[0]] || r[0])}</span>`, `<span>${esc(r[1])}</span>`, `<span class="hint">${esc(r[2])}</span>`, `<span class="r">${r[3] != null ? fsize(r[3]) : ""}</span>`]; },
+    i => { const r = EXV.anom.rows[i]; if (r[7] === "fs" && r[6] != null){ const fi = KEY.get(keyOf(r[5], r[6])); if (fi != null) return openFile(fi); } }, null,
+    {cols: [{t: "t", get: r => K[r[0]] || r[0]}, {t: "t", get: r => r[1]}, {t: "t", get: r => r[2]}, {t: "n", get: r => r[3]}], onChange: () => f()});
+  const f = () => { const k = $("anKind").value, q = $("anQ").value.trim().toLowerCase(); EXV.anom.rows = EXV.anom.list.filterRows(X.anom.filter(r => (!k || r[0] === k) && (!q || (r[1] + " " + r[2]).toLowerCase().includes(q)))); EXV.anom.list.set(EXV.anom.rows.length); $("anInfo").textContent = nf(EXV.anom.rows.length) + " anomalie"; };
+  $("anKind").onchange = f; $("anQ").oninput = f; f();
+}
+
+/* ---------- anteprima ---------- */
+let PV = null, PVT = "view";
+function openFile(i){
+  const r = F[i], k = keyOf(r[C.part], r[C.inode]);
+  PV = {type: "fs", i, key: k, name: r[C.name], path: PATH(i), att: r[C.att] ? ATT.get(r[C.att]) : null, row: r};
+  showPv();
+}
+function openAtt(a){
+  if (a.source === "fs"){ const i = KEY.get(keyOf(a.part, a.inode)); if (i != null) return openFile(i); }
+  PV = {type: "att", key: a.source === "carving" ? "c:" + a.name : keyOf(a.part, a.inode), name: a.name, path: a.path, att: a, row: null}; showPv();
+}
+function openCarved(r){
+  if (r[5]) return openAtt(ATT.get(r[5]));
+  PV = {type: "carved", key: "c:" + r[0], name: r[0], path: T("file recuperato ") + r[0], att: null, row: null, carved: r}; showPv();
+}
+function showPv(){
+  $("pv").classList.remove("hidden");
+  $("pvName").textContent = PV.name; $("pvPath").textContent = PV.path + (PV.row ? `  ·  offset ${PV.row[C.part]}, inode ${PV.row[C.inode]}` : "");
+  pvTab(PV.att ? PVT : (PVT === "view" || PVT === "hex" ? "info" : PVT));
+}
+$("pvClose").onclick = () => { $("pv").classList.add("hidden"); PV = null; };
+$("pvBm").onclick = () => { if (!PV) return; const it = PV.type === "fs" ? fsItem(PV.i) : PV.att ? attItem(PV.att) : PV.carved ? carvedItem(PV.carved) : null; if (it) bmDialog([it]); };
+$("pvTabs").onclick = e => { const b = e.target.closest("button"); if (b && PV) pvTab(b.dataset.t); };
+async function detail(a){
+  if (!FD.det[a.id]){ try{ await loadScript(`dati/a/${String(Math.floor(a.id / 1000)).padStart(4, "0")}/${String(a.id).padStart(6, "0")}.js`); }catch(e){ return null; } }
+  return FD.det[a.id];
+}
+async function textOf(key){
+  const n = (FD.case.text_index || {})[key]; if (n == null) return null;
+  const rows = await textChunk(n);
+  return rows.find(t => (t[0] === "carving" ? "c:" + t[2] : keyOf(t[1], t[2])) === key) || null;
+}
+async function pvTab(t){
+  PVT = t; document.querySelectorAll("#pvTabs button").forEach(b => b.classList.toggle("on", b.dataset.t === t));
+  const body = $("pvBody"), cur = PV; body.innerHTML = "";
+  const a = PV.att, nota = msg => `<div class="note">${msg}</div>`;
+  if (t === "view"){
+    if (!a){ body.innerHTML = nota(T("Il contenuto di questo file non è incluso nel report: sono disponibili i dati del catalogo (scheda Dettagli) e, se il file era stato indicizzato, il testo (scheda Testo).")); return; }
+    if (a.kind === "image") body.innerHTML = `<img class="full" src="${esc(U(a.file))}" alt="">`;
+    else if (a.kind === "image_conv") body.innerHTML = a.prev ? `<img class="full" src="${esc(a.prev)}" alt="">` + nota(T("Immagine convertita in JPEG per la visualizzazione; l'originale è nella cartella del report.")) : nota(T("Formato non visualizzabile nel browser."));
+    else if (a.pageList.length){
+      const lim = !a.full && a.kind === "pdf" && a.pages >= 3;
+      body.innerHTML = nota(TF("{0} {1} come immagini (nessun contenuto attivo del documento viene eseguito){2}.{3}", lim ? TF("Prime {0} pagine", a.pages) : a.pages === 1 ? T("1 pagina") : TF("{0} pagine", a.pages), a.pages === 1 ? T("mostrata") : T("mostrate"), a.kind === "office" ? T("; impaginazione ricostruita con LibreOffice") : "", a.kind === "pdf" ? TF(" <a href=\"{0}\" target=\"_blank\" rel=\"noopener noreferrer\">Apri il PDF originale</a> (nel visualizzatore PDF del browser).", esc(U(a.file))) : "")) + `<div class="pages">${a.pageList.map(p => `<img loading="lazy" src="${esc(p)}" alt="">`).join("")}</div>`;
+    }
+    else if (a.kind === "pdf") body.innerHTML = nota(TF("Pagine non disponibili. <a href=\"{0}\" target=\"_blank\" rel=\"noopener noreferrer\">Apri il PDF originale</a> (nel visualizzatore PDF del browser).", esc(U(a.file))));
+    else if (a.kind === "video") body.innerHTML = `<video controls style="width:100%;margin-top:12px" src="${esc(U(a.file))}"></video>`;
+    else if (a.kind === "audio") body.innerHTML = `<audio controls style="width:96%;margin:14px 2%" src="${esc(U(a.file))}"></audio>`;
+    else if (a.kind === "text"){ const d = await detail(a); if (PV !== cur) return; body.innerHTML = `<pre>${esc(d ? d.text : "")}</pre>`; }
+    else if (a.kind === "office"){
+      if (a.prev) body.innerHTML = `<img class="full" src="${esc(a.prev)}" alt="">` + nota(T("Prima pagina (anteprima di sistema). Il testo completo è nella scheda Testo."));
+      else {
+        const d = await detail(a); if (PV !== cur) return;
+        if (d && d.html){
+          body.innerHTML = nota(T("Documento mostrato con impaginazione semplificata, in un riquadro isolato: script e collegamenti esterni sono disattivati.")) + `<iframe class="docframe" sandbox="" referrerpolicy="no-referrer"></iframe>`;
+          body.querySelector("iframe").srcdoc = d.html;
+        } else {
+          const tx = await textOf(PV.key); if (PV !== cur) return;
+          body.innerHTML = tx ? nota(T("Anteprima grafica non disponibile: testo del documento.")) + `<pre>${esc(tx[6])}</pre>` : nota(T("Anteprima non disponibile per questo documento: guarda Testo, Esadecimale e Dettagli."));
+        }
+      }
+    }
+    else body.innerHTML = nota(T("Nessuna anteprima visuale per questo tipo di file: guarda Testo, Esadecimale e Dettagli."));
+    body.innerHTML += nota(TF("File incluso: <code>{0}</code> (nella cartella del report).", esc(a.file)));
+  } else if (t === "text"){
+    body.innerHTML = nota(T("Carico il testo…"));
+    const tx = await textOf(PV.key); if (PV !== cur) return;
+    if (tx) body.innerHTML = nota(tx[5] === "stringhe" ? T("Stringhe leggibili estratte dal file (ASCII e UTF-16).") : TF("Testo estratto ({0}).", esc(tx[5]))) + `<pre>${esc(tx[6])}</pre>`;
+    else if (a && a.kind === "text"){ const d = await detail(a); if (PV !== cur) return; body.innerHTML = `<pre>${esc(d ? d.text : "")}</pre>`; }
+    else body.innerHTML = nota(T("Nessun testo disponibile per questo file."));
+  } else if (t === "hex"){
+    if (!a){ body.innerHTML = nota(T("Contenuto non incluso nel report.")); return; }
+    const d = await detail(a); if (PV !== cur) return;
+    if (!d){ body.innerHTML = nota(T("Dati non trovati.")); return; }
+    const bin = atob(d.hex), n = Math.min(bin.length, 16384); let s = "";
+    for (let o = 0; o < n; o += 16){ let hx = "", asc = ""; for (let j = 0; j < 16; j++){ if (o + j < n){ const c = bin.charCodeAt(o + j); hx += c.toString(16).padStart(2, "0") + " "; asc += c >= 32 && c < 127 ? bin[o + j] : "."; } else hx += "   "; if (j === 7) hx += " "; } s += o.toString(16).padStart(8, "0") + "  " + hx + " " + asc + "\n"; }
+    body.innerHTML = nota(TF("Primi {0} byte di {1}{2}{3}", nf(n), nf(a.size), bin.length > n ? TF(" <button class=\"btn small\" id=\"hexMore\">mostra {0} byte</button>", nf(bin.length)) : "", a.size > bin.length ? `. Il file completo è <code>${esc(a.file)}</code> nella cartella del report.` : "")) + `<div class="hex"></div>`;
+    body.querySelector(".hex").textContent = s;
+    const more = $("hexMore"); if (more) more.onclick = () => { let s2 = ""; for (let o = 0; o < bin.length; o += 16){ let hx = "", asc = ""; for (let j = 0; j < 16; j++){ if (o + j < bin.length){ const c = bin.charCodeAt(o + j); hx += c.toString(16).padStart(2, "0") + " "; asc += c >= 32 && c < 127 ? bin[o + j] : "."; } else hx += "   "; if (j === 7) hx += " "; } s2 += o.toString(16).padStart(8, "0") + "  " + hx + " " + asc + "\n"; } body.querySelector(".hex").textContent = s2; more.remove(); };
+  } else if (t === "info"){
+    const r = PV.row, rows = [];
+    const add = (k, v) => { if (v != null && v !== "") rows.push(`<tr><td>${esc(k)}</td><td>${v}</td></tr>`); };
+    add(T("Percorso"), esc(PV.path));
+    if (r){ add(T("Partizione (offset)"), esc(r[C.part])); add(T("Inode"), esc(r[C.inode])); add(T("Stato"), r[C.deleted] ? T("<span class='del'>cancellato</span>") : "allocato"); add(T("Tipo (TSK)"), esc(r[C.type]));
+      add(T("Dimensione"), r[C.size] != null ? `${fsize(r[C.size])} (${nf(r[C.size])} byte)` : ""); add(TF("Modifica contenuto ({0})", tzLbl()), esc(fts(r[C.mtime]))); add(TF("Accesso ({0})", tzLbl()), esc(fts(r[C.atime]))); add(TF("Modifica metadati ({0})", tzLbl()), esc(fts(r[C.ctime]))); add(TF("Creazione ({0})", tzLbl()), esc(fts(r[C.crtime])));
+      add("MD5", r[C.md5] ? `<span class="mono">${esc(r[C.md5])}</span>` : ""); add("SHA-1", r[C.sha1] ? `<span class="mono">${esc(r[C.sha1])}</span>` : ""); add("SHA-256", r[C.sha256] ? `<span class="mono">${esc(r[C.sha256])}</span>` : ""); }
+    if (PV.carved){ const c = PV.carved; add(T("Tipo"), esc(c[2])); add(T("Dimensione"), fsize(c[1])); add(T("Offset nell'immagine"), nf(c[3])); add("SHA-256", `<span class="mono">${esc(c[4])}</span>`); }
+    if (a){ add(T("Incluso nel report"), esc(a.why.join(", "))); add(T("File nel report"), `<code>${esc(a.file)}</code>`); add(T("SHA-256 del file incluso"), `<span class="mono">${esc(a.sha256)}</span>`); add(T("MD5 del file incluso"), `<span class="mono">${esc(a.md5)}</span>`); }
+    const m = META_BY_KEY.get(PV.key);
+    if (m){ add(T("Dispositivo"), esc([m[5], m[6]].filter(Boolean).join(" "))); add(T("Data (metadati)"), fmtTaken(m[7])); add(T("Autore"), esc(m[10]));
+      if (m[8] != null) add("GPS", `<span class="mono">${m[8].toFixed(6)}, ${m[9].toFixed(6)}</span> · <a href="https://www.openstreetmap.org/?mlat=${m[8]}&mlon=${m[9]}#map=16/${m[8]}/${m[9]}" target="_blank" rel="noopener noreferrer">mappa (serve internet)</a>`); }
+    body.innerHTML = `<table class="dt">${rows.join("")}</table>`;
+    if (a){ const d = await detail(a); if (PV !== cur || !d) return;
+      if (d.exif){ body.innerHTML += `<h4 style="margin:14px 14px 4px">${T("Metadati (exiftool)")}</h4><table class="dt">${Object.entries(d.exif).map(([k, v]) => `<tr><td>${esc(k)}</td><td>${typeof v === "object" ? esc(JSON.stringify(v)) : exifTz(k, v, d.exif)}</td></tr>`).join("")}</table>`; }
+      if (d.istat){ body.innerHTML += T("<h4 style=\"margin:14px 14px 4px\">Metadati del file system (istat)</h4><pre></pre>"); body.querySelector("pre:last-of-type").textContent = /\u27e6/.test(d.istat) ? TF("Orari del file system scritti in: {0}{1}.\n\n", tzLbl(), devTz() ? TF(" (Sleuth Kit li legge nel fuso del dispositivo {0}; NTFS/ext/HFS memorizzano UTC, FAT/exFAT l'ora locale del dispositivo)", devTz()) : "") + istatTz(d.istat) : d.istat; } }
+  } else if (t === "note"){
+    const n = NOTES[PV.key] || {tag: "", text: ""};
+    body.innerHTML = TF("<div class=\"notebox\"><label class=\"hint\">Classificazione <select id=\"nTag\"><option value=\"\">—</option><option>Rilevante</option><option>Da verificare</option><option>Non rilevante</option></select></label>\n      <textarea id=\"nText\" placeholder=\"Annotazioni su questo file…\"></textarea>\n      <div style=\"display:flex;gap:8px;align-items:center\"><button class=\"btn primary small\" id=\"nSave\">Salva nota</button><button class=\"btn small\" id=\"nDel\">Elimina</button><span class=\"hint\">{0}</span></div>\n      <div class=\"hint\">La nota resta in questo browser; esportala dal pannello Note.</div></div>", n.ts ? T("ultima modifica ") + esc(fts(n.ts)) + (n.author ? " · " + esc(n.author) : "") : "");
+    $("nTag").value = n.tag || ""; $("nText").value = n.text || "";
+    $("nSave").onclick = () => { NOTES[PV.key] = {tag: $("nTag").value, text: $("nText").value, path: PV.path, name: PV.name, ts: new Date().toISOString(), author: store.get("repertia_autore", "")}; saveNotes() ? toast(T("Nota salvata")) : toast(T("Impossibile salvare: il browser blocca la memoria locale")); pvTab("note"); };
+    $("nDel").onclick = () => { delete NOTES[PV.key]; saveNotes(); toast(T("Nota eliminata")); pvTab("note"); };
+  }
+}
+
+
+/* ---------- elementi, selezione ---------- */
+function fsItem(fi){
+  if (fi == null) return null; const r = F[fi]; if (r[C.isdir] || r[C.inode] == null) return null;
+  return {key: keyOf(r[C.part], r[C.inode]), fi, src: "fs", part: r[C.part], inode: r[C.inode], path: PATH(fi), name: r[C.name], deleted: r[C.deleted], size: r[C.size]};
+}
+function attItem(a){
+  if (a.source === "fs"){ const fi = KEY.get(keyOf(a.part, a.inode)); if (fi != null) return fsItem(fi); }
+  return {key: "c:" + a.name, src: "carving", name: a.name, path: a.path, deleted: a.deleted, size: a.size, att: a};
+}
+function carvedItem(r){ return {key: "c:" + r[0], src: "carving", name: r[0], path: "recuperati/" + r[0], deleted: 0, size: r[1]}; }
+function itemByKey(key){
+  if (key.startsWith("c:")){ const a = ATT_BY_KEY.get(key); if (a) return attItem(a); const r = FD.carved.find(x => "c:" + x[0] === key); return r ? carvedItem(r) : null; }
+  return fsItem(KEY.get(key));
+}
+function openItem(it){
+  if (!it) return;
+  if (it.src === "fs") return openFile(it.fi != null ? it.fi : KEY.get(it.key));
+  const a = ATT_BY_KEY.get(it.key); if (a) return openAtt(a);
+  const r = FD.carved.find(x => "c:" + x[0] === it.key); if (r) openCarved(r);
+}
+const SELS = {};
+function SELV(view){ return SELS[view] || (SELS[view] = new Map()); }
+function renderSelBar(){
+  const S = SELV(VIEW), bar = $("selbar");
+  if (!S.size){ bar.classList.add("hidden"); return; }
+  bar.classList.remove("hidden");
+  bar.innerHTML = TF("<b>{0}</b> {1}<span class=\"grow\"></span>\n    <button class=\"btn small\" id=\"sbBm\">⭐ Preferiti</button>{2}\n    <button class=\"btn small\" id=\"sbCsv\">Esporta CSV dei selezionati</button><button class=\"btn small\" id=\"sbClr\">Deseleziona</button>", nf(S.size), S.size === 1 ? T("selezionato") : T("selezionati"), VIEW === "bm" && BMV.cat && bmIsLocalCat(BMV.cat) ? T("<button class=\"btn small\" id=\"sbBmDel\">Togli dalla categoria</button>") : "");
+  $("sbBm").onclick = () => bmDialog([...S.values()]);
+  $("sbCsv").onclick = () => csvItems([...S.values()], `selezione_${VIEW}`);
+  $("sbClr").onclick = () => { S.clear(); redrawLists(); renderSelBar(); };
+  if ($("sbBmDel")) $("sbBmDel").onclick = () => { bmRemove(BMV.cat, [...S.keys()]); S.clear(); renderSelBar(); };
+}
+
+/* ---------- finestra generica ---------- */
+function modal(title, html, acts){
+  const m = document.createElement("div"); m.className = "mod";
+  m.innerHTML = `<div class="box"><h3>${esc(title)}</h3><div class="mbody">${html}</div><div class="acts"></div></div>`;
+  const close = () => m.remove();
+  for (const [label, fn, primary] of acts.concat([[T("Annulla"), null]])){
+    const b = document.createElement("button"); b.className = "btn" + (primary ? " primary" : ""); b.textContent = label;
+    b.onclick = async () => { if (fn){ const keep = await fn(m); if (keep === true) return; } close(); };
+    m.querySelector(".acts").appendChild(b);
+  }
+  m.onclick = e => { if (e.target === m) close(); };
+  document.body.appendChild(m); return m;
+}
+
+/* ---------- segnalibri: categorie del report (sola lettura) + categorie locali ---------- */
+let BML = {}, BMKEYS = new Set();
+const BKEY = () => "repertia_bm::" + FD.case.id;
+function initBmStore(){ BML = store.get(BKEY(), {}) || {}; bmRefresh(); }
+function bmSave(){ const ok = store.set(BKEY(), BML); bmRefresh(); if (!ok) toast(T("Il browser blocca la memoria locale: i preferiti non restano dopo la chiusura")); }
+function bmReportCats(){ return FD.case.bookmarks || []; }
+function bmIsLocalCat(name){ return !!BML[name] && !bmReportCats().some(c => c.name === name); }
+function bmCats(){
+  const m = new Map();
+  for (const c of bmReportCats()) m.set(c.name, {name: c.name, note: c.note || "", report: true, local: false});
+  for (const [n, c] of Object.entries(BML)){ const x = m.get(n) || {name: n, note: c.note || "", report: false}; x.local = true; m.set(n, x); }
+  return [...m.values()].map(c => ({...c, n: bmItems(c.name).size})).sort((a, b) => a.name.localeCompare(b.name));
+}
+function bmItems(name){
+  const out = new Map();
+  const rc = bmReportCats().find(c => c.name === name);
+  if (rc) for (const [key, note, path] of rc.items) out.set(key, {key, note, path, local: false});
+  const lc = BML[name]; if (lc) for (const [key, v] of Object.entries(lc.items || {})) if (!out.has(key)) out.set(key, {key, note: v.note || "", path: v.path, local: true});
+  return out;
+}
+function bmRefresh(){
+  BMKEYS = new Set(); let n = 0;
+  for (const c of bmCats()){ for (const k of bmItems(c.name).keys()) BMKEYS.add(k); n += c.n; }
+  $("nBm").textContent = n ? nf(n) : "";
+}
+function bmAdd(name, items, note){
+  const c = BML[name] || (BML[name] = {note: "", created: new Date().toISOString(), items: {}});
+  const ex = bmItems(name); let k = 0;
+  for (const it of items){ if (ex.has(it.key)) continue; c.items[it.key] = {note: note || "", path: it.path, ts: new Date().toISOString(), author: store.get("repertia_autore", "")}; k++; }
+  bmSave(); redrawLists(); if (VIEW === "bm") renderBmCats(); return k;
+}
+function bmRemove(name, keys){
+  const c = BML[name]; if (!c) return;
+  let k = 0; for (const key of keys) if (c.items[key]){ delete c.items[key]; k++; }
+  bmSave(); redrawLists(); renderBmCats(); toast(TF("{0} file tolti dalla categoria{1}", k, k < keys.length ? T(" (quelli arrivati con il report non si possono togliere)") : ""));
+}
+function bmDialog(items){
+  items = items.filter(Boolean);
+  if (!items.length) return toast(T("Niente da aggiungere (solo file, non cartelle)"));
+  const cats = bmCats();
+  modal(T("⭐ Aggiungi ai preferiti"), TF("<p>{0} file. Scegli una categoria o scrivi un nome nuovo.</p>\n    <input type=\"text\" id=\"mCat\" list=\"mCatL\" placeholder=\"es. Foto rilevanti, Da verificare…\"><datalist id=\"mCatL\">{1}</datalist>\n    {2}\n    <p style=\"margin:12px 0 4px\">Nota sui file <span class=\"hint\">(facoltativa)</span></p><textarea id=\"mNote\" rows=\"3\"></textarea>\n    <p class=\"hint\">I preferiti creati qui restano in questo browser: esportali in CSV o includili nel Report PDF.</p>", nf(items.length), cats.map(c => `<option value="${esc(c.name)}">`).join(""), cats.length ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">${cats.map(c => `<button class="btn small" data-c="${esc(c.name)}">${esc(c.name)} <span class="hint">${nf(c.n)}</span></button>`).join("")}</div>` : ""),
+    [[T("Aggiungi"), m => { const name = m.querySelector("#mCat").value.trim().replace(/\s+/g, " ").slice(0, 80);
+      if (!name){ toast(T("Scrivi o scegli una categoria")); return true; }
+      const k = bmAdd(name, items, m.querySelector("#mNote").value.trim()); SELV(VIEW).clear(); redrawLists(); renderSelBar();
+      toast(TF("{0} file aggiunti a «{1}»", k, name)); }, true]]);
+  document.querySelectorAll(".mod [data-c]").forEach(b => b.onclick = () => { document.querySelector("#mCat").value = b.dataset.c; });
+  setTimeout(() => { const i = document.querySelector("#mCat"); if (i) i.focus(); }, 30);
+}
+let BMV = {cat: null, rows: [], list: null};
+function initBm(){
+  BMV.list = VList($("bmList"), [[T("File"), "minmax(200px,1fr)"], [T("Nota"), "minmax(140px,1fr)", "", 560], [T("Dimensione"), "84px", "r", 720], [T("Modificato (<span class=\"tzl\"></span>)"), "196px", "", 860]],
+    i => { const x = BMV.rows[i], it = x.it, r = it && it.fi != null ? F[it.fi] : null;
+      return [`<span>${r ? icon(r) : "📄"} <span class="${it && it.deleted ? "del" : ""}">${esc(it ? it.path : x.path || x.key)}</span>${x.local ? "" : T(" <span class=\"tag att\">dal report</span>")}</span>`, `<span class="hint">${esc(x.note)}</span>`, `<span class="r">${it ? fsize(it.size) : ""}</span>`, `<span>${r ? fts(r[C.mtime]) : ""}</span>`]; },
+    i => openItem(BMV.rows[i].it), {view: "bm", itemOf: i => BMV.rows[i].it},
+    {cols: [{t: "t", get: x => x.it ? x.it.path : x.path}, {t: "t", get: x => x.note}, {t: "n", get: x => x.it ? x.it.size : null}, {t: "d", get: x => x.it && x.it.fi != null ? F[x.it.fi][C.mtime] : null}], onChange: () => renderBmCats()});
+  $("bmCats").onclick = e => { const c = e.target.closest(".bmc"); if (c){ BMV.cat = c.dataset.c; SELV("bm").clear(); renderBmCats(); renderSelBar(); } };
+  $("bmNew").onclick = () => modal(T("Nuova categoria"), T("<input type=\"text\" id=\"mNew\" placeholder=\"Nome della categoria\">"), [[T("Crea"), m => { const n = m.querySelector("#mNew").value.trim(); if (!n){ toast(T("Scrivi un nome")); return true; } if (!BML[n]) BML[n] = {note: "", created: new Date().toISOString(), items: {}}; bmSave(); BMV.cat = n; renderBmCats(); }, true]]);
+  $("bmRen").onclick = () => { const n = BMV.cat; if (!n) return; if (!bmIsLocalCat(n)) return toast(T("Le categorie arrivate con il report non si rinominano"));
+    modal(T("Rinomina categoria"), TF("<input type=\"text\" id=\"mRen\" value=\"{0}\"><p style=\"margin:10px 0 4px\">Descrizione</p><textarea id=\"mRenN\" rows=\"3\">{1}</textarea>", esc(n), esc(BML[n].note || "")), [[T("Salva"), m => { const nn = m.querySelector("#mRen").value.trim(); if (!nn){ toast(T("Il nome non può essere vuoto")); return true; }
+      const c = BML[n]; c.note = m.querySelector("#mRenN").value; delete BML[n]; BML[nn] = c; BMV.cat = nn; bmSave(); renderBmCats(); }, true]]); };
+  $("bmDel").onclick = () => { const n = BMV.cat; if (!n) return; if (!bmIsLocalCat(n)) return toast(T("Le categorie arrivate con il report non si eliminano"));
+    modal(T("Elimina categoria"), TF("<p>Eliminare la categoria «{0}» e i suoi preferiti? I file non vengono toccati.</p>", esc(n)), [[T("Elimina"), () => { delete BML[n]; BMV.cat = null; bmSave(); renderBmCats(); }, true]]); };
+  $("bmCsv").onclick = () => { if (!BMV.cat) return toast(T("Scegli una categoria")); csvItems(BMV.rows.map(x => x.it).filter(Boolean), "preferiti_" + BMV.cat, x => bmItems(BMV.cat).get(x.key)); };
+}
+function renderBmCats(){
+  if (!BMV.list) return;
+  const cats = bmCats();
+  if (BMV.cat && !cats.some(c => c.name === BMV.cat)) BMV.cat = null;
+  if (!BMV.cat && cats.length) BMV.cat = cats[0].name;
+  $("bmCats").innerHTML = cats.length ? cats.map(c => `<div class="bmc${c.name === BMV.cat ? " on" : ""}" data-c="${esc(c.name)}">⭐ <span>${esc(c.name)}</span>${c.report ? T(" <span class=\"tag att\" title=\"Arrivata con il report\">report</span>") : ""}<span class="k">${nf(c.n)}</span></div>`).join("") : T("<div class=\"hint\" style=\"padding:10px\">Nessuna categoria.</div>");
+  BMV.rows = BMV.cat ? [...bmItems(BMV.cat).values()].map(x => ({...x, it: itemByKey(x.key) || {key: x.key, path: x.path, name: (x.path || "").split("/").pop(), src: "?"}})) : [];
+  BMV.rows.sort((a, b) => (a.it.path || "").localeCompare(b.it.path || ""));
+  BMV.rows = BMV.list.filterRows(BMV.rows);
+  BMV.list.set(BMV.rows.length);
+  const c = cats.find(x => x.name === BMV.cat);
+  $("bmInfo").textContent = c ? TF("«{0}»: {1} file{2}{3}", c.name, nf(c.n), c.note ? " · " + c.note : "", c.report ? T(" · categoria arrivata con il report (si possono aggiungere file, non togliere quelli originali)") : "") : T("Seleziona dei file in qualsiasi elenco (caselle a sinistra) e premi «⭐ Preferiti», oppure usa ⭐ nell'anteprima di un file.");
+}
+
+/* ---------- esportazione CSV ---------- */
+// intestazioni e valori fissi dei CSV nella lingua del report (le colonne con il fuso: «modifica_utc» → «modified_utc»)
+const csvT = h => { if (LG.diz && LG.diz[h]) return LG.diz[h]; const m = /^(.+_)(utc|ora_italiana|fuso_.+)$/.exec(h);
+  return m ? T(m[1]) + (m[2].startsWith("fuso_") ? T("fuso_") + m[2].slice(5) : T(m[2])) : h; };
+const CSV_VAL = new Set(["cancellato", "allocato", "recuperato", "si", "sì", "no"]);
+function csvDownload(name, header, rows){
+  header = header.map(csvT); rows = rows.map(r => r.map(v => typeof v === "string" && CSV_VAL.has(v) ? T(v === "si" ? "sì" : v) : v));
+  const q = v => { const s = String(v ?? ""); return /[";\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+  download(`${name.replace(/[^\w.-]+/g, "_")}.csv`, "﻿" + [header, ...rows].map(r => r.map(q).join(";")).join("\r\n"), "text/csv");
+  toast(TF("{0} righe esportate", nf(rows.length)));
+}
+function itemRow(it, extra){
+  const r = it.fi != null ? F[it.fi] : null, a = r && r[C.att] ? ATT.get(r[C.att]) : it.att || ATT_BY_KEY.get(it.key);
+  const cats = bmCats().filter(c => bmItems(c.name).has(it.key)).map(c => c.name).join(", "), n = NOTES[it.key];
+  return [it.path, it.src === "fs" ? it.part : "recuperato", it.src === "fs" ? it.inode : "", it.deleted ? "cancellato" : "allocato", it.size ?? "",
+    r ? fts(r[C.mtime]) : "", r ? fts(r[C.atime]) : "", r ? fts(r[C.ctime]) : "", r ? fts(r[C.crtime]) : "",
+    (r && r[C.md5]) || (a && a.md5) || "", (r && r[C.sha1]) || "", (r && r[C.sha256]) || (a && a.sha256) || "", a ? a.file : "", cats,
+    n ? [n.tag, n.text].filter(Boolean).join(": ") : "", ...(extra ? [extra(it) ? extra(it).note || "" : ""] : [])];
+}
+const itemHead = () => { const z = zsuf(); return ["percorso", "partizione_offset", "inode", "stato", "byte", "modifica_" + z, "accesso_" + z, "modifica_metadati_" + z, "creazione_" + z, "md5", "sha1", "sha256", "file_nel_report", "preferiti", "nota"]; };
+function csvItems(items, name, extra){ csvDownload(name, extra ? [...itemHead(), "nota_preferito"] : itemHead(), items.map(it => itemRow(it, extra))); }
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-csv]"); if (!b) return;
+  const v = b.dataset.csv, c = FD.case.case;
+  if (v === "exp") csvItems(EXP.rows.map(fsItem).filter(Boolean), `cartella_${EXP.dir || "radice"}`);
+  else if (v === "src") csvDownload(`ricerca_${$("srcQ").value}`, ["percorso", "stato", "trovato", "byte"], SRC.rows.map(x => [x.path, x.del ? "cancellato" : "allocato", x.snip.replace(/<[^>]+>/g, "").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;/g, "'"), x.i != null ? F[x.i][C.size] : ""]));
+  else if (v === "tl") csvDownload(`timeline_${TL.day || TL.month}`, ["data_ora_" + zsuf(), "evento", "origine", "fonte", "percorso", "messaggio", "partizione_offset", "inode"], TL.rows.map(e => [cvt(e[0]), KIND[e[1]] || e[1], e[2] === "tsk" ? T("file system") : e[2], e[3], e[4], e[5], e[6], e[7]]));
+  else if (v === "meta") csvDownload("metadati", ["percorso", "stato", "marca", "modello", "data_metadati", "fuso_della_data", "latitudine", "longitudine", "autore", "partizione_offset", "inode"], MT.rows.map(m => [m[4], m[3] ? "cancellato" : "allocato", m[5], m[6], m[7], takenTz(m[7]), m[8], m[9], m[10], m[1], m[2]]));
+  else if (v === "att") csvItems(ATTV.rows.map(attItem), "file_inclusi");
+  else if (v === "carv") csvDownload("file_recuperati", ["file", "tipo", "byte", "offset_immagine", "sha256", "file_nel_report"], CV.rows.map(r => [r[0], r[2], r[1], r[3], r[4], r[5] ? ATT.get(r[5]).file : ""]));
+  else if (v === "trc") csvDownload("evidenze_di_interesse", ["tipo", "valore", "offset", "contesto"], TR.rows.map(t => [t[0], t[2], t[1], t[3]]));
+  else if (v === "art") csvDownload("artefatti", ["categoria", "data_" + zsuf(), "elemento", "dettagli", "utente", "fonte", "partizione_offset", "inode"], EXV.art.rows.map(r => [FD.ext.art_cats[r[0]] || r[0], cvt(r[1]), ...r.slice(2)]));
+  else if (v === "mail") csvDownload("posta", ["data_" + zsuf(), "mittente", "destinatari", "cc", "oggetto", "allegati", "formato", "cartella", "file_di_posta"], EXV.mail.rows.map(r => [cvt(r[1]), ...r.slice(2, 10)]));
+  else if (v === "xarch") csvDownload("archivi_allegati", ["tipo", "percorso", "byte", "data_" + zsuf(), "protetto", "sha256", "note", "file_nel_report"], EXV.x.rows.map(r => [r[1], r[2], r[4], cvt(r[5]), r[6] ? "si" : "no", r[7], r[8], r[10]]));
+  else if (v === "anom") csvDownload("anomalie", ["tipo", "file", "dettaglio", "byte", "gravita", "partizione_offset", "inode"], EXV.anom.rows.map(r => [FD.ext.anom_kinds[r[0]] || r[0], r[1], r[2], r[3], r[4], r[5], r[6]]));
+});
+
+/* ---------- fuso orario ---------- */
+tzSelRefresh();
+$("tzSel").onchange = () => {
+  const v = $("tzSel").value; TZ = v === "rome" || v === "dev" ? v : "utc"; store.set("repertia_fuso", TZ);
+  tzSelRefresh();
+  for (const l of LISTS) if (l.cfActive && l.cfActive()) l.cfCfg.onChange();      // i filtri di data seguono il fuso mostrato
+  redrawLists(); renderSummary();
+  toast(T("Orari in: ") + tzLbl() + (TZ === "utc" ? "" : T(" (ogni orario ha la sigla del fuso); giorni e mesi della timeline restano quelli UTC")));
+  if (PV) pvTab(PVT);
+};
+
+/* ---------- nuovo report: PDF (stampa del browser), Word, HTML ---------- */
+$("pdfBtn").onclick = () => {
+  const cats = bmCats();
+  modal(T("📄 Nuovo report"), TF("<p class=\"hint\" style=\"margin-top:0\"><b>PDF</b>: si apre la finestra di stampa, scegli «Salva come PDF». <b>Word</b>: file .docx modificabile. <b>HTML</b>: pagina da aprire in qualsiasi browser.</p>\n    <p style=\"margin:6px 0 4px\">Titolo</p><input type=\"text\" id=\"pTitle\" value=\"Report di analisi – {0}\">\n    <p style=\"margin:10px 0 4px\">Redatto da</p><input type=\"text\" id=\"pAuth\" value=\"{1}\">\n    <p style=\"margin:12px 0 4px\"><b>Contenuto</b></p>\n    <label class=\"opt\"><input type=\"checkbox\" id=\"pCase\" checked> Dati del caso e della copia forense</label>\n    <label class=\"opt\"><input type=\"checkbox\" id=\"pFind\" checked> Reperti ({2})</label>\n    <label class=\"opt\"><input type=\"checkbox\" id=\"pNotes\" {3}> Note sui file ({4})</label>\n    <label class=\"opt\"><input type=\"checkbox\" id=\"pThumb\" checked> Miniature di foto e prime pagine dei documenti inclusi</label>\n    <label class=\"opt\"><input type=\"checkbox\" id=\"pMd\"> Report completo dell'analisi (testo generato da RepertIA)</label>\n    <p style=\"margin:12px 0 4px\"><b>Preferiti</b></p>\n    {5}", esc(FD.case.case), esc(store.get("repertia_autore", "")), (FD.case.findings || []).length, Object.keys(NOTES).length ? "checked" : "", Object.keys(NOTES).length, cats.length ? cats.map(c => TF("<label class=\"opt\"><input type=\"checkbox\" data-pc=\"{0}\" checked> ⭐ {1} <span class=\"hint\">({2} file)</span></label>", esc(c.name), esc(c.name), nf(c.n))).join("") : T("<p class=\"hint\">Nessuna categoria.</p>")),
+    [["📄 PDF", m => { buildPrint(m); }, true], ["📝 Word", m => { buildDocx(m); }], ["🌐 HTML", m => { buildHtmlFile(m); }]]);
+};
+function buildPrint(m){
+  const pa = $("printArea"); pa.innerHTML = reportHtml(m);
+  const imgs = [...pa.querySelectorAll("img")];
+  toast(T("Preparo la stampa…"));
+  Promise.all(imgs.map(i => i.complete ? 1 : new Promise(r => { i.onload = i.onerror = r; }))).then(() => setTimeout(() => window.print(), 100));
+}
+function reportHtml(m, noThumb){
+  const v = id => m.querySelector("#" + id), on = id => id === "pThumb" && noThumb ? false : v(id).checked, c = FD.case;
+  const pick = [...m.querySelectorAll("[data-pc]")].filter(x => x.checked).map(x => x.dataset.pc);
+  store.set("repertia_autore", v("pAuth").value);
+  const th = it => { if (!on("pThumb")) return ""; const a = it.att || (it.fi != null && F[it.fi][C.att] ? ATT.get(F[it.fi][C.att]) : ATT_BY_KEY.get(it.key)); const t = a ? thumbOf(a) : null; return t ? `<img class="pth" src="${esc(t)}" alt="">` : ""; };
+  const rowOf = (it, note) => { const r = it.fi != null ? F[it.fi] : null, a = r && r[C.att] ? ATT.get(r[C.att]) : ATT_BY_KEY.get(it.key), n = NOTES[it.key];
+    return `<tr>${on("pThumb") ? `<td>${th(it)}</td>` : ""}<td>${esc(it.path)}<div class="meta">${it.src === "fs" ? `offset ${esc(it.part)}, inode ${esc(it.inode)}` : T("file recuperato col carving")} · ${it.deleted ? T("cancellato") : T("allocato")}${it.size != null ? " · " + fsize(it.size) : ""}</div></td>
+      <td class="meta">${r ? `M ${fts(r[C.mtime])}<br>A ${fts(r[C.atime])}<br>C ${fts(r[C.ctime])}<br>B ${fts(r[C.crtime])}` : ""}</td>
+      <td class="mono">${esc((r && r[C.sha256]) || (a && a.sha256) || "")}</td><td>${esc([note, n ? [n.tag, n.text].filter(Boolean).join(": ") : ""].filter(Boolean).join(" — "))}</td></tr>`; };
+  const head = TF("<tr>{0}<th style=\"width:26%\">File</th><th style=\"width:17%\">Date ({1})</th><th style=\"width:22%\">SHA-256</th><th style=\"width:20%\">Note</th></tr>", on("pThumb") ? T("<th>Anteprima</th>") : "", tzLbl());
+  let h = TF("<h1>{0}</h1><div class=\"meta\">Generato il {1}{2} dal report portatile di {3} (creato il {4}).</div>", esc(v("pTitle").value), esc(nowStamp()), v("pAuth").value ? " da " + esc(v("pAuth").value) : "", esc(c.app), esc(ftsRaw(c.generated, true)));
+  if (on("pCase")){
+    const hs = Object.entries(c.sha256 || {});
+    h += TF("<h2>Caso e copia forense</h2><table><tr><td>Caso</td><td>{0}</td></tr>{1}{2}{3}<tr><td>Copia forense</td><td>{4}</td></tr><tr><td>Supporto</td><td>{5}</td></tr>\n      <tr><td>SHA-256 della copia</td><td class=\"mono\">{6}{7}</td></tr>\n      <tr><td>Partizioni</td><td>{8}</td></tr>\n      <tr><td>Strumenti</td><td class=\"meta\">{9}</td></tr></table>", esc((c.info_caso || {}).nome || c.case), (c.info_caso || {}).operatore ? TF("<tr><td>Operatore</td><td>{0}</td></tr>", esc(c.info_caso.operatore)) : "", (c.info_caso || {}).reperto ? TF("<tr><td>Tipo di reperto</td><td>{0}</td></tr>", esc(c.info_caso.reperto)) : "", (c.info_caso || {}).note ? TF("<tr><td>Note</td><td>{0}</td></tr>", esc(c.info_caso.note)) : "", esc(c.evidence), esc(c.disk_type || ""), hs.length ? hs.map(([k, x]) => esc(k) + ": " + esc(x)).join("<br>") : T("non calcolato"), c.sha256_differito ? T(" (calcolato dopo l'avvio dell'analisi)") : "", (c.partitions || []).map(p => `${esc(p.fs || T("non leggibile"))} · offset ${esc(p.offset)}${p.files != null ? TF(" · {0} voci ({1} cancellate)", nf(p.files), nf(p.deleted)) : ""}`).join("<br>"), Object.entries(c.tools || {}).map(([k, x]) => esc(k) + ": " + esc(x)).join("<br>"));
+  }
+  if (on("pFind") && (c.findings || []).length) h += T("<h2>Reperti</h2>") + c.findings.map(f => `<h3>${f.n}. ${esc(f.title)}</h3><p style="white-space:pre-wrap">${esc(f.description)}</p><p class="meta">${T("Riferimenti:")} ${esc(f.references)}</p>`).join("");
+  for (const name of pick){
+    const items = [...bmItems(name).values()]; const cat = bmCats().find(x => x.name === name);
+    h += TF("<h2>⭐ {0} ({1} file)</h2>{2}<table>{3}{4}</table>", esc(name), nf(items.length), cat && cat.note ? `<p>${esc(cat.note)}</p>` : "", head, items.map(x => rowOf(itemByKey(x.key) || {key: x.key, path: x.path, src: "?"}, x.note)).join(""));
+  }
+  if (on("pNotes") && Object.keys(NOTES).length){
+    h += TF("<h2>Note sui file</h2><table>{0}{1}</table>", head, Object.entries(NOTES).map(([k, n]) => rowOf(itemByKey(k) || {key: k, path: n.path || k, src: "?"}, "")).join(""));
+  }
+  if (on("pMd")) h += TF("<h2>Report dell'analisi</h2><div>{0}</div>", md(mdTz(c.report_md || "")));
+  h += T("<p class=\"meta\" style=\"margin-top:18pt\">Integrità del report portatile: confrontare impronte.csv e IMPRONTA_REPORT.txt con quanto comunicato da chi lo ha generato.</p>");
+  return h;
+}
+const repName = (m, ext) => (m.querySelector("#pTitle").value || "report").replace(/[^\w\-]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 80) + "." + ext;
+function buildHtmlFile(m){
+  // le miniature restano collegate alla cartella del report portatile
+  const base = location.href.replace(/[#?].*$/, "").replace(/[^/]*$/, "");
+  const css = `body{font:11pt/1.45 -apple-system,"Segoe UI",Roboto,Arial,sans-serif;color:#111;max-width:1100px;margin:24px auto;padding:0 18px}
+h1{font-size:20pt;margin:0 0 4pt}h2{font-size:15pt;margin:20pt 0 6pt;border-bottom:1px solid #999}h3{font-size:12.5pt;margin:14pt 0 4pt}
+table{border-collapse:collapse;width:100%;font-size:9.5pt;margin:4pt 0 10pt}td,th{border:1px solid #bbb;padding:3pt 6pt;vertical-align:top;text-align:left;overflow-wrap:anywhere}th{background:#eef0f3}
+img.pth{max-width:130px;max-height:130px}.mono,code{font-family:Menlo,Consolas,monospace;font-size:8.5pt}.meta{color:#555;font-size:9.5pt}
+@media print{body{margin:0;max-width:none}tr{page-break-inside:avoid}h2,h3{page-break-after:avoid}}`;
+  const html = `<!doctype html><html lang="${LG.lingua || "it"}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><base href="${esc(base)}"><title>${esc(m.querySelector("#pTitle").value)}</title><style>${css}</style></head><body>${reportHtml(m)}</body></html>`;
+  download(repName(m, "html"), html, "text/html");
+  toast(T("Report HTML salvato (le miniature si vedono finché la cartella del report portatile resta dov'è)"));
+}
+
+/* ---------- Word (.docx) generato nel browser ---------- */
+const CRC_T = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++){ let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+function crc32(b){ let c = 0xFFFFFFFF; for (let i = 0; i < b.length; i++) c = CRC_T[(c ^ b[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+function zipStore(files){
+  // zip senza compressione (formato "stored"): basta a Word
+  const enc = new TextEncoder(), parts = [], central = []; let off = 0;
+  const u16 = n => [n & 255, (n >>> 8) & 255], u32 = n => [n & 255, (n >>> 8) & 255, (n >>> 16) & 255, (n >>> 24) & 255];
+  for (const [name, text] of files){
+    const nb = enc.encode(name), data = typeof text === "string" ? enc.encode(text) : text, crc = crc32(data);
+    const common = [...u16(20), ...u16(0x0800), ...u16(0), ...u16(0), ...u16(0x21), ...u32(crc), ...u32(data.length), ...u32(data.length), ...u16(nb.length), ...u16(0)];
+    const local = new Uint8Array([0x50, 0x4B, 3, 4, ...common]);
+    parts.push(local, nb, data);
+    central.push(new Uint8Array([0x50, 0x4B, 1, 2, ...u16(20), ...common, ...u16(0), ...u16(0), ...u16(0), ...u32(0), ...u32(off)]), nb);
+    off += local.length + nb.length + data.length;
+  }
+  const csize = central.reduce((a, b) => a + b.length, 0);
+  const end = new Uint8Array([0x50, 0x4B, 5, 6, ...u16(0), ...u16(0), ...u16(files.length), ...u16(files.length), ...u32(csize), ...u32(off), ...u16(0)]);
+  return new Blob([...parts, ...central, end], {type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document"});
+}
+function buildDocx(m){
+  const box = document.createElement("div"); box.innerHTML = reportHtml(m, true);
+  const X = s => String(s ?? "").replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  // testo di un elemento come run di Word (a capo, grassetto, codice, testo grigio)
+  const runs = (el, sz, bold) => {
+    const out = [];
+    const walk = (n, st) => {
+      if (n.nodeType === 3){ if (n.nodeValue) out.push(`<w:r><w:rPr>${st.b ? "<w:b/>" : ""}${st.c ? '<w:rFonts w:ascii="Consolas" w:hAnsi="Consolas"/>' : ""}${st.g ? '<w:color w:val="666666"/>' : ""}${sz ? `<w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/>` : ""}</w:rPr><w:t xml:space="preserve">${X(n.nodeValue.replace(/\s+/g, " "))}</w:t></w:r>`); return; }
+      if (n.nodeType !== 1 || n.tagName === "IMG") return;
+      if (n.tagName === "BR"){ out.push("<w:r><w:br/></w:r>"); return; }
+      const t = n.tagName, cl = n.classList || {contains: () => false};
+      const s2 = {b: st.b || t === "B" || t === "STRONG" || t === "TH", c: st.c || t === "CODE" || cl.contains("mono"), g: st.g || cl.contains("meta") || cl.contains("hint")};
+      if (cl.contains("meta") && out.length) out.push("<w:r><w:br/></w:r>");
+      n.childNodes.forEach(k => walk(k, s2));
+    };
+    walk(el, {b: !!bold});
+    return out.join("");
+  };
+  const P = (inner, style, extra) => `<w:p><w:pPr>${style ? `<w:pStyle w:val="${style}"/>` : ""}${extra || ""}</w:pPr>${inner}</w:p>`;
+  const body = [];
+  const block = el => {
+    const t = el.tagName;
+    if (t === "H1") body.push(P(runs(el), "Title"));
+    else if (t === "H2") body.push(P(runs(el), "Heading1"));
+    else if (t === "H3" || t === "H4") body.push(P(runs(el), "Heading2"));
+    else if (t === "UL" || t === "OL") el.querySelectorAll(":scope > li").forEach(li => body.push(P(`<w:r><w:t>•</w:t></w:r><w:r><w:tab/></w:r>` + runs(li), null, '<w:ind w:left="360" w:hanging="240"/><w:spacing w:after="40"/>')));
+    else if (t === "TABLE"){
+      const rows = [...el.querySelectorAll("tr")]; if (!rows.length) return;
+      const nc = Math.max(...rows.map(r => r.children.length)), sz = nc > 4 ? 15 : 17;
+      body.push(`<w:tbl><w:tblPr><w:tblStyle w:val="Griglia"/><w:tblW w:w="5000" w:type="pct"/></w:tblPr><w:tblGrid>${"<w:gridCol/>".repeat(nc)}</w:tblGrid>` +
+        rows.map((r, i) => { const head = r.children[0] && r.children[0].tagName === "TH";
+          return `<w:tr>${head ? "<w:trPr><w:tblHeader/></w:trPr>" : ""}${[...r.children].map(td => `<w:tc><w:tcPr>${head ? '<w:shd w:val="clear" w:color="auto" w:fill="E7E9EE"/>' : ""}</w:tcPr><w:p><w:pPr><w:spacing w:after="0"/></w:pPr>${runs(td, sz, head)}</w:p></w:tc>`).join("")}${"<w:tc><w:p/></w:tc>".repeat(Math.max(0, nc - r.children.length))}</w:tr>`; }).join("") +
+        `</w:tbl>` + P("", null, '<w:spacing w:after="60"/>'));
+    }
+    else if (t === "DIV" && el.querySelector("h1,h2,h3,h4,p,table,ul,ol,div")) [...el.children].forEach(block);
+    else { const r = runs(el, el.classList.contains("meta") ? 17 : null); if (r) body.push(P(r)); }
+  };
+  [...box.children].forEach(block);
+  const ns = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"';
+  const hd = (i, sz) => `<w:style w:type="paragraph" w:styleId="Heading${i}"><w:name w:val="heading ${i}"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:qFormat/><w:pPr><w:keepNext/><w:spacing w:before="240" w:after="80"/><w:outlineLvl w:val="${i - 1}"/></w:pPr><w:rPr><w:b/><w:color w:val="1F3A5F"/><w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/></w:rPr></w:style>`;
+  const brd = ["top", "left", "bottom", "right", "insideH", "insideV"].map(x => `<w:${x} w:val="single" w:sz="4" w:space="0" w:color="A0A4AA"/>`).join("");
+  const files = [
+    ["[Content_Types].xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/></Types>`],
+    ["_rels/.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>`],
+    ["word/_rels/document.xml.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdS" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`],
+    ["word/styles.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:styles ${ns}><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:cs="Calibri" w:eastAsia="Calibri"/><w:sz w:val="20"/><w:szCs w:val="20"/><w:lang w:val=LOC/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after="100" w:line="264" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults><w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:qFormat/></w:style><w:style w:type="paragraph" w:styleId="Title"><w:name w:val="Title"/><w:basedOn w:val="Normal"/><w:qFormat/><w:pPr><w:spacing w:after="120"/></w:pPr><w:rPr><w:b/><w:color w:val="1F3A5F"/><w:sz w:val="36"/><w:szCs w:val="36"/></w:rPr></w:style>${hd(1, 28)}${hd(2, 23)}<w:style w:type="table" w:styleId="Griglia"><w:name w:val="Griglia"/><w:tblPr><w:tblBorders>${brd}</w:tblBorders><w:tblCellMar><w:left w:w="60" w:type="dxa"/><w:right w:w="60" w:type="dxa"/></w:tblCellMar></w:tblPr></w:style></w:styles>`],
+    ["word/document.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document ${ns}><w:body>${body.join("")}<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="1021" w:bottom="1134" w:left="1021" w:header="567" w:footer="567" w:gutter="0"/></w:sectPr></w:body></w:document>`],
+  ];
+  const blob = zipStore(files), a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = repName(m, "docx"); document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 800);
+  toast(T("Report Word salvato (senza miniature: per le immagini usa PDF o HTML)"));
+}
+
+/* ---------- segnalibri: esporta / importa (per passarli a un altro analista) ---------- */
+$("bmJson").onclick = () => {
+  const local = Object.keys(BML).length;
+  if (!local) return toast(T("Nessun preferito creato in questo browser da esportare"));
+  download(`preferiti_${FD.case.case}.json`, JSON.stringify({report: FD.case.id, caso: FD.case.case, esportati: new Date().toISOString(), autore: store.get("repertia_autore", ""), preferiti: BML}, null, 2), "application/json");
+};
+$("bmImp").onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  try{
+    const d = JSON.parse(await f.text()), src = d.preferiti || d.segnalibri || {};
+    if (d.report && d.report !== FD.case.id && !confirm(T("Il file viene da un altro report: importare lo stesso i preferiti dei file che coincidono?"))){ e.target.value = ""; return; }
+    let nc = 0, nf_ = 0;
+    for (const [name, c] of Object.entries(src)){
+      if (!c || typeof c !== "object") continue;
+      const nm = String(name).replace(/\s+/g, " ").trim().slice(0, 80); if (!nm) continue;
+      const dst = BML[nm] || (BML[nm] = {note: String(c.note || ""), created: String(c.created || new Date().toISOString()), items: {}}); nc++;
+      for (const [key, v] of Object.entries(c.items || {})){ if (!dst.items[key] && v && typeof v === "object"){ dst.items[key] = {note: String(v.note || ""), path: String(v.path || ""), ts: String(v.ts || ""), author: String(v.author || "")}; nf_++; } }
+    }
+    bmSave(); redrawLists(); renderBmCats(); toast(TF("{0} categorie, {1} preferiti importati", nc, nf_));
+  }catch(err){ toast(T("File di preferiti non valido")); }
+  e.target.value = "";
+};
+
+/* ---------- note ---------- */
+let NOTES = {};
+const NKEY = () => "repertia_note::" + FD.case.id;
+function initNotes(){ NOTES = store.get(NKEY(), {}) || {}; $("noteAuthor").value = store.get("repertia_autore", ""); $("noteAuthor").oninput = () => store.set("repertia_autore", $("noteAuthor").value); updNotes(); }
+function saveNotes(){ const ok = store.set(NKEY(), NOTES); updNotes(); return ok; }
+function updNotes(){ const n = Object.keys(NOTES).length; $("nNotes").textContent = n ? nf(n) : ""; }
+function renderNotes(){
+  const e = Object.entries(NOTES).sort((a, b) => (a[1].path || "").localeCompare(b[1].path || ""));
+  $("notesBody").innerHTML = e.length ? TF("<div class=\"card\"><table class=\"dt\"><tr><th>File</th><th>Classificazione</th><th>Nota</th><th>Data</th></tr>{0}</table></div>", e.map(([k, n]) => `<tr data-k="${esc(k)}" style="cursor:pointer"><td>${esc(n.path || k)}</td><td>${esc(n.tag)}</td><td style="white-space:pre-wrap">${esc(n.text)}</td><td>${esc(fts(n.ts))}</td></tr>`).join("")) : T("<p class=\"hint\">Nessuna nota. Apri un file e usa la scheda «Nota».</p>");
+  $("notesBody").onclick = ev => { const tr = ev.target.closest("tr[data-k]"); if (!tr) return; const k = tr.dataset.k;
+    if (k.startsWith("c:")){ const a = ATT_BY_KEY.get(k); if (a) openAtt(a); else { const r = FD.carved.find(x => "c:" + x[0] === k); if (r) openCarved(r); } }
+    else { const i = KEY.get(k); if (i != null) openFile(i); } PVT = "note"; pvTab("note"); };
+}
+function download(name, text, type){ const b = new Blob([text], {type}); const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500); }
+$("noteExpJ").onclick = () => download(`note_${FD.case.case}.json`, JSON.stringify({report: FD.case.id, caso: FD.case.case, esportate: new Date().toISOString(), autore: store.get("repertia_autore", ""), note: NOTES}, null, 2), "application/json");
+$("noteExpC").onclick = () => { const q = s => '"' + String(s ?? "").replace(/"/g, '""') + '"';
+  download(`note_${FD.case.case}.csv`, "﻿" + [T("file;offset_inode;classificazione;nota;data;autore"), ...Object.entries(NOTES).map(([k, n]) => [n.path, k, n.tag, n.text, n.ts, n.author].map(q).join(";"))].join("\r\n"), "text/csv"); };
+$("noteImp").onchange = async e => { const f = e.target.files[0]; if (!f) return;
+  try{ const d = JSON.parse(await f.text()); const n = d.note || {}; let k = 0; for (const [key, v] of Object.entries(n)){ if (v && typeof v === "object"){ NOTES[key] = {tag: String(v.tag || ""), text: String(v.text || ""), path: String(v.path || ""), name: String(v.name || ""), ts: String(v.ts || ""), author: String(v.author || "")}; k++; } }
+    saveNotes(); renderNotes(); toast(`${k} note importate`); }catch(err){ toast(T("File di note non valido")); } e.target.value = ""; };
+
+boot();
+</script>
+</body>
+</html>

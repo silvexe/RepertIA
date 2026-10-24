@@ -1,0 +1,44 @@
+# Dati dei casi e del collaudo: MAI nel repository
+CasiForensi/
+*.E0[0-9]
+*.E[1-9][0-9]
+*.Ex01
+*.dd
+*.raw
+*.dmg
+*.aff
+*.img
+*.vmdk
+*.vhd
+*.vhdx
+estratti/
+export/
+cache/
+carving/
+audit_log.jsonl
+caso.sqlite*
+navigazione.sqlite*
+ricerche.sqlite*
+plaso.*
+collaudo_*.md
+riscontri/
+
+# Elenchi privati e storico di lavoro (contengono riferimenti ai casi)
+parole_riservate.txt
+STORICO_LAVORI.md
+docs/PUBBLICAZIONE.md
+
+# Pacchetti costruiti e componenti di terze parti (vanno nelle Releases)
+*.zip
+*.exe
+build/windows/dl/
+build/windows/app/
+python/
+strumenti/
+RepertIA.app/
+
+# Python e sistema
+__pycache__/
+*.pyc
+.DS_Store
+Thumbs.db
