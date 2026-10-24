@@ -1,5 +1,7 @@
 # Costruire i pacchetti
 
+*English: [BUILDING.md](BUILDING.md).*
+
 I pacchetti si costruiscono partendo dai sorgenti di `src/` e dai file di `build/`. I componenti di terze parti
 (Python, plaso, librerie, strumenti) **non sono nel repository**: si scaricano dai progetti originali, alle versioni
 indicate in [THIRD_PARTY_LICENSES.md](../THIRD_PARTY_LICENSES.md).
@@ -8,19 +10,22 @@ indicate in [THIRD_PARTY_LICENSES.md](../THIRD_PARTY_LICENSES.md).
 
 1. Numero di versione in: `src/forense_agent.py` (`APP_VERSION`), `build/windows/repertia.nsi` (`VER`),
    `build/windows/LEGGIMI.txt`, `build/mac/LEGGIMI.txt` e `build/linux/LEGGIMI.txt` (prima riga), i README_EN.txt, `build/mac/Info.plist`, `src/README.md`
-   (intestazione e nomi dei pacchetti), voce in `CHANGELOG.md`.
+   (intestazione e nomi dei pacchetti), voce in `CHANGELOG.md`; le traduzioni inglesi (`README.md`, `CHANGELOG.en.md`,
+   `VALIDATION.md`, `docs/MANUAL.md`) allineate agli originali italiani.
 2. `python3 -m py_compile src/*.py` (Python 3.12) e controllo del JavaScript dei due HTML
    (estrarre `<script>` e `node --check`). `python3 tools/lingua_controlla.py`: nessun testo senza traduzione in
    `src/lingua_en.json` e nessun segnaposto diverso.
 3. Collaudo su Mac, Windows e Linux, in italiano e in inglese (`--lingua en`; vedi `collaudo/README.md`): tutti i controlli superati.
 4. `python3 tools/controlla_pubblicazione.py . --parole <elenco privato>`: nessun dato sensibile.
+5. **I pacchetti contengono `VALIDAZIONE.md`, `THIRD_PARTY_LICENSES.md` e il manuale**: dopo ogni modifica a questi
+   documenti i pacchetti vanno ricostruiti, anche se il programma non cambia.
 
 ## Mac (Apple Silicon)
 
 Struttura e componenti in [build/mac/COME_RICOSTRUIRE.txt](../build/mac/COME_RICOSTRUIRE.txt). In breve:
 `RepertIA.app/Contents/` con `Info.plist`, `MacOS/RepertIA` (= `RepertIA_eseguibile`), `Resources/avvia.command`,
 `Resources/repertia.icns`, `Resources/RepertIA/` (i file di `src/`, compresi `forense_lingua.py` e `lingua_en.json`), `Resources/python/` (python-build-standalone
-3.12 aarch64 con plaso e i moduli libyal), `Resources/strumenti/` (7-Zip `7zz`, tessdata); accanto all'app
+3.12 aarch64 con plaso e i moduli libyal), `Resources/strumenti/` (7-Zip `7zz`, tessdata con `LICENSE.txt`); accanto all'app
 `Aggiorna strumenti.command`, `Collaudo RepertIA.command`, `LEGGIMI.txt`, `README_EN.txt`, `VALIDAZIONE.md`.
 
 ```
@@ -35,7 +40,7 @@ Per una nuova versione basta estrarre lo zip precedente, sostituire i file di `R
 Struttura in [build/linux/COME_RICOSTRUIRE.txt](../build/linux/COME_RICOSTRUIRE.txt): cartella `RepertIA/` con gli script
 di `build/linux/` (`installa.sh`, `RepertIA.sh`, `collaudo.sh`, `aggiorna-strumenti.sh`, `requirements-linux.txt`,
 `repertia.png`, `LEGGIMI.txt`, `README_EN.txt`), `LICENSE`, `THIRD_PARTY_LICENSES.md`, `VALIDAZIONE.md`, `RepertIA/`
-(i file di `src/`), `strumenti/7zip/7zz` (7z2601-linux-x64.tar.xz) e `strumenti/tessdata` (come nel pacchetto Mac).
+(i file di `src/`), `strumenti/7zip/7zz` (7z2601-linux-x64.tar.xz) e `strumenti/tessdata` (come nel pacchetto Mac, con `LICENSE.txt`).
 Python, plaso e le librerie si installano sul computer di destinazione con `installa.sh`.
 
 ```
@@ -83,7 +88,8 @@ risultato: `python3 nsis_x.py <nuovo>.exe prova/` e confronto con la cartella at
 1. Collaudo su Mac, Windows e Linux e controllo dei dati: `python3 tools/controlla_pubblicazione.py .` (con `--parole` e un
    elenco privato, mai nel repository) deve dire «nessun dato sensibile».
 2. `git commit -s`, `git tag v<versione>`, `git push origin main v<versione>`.
-3. Release dal tag con: i pacchetti Mac, Windows e Linux, `RepertIA-collaudo.zip`, gli archivi dei sorgenti dei componenti
-   GPL/LGPL inclusi nei pacchetti Windows (vedi THIRD_PARTY_LICENSES.md) e `SHA256SUMS.txt`
-   (`shasum -a 256 *.zip *.exe > SHA256SUMS.txt`).
+3. Release dal tag con: i pacchetti Mac, Windows e Linux, `RepertIA-collaudo.zip` (con `LEGGIMI.txt` e `LICENZE/`), gli
+   archivi dei sorgenti dei componenti GPL/LGPL inclusi nei pacchetti (vedi THIRD_PARTY_LICENSES.md) e `SHA256SUMS.txt`
+   (`shasum -a 256 *.zip *.exe *.tar.gz *.tar *.tar.xz > SHA256SUMS.txt`). GitHub elenca gli allegati in ordine
+   alfabetico: l'ordine voluto si dà con una tabella di link nel testo della Release.
 4. Nel testo della Release: le novità (dal CHANGELOG), cosa non è stato provato, il richiamo al collaudo.

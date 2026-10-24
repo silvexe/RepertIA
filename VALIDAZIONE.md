@@ -1,5 +1,7 @@
 # RepertIA – Documento di validazione
 
+*English: [VALIDATION.md](VALIDATION.md).*
+
 Versione del programma: 2.19.0 · Documento aggiornato al 24/10/2026
 
 Questo documento descrive **come è stato verificato RepertIA, con quali dati, con quali risultati e con quali
@@ -26,8 +28,8 @@ dati di prova con risultato noto, confronto automatico, rapporto ripetibile).
 ## 2. Collaudo automatico (`forense_collaudo.py`)
 
 Il collaudo prepara un caso per ogni immagine di prova e confronta i risultati con quelli attesi scritti in
-`atteso.json` / `atteso_dftt.json`. Si avvia con «Collaudo RepertIA» (Mac) o dal menu Start > RepertIA > Collaudo
-(Windows) e produce `collaudo_<data>.md` con l'esito di ogni controllo, le versioni e l'impronta del programma.
+`atteso.json` / `atteso_dftt.json`. Si avvia con «Collaudo RepertIA» (Mac), dal menu Start > RepertIA > Collaudo
+(Windows) o con `./collaudo.sh` (Linux) e produce `collaudo_<data>.md` con l'esito di ogni controllo, le versioni e l'impronta del programma.
 
 **Immagini con risultato noto pubblicato da terzi** (Digital Forensics Tool Testing, dftt.sourceforge.net, risultati
 trascritti dalle pagine del progetto e confermati dai `results.txt` degli archivi):

@@ -1,5 +1,7 @@
 # Registro delle modifiche
 
+*English: [CHANGELOG.en.md](CHANGELOG.en.md).*
+
 Estratto dalla sezione «Aggiornamenti» del manuale (src/README.md). Per ogni versione: cosa cambia, come è stata provata, cosa non è stato provato.
 
 ## 2.19.0 – pacchetto Linux (sperimentale)

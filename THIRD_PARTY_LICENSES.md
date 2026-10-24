@@ -1,7 +1,9 @@
 # Componenti di terze parti
 
+*English: [THIRD_PARTY_LICENSES.en.md](THIRD_PARTY_LICENSES.en.md).*
+
 Il **codice di RepertIA** (cartelle `src/`, `build/`, `tools/`) è rilasciato con licenza GPL-3.0-or-later.
-I **pacchetti delle Releases** (zip per Mac, installer e zip per Windows) contengono anche i componenti elencati
+I **pacchetti delle Releases** (zip per Mac, installer e zip per Windows, archivio per Linux) contengono anche i componenti elencati
 qui sotto, ciascuno con la propria licenza. I componenti sono distribuiti senza modifiche e vengono eseguiti come
 programmi o librerie separati; i testi delle licenze sono nelle cartelle dei componenti dentro i pacchetti
 (`strumenti/…`, `python/…/*.dist-info/`).
@@ -11,10 +13,12 @@ Versioni riferite ai pacchetti **2.18.0 – 2.19.0** (i componenti non sono camb
 ## Codice sorgente dei componenti GPL e LGPL
 
 Per i componenti con licenza GPL o LGPL distribuiti in forma eseguibile, il codice sorgente corrispondente si ottiene
-dai progetti originali agli indirizzi indicati, per la versione indicata. **Pratica raccomandata per ogni Release:
-allegare alla Release anche gli archivi dei sorgenti** dei componenti GPL/LGPL inclusi (in particolare quelli
-compilati in proprio, come bulk_extractor). In alternativa l'autore fornisce i sorgenti corrispondenti su richiesta,
-per almeno tre anni dalla pubblicazione del pacchetto, tramite le Issues del repository.
+dai progetti originali agli indirizzi indicati, per la versione indicata, ed è **allegato a ogni Release**:
+`RepertIA-<versione>-sorgenti-terze-parti.tar` (Sleuth Kit con libewf/libvhdi/libvmdk, TestDisk/PhotoRec, bulk_extractor
+con la libewf collegata e la ricetta di compilazione, 7-Zip, librerie libyal; elenco nel `LEGGIMI.txt` interno) e
+`poppler-<versione>.tar.xz`. Per le librerie di sistema incluse nelle distribuzioni originali di TestDisk e Poppler per
+Windows (Cygwin, Qt, GLib, cairo, libiconv, gettext) e per qualunque altro sorgente corrispondente non allegato,
+l'autore lo fornisce su richiesta, per almeno tre anni dalla pubblicazione del pacchetto, tramite le Issues del repository.
 
 ## Strumenti inclusi nel pacchetto Windows (`strumenti/`)
 
@@ -34,13 +38,13 @@ per almeno tre anni dalla pubblicazione del pacchetto, tramite le Issues del rep
 ## Pacchetto Mac
 
 L'app contiene Python 3.12 (python-build-standalone), i moduli Python elencati sotto, 7-Zip (`7zz`, licenze come sopra)
-e i dati di Tesseract. Sleuth Kit, libewf, PhotoRec, Poppler, ExifTool, Tesseract e bulk_extractor **non sono inclusi**:
+e i dati di Tesseract (licenza in `strumenti/tessdata/LICENSE.txt`). Sleuth Kit, libewf, PhotoRec, Poppler, ExifTool, Tesseract e bulk_extractor **non sono inclusi**:
 li installa Homebrew al primo avvio dai rispettivi progetti, con le loro licenze.
 
 ## Pacchetto Linux
 
 L'archivio contiene i file di RepertIA, 7-Zip 26.01 per Linux x64 (`strumenti/7zip/7zz`, licenze come sopra, con
-`License.txt`) e i dati di Tesseract (`strumenti/tessdata`, Apache-2.0). **Python e i moduli non sono inclusi**: lo script
+`License.txt`) e i dati di Tesseract (`strumenti/tessdata`, Apache-2.0, licenza in `LICENSE.txt`). **Python e i moduli non sono inclusi**: lo script
 `installa.sh` li scarica da PyPI sul computer dell'utente, alle versioni elencate sotto (`requirements-linux.txt`, più
 `xattr`, MIT). Sleuth Kit, libewf, PhotoRec, Poppler, ExifTool, Tesseract e bulk_extractor vengono dalla distribuzione
 Linux (apt), con le loro licenze.
@@ -71,6 +75,8 @@ Linux (apt), con le loro licenze.
 | bencode.py | 4.1.0 | BitTorrent Open Source License |
 
 ## Dati di collaudo (`RepertIA-collaudo.zip`)
+
+Provenienza e licenze anche nel `LEGGIMI.txt` dell'archivio, con i testi delle licenze in `LICENZE/`.
 
 | Dati | Licenza | Fonte |
 |---|---|---|

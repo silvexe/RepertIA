@@ -1,9 +1,11 @@
 # Collaudo
 
+*English: [README.en.md](README.en.md).*
+
 `atteso.json` (immagini costruite per il collaudo) e `atteso_dftt.json` (immagini pubbliche DFTT con risultati
 pubblicati da terzi) contengono i valori attesi. Le immagini stanno nell'archivio **RepertIA-collaudo.zip** tra le
 Releases (le immagini non vanno nel repository: sono grandi e alcune hanno licenze proprie, vedi
-THIRD_PARTY_LICENSES.md).
+THIRD_PARTY_LICENSES.md e il file `LEGGIMI.txt` dentro l'archivio).
 
 ## Eseguirlo
 

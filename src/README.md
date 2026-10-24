@@ -1,5 +1,7 @@
 # RepertIA — By silvexe
 
+*English: [docs/MANUAL.md](../docs/MANUAL.md).*
+
 **Analisi forense di copie di dischi e pendrive con intelligenza artificiale locale.**
 Versione 2.19.0 · macOS, Windows e Linux (sperimentale) · interfaccia in italiano o in inglese
 
@@ -57,10 +59,10 @@ sulle installazioni; si disattivano con `brew analytics off`.
 1. **Server LLM.** Apri LM Studio, carica un modello con contesto ampio (es. 32768) e avvia il
    server nella scheda *Developer*. Vanno bene anche llama-server od Ollama.
    *Senza server LLM RepertIA funziona lo stesso*: puoi consultare tutti i dati indicizzati.
-2. **Doppio clic su `Avvia RepertIA.command`.** La prima volta macOS potrebbe bloccarlo:
-   tasto destro → *Apri* → *Apri*. Al primo avvio installa da solo (serve Homebrew e internet)
-   Sleuth Kit, libewf, exiftool, poppler, testdisk (PhotoRec), bulk_extractor e il client
-   `openai`.
+2. **Avvia RepertIA.** Mac: doppio clic sull'app (o su `Avvia RepertIA.command`); la prima volta macOS
+   potrebbe bloccarlo: tasto destro → *Apri* → *Apri*. Al primo avvio installa da solo (serve Homebrew e
+   internet) Sleuth Kit, libewf, exiftool, poppler, testdisk (PhotoRec), bulk_extractor e Tesseract.
+   Windows: menu Start → RepertIA. Linux: `./RepertIA.sh` (dopo `./installa.sh`).
 3. Si apre il browser: **Scegli la copia forense…**, seleziona l'immagine (per gli E01 il
    primo segmento) e premi **Avvia l'analisi**. Hash, partizioni, elenco file, timeline,
    testo dei documenti e metadati vengono fatti in automatico.
@@ -390,7 +392,7 @@ browser, **offline**, senza RepertIA, senza la copia forense e senza IA.
   escluse.
 - **Timeline plaso** (facoltativa): registro, prefetch, log, browser; sui Mac anche FSEvents e altri
   artefatti di macOS. Utile per i dischi di sistema. È inclusa nell'app (Mac) e nell'installazione
-  (Windows): Docker serve solo se si avvia RepertIA dai sorgenti senza plaso. Può durare ore. Dalla 2.14,
+  (Windows); su Linux la installa `installa.sh`: Docker serve solo se si avvia RepertIA dai sorgenti senza plaso. Può durare ore. Dalla 2.14,
   se nel caso c'è un volume APFS cifrato sbloccato, plaso riceve la stessa chiave (solo in memoria, mai nel
   registro: lì compare `password:***`) e analizza anche quel volume.
 - **Carving** (facoltativo): PhotoRec recupera file dallo spazio libero in `<caso>/carving`;
@@ -660,8 +662,8 @@ stesso. I file principali sono:
 ## Aggiornamenti
 
 Nulla si aggiorna da solo, di proposito: ogni caso registra le versioni degli strumenti usati.
-Per aggiornare, tra un caso e l'altro e con internet, doppio clic su
-`Aggiorna strumenti.command`: mostra le versioni prima e dopo.
+Per aggiornare, tra un caso e l'altro e con internet: Mac `Aggiorna strumenti.command`, Windows *Aggiorna strumenti*
+nel menu Start, Linux `./aggiorna-strumenti.sh`; mostrano le versioni prima e dopo.
 
 **Versione 2.19.0 – pacchetto Linux (sperimentale)** - Nuovo pacchetto **`RepertIA-2.19.0-Linux.tar.gz`** per Linux x86_64 con Python 3.12 o successivo (Ubuntu 24.04+, Debian 13). Il programma non cambia: stessi file e stessa impronta dei pacchetti Mac e Windows 2.19.0. `installa.sh` installa con apt Sleuth Kit, libewf, PhotoRec, Poppler, ExifTool, Tesseract e zenity, crea in `python/` l'ambiente con plaso, libyal, pytsk3, Pillow e openai alle stesse versioni degli altri pacchetti (`requirements-linux.txt`) e aggiunge RepertIA al menu; `RepertIA.sh` avvia, `collaudo.sh` esegue il collaudo, `aggiorna-strumenti.sh` aggiorna gli strumenti di sistema. Inclusi 7-Zip 26.01 per Linux e i dati OCR. **Prova:** nell'ambiente Linux di sviluppo collaudo 112/112 in italiano e 112/112 in inglese, caso con plaso, analisi estese e OCR, interfaccia nel browser. **Non provato:** `installa.sh` su un computer reale (apt e PyPI), bulk_extractor, zenity, il client openai.
 
@@ -1083,8 +1085,8 @@ dati di prova con risultato noto, confronto automatico, rapporto ripetibile).
 ### 2. Collaudo automatico (`forense_collaudo.py`)
 
 Il collaudo prepara un caso per ogni immagine di prova e confronta i risultati con quelli attesi scritti in
-`atteso.json` / `atteso_dftt.json`. Si avvia con «Collaudo RepertIA» (Mac) o dal menu Start > RepertIA > Collaudo
-(Windows) e produce `collaudo_<data>.md` con l'esito di ogni controllo, le versioni e l'impronta del programma.
+`atteso.json` / `atteso_dftt.json`. Si avvia con «Collaudo RepertIA» (Mac), dal menu Start > RepertIA > Collaudo
+(Windows) o con `./collaudo.sh` (Linux) e produce `collaudo_<data>.md` con l'esito di ogni controllo, le versioni e l'impronta del programma.
 
 **Immagini con risultato noto pubblicato da terzi** (Digital Forensics Tool Testing, dftt.sourceforge.net, risultati
 trascritti dalle pagine del progetto e confermati dai `results.txt` degli archivi):

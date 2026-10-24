@@ -1,111 +1,99 @@
 # RepertIA
 
-**Analisi forense di copie di dischi e pendrive, con intelligenza artificiale locale e offline.**
-*Forensic analysis of disk images with a local, offline AI assistant — Italian or English user interface (English summary below).*
+**Forensic analysis of disk and USB drive images, with a local, offline AI assistant.**
+🇮🇹 **Versione italiana: [README.it.md](README.it.md)**
 
-RepertIA analizza copie forensi (E01, raw/dd, dmg) da un'unica interfaccia web locale, su Mac Apple Silicon, Windows o
-Linux (sperimentale).
-Usa strumenti forensi riconosciuti (The Sleuth Kit, libewf, plaso, PhotoRec, bulk_extractor, ExifTool, libyal) e ne
-raccoglie i risultati in un caso consultabile con filtri, timeline e anteprime. Un modello linguistico che gira sul
-computer dell'analista (facoltativo) risponde a domande in italiano citando file, offset e inode.
-**Nessun dato lascia il computer**: niente cloud, account o telemetria; l'interfaccia ascolta solo su 127.0.0.1.
+RepertIA analyses forensic images (E01, raw/dd, dmg) from a single local web interface, on Apple Silicon Macs, Windows
+or Linux (experimental). It uses established forensic tools (The Sleuth Kit, libewf, plaso, PhotoRec, bulk_extractor,
+ExifTool, libyal) and gathers their results into a case you can browse with filters, timelines and previews. An optional
+language model running on the analyst's own computer answers questions in English or Italian, citing files, offsets and
+inodes.
+**No data leaves the computer**: no cloud, no accounts, no telemetry; the interface listens only on 127.0.0.1.
 
-> **Avvertenza.** RepertIA è un progetto personale, non certificato né validato da un ente terzo e non collegato ad
-> alcun ufficio o amministrazione. I risultati vanno confermati con un secondo strumento o sul dato originale prima di
-> usarli in atti. Il software è fornito «così com'è», senza alcuna garanzia (vedi [LICENSE](LICENSE)). Le risposte del
-> modello linguistico sono spunti investigativi, non conclusioni.
+> **Disclaimer.** RepertIA is a personal project. It is not certified or validated by any third party and is not
+> affiliated with any office or public administration. Results must be confirmed with a second tool or on the original
+> data before being used in official reports or proceedings. The software is provided "as is", without any warranty
+> (see [LICENSE](LICENSE)). The language model's answers are investigative leads, not conclusions.
 
-## Cosa fa
+## What it does
 
-| Area | Funzioni |
+| Area | Features |
 |---|---|
-| File system | NTFS, FAT/exFAT, ext, HFS+, APFS (anche FileVault con chiave); file cancellati, orfani, ADS; spazio non allocato; copie shadow e snapshot APFS |
-| Volumi cifrati | Rilevamento di BitLocker, LUKS, FileVault, VeraCrypt (alta entropia); decifratura di BitLocker, LUKS1 e APFS con la chiave (mai salvata) |
-| Artefatti Windows | Per ogni installazione (anche Windows.old): account e accessi (SAM e registri eventi), Prefetch, Amcache, UserAssist, ShimCache, BAM, SRUM, LNK e jump list, ShellBags, Cronologia attività, journal NTFS `$UsnJrnl`, eventi (servizi, accensioni, Desktop remoto, Defender, USB), reti, cestino, browser |
-| Artefatti macOS | Volume Dati, quarantena, avvio automatico, TCC, iMessage, documenti recenti, Safari, KnowledgeC, Bluetooth, Time Machine |
-| Timeline | File system + plaso; date in UTC, ora italiana o fuso del dispositivo (rilevato), FAT/exFAT convertiti correttamente |
-| Contenuti | Testo dei documenti con ricerca full-text, OCR (Tesseract), metadati EXIF/GPS, archivi, posta PST/OST/MBOX/EML |
-| Recupero | Carving con PhotoRec, tracce bulk_extractor, miniature della cache di Esplora file |
-| Anomalie | Estensioni false ed eseguibili mascherati (con verifica dei file cancellati contro i falsi positivi), file e contenitori cifrati |
-| Immagini e liste | Hash percettivi (immagini simili), liste di hash NSRL, Project VIC / CAID, cartelle di immagini di riferimento |
-| Garanzie | Copia mai modificata, hash dei dati confrontati con quelli di acquisizione, registro delle operazioni a catena di hash, versioni e impronta del programma nel report |
-| Report | Report del caso (Markdown, Word, PDF) e report portatile HTML per chi non ha la copia forense |
+| File systems | NTFS, FAT/exFAT, ext, HFS+, APFS (FileVault too, with the key); deleted and orphan files, ADS; unallocated space; Volume Shadow Copies and APFS snapshots |
+| Encrypted volumes | Detection of BitLocker, LUKS, FileVault, VeraCrypt (high entropy); decryption of BitLocker, LUKS1 and APFS with the key (never stored) |
+| Windows artifacts | For every installation on the disk (including Windows.old): accounts and logons (SAM and event logs), Prefetch, Amcache, UserAssist, ShimCache, BAM, SRUM, LNK files and jump lists, ShellBags, Activity History, NTFS journal `$UsnJrnl`, events (services, power on/off, Remote Desktop, Defender, USB), networks, Recycle Bin, browsers |
+| macOS artifacts | Data volume, quarantine, launch items, TCC, iMessage, recent documents, Safari, KnowledgeC, Bluetooth, Time Machine |
+| Timeline | File system + plaso; dates in UTC, Italian time or the device's time zone (detected); FAT/exFAT converted correctly |
+| Content | Document text with full-text search, OCR (Tesseract), EXIF/GPS metadata, archives, PST/OST/MBOX/EML mail |
+| Recovery | Carving with PhotoRec, bulk_extractor features, File Explorer thumbnail cache |
+| Anomalies | Fake extensions and disguised executables (deleted files are verified to avoid false positives), encrypted files and containers |
+| Images and hash sets | Perceptual hashes (similar images), NSRL hash sets, Project VIC / CAID, folders of reference images |
+| Safeguards | The image is never modified; data hashes compared with the acquisition hashes; hash-chained audit log; tool versions and program fingerprint in the report |
+| Reports | Case report (Markdown, Word, PDF) and a portable HTML report for readers who do not have the forensic image |
 
-Interfaccia, report e testi dei casi **in italiano o in inglese** (la lingua di ogni caso si sceglie alla creazione).
+User interface, reports and case texts are **in English or Italian** (each case's language is chosen when it is
+created).
 
-Documentazione completa (in italiano): [src/README.md](src/README.md). Metodo, collaudi e limiti noti:
-[VALIDAZIONE.md](VALIDAZIONE.md).
+Full documentation: [docs/MANUAL.md](docs/MANUAL.md) (Italian original: [src/README.md](src/README.md)). Method, tests
+and known limitations: [VALIDATION.md](VALIDATION.md) (Italian original: [VALIDAZIONE.md](VALIDAZIONE.md)).
 
-## Scaricare e installare
+## Download and installation
 
-I pacchetti pronti sono nella sezione **Releases**:
+Ready-made packages are in the **Releases** section:
 
-| | Mac (Apple Silicon) | Windows 10/11 64 bit | Linux x86_64 (sperimentale) |
+| | Mac (Apple Silicon) | Windows 10/11 64-bit | Linux x86_64 (experimental) |
 |---|---|---|---|
-| Pacchetto | `RepertIA-<versione>-Mac.zip` (app con Python, plaso e librerie) | `RepertIA-<versione>-Setup.exe` (senza diritti di amministratore) oppure `RepertIA-<versione>-Windows.zip` portatile | `RepertIA-<versione>-Linux.tar.gz` + `./installa.sh` (Ubuntu 24.04+, Debian 13) |
-| Strumenti esterni | installati al primo avvio con Homebrew | inclusi | installati con apt da `installa.sh`, che prepara anche Python, plaso e le librerie |
-| Collaudo | `RepertIA-collaudo.zip` + *Collaudo RepertIA.command* | stesso zip, menu Start › RepertIA › Collaudo | stesso zip, `./collaudo.sh` |
-| Modello IA (facoltativo) | LM Studio, llama-server o Ollama, sullo stesso computer o in rete interna | come Mac | come Mac |
+| Package | `RepertIA-<version>-Mac.zip` (app with Python, plaso and libraries) | `RepertIA-<version>-Setup.exe` (no administrator rights needed) or the portable `RepertIA-<version>-Windows.zip` | `RepertIA-<version>-Linux.tar.gz` + `./installa.sh` (Ubuntu 24.04+, Debian 13) |
+| External tools | installed with Homebrew on first start | included | installed with apt by `installa.sh`, which also sets up Python, plaso and the libraries |
+| Acceptance test | `RepertIA-collaudo.zip` + *Collaudo RepertIA.command* | same zip, Start menu › RepertIA › Collaudo | same zip, `./collaudo.sh` |
+| AI model (optional) | LM Studio, llama-server or Ollama, on the same computer or on the internal network | as Mac | as Mac |
 
-**Consiglio:** subito dopo l'installazione esegui il collaudo e conserva il rapporto `collaudo_<data>.md`:
-dimostra che su quel computer, con quelle versioni, il programma dà i risultati attesi.
+**Tip:** right after installing, run the acceptance test (*collaudo*) and keep the `collaudo_<date>.md` report: it shows
+that on that computer, with those versions, the program gives the expected results.
 
-### Dai sorgenti
+### From source
 
 ```
 git clone https://github.com/silvexe/RepertIA.git
 cd RepertIA/src
-python3 forense_gui.py          # Python 3.12; servono The Sleuth Kit, libewf e i moduli libyal (vedi src/README.md)
+python3 forense_gui.py          # Python 3.12+; requires The Sleuth Kit, libewf and the libyal modules (see docs/MANUAL.md)
 ```
 
-Come costruire i pacchetti: [docs/COSTRUZIONE.md](docs/COSTRUZIONE.md).
+Building the packages: [docs/BUILDING.md](docs/BUILDING.md).
 
-## Collaudo
+## Acceptance test
 
-`src/forense_collaudo.py` prepara un caso per ogni immagine di prova e confronta i risultati con i valori attesi di
-[`collaudo/`](collaudo/): immagini pubbliche con risultati pubblicati da terzi (DFTT) e immagini costruite per il
-collaudo. Le immagini sono nell'archivio `RepertIA-collaudo.zip` tra le Releases. Dettagli in
-[collaudo/README.md](collaudo/README.md) e [VALIDAZIONE.md](VALIDAZIONE.md).
+`src/forense_collaudo.py` prepares a case for each test image and compares the results with the expected values in
+[`collaudo/`](collaudo/): public images with results published by third parties (DFTT) and images built for the test.
+The images are in the `RepertIA-collaudo.zip` archive in the Releases. Details in
+[collaudo/README.en.md](collaudo/README.en.md) and [VALIDATION.md](VALIDATION.md).
 
-## Licenza
+## License
 
 Copyright (C) 2026 silvexe.
 
-RepertIA è software libero: puoi ridistribuirlo e/o modificarlo secondo i termini della **GNU General Public License**
-pubblicata dalla Free Software Foundation, **versione 3 o (a tua scelta) qualsiasi versione successiva**
-(SPDX: `GPL-3.0-or-later`). È distribuito nella speranza che sia utile, ma SENZA ALCUNA GARANZIA. Testo completo in
-[LICENSE](LICENSE).
+RepertIA is free software: you can redistribute it and/or modify it under the terms of the **GNU General Public
+License** as published by the Free Software Foundation, **either version 3 of the License, or (at your option) any
+later version** (SPDX: `GPL-3.0-or-later`). It is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY. Full text in [LICENSE](LICENSE).
 
-I pacchetti delle Releases includono componenti di terze parti con le loro licenze: elenco, versioni e fonti in
-[THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).
+The packages in the Releases include third-party components under their own licenses: list, versions and sources in
+[THIRD_PARTY_LICENSES.en.md](THIRD_PARTY_LICENSES.en.md).
 
-## Come è stato sviluppato
+## How it was developed
 
-Il codice è stato scritto con l'ausilio di Claude, modello di intelligenza artificiale di Anthropic. Scelte
-progettuali, verifiche e collaudi sono dell'autore. Ogni versione è descritta in [CHANGELOG.md](CHANGELOG.md) con
-cosa cambia, come è stata provata e cosa non è stato provato.
+The code was written with the help of Claude, an artificial intelligence model by Anthropic. Design choices,
+verifications and tests are the author's. Every version is described in [CHANGELOG.en.md](CHANGELOG.en.md) with what
+changes, how it was tested and what was not tested.
 
-## Contribuire e segnalare problemi
+## Translations
 
-- Problemi e proposte: sezione **Issues**. **Non allegare mai dati di casi reali** (copie, estratti, schermate con
-  nomi o percorsi): usa immagini di prova pubbliche o costruite.
-- Contributi: [CONTRIBUTING.md](CONTRIBUTING.md).
-- Vulnerabilità: [SECURITY.md](SECURITY.md) (segnalazione privata).
+The Italian documents are the originals; the English ones are translations. If they differ, the Italian text prevails
+(in particular [VALIDAZIONE.md](VALIDAZIONE.md) and the manual [src/README.md](src/README.md)).
 
----
+## Contributing and reporting issues
 
-## English summary
-
-RepertIA is a desktop forensic analysis tool for disk images (E01, raw/dd, dmg) on Apple Silicon Macs, Windows and
-Linux (experimental).
-It wraps established open-source forensic tools (The Sleuth Kit, libewf, plaso, PhotoRec, bulk_extractor, ExifTool,
-libyal) behind a local web interface and optionally lets an analyst ask questions to a **local** LLM (LM Studio,
-llama-server, Ollama) that answers with references to files, offsets and inodes. Nothing leaves the machine.
-
-Highlights: Windows artifacts for every installation on the disk (including Windows.old), NTFS journal, ShellBags,
-ShimCache/BAM/SRUM, event logs, thumbcache, deleted-file verification against false positives, perceptual image
-hashing, Project VIC / CAID hash sets, APFS/FileVault, hash-chained audit log, acquisition hash verification, a
-built-in test suite based on public reference images (DFTT) and a validation document.
-
-The user interface, the case texts (artifacts, reports, portable report) and the installer are available in Italian and English: each case keeps the language chosen when it is created. The full manual and the validation document are in Italian. It is a personal project, **not certified or independently
-validated**: confirm results with a second tool before relying on them. Licensed under **GPL-3.0-or-later**.
+- Bugs and proposals: **Issues** section. **Never attach data from real cases** (images, extracts, screenshots with
+  names or paths): use public or purpose-built test images.
+- Contributions: [CONTRIBUTING.md](CONTRIBUTING.md).
+- Vulnerabilities: [SECURITY.md](SECURITY.md) (private reporting).
