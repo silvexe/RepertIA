@@ -51,6 +51,33 @@ Ready-made packages are in the **Releases** section:
 **Tip:** right after installing, run the acceptance test (*collaudo*) and keep the `collaudo_<date>.md` report: it shows
 that on that computer, with those versions, the program gives the expected results.
 
+### Requirements
+
+**Computer (without AI)**
+- **System**: Mac with Apple Silicon (M1 or later), Windows 10/11 64-bit, or Linux x86_64 with Ubuntu 24.04 or later
+  (experimental version).
+- **Memory (RAM)**: 8 GB is enough for USB drives and small disks; 16 GB is comfortable.
+- **Disk**: an SSD is better. The case is not a copy of the disk but a database with the indexes; add space for exported
+  files, carving and the preview cache (at most about 5 GB per case). The forensic image can also be on an external disk,
+  preferably USB 3 or Thunderbolt, because computing the hashes reads it entirely.
+- **Processor**: more cores mainly shorten the plaso timeline, which can take hours on large disks.
+
+**Local AI model (optional)**: the model must support *tool calling*, with a context of at least 16k tokens (32k is
+better). As a guide:
+
+| Memory for the model | Models | Result |
+|---|---|---|
+| 16 GB of RAM (or 8 GB GPU) | Qwen3.5-9B | simple questions only |
+| 32 GB (or 16 GB GPU) | gpt-oss-20b | already acceptable |
+| 48–64 GB (or 24–32 GB GPU) | Qwen3.8-27B, Qwen3.6-35B-A3B, Gemma 4 31B | recommended |
+| 128 GB | gpt-oss-120b | the best you can run locally |
+
+Load the model (LM Studio, llama-server or Ollama) with a context of about 32768, start the server and RepertIA finds it
+automatically. On a Mac memory is shared: leave about ten GB free for the system. Without a graphics card the model runs
+on the processor, but slowly; with *Network server* a single powerful computer on the internal network can serve several
+workstations. Without a model RepertIA still works: all data can be browsed. The model suggestions come from public
+rankings (October 2026): check them on your own cases.
+
 ### From source
 
 ```

@@ -50,6 +50,33 @@ I pacchetti pronti sono nella sezione **Releases**:
 **Consiglio:** subito dopo l'installazione esegui il collaudo e conserva il rapporto `collaudo_<data>.md`:
 dimostra che su quel computer, con quelle versioni, il programma dà i risultati attesi.
 
+### Requisiti
+
+**Computer (senza IA)**
+- **Sistema**: Mac con chip Apple Silicon (M1 o successivo), Windows 10/11 a 64 bit, oppure Linux x86_64 con Ubuntu 24.04
+  o successivo (versione sperimentale).
+- **Memoria (RAM)**: 8 GB bastano per pendrive e dischi piccoli; con 16 GB si lavora comodi.
+- **Disco**: meglio un SSD. Il caso non è una copia del disco ma un database con gli indici; a questo si aggiunge lo spazio
+  per i file esportati, il carving e la cache delle anteprime (al massimo circa 5 GB per caso). La copia forense può stare
+  anche su un disco esterno, ma conviene USB 3 o Thunderbolt, perché il calcolo degli hash la rilegge tutta.
+- **Processore**: più core accorciano soprattutto la timeline di plaso, che su dischi grandi può durare ore.
+
+**Modello IA locale (facoltativo)**: serve un modello che supporti il *tool calling*, con un contesto di almeno 16k token
+(meglio 32k). Indicativamente:
+
+| Memoria per il modello | Modelli | Risultato |
+|---|---|---|
+| 16 GB di RAM (o GPU da 8 GB) | Qwen3.5-9B | solo domande semplici |
+| 32 GB (o GPU da 16 GB) | gpt-oss-20b | già accettabile |
+| 48–64 GB (o GPU da 24–32 GB) | Qwen3.8-27B, Qwen3.6-35B-A3B, Gemma 4 31B | consigliato |
+| 128 GB | gpt-oss-120b | il massimo in locale |
+
+Si carica il modello (LM Studio, llama-server od Ollama) con un contesto di circa 32768, si avvia il server e RepertIA lo
+trova da solo. Sul Mac la memoria è condivisa: lasciate una decina di GB liberi per il sistema. Senza scheda video il
+modello gira sul processore, ma è lento; con *Server in rete* un solo computer potente della rete interna può servire più
+postazioni. Senza modello RepertIA funziona comunque: tutti i dati restano consultabili. Le indicazioni sui modelli vengono
+da classifiche pubbliche (ottobre 2026): verificatele sui vostri casi.
+
 ### Dai sorgenti
 
 ```
