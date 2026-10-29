@@ -56,10 +56,12 @@ ADDONS_EXT = {
     "vss": N_("copie shadow di Windows e snapshot APFS"),
     "ocr": N_("testo nelle immagini (OCR)"),
     "phash": N_("hash percettivi delle immagini (immagini simili)"),
+    "trascrizione": N_("trascrizione automatica degli audio"),
 }
 # moduli Python (inclusi nei pacchetti di RepertIA) necessari a ciascuna analisi
 NEEDS = {"archivi": ("pypff",), "artefatti": ("pyregf", "pyscca", "pylnk", "pyolecf"),
-         "vss": ("pyvshadow", "pytsk3"), "anomalie": (), "ocr": (), "phash": ("PIL",)}
+         "vss": ("pyvshadow", "pytsk3"), "anomalie": (), "ocr": (), "phash": ("PIL",),
+         "trascrizione": ()}
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS xitems(id INTEGER PRIMARY KEY, kind TEXT, part INTEGER, inode TEXT,
@@ -92,7 +94,8 @@ ART_CATS = {"sistema": N_("Sistema"), "utenti": N_("Account utente"), "usb": N_(
             "comandi": N_("Comandi (shell)"), "messaggi": N_("Messaggi (iMessage/SMS)"), "avvio": N_("Avvio automatico"),
             "permessi": N_("Permessi alle app (TCC)"), "uso": N_("Uso delle app"), "dispositivi": N_("Dispositivi e volumi"),
             "backup": N_("Backup (Time Machine)"), "cartelle": N_("Cartelle aperte (ShellBags)"),
-            "journal": N_("Journal NTFS (creati, cancellati, rinominati)"), "eventi": N_("Eventi di sistema")}
+            "journal": N_("Journal NTFS (creati, cancellati, rinominati)"), "eventi": N_("Eventi di sistema"),
+            "leapp": N_("Artefatti iLEAPP/ALEAPP (smartphone)"), "chiamate": N_("Chiamate (smartphone)")}
 ANOM_KINDS = {"volume": N_("Volume cifrato"), "estensione": N_("Estensione falsa"),
               "cifrato": N_("File protetto da password"), "contenitore": N_("Possibile contenitore cifrato"),
               "segnalato": N_("Hash in lista da segnalare")}
@@ -983,6 +986,7 @@ def run_archivi(case, con):
             continue
         process_container(ctx, f, path, (part, inode, path), 1)
         shutil.rmtree(d, ignore_errors=True)
+        fa.avanz(fatti=k, totale=len(rows))
         ctx.say(tr("{k} di {v1} file · {archivi} archivi, {v2} file contenuti, {messaggi} messaggi, "
                    "{allegati} allegati").format(k=k, v1=len(rows), archivi=ctx.c['archivi'], v2=ctx.c['file in archivi'], messaggi=ctx.c['messaggi'], allegati=ctx.c['allegati']))
     con.commit()
@@ -1568,6 +1572,12 @@ class HeadReader:
                 return fa.ap.head_tail(self.case, part, inode, n, tail)
             except Exception:
                 return None, b"", b""
+        if fa.is_mobile(self.case):          # estrazione di un telefono (2.20)
+            import forense_mobile as fm
+            try:
+                return fm.head_tail(self.case, part, inode, n, tail)
+            except Exception:
+                return None, b"", b""
         if self.ok:
             fs = self._fs(part)
             if fs is not None:
@@ -1830,6 +1840,7 @@ def run_anomalie(case, con):
                  tr("{v1} MB di dati casuali senza formato riconoscibile: possibile contenitore cifrato "
                     "(VeraCrypt/TrueCrypt)").format(v1=size >> 20), ext, tr("dati ad alta entropia"),
                  size, deleted, 2)
+        fa.avanz(fatti=k, totale=len(rows))
         if k % 2000 == 0:
             con.commit()
             ctx.say(tr("{k} di {v1} file · {estensione} estensioni false, {cifrato} protetti, {contenitore} "
@@ -4688,6 +4699,7 @@ def run_phash(case, con):
             if r:
                 con.execute("INSERT INTO phash VALUES (?,?,?,?,?,?,?)", (t[0], t[1], str(t[2]), t[3], r[0], r[1], r[2]))
                 ok += 1
+            fa.avanz(fatti=k, totale=len(todo))
             if k % 500 == 0:
                 con.commit()
                 ctx.say(tr("{k} di {v1} · {ok} calcolati").format(k=k, v1=len(todo), ok=ok))
@@ -4820,6 +4832,42 @@ VSS_SKIP = re.compile(r"(?i)^(\$|system volume information/|windows/winsxs/|wind
                       r"windows/installer/|windows/servicing/|programdata/microsoft/windows defender/|"
                       r"(pagefile|hiberfil|swapfile)\.sys$)")
 VSS_FILE_MAX = 200 << 20
+
+
+def _vss_files(fs):
+    """(2.20) File regolari allocati (non vuoti) di un file system pytsk3: (percorso relativo, nome, voce).
+    Salta VSS_SKIP e non rientra due volte nella stessa cartella (giri infiniti in copie incoerenti)."""
+    import pytsk3
+    seen_dirs = set()
+    stack = [("", fs.open_dir(path="/"))]
+    while stack:
+        base, d = stack.pop()
+        for ent in d:
+            try:
+                nm = ent.info.name.name.decode("utf-8", "replace")
+            except Exception:
+                continue
+            if nm in (".", "..") or ent.info.meta is None:
+                continue
+            rel = (base + "/" + nm).lstrip("/")
+            if VSS_SKIP.search(rel):
+                continue
+            if int(ent.info.name.flags) & int(pytsk3.TSK_FS_NAME_FLAG_UNALLOC):
+                continue
+            t = ent.info.meta.type
+            if t == pytsk3.TSK_FS_META_TYPE_DIR:
+                a = ent.info.meta.addr
+                if a in seen_dirs:
+                    continue
+                seen_dirs.add(a)
+                try:
+                    stack.append((rel, ent.as_directory()))
+                except Exception:
+                    pass
+                continue
+            if t != pytsk3.TSK_FS_META_TYPE_REG or ent.info.meta.size <= 0:
+                continue
+            yield rel, nm, ent
 VSS_TOTAL_MAX = 20 << 30
 
 
@@ -4875,6 +4923,17 @@ def run_vss(case, con):
             continue
         print(tr("Copie shadow: {n} nella partizione all'offset {offset}").format(n=n, offset=p['offset']), flush=True)
         cur_fs = pytsk3.FS_Info(RegionImg(Region(img, start, length)))
+        # (2.20) dimensione e data dei file della copia attuale lette UNA volta: prima ogni file presente in una copia
+        # shadow si cercava per percorso nella copia forense (ore per copia su un disco di sistema)
+        cur_meta = {}
+        try:
+            for rel, _nm, ent in _vss_files(cur_fs):
+                cur_meta.setdefault(rel.lower(), (ent.info.meta.size, ent.info.meta.mtime))
+                if len(cur_meta) % 5000 == 0:
+                    ctx.say(tr("lettura della copia attuale: {n} file").format(n=len(cur_meta)))
+                    fa.avanz(fatti=len(cur_meta))
+        except Exception as e:
+            print(tr("Copie shadow: copia attuale non leggibile per intero ({e})").format(e=e), flush=True)
         cur = {}
         for path, d in con.execute("SELECT path, deleted FROM files WHERE part=? AND type LIKE '%r'", (p["offset"],)):
             k = path.lower()
@@ -4889,76 +4948,54 @@ def run_vss(case, con):
             except Exception as e:
                 print(tr("  {label}: file system non leggibile ({e})").format(label=label, e=e), flush=True)
                 continue
-            found = 0
-            stack = [("", fs.open_dir(path="/"))]
-            while stack:
-                base, d = stack.pop()
-                for ent in d:
+            found = seen = 0
+            est = max(len(cur_meta) or len(cur), 1)     # (2.20) per la barra: i file della copia attuale come stima
+            for rel, nm, ent in _vss_files(fs):
+                m = ent.info.meta
+                seen += 1
+                fa.avanz(fatti=si * est + min(seen, est - 1), totale=n * est)
+                if time.time() - ctx.t_last > 2:       # (2.20) segno di vita anche quando i file sono tutti uguali
+                    ctx.say(tr("{label}: {seen} file esaminati, {found} diversi dalla copia attuale").format(label=label, seen=seen, found=found))
+                size, mtime = m.size, unixtime(m.mtime)
+                state = cur.get(rel.lower())
+                if state == 0:      # ancora presente: conta solo se è una versione diversa
+                    if cur_meta.get(rel.lower()) == (size, m.mtime):
+                        continue
+                    note = tr("versione precedente (nella copia attuale il file è diverso)")
+                elif state == 1:
+                    note = tr("nella copia attuale il file risulta cancellato")
+                else:
+                    note = tr("presente solo nella copia shadow")
+                xid = new_xitem(con, kind="vss", part=p["offset"], inode=str(m.addr), src_path=rel,
+                                inner=rel, path=f"[{label}] {rel}", name=nm, size=size, mtime=mtime,
+                                note=note, store=label)
+                found += 1
+                if size <= VSS_FILE_MAX and ctx.extracted + size <= VSS_TOTAL_MAX:
+                    tmpf = ctx.tmp / f"v{xid}"
                     try:
-                        nm = ent.info.name.name.decode("utf-8", "replace")
+                        with open(tmpf, "wb") as fh:
+                            fo = ent.read_random
+                            off = 0
+                            while off < size:
+                                b = fo(off, min(4 << 20, size - off))
+                                if not b:
+                                    break
+                                fh.write(b)
+                                off += len(b)
+                        data = open(tmpf, "rb").read(fa.MAX_EXTRACT)
+                        index_text(con, case, f"[{label}] {rel}", data, nm, "x", None, xid, 0, ctx.tmp)
+                        nb, md5, sha1, sha256 = hashes_of(tmpf)
+                        relp = store_extracted(case, tmpf, f"vss/{si + 1}", xid, nm)
+                        ctx.extracted += nb
+                        con.execute("UPDATE xitems SET relpath=?, md5=?, sha1=?, sha256=? WHERE id=?",
+                                    (relp, md5, sha1, sha256, xid))
                     except Exception:
-                        continue
-                    if nm in (".", "..") or ent.info.meta is None:
-                        continue
-                    rel = (base + "/" + nm).lstrip("/")
-                    if VSS_SKIP.search(rel):
-                        continue
-                    if int(ent.info.name.flags) & int(pytsk3.TSK_FS_NAME_FLAG_UNALLOC):
-                        continue
-                    t = ent.info.meta.type
-                    if t == pytsk3.TSK_FS_META_TYPE_DIR:
-                        try:
-                            stack.append((rel, ent.as_directory()))
-                        except Exception:
-                            pass
-                        continue
-                    if t != pytsk3.TSK_FS_META_TYPE_REG or ent.info.meta.size <= 0:
-                        continue
-                    m = ent.info.meta
-                    size, mtime = m.size, unixtime(m.mtime)
-                    state = cur.get(rel.lower())
-                    if state == 0:      # ancora presente: conta solo se è una versione diversa
-                        try:
-                            cm = cur_fs.open(path="/" + rel).info.meta
-                            if cm.size == size and cm.mtime == m.mtime:
-                                continue
-                        except Exception:
-                            pass
-                        note = tr("versione precedente (nella copia attuale il file è diverso)")
-                    elif state == 1:
-                        note = tr("nella copia attuale il file risulta cancellato")
-                    else:
-                        note = tr("presente solo nella copia shadow")
-                    xid = new_xitem(con, kind="vss", part=p["offset"], inode=str(m.addr), src_path=rel,
-                                    inner=rel, path=f"[{label}] {rel}", name=nm, size=size, mtime=mtime,
-                                    note=note, store=label)
-                    found += 1
-                    if size <= VSS_FILE_MAX and ctx.extracted + size <= VSS_TOTAL_MAX:
-                        tmpf = ctx.tmp / f"v{xid}"
-                        try:
-                            with open(tmpf, "wb") as fh:
-                                fo = ent.read_random
-                                off = 0
-                                while off < size:
-                                    b = fo(off, min(4 << 20, size - off))
-                                    if not b:
-                                        break
-                                    fh.write(b)
-                                    off += len(b)
-                            data = open(tmpf, "rb").read(fa.MAX_EXTRACT)
-                            index_text(con, case, f"[{label}] {rel}", data, nm, "x", None, xid, 0, ctx.tmp)
-                            nb, md5, sha1, sha256 = hashes_of(tmpf)
-                            relp = store_extracted(case, tmpf, f"vss/{si + 1}", xid, nm)
-                            ctx.extracted += nb
-                            con.execute("UPDATE xitems SET relpath=?, md5=?, sha1=?, sha256=? WHERE id=?",
-                                        (relp, md5, sha1, sha256, xid))
-                        except Exception:
-                            tmpf.unlink(missing_ok=True)
-                    else:
-                        con.execute("UPDATE xitems SET note=? WHERE id=?", (note + tr("; non estratto (troppo grande)"), xid))
-                    if found % 200 == 0:
-                        con.commit()
-                        ctx.say(tr("{label}: {found} file diversi dalla copia attuale").format(label=label, found=found))
+                        tmpf.unlink(missing_ok=True)
+                else:
+                    con.execute("UPDATE xitems SET note=? WHERE id=?", (note + tr("; non estratto (troppo grande)"), xid))
+                if found % 200 == 0:
+                    con.commit()
+                    ctx.say(tr("{label}: {found} file diversi dalla copia attuale").format(label=label, found=found))
             con.commit()
             files_found += found
             total += 1
@@ -5275,6 +5312,7 @@ def run_ocr(case, con):
                 fa.store_text(con, path, text.replace("\r\n", "\n"), src, part, str(inode), deleted,
                               tr("OCR (testo letto da immagine)") if kind != "pdf" else tr("OCR (PDF scansionato)"))
                 n_ok += 1
+            fa.avanz(fatti=k, totale=len(todo))
             if k % 50 == 0:
                 con.commit()
                 ctx.say(tr("{k} di {v1} · {n_ok} con testo").format(k=k, v1=len(todo), n_ok=n_ok))
@@ -5323,8 +5361,12 @@ def run(case, con, what):
         print(tr("libpff non disponibile: i PST/OST non verranno aperti (archivi, mbox ed EML sì)."), flush=True)
     ensure_schema(con)
     con.commit()
-    fn = {"archivi": run_archivi, "anomalie": run_anomalie, "artefatti": run_artefatti,
-          "vss": run_vss, "ocr": run_ocr, "phash": run_phash}[what]
+    if what == "trascrizione":           # (2.20) forense_trascrizione.py (Whisper)
+        import forense_trascrizione as ftr
+        fn = ftr.run
+    else:
+        fn = {"archivi": run_archivi, "anomalie": run_anomalie, "artefatti": run_artefatti,
+              "vss": run_vss, "ocr": run_ocr, "phash": run_phash}[what]
     res = fn(case, con)
     if res is None:
         return False
@@ -5682,7 +5724,8 @@ def report_md(case):
                     L += ["", f"### {tr(ART_CATS[cat])}", "", tr("| Data (UTC) | Elemento | Dettagli |"), "|---|---|---|"]
                     L += [f"| {cell((ts or '').replace('T', ' '))} | {cell(t)} | {cell(d)} |" for ts, t, d in rows]
             cnt = dict(con.execute("SELECT cat, COUNT(*) FROM artifacts GROUP BY cat").fetchall())
-            L += ["", tr("Elementi raccolti: ") + ", ".join(f"{tr(ART_CATS.get(k, k))} {v}" for k, v in cnt.items()) +
+            lbl = dict(ART_CATS, messaggi=N_("Messaggi delle chat")) if fa.is_mobile(case) else ART_CATS   # smartphone (2.20)
+            L += ["", tr("Elementi raccolti: ") + ", ".join(f"{tr(lbl.get(k, k))} {v}" for k, v in cnt.items()) +
                   tr(". L'elenco completo è nella sezione Artefatti di sistema di RepertIA e nel report portatile."), ""]
         if "archivi" in est:
             a = est["archivi"]
@@ -5712,7 +5755,23 @@ def report_md(case):
         if "ocr" in est:
             o = est["ocr"]
             L += [tr("## Testo nelle immagini (OCR)"), "", tr("- Immagini e PDF scansionati letti con Tesseract: {v1}, con testo riconosciuto: {v2} "
-                                                          "(lingue {v3}).").format(v1=o.get('file', 0), v2=o.get('con_testo', 0), v3=o.get('lingue', '')), ""]
+                                                          "(lingue {v3}).").format(v1=o.get('file', 0), v2=o.get('con_testo', 0), v3=o.get('lingue', '')),
+                  tr("- Testo OCR automatico: può contenere errori di lettura e va verificato sull'immagine originale."), ""]
+        if "trascrizione" in est:            # (2.20) trascrizione automatica degli audio (Whisper)
+            t = est["trascrizione"]
+            amb = {"chat": tr("audio allegati alle chat"), "tutti": tr("tutti gli audio"), "selezione": tr("audio selezionati")}
+            L += [tr("## Trascrizione automatica degli audio"), "",
+                  tr("- Audio trascritti con Whisper ({motore}) su questo computer, senza rete: {n} ({amb}), con parlato riconosciuto "
+                     "{ok}, senza parlato {v}, non riusciti {e}, oltre la durata massima {s}; {mi} minuti di audio.").format(
+                      motore=t.get("motore", ""), n=t.get("audio", 0), amb=amb.get(t.get("ambito"), t.get("ambito") or ""),
+                      ok=t.get("con_testo", 0), v=t.get("senza_parlato", 0), e=t.get("non_riusciti", 0), s=t.get("oltre_durata", 0),
+                      mi=t.get("minuti_audio", 0)),
+                  tr("- Modello `{m}` (SHA-256 `{ms}`), motore SHA-256 `{es}`, lingua {l}.").format(
+                      m=t.get("modello", ""), ms=t.get("modello_sha256", ""), es=t.get("motore_sha256", ""),
+                      l=tr("riconosciuta automaticamente") if t.get("lingua") in (None, "", "auto") else t.get("lingua")),
+                  tr("- Le trascrizioni sono automatiche e vanno verificate ascoltando l'audio: non sostituiscono una trascrizione "
+                     "certificata. Il testo è nella ricerca nel testo del caso, nell'anteprima di ogni audio e nelle chat; gli "
+                     "audio originali non sono stati modificati."), ""]
         if m.get("liste_hash"):
             L += [tr("## Liste di hash"), ""]
             for x in m["liste_hash"]["liste"]:
@@ -5726,6 +5785,31 @@ def report_md(case):
 
 
 # ------------------------------------------------------------------ strumenti per l'agente IA
+
+def _agent_cited(case, rows):
+    """(2.20) Per ogni riga (cat, ts, title, detail, user, src_path, part, inode, data): « | file citato: …» con il file
+    trovato nella copia/estrazione (o «non presente»), così l'agente cita il file vero e non solo il percorso indicato."""
+    out = [""] * len(rows)
+    try:
+        import forense_percorsi as fp
+        idx = fp.Indice(case)
+    except Exception:
+        return out
+    mobile = fa.is_mobile(case)
+    try:
+        for i, (c, t, ti, d, u, s, part, inode, data) in enumerate(rows):
+            try:
+                r = fp.file_citati(case, {"cat": c, "title": ti, "user": u, "src_path": s, "part": part, "inode": inode,
+                                          "data": data}, veloce=True, idx=idx)
+            except Exception:
+                continue
+            fs = [fp.etichetta_disco(x, mobile) for x in r["file"] if x["ruolo"] == "file"][:3]
+            if fs:
+                out[i] = " | " + tr("file citato: {f}").format(f="; ".join(fs))
+    finally:
+        idx.close()
+    return out
+
 
 def agent_tools(case):
     est = case.meta.get("estese") or {}
@@ -5754,13 +5838,15 @@ def agent_tools(case):
         lim = max(1, min(int(limit), 300))
         try:
             tot = con.execute(f"SELECT COUNT(*) FROM artifacts WHERE {' AND '.join(w)}", a).fetchone()[0]
-            rows = con.execute(f"SELECT cat, ts, title, detail, user, src_path FROM artifacts WHERE {' AND '.join(w)} "
-                               f"ORDER BY ts IS NULL, ts DESC LIMIT {lim}", a).fetchall()
+            rows = con.execute(f"SELECT cat, ts, title, detail, user, src_path, part, inode, data FROM artifacts WHERE "
+                               f"{' AND '.join(w)} ORDER BY ts IS NULL, ts DESC LIMIT {lim}", a).fetchall()
             cnt = con.execute("SELECT cat, COUNT(*) FROM artifacts GROUP BY cat").fetchall()
         finally:
             con.close()
+        cited = _agent_cited(case, rows)
         out = [tr("{tot} artefatti (mostrati {v1}). Per categoria: ").format(tot=tot, v1=len(rows)) + ", ".join(f"{k} {v}" for k, v in cnt)]
-        out += [tr("- [{c}] {v1} | {ti} | {d} | utente {v2} | fonte {s}").format(c=c, v1=(t or '').replace('T', ' '), ti=ti, d=d, v2=u or '-', s=s) for c, t, ti, d, u, s in rows]
+        out += [tr("- [{c}] {v1} | {ti} | {d} | utente {v2} | fonte {s}").format(c=c, v1=(t or '').replace('T', ' '), ti=ti, d=d, v2=u or '-', s=s)
+                + cited[i] for i, (c, t, ti, d, u, s, *_r) in enumerate(rows)]
         return fa.clip("\n".join(out))
 
     def search_emails(contains: str = "", sender: str = "", limit: int = 50) -> str:

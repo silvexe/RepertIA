@@ -7,6 +7,9 @@ RepertIA/
   RepertIA.app/Contents/Resources/repertia.icns
   RepertIA.app/Contents/Resources/RepertIA/      forense_agent.py, forense_gui.py, forense_gui.html,
        forense_portatile.py, forense_portatile.html, forense_estesa.py, forense_apfs.py, forense_collaudo.py, forense_riscontro.py, forense_lingua.py,
+       forense_mobile*.py, forense_mobile*.html, forense_mobile_leapp_mappa.json (smartphone, dalla 2.20),
+       forense_percorsi.py + forense_percorsi.json (file citati e tabella dei percorsi, dalla 2.20),
+       forense_registro.py (verifica del registro a catena, dalla 2.20; usabile anche da solo con Python),
        lingua_en.json (dizionario inglese), README.md
   RepertIA.app/Contents/Resources/python/        cpython-3.12.x-aarch64-apple-darwin-install_only_stripped
        + in lib/python3.12/site-packages: openai, pillow, plaso==20260720 e dipendenze
@@ -19,3 +22,30 @@ RepertIA/
   Collaudo RepertIA.command      (2.14: collaudo con la cartella RepertIA-collaudo)
   LEGGIMI.txt, README_EN.txt (in inglese)
 Zip con: zip -qry -X RepertIA-2.5-Mac.zip RepertIA   (-y conserva i link simbolici di Python)
+
+2.20 - iLEAPP e ALEAPP (casi smartphone): con build/leapp/prepara_leapp.sh <python dell'app> <cartella> si ottiene
+strum_mac/ileapp e strum_mac/aleapp (programma + librerie in site/); vanno in
+  RepertIA.app/Contents/Resources/strumenti/ileapp  e  .../strumenti/aleapp
+
+2.20 - Trascrizione degli audio: whisper.cpp v1.9.5 e FFmpeg minimo, compilati su un Mac Apple Silicon (Xcode CLT;
+cmake da pip in un ambiente a parte). I modelli NON vanno nel pacchetto (si scaricano con il consenso dell'analista).
+  whisper.cpp: sorgente https://github.com/ggml-org/whisper.cpp/archive/refs/tags/v1.9.5.tar.gz
+    (SHA-256 ff1a9053feb509ff9d7729703355541ae9690073a6b1c40eb692c962e0dc1720)
+    cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DGGML_METAL=ON -DGGML_METAL_EMBED_LIBRARY=ON \
+      -DGGML_NATIVE=OFF -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0 -DWHISPER_BUILD_TESTS=OFF \
+      -DWHISPER_SDL2=OFF -DWHISPER_CURL=OFF
+    cmake --build build --config Release --target whisper-cli -j 8
+    -> build/bin/whisper-cli (solo librerie di sistema) in RepertIA.app/Contents/Resources/strumenti/whisper/bin/,
+       con LICENSE (MIT) in strumenti/whisper/
+  FFmpeg: sorgente ffmpeg-n9.0.2-36-g6882969ce9-sorgenti.tar.gz (lo stesso allegato alla Release)
+    ./configure --arch=arm64 --cc=clang --extra-cflags=-mmacosx-version-min=13.0 --extra-ldflags=-mmacosx-version-min=13.0 \
+      --disable-gpl --disable-nonfree --disable-shared --enable-static --disable-doc --disable-debug --disable-ffplay \
+      --disable-ffprobe --disable-network --disable-autodetect --enable-audiotoolbox --disable-everything \
+      --enable-protocol=file,pipe \
+      --enable-demuxer=ogg,mov,mp3,wav,aac,amr,flac,matroska,caf,aiff,asf,au,w64,mpegts,avi \
+      --enable-decoder=opus,vorbis,aac,aac_latm,mp3,mp3float,mp2,amrnb,amrwb,flac,alac,pcm_s16le,pcm_s24le,pcm_s32le,\
+pcm_f32le,pcm_u8,pcm_mulaw,pcm_alaw,pcm_s16be,pcm_s24be,adpcm_ima_qt,adpcm_ms,gsm,gsm_ms,wmav1,wmav2,h264,hevc,mpeg4,mjpeg,vp8,vp9,av1 \
+      --enable-parser=opus,vorbis,aac,mpegaudio,flac,h264,hevc,mpeg4video,vp8,vp9,av1 --enable-muxer=wav,image2,mjpeg \
+      --enable-encoder=pcm_s16le,mjpeg --enable-filter=aresample,aformat,anull,scale,format,null,select \
+      --enable-swresample --enable-swscale
+    make -j8  -> ffmpeg (licenza LGPL v2.1 o successiva) in strumenti/ffmpeg/bin/, con COPYING.LGPLv2.1 e LICENSE.md

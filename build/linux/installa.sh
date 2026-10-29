@@ -4,7 +4,8 @@
 # RepertIA - Installazione su Linux (Ubuntu 24.04 o successivo, Debian 13). Serve internet una volta.
 # 1) installa con apt gli strumenti forensi (Sleuth Kit, libewf, PhotoRec, Poppler, ExifTool, Tesseract)
 # 2) crea in python/ un ambiente Python con plaso, le librerie libyal e gli altri moduli, alle stesse
-#    versioni dei pacchetti Mac e Windows (requirements-linux.txt)
+#    versioni dei pacchetti Mac e Windows (requirements-linux.txt); dalla 2.20 anche le librerie di iLEAPP e ALEAPP
+#    in strumenti/ileapp/site e strumenti/aleapp/site
 # 3) aggiunge RepertIA al menu delle applicazioni.
 # Si può rieseguire: completa solo quello che manca.
 DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -53,6 +54,21 @@ if "$DIR/python/bin/python3" -c 'import plaso, pytsk3, pyewf, PIL' 2>/dev/null; 
 else
   echo "ATTENZIONE: alcuni moduli non si sono installati (vedi $LOG)." | tee -a "$LOG"
 fi
+
+# 2.20: librerie di iLEAPP e ALEAPP (casi smartphone), ognuno nella sua cartella strumenti/<nome>/site, separate da
+# quelle di RepertIA e di plaso. I lettori senza pacchetto binario (biplist, PGPy, mister_skinnylegs, ccl_*) sono in
+# strumenti/wheels.
+for T in ileapp aleapp; do
+  if [ -f "$DIR/strumenti/$T/requirements-repertia.txt" ] && [ ! -d "$DIR/strumenti/$T/site" ]; then
+    echo "Librerie di $T (smartphone)..." | tee -a "$LOG"
+    "$DIR/python/bin/python3" -m pip install --prefer-binary --find-links "$DIR/strumenti/wheels" \
+      --target "$DIR/strumenti/$T/site" -r "$DIR/strumenti/$T/requirements-repertia.txt" 2>&1 | tee -a "$LOG"
+    if [ "$T" = "aleapp" ]; then
+      "$DIR/python/bin/python3" -m pip install --no-deps --target "$DIR/strumenti/$T/site" \
+        "$DIR"/strumenti/wheels/mister_skinnylegs-*.whl "$DIR"/strumenti/wheels/ccl_*.whl 2>&1 | tee -a "$LOG"
+    fi
+  fi
+done
 
 chmod +x "$DIR"/*.sh "$DIR/strumenti/7zip/7zz" 2>/dev/null
 [ "$(uname -m)" != "x86_64" ] && rm -rf "$DIR/strumenti/7zip"

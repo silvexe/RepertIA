@@ -1,0 +1,194 @@
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!-- Copyright (C) 2026 silvexe -->
+<!-- RepertIA 2.20 - chat nel report portatile dei casi smartphone: inserito da forense_portatile.py al posto del
+     segnaposto REPERTIA_MOBILE; i dati sono in dati/chat.js (caricato alla prima apertura della vista). -->
+<style>
+.sbkl{font-size:11px;font-weight:600;color:#b45309;margin-bottom:2px}
+.pchat{display:grid;grid-template-columns:var(--chlw,300px) 6px minmax(0,1fr);flex:1;min-height:0}
+.pchat .tl{border-right:1px solid var(--line);overflow:auto}
+.pchat .th{padding:8px 12px;border-bottom:1px solid var(--line);cursor:pointer}
+.pchat .th:hover{background:var(--panel2)}
+.pchat .th.on{background:var(--accent-soft)}
+.pchat .th b{display:block;font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pchat .th span{font-size:12px;color:var(--muted)}
+.pchat .mr{display:flex;flex-direction:column;min-height:0}
+.pchat .ms{overflow:auto;flex:1;padding:12px 16px;display:flex;flex-direction:column;gap:6px;background:var(--bg)}
+.pchat .bub{max-width:72%;padding:7px 10px;border-radius:12px;font-size:14px;line-height:1.38;white-space:pre-wrap;word-wrap:break-word;border:1px solid var(--line);background:var(--panel)}
+.pchat .bub.in{align-self:flex-start}
+.pchat .bub.out{align-self:flex-end;background:var(--accent-soft);border-color:transparent}
+.pchat .bub.sys{align-self:center;background:none;border:none;color:var(--muted);font-size:12.5px;font-style:italic;text-align:center}
+.pchat .who{font-size:12px;font-weight:600;color:var(--accent)}
+.pchat .meta{font-size:11px;color:var(--muted);margin-top:3px;text-align:right}
+.pchat .att{margin-top:5px;padding:5px;border:1px solid var(--line);border-radius:8px;font-size:12.5px;white-space:normal}
+.pchat .trchat{margin:5px 0;padding:5px 7px;border-left:3px solid var(--accent);border-radius:6px}
+.pchat .trchat summary{cursor:pointer}.pchat .trchat .trtxt{white-space:pre-wrap;margin:3px 0}
+.pchat .att img{display:block;max-width:220px;max-height:220px;border-radius:6px;margin-bottom:4px}
+.pchat .info{padding:8px 14px;border-bottom:1px solid var(--line);font-size:12.5px;color:var(--muted)}
+.pchat mark{background:var(--warn-soft, #fbefd9);color:inherit}
+.pchat .bub.del{border:1px dashed #d97706;background:var(--warn-soft, #fbefd9)}
+.pchat .bub.focus{outline:2px solid var(--accent);outline-offset:2px}
+.pchat .meta a{cursor:pointer;text-decoration:none;margin-left:6px}
+.pchat .info .crow{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.pchat .info .crow .btn{padding:2px 8px;font-size:12px}
+@media (max-width:760px){.pchat{grid-template-columns:1fr;grid-template-rows:38% 1fr}.pchat>.psplit{display:none}}
+</style>
+<script>
+(() => {
+  const push0 = FD.push;
+  FD.push = function(name, obj){ if (name === "chat") this.chat = obj; else push0.call(this, name, obj); };
+  const nav = document.getElementById("nav"), sep = nav.querySelector(".sep");
+  const b = document.createElement("button");
+  b.dataset.v = "chat"; b.innerHTML = `💬 <span class="l">${T("Chat")}</span><span class="n" id="nChat"></span>`;
+  nav.insertBefore(b, sep);
+  const sec = document.createElement("section");
+  sec.className = "view hidden"; sec.id = "v-chat";
+  sec.innerHTML = `<div class="bar"><select id="pcApp"><option value="">${T("Tutte le app")}</option></select><input type="search" id="pcQ" placeholder="${esc(T("Cerca nome, numero o testo dei messaggi"))}"><span class="hint grow" id="pcInfo"></span></div>
+    <div class="pchat"><div class="tl" id="pcList"></div><div class="psplit" id="pcSplit" title="${esc(T("Trascina per allargare o stringere l'elenco delle conversazioni; doppio clic: larghezza predefinita"))}"></div><div class="mr"><div class="info" id="pcHead">${T("Scegli una conversazione a sinistra.")}</div><div class="ms" id="pcMsgs"></div></div></div>`;
+  document.querySelector("main").appendChild(sec);
+  if (window.paneSplit) paneSplit(sec.querySelector("#pcSplit"), {key: "chat", el: () => sec.querySelector("#pcList"), dir: 1, min: 200, max: () => sec.clientWidth * 0.6 || 600,
+    set: w => { const g = sec.querySelector(".pchat"); w ? g.style.setProperty("--chlw", w + "px") : g.style.removeProperty("--chlw"); }});
+  const APP = {whatsapp: "WhatsApp", imessage: "iMessage/SMS", sms: "SMS/MMS", whatsapp_backup: T("WhatsApp (backup decifrato)")};
+  const appLbl = k => APP[k] || k;
+  const KIND = {allegato: T("allegato"), sistema: T("evento"), reazione: T("reazione"), eliminato: T("messaggio eliminato (segnaposto dell'app: il testo non c'è più)"),
+    posizione: T("posizione"), contatto: T("contatto"), link: T("link"), sondaggio: T("sondaggio"), chiamata: T("chiamata"), "non gestito": T("tipo non gestito")};
+  // m[14] = valore del database per i tipi WhatsApp classificati (forense_mobile_wa), m[15] = verificato
+  const kindLbl = m => m[14] != null && m[6] !== "testo" && m[6] !== "eliminato" ? (m[11] || "") : (KIND[m[6]] || m[11] || m[6] || "");
+  // m[16] = stati di consegna/lettura [stato, etichetta, ts, destinatario, fonte, verificato, nota] (casi nuovi)
+  const RC_LIV = {inviato: 1, consegnato: 2, letto: 3, riprodotto: 4};
+  function rcIcon(m){
+    const rc = m[16] || []; if (m[2] !== "out" || !rc.length) return "";
+    const lv = Math.max(0, ...rc.map(x => RC_LIV[x[0]] || 0));
+    const nv = lv && !rc.some(x => (RC_LIV[x[0]] || 0) === lv && x[5]);
+    const tip = rc.map(x => x[1] + (x[2] ? " " + fts(x[2]) : "") + (x[3] ? " · " + x[3] : "") + " — " + x[4] + (x[5] ? "" : " (" + T("non verificato") + ")") + (x[6] ? " — " + x[6] : "")).join("\n")
+      + "\n" + T("L'assenza di «letto» non prova che il messaggio non sia stato letto: le conferme di lettura possono essere disattivate. Per i messaggi ricevuti non si mostrano stati.");
+    return ` <span title="${esc(tip)}" style="cursor:help;${lv >= 3 ? "color:#34b7f1;" : ""}${nv ? "border-bottom:1px dashed currentColor;" : ""}">${lv >= 4 ? "✓✓▶" : lv >= 2 ? "✓✓" : lv === 1 ? "✓" : "ⓘ"}</span>`;
+  }
+  const nonVer = m => m[15] === false && m[6] !== "non gestito" && m[6] !== "testo" ? " · ⚠ " + T("tipo non verificato") : "";
+  let D = null, BY = null, cur = null;
+  const showDisk = show;
+  show = v => { showDisk(v); if (v === "chat") initChat(); };
+  b.onclick = () => show("chat");
+  let initP = null;
+  function initChat(){ return initP || (initP = initChat0()); }
+  async function initChat0(){
+    if (D) return;
+    try{ await loadScript("dati/chat.js"); }catch(e){ $("pcInfo").textContent = e.message; return; }
+    D = FD.chat; BY = new Map();
+    D.msgs.forEach((m, i) => { const a = BY.get(m[0]) || []; a.push(i); BY.set(m[0], a); });
+    $("nChat").textContent = nf(D.msgs.length);
+    $("pcApp").innerHTML += Object.entries(D.apps).map(([k, n]) => `<option value="${esc(k)}">${esc(APP[k] || k)} (${nf(n)})</option>`).join("");
+    $("pcApp").onchange = list; $("pcQ").oninput = () => { list(); if (cur != null) open(cur); };
+    let tS; $("pcMsgs").onscroll = () => { clearTimeout(tS); tS = setTimeout(() => { if (typeof PNAV !== "undefined") PNAV.replace(); }, 300); };
+    $("pcInfo").textContent = TF("{0} messaggi in {1} conversazioni · orari: {2}", nf(D.msgs.length), nf(D.threads.length), tzLbl());
+    list();
+  }
+  function hit(i){ const q = $("pcQ").value.trim().toLowerCase(); if (!q) return true; const m = D.msgs[i]; return (m[5] || "").toLowerCase().includes(q) || (m[4] || "").toLowerCase().includes(q) || (m[3] || "").includes(q); }
+  function list(){
+    const app = $("pcApp").value, q = $("pcQ").value.trim().toLowerCase();
+    const rows = D.threads.filter(t => (!app || t[1] === app) && (!q || (t[2] + " " + t[3]).toLowerCase().includes(q) || (BY.get(t[0]) || []).some(hit)));
+    $("pcList").innerHTML = rows.map(t => `<div class="th ${cur === t[0] ? "on" : ""}" data-id="${t[0]}"><b>${esc(t[2])}</b><span>${esc(APP[t[1]] || t[1])} · ${nf(t[5])} · ${esc(fts(t[7]))}</span></div>`).join("") || `<div class="pad hint">${T("Nessuna conversazione.")}</div>`;
+    $("pcList").querySelectorAll(".th").forEach(el => el.onclick = () => open(+el.dataset.id));
+  }
+  function attHtml(a){
+    const k = a[2] != null ? keyOf(a[2], a[3]) : null, fi = k ? KEY.get(k) : null, at = k ? ATT_BY_KEY.get(k) : null;
+    const th = at ? thumbOf(at) : null;
+    const mth = !th && a[3] == null && a[8] ? a[8] : "";
+    return `<div class="att">${th ? `<img src="${esc(th)}" alt="">` : mth ? `<img src="${esc(mth)}" alt="">` : ""}📎 <b>${esc(a[0] || T("allegato"))}</b>${a[5] != null ? ` · 📍 ${esc(String(a[5]))}, ${esc(String(a[6]))}` : ""}
+      ${fi != null || at ? `<div><button class="btn small" data-k="${esc(k)}">${T("Apri")}</button> <span class="hint">${esc(a[4] || "")}</span></div>` : mth ? `<div class="hint">${T("miniatura dal database – file non presente nell'estrazione")}${a[1] ? ": " + esc(a[1]) : ""}</div>` : a[3] != null ? `<div class="hint">${esc(a[4] || "")} · ${T("contenuto non incluso nel report portatile")}</div>` : a[1] ? `<div class="hint">${T("File non presente nell'estrazione")}: ${esc(a[1])}</div>` : ""}
+      ${a[7] ? `<div class="hint">${esc(a[7])}</div>` : ""}
+      ${a[9] != null ? `<details class="trchat" open><summary>📝 ${T("Trascrizione automatica")} <span class="hint">· ${T("da verificare ascoltando l'audio")}</span></summary><div class="trtxt">${a[9] ? esc(a[9]) : `<span class="hint">${T("Nessun parlato riconosciuto.")}</span>`}</div><div class="hint" style="font-size:11px">${esc(a[10] || "")}</div></details>` : ""}</div>`;
+  }
+  function msgLabel(m, t){
+    const who = m[2] === "out" ? T("inviato da questo dispositivo") : (m[4] || m[3] || T("ricevuto"));
+    return TF("{0} · conversazione «{1}» · {2} · {3} UTC: «{4}» — {5}, tabella {6} riga {7}, messaggio {8}", APP[t[1]] || t[1], t[2], who,
+      (m[1] || "").replace("T", " "), (m[5] || "[" + ((m[6] === "non gestito" && m[11]) || KIND[m[6]] || m[6] || "") + "]").slice(0, 300), t[8], m[9], m[10], m[13]);
+  }
+  function open(id, focus){
+    if (cur != null && cur !== id && typeof PNAV !== "undefined") PNAV.replace();     // scorrimento della conversazione che si lascia
+    cur = id;
+    const t = D.threads.find(x => x[0] === id);
+    $("pcList").querySelectorAll(".th").forEach(el => el.classList.toggle("on", +el.dataset.id === id));
+    $("pcHead").innerHTML = `<div class="crow"><span><b>${esc(t[2])}</b> · ${esc(appLbl(t[1]))} · ${TF("{0} messaggi", nf(t[5]))}</span><span class="grow"></span>
+        <button class="btn small" id="pcFav" title="${esc(T("Aggiungi l'intera conversazione ai preferiti"))}">⭐ ${T("Preferiti")}</button>
+        <button class="btn small" id="pcExp" title="${esc(T("Scarica la conversazione in HTML leggibile e CSV (con SHA-256)"))}">⬇ ${T("Esporta chat")}</button></div>
+      ${esc(t[3])}<br><span class="mono">${esc(T("Fonte: ") + t[8])}</span>${t[11] === "leapp" ? ` · ${T("ricavata dagli artefatti di iLEAPP/ALEAPP")}` : ""}
+      <br><span style="font-size:11.5px">${T("Messaggi cancellati: sono evidenziati i segnaposto «messaggio eliminato» lasciati dalle app; i messaggi cancellati ancora presenti nelle pagine libere dei database non sono recuperati in questa versione.")}</span>`;
+    const q = $("pcQ").value.trim();
+    const rx = q ? new RegExp("(" + esc(q).replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + ")", "gi") : null;
+    let last = "";
+    $("pcMsgs").innerHTML = (BY.get(id) || []).filter(hit).map(i => {
+      const m = D.msgs[i], cls = (m[2] === "out" ? "out" : m[2] === "sys" || m[6] === "sistema" ? "sys" : "in") + (m[6] === "eliminato" ? " del" : "") + (focus != null && m[13] === focus ? " focus" : "");
+      const day = (fts(m[1]) || "").slice(0, 10); const sepH = day !== last ? `<div class="hint" style="align-self:center">${esc(day)}</div>` : ""; last = day;
+      let txt = m[5] ? esc(m[5]) : `<i>[${esc(kindLbl(m))}]</i>`;
+      if (rx && m[5]) txt = txt.replace(rx, "<mark>$1</mark>");
+      return sepH + `<div class="bub ${cls}" data-mi="${i}">${cls === "in" && (t[4] || m[4]) ? `<div class="who">${esc(m[4] || m[3] || "")}</div>` : ""}${txt}${(m[12] || []).map(j => attHtml(D.att[j])).join("")}
+        <div class="meta">${esc(fts(m[1]))}${m[7] ? " · " + esc(m[7]) : ""}${m[8] ? " · " + esc(m[8]) : ""}${esc(nonVer(m))}${rcIcon(m)} · ${esc(m[9])}#${m[10]}<a data-fav="1" title="${esc(T("Aggiungi il messaggio ai preferiti"))}">⭐</a></div></div>`;
+    }).join("") || `<div class="pad hint">${T("Nessun messaggio con questi filtri.")}</div>`;
+    $("pcFav").onclick = () => bmDialog([{key: "chatt:" + t[0], path: threadLabel(t), name: threadLabel(t)}]);
+    $("pcExp").onclick = () => exportChat(t);
+    pushNav();
+    $("pcMsgs").querySelectorAll("[data-fav]").forEach(x => x.onclick = () => {
+      const m = D.msgs[+x.closest(".bub").dataset.mi], lab = msgLabel(m, t);
+      bmDialog([{key: "chat:" + m[13], path: lab, name: lab}]);
+    });
+    const fe = $("pcMsgs").querySelector(".bub.focus"); if (fe) fe.scrollIntoView({block: "center"});
+    $("pcMsgs").querySelectorAll("[data-k]").forEach(x => x.onclick = () => {
+      const k = x.dataset.k, fi = KEY.get(k);
+      if (fi != null) openFile(fi); else { const a = ATT_BY_KEY.get(k); if (a) openAtt(a); }
+    });
+  }
+  function threadLabel(t){
+    return TF("conversazione {0} «{1}» ({2} messaggi, dal {3} al {4} UTC) — fonte {5}", appLbl(t[1]), t[2], t[5], (t[6] || "?").replace("T", " "), (t[7] || "?").replace("T", " "), t[8] || "");
+  }
+  // «Esporta chat»: HTML leggibile e CSV scaricati dal browser; lo SHA-256 dei due file si mostra a video (il report
+  // portatile non scrive nel registro del caso: va annotato da chi esporta)
+  async function sha256(text){
+    try{ const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text)); return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, "0")).join(""); }
+    catch(e){ return T("(non calcolabile in questo browser)"); }
+  }
+  async function exportChat(t){
+    const ids = BY.get(t[0]) || [], c = FD.case, hs = Object.entries(c.sha256 || {});
+    const head = [[T("Caso"), (c.info_caso || {}).nome || c.case], [T("App"), appLbl(t[1])], [T("Interlocutori"), T("questo dispositivo") + (t[10] ? ` (${t[10]})` : "") + " ↔ " + t[2] + (t[3] && !t[2].includes(t[3]) ? ` (${t[3]})` : "")],
+      [T("Periodo"), `${fts(t[6])} → ${fts(t[7])}`], [T("Fuso orario usato"), tzLbl()], [T("Messaggi"), String(ids.length)],
+      [T("Estrazione"), (c.evidence || "") + (hs.length ? " · SHA-256 " + hs.map(([k, v]) => k + ": " + v).join(", ") : "")]]
+      .concat((t[9] || []).map(f => [T("Database di origine"), `${t[8] || ""} · offset ${f[0]}, inode ${f[1]}` + (f[2] ? ` · SHA-256 ${f[2]}` : "")]))
+      .concat([[T("Esportata il"), new Date().toISOString() + " · " + T("dal report portatile")]]);
+    const E = esc, rows = ids.map(i => D.msgs[i]);
+    let last = "";
+    const body = rows.map(m => {
+      const day = (fts(m[1]) || "").slice(0, 10), sep = day !== last ? `<div class="day">${E(day)}</div>` : ""; last = day;
+      const cls = (m[2] === "out" ? "out" : m[2] === "sys" || m[6] === "sistema" ? "sys" : "in") + (m[6] === "eliminato" ? " del" : "");
+      const at = (m[12] || []).map(j => { const a = D.att[j]; return `<div class="a">📎 ${E(a[0] || T("allegato"))}${a[5] != null ? ` · 📍 ${E(a[5])}, ${E(a[6])}` : ""}<div class="mono">${E(a[4] || a[1] || "")}</div></div>`; }).join("");
+      return sep + `<div class="b ${cls}">${m[17] ? `<div class="sbkl" title="${E(T("Il messaggio è nel backup ma non nel database attuale dell'app (stesso identificativo key_id assente): può essere stato cancellato dopo il backup"))}">⚠ ${E(T("solo nel backup"))}</div>` : ""}${cls === "in" && (t[4] || m[4]) ? `<div class="w">${E(m[4] || m[3] || "")}</div>` : ""}${m[5] ? E(m[5]) : `<span class="k">[${E(kindLbl(m))}]</span>`}${at}<div class="m">${E([fts(m[1]), m[7], m[8], m[9] + " #" + m[10], T("messaggio") + " " + m[13]].filter(Boolean).join(" · "))}</div></div>`;
+    }).join("");
+    const css = "body{font:14px/1.45 -apple-system,Segoe UI,Helvetica,Arial,sans-serif;margin:0;background:#f4f5f7;color:#1d2330}header{background:#fff;border-bottom:1px solid #d8dbe2;padding:16px 22px}h1{font-size:19px;margin:0 0 8px}table{border-collapse:collapse;font-size:12.5px}th{text-align:left;color:#5b6475;padding:2px 14px 2px 0;vertical-align:top;white-space:nowrap}td{word-break:break-word}.mono{font-family:Menlo,Consolas,monospace;font-size:11.5px}main{max-width:900px;margin:0 auto;padding:16px;display:flex;flex-direction:column;gap:6px}.day{align-self:center;font-size:11.5px;color:#5b6475;background:#e6e8ee;border-radius:99px;padding:2px 10px;margin:6px 0}.b{max-width:74%;padding:7px 10px;border-radius:12px;background:#fff;border:1px solid #d8dbe2;white-space:pre-wrap;word-wrap:break-word}.b.out{align-self:flex-end;background:#dbe8ff;border-color:transparent}.b.in{align-self:flex-start}.b.sys{align-self:center;background:none;border:none;color:#5b6475;font-style:italic;font-size:12.5px}.b.del{border:1px dashed #d97706;background:#fdf3e1}.w{font-size:12px;font-weight:600;color:#2456c7}.m{font-size:11px;color:#5b6475;margin-top:3px;text-align:right}.k{font-style:italic;color:#5b6475}.a{margin-top:6px;padding:6px;border:1px solid #d8dbe2;border-radius:8px;background:#f7f8fa;font-size:12.5px;white-space:normal}";
+    const html = `<!doctype html><html lang="${E(LG.lingua || "it")}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${E(appLbl(t[1]))} · ${E(t[2])}</title><style>${css}</style></head><body><header><h1>💬 ${E(appLbl(t[1]))} · ${E(t[2])}</h1><table>${head.filter(h => h[1]).map(([k, v]) => `<tr><th>${E(k)}</th><td>${E(v)}</td></tr>`).join("")}</table></header><main>${body}</main></body></html>`;
+    const q = v => `"${String(v == null ? "" : v).replace(/"/g, '""')}"`;
+    const csv = "\ufeff" + head.filter(h => h[1]).map(([k, v]) => q("# " + k) + ";" + q(v)).join("\r\n") + "\r\n" +
+      [T("id"), TF("Data ({0})", tzLbl()), T("Data (UTC)"), T("Verso"), T("Mittente"), T("Nome"), T("Testo"), T("Tipo"), T("Stato"), T("Servizio"), T("Allegati"), T("Dato grezzo")].map(q).join(";") + "\r\n" +
+      rows.map(m => [m[13], fts(m[1]), m[1], {out: T("inviato"), in: T("ricevuto"), sys: T("evento")}[m[2]] || T("non indicato"), m[3], m[4], m[5], m[6], m[7], m[8],
+        (m[12] || []).map(j => D.att[j][0] + " " + (D.att[j][4] || D.att[j][1] || "")).join(" | "), m[9] + " #" + m[10]].map(q).join(";")).join("\r\n");
+    const stem = `chat_${t[0]}_${String(appLbl(t[1]) + "_" + t[2]).replace(/[^A-Za-z0-9._-]+/g, "_").slice(0, 60)}`;
+    download(stem + ".html", html, "text/html");
+    setTimeout(() => download(stem + ".csv", csv, "text/csv"), 300);
+    const h1 = await sha256(html), h2 = await sha256(csv);
+    modal(T("Chat esportata"), `<p>${T("Scaricati due file nella cartella dei download del browser. Annota gli SHA-256: il report portatile non scrive nel registro del caso.")}</p><pre style="white-space:pre-wrap">${esc(stem)}.html\nSHA-256 ${h1}\n\n${esc(stem)}.csv\nSHA-256 ${h2}</pre><p class="hint">${T("Gli allegati restano nel report (cartella dei file inclusi): nell'esportazione sono indicati per nome e percorso.")}</p>`, []);
+  }
+  // stato per Indietro del browser e briciole
+  function pushNav(){ if (typeof PNAV !== "undefined") PNAV.push(); }
+  // aperta dagli Artefatti («Apri chat») o da un messaggio dei preferiti (chiave «chat:<id>»)
+  window.PCHAT = {
+    open: async (thread, focus) => { show("chat"); await initChat(); if (!D) return; $("pcApp").value = ""; $("pcQ").value = ""; list(); if (D.threads.some(t => t[0] === thread)) open(thread, focus); },
+    openMsg: async id => { await initChat(); const m = D && D.msgs.find(x => x[13] === id); if (m) return window.PCHAT.open(m[0], id); toast(T("Messaggio non incluso nel report")); },
+    state: () => VIEW === "chat" && cur != null ? {thread: cur, scroll: $("pcMsgs").scrollTop} : null,
+    restore: async st => {
+      await initChat(); if (!D) return;
+      if (st && D.threads.some(t => t[0] === st.thread)){ open(st.thread); $("pcMsgs").scrollTop = st.scroll || 0; }
+      else if (!st){ cur = null; list(); $("pcHead").textContent = T("Scegli una conversazione a sinistra."); $("pcMsgs").innerHTML = ""; }
+    },
+    crumbs: () => { const t = D && cur != null && D.threads.find(x => x[0] === cur); return t ? [{label: appLbl(t[1]), go: () => { $("pcApp").value = t[1]; list(); }}, {label: t[2]}] : []; },
+  };
+  const openItemDisk = openItem;
+  openItem = it => it && typeof it.key === "string" && it.key.startsWith("chatt:") ? window.PCHAT.open(+it.key.slice(6))
+    : it && typeof it.key === "string" && it.key.startsWith("chat:") ? window.PCHAT.openMsg(+it.key.slice(5)) : openItemDisk(it);
+})();
+</script>

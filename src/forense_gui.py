@@ -42,9 +42,10 @@ class Prep:
         self.next_image = None     # copia decifrata creata: da analizzare come nuovo caso
         self.ask = None            # domanda in attesa all'operatore (volumi cifrati rilevati)
         self._ask_n = 0
+        self.av = {}               # (2.20) avanzamento per la barra: fase, fatti, totale, orari
 
     def start(self, root, image=None, plaso=False, carving=False, add=None, hash_file=False,
-              no_hash=False, estese=False, vss=False, ocr=False, info=None, fuso=None, lingua=None):
+              no_hash=False, estese=False, vss=False, ocr=False, info=None, fuso=None, lingua=None, trascrizione=None):
         """Nuovo caso (image) oppure analisi aggiuntiva su un caso esistente (add)."""
         cmd = [sys.executable, "-u", str(HERE / "forense_agent.py"), "prepara",
                "--case", str(root)]
@@ -56,9 +57,12 @@ class Prep:
                    (["--no-hash"] if no_hash else []) + (["--estese"] if estese else []) + \
                    (["--vss"] if vss else []) + (["--ocr"] if ocr else []) + \
                    (["--info", json.dumps(info, ensure_ascii=False)] if info else []) + \
-                   (["--fuso", fuso] if fuso else []) + (["--lingua", lingua] if lingua else [])
+                   (["--fuso", fuso] if fuso else []) + (["--lingua", lingua] if lingua else []) + \
+                   (["--trascrizione", json.dumps(trascrizione)] if trascrizione else [])
         self.lines, self.root, self.rc, self.ask, self.next_image = [], root, None, None, None
         self.add = add or "all"
+        t = time.time()
+        self.av = {"t0": t, "t_out": t}
         env = dict(os.environ, FORENSE_DA_GUI="1", PYTHONUTF8="1", PYTHONIOENCODING="utf-8")
         extra = ({"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP} if IS_WIN
                  else {"start_new_session": True})
@@ -69,13 +73,43 @@ class Prep:
     def _read(self):
         for raw in self.proc.stdout:
             for line in fa.dec(raw).replace("\r", "\n").split("\n"):
+                if line.strip():
+                    self.av["t_out"] = time.time()
                 if line.startswith(fa.ASK_MARK):       # domanda dell'agente: non va nel registro a video
                     self._on_ask(line[len(fa.ASK_MARK):])
+                elif line.startswith(fa.AVANZ_MARK):   # (2.20) avanzamento per la barra: nemmeno questo va a video
+                    self._on_avanz(line[len(fa.AVANZ_MARK):])
                 elif line.strip():
                     self.lines.append(line.rstrip())
             if len(self.lines) > 5000:
                 del self.lines[:1000]
         self.rc = self.proc.wait()
+
+    def _on_avanz(self, payload):
+        try:
+            d = json.loads(payload)
+        except ValueError:
+            return
+        t = time.time()
+        if d.get("fase"):
+            self.av.update(fase=d["fase"], t_fase=t, fatti=None, totale=None, t_num=None, unita=None)
+        if "fatti" in d:
+            if self.av.get("fatti") is None:            # primo numero della fase: da qui si stima il tempo
+                self.av["t_num"], self.av["n0"] = t, d["fatti"]
+            self.av.update(fatti=d["fatti"], totale=d.get("totale"), unita=d.get("unita"))
+
+    def avanz(self):
+        """Avanzamento per /api/prep: secondi trascorsi (totale, fase, dall'ultima riga) e stima della fine."""
+        a, t = self.av, time.time()
+        if not a:
+            return None
+        r = {"fase": a.get("fase"), "fatti": a.get("fatti"), "totale": a.get("totale"), "unita": a.get("unita"),
+             "tot_s": int(t - a["t0"]), "fase_s": int(t - a["t_fase"]) if a.get("t_fase") else None,
+             "silenzio_s": int(t - a["t_out"]), "fine_s": None}
+        f, tot, t1 = a.get("fatti"), a.get("totale"), a.get("t_num")
+        if tot and f is not None and t1 and t - t1 > 20 and f > a.get("n0", 0):
+            r["fine_s"] = int((t - t1) / (f - a["n0"]) * max(tot - f, 0))
+        return r
 
     def _on_ask(self, payload):
         try:
@@ -166,7 +200,10 @@ class Session:
         self.saved_messages = None  # messaggi ripresi da una conversazione salvata
 
     def emit(self, kind, data):
-        self.events.append({"n": len(self.events), "kind": kind, "data": data})
+        ev = {"n": len(self.events), "kind": kind, "data": data}
+        if kind == "answer":                # (2.20.1) modello che ha scritto la risposta, per l'etichetta sotto
+            ev["model"] = fa.MODEL
+        self.events.append(ev)
 
     # --- conversazioni salvate (cartella conversazioni/ del caso)
     def conv_dir(self):
@@ -240,6 +277,9 @@ class Session:
             url = conf["url"] if conf["modo"] == "remoto" else ""
             if conf["modo"] == "remoto" and not url:
                 raise fa.LLMError(tr("Server in rete scelto ma senza indirizzo: inseriscilo e premi Collega."))
+            if url and fa.url_esterno(url) and conf.get("esterno_confermato") != url:
+                raise fa.LLMError(tr("Il server {url} è fuori dalla rete locale: premi Collega e conferma l'avviso per "
+                                     "usarlo.").format(url=url))
             self.llm = fa.connect_llm(fa.BACKEND, url, fa.MODEL, fa.NUM_CTX,
                                       api_key=conf["api_key"] or fa.API_KEY)
             if self.case:
@@ -297,7 +337,7 @@ class Session:
             self.messages[0] = {"role": "system", "content": fa.system_prompt(self.case)}
 
     def summary(self, what):
-        text, questions = fa.summary_md(self.case, what)
+        text, questions = summary_cached(self.case, what)
         titles = {"all": tr("Riepilogo del caso"), "base": tr("Riepilogo del file system"),
                   "indice": tr("Riepilogo: testo dei documenti e metadati"),
                   "plaso": tr("Riepilogo: timeline plaso"), "carving": tr("Riepilogo: carving"),
@@ -518,7 +558,14 @@ def case_summary(c):
         "complete": "timeline" in m, "estese": m.get("estese") or {}, "volumi_cifrati": m.get("volumi_cifrati") or [],
         "decifrate": m.get("decifrate") or [], "derivata": m.get("derivata"), "liste_hash": m.get("liste_hash"),
         "apfs_bloccati": apfs_bloccati(c),
+        "tipo_caso": m.get("tipo_caso") or "disco",
+        **(_mobile_summary(c) if fa.is_mobile(c) else {}),
     }
+
+
+def _mobile_summary(c):
+    import forense_mobile_gui as fmg
+    return fmg.summary(c)
 
 
 def image_info(path, dest=None):
@@ -559,8 +606,31 @@ def addon_check(what):
         if miss and not fe.bundled_python_with(miss):
             raise ValueError(tr("Per le copie shadow servono libvshadow e pytsk3: avvia RepertIA dall'app (Mac) "
                              "o dall'installazione (Windows), che li includono."))
+    elif what == "trascrizione":        # (2.20) motore, ffmpeg e modello scelto (installato con il consenso)
+        import forense_trascrizione as ftr
+        if not ftr.exe() or not ftr.ffmpeg():
+            raise ValueError(tr("Motore di trascrizione o ffmpeg non trovati: reinstalla RepertIA."))
+        mid = ((SES.case.meta if SES.case else {}).get("trascrizione_opzioni") or {}).get("modello")
+        if mid not in ftr.installed():
+            raise ValueError(tr("Il modello scelto non è installato: installalo dalla finestra della trascrizione."))
     elif what == "indice" and not shutil.which("exiftool"):
         raise ValueError(tr("Manca exiftool: {v1} (o 'Aggiorna strumenti').").format(v1=fa.install_hint('exiftool poppler')))
+
+
+def trascr_check(o):
+    """(2.20) Trascrizione scelta alla creazione del caso: opzioni ripulite (None se non scelta); motore, ffmpeg e
+    modello devono esserci già (il modello si installa prima, con il consenso, dalla pagina del nuovo caso)."""
+    if not o:
+        return None
+    import forense_trascrizione as ftr
+    o = ftr.opzioni(o)
+    o["scope"] = "tutti" if o["scope"] == "selezione" else o["scope"]
+    o.pop("scelti", None)
+    if not ftr.exe() or not ftr.ffmpeg():
+        raise ValueError(tr("Motore di trascrizione o ffmpeg non trovati: reinstalla RepertIA."))
+    if o["modello"] not in ftr.installed():
+        raise ValueError(tr("Il modello scelto non è installato: installalo dalla finestra della trascrizione."))
+    return o
 
 
 # ------------------------------------------------- scheda Risultati
@@ -859,17 +929,28 @@ def _results(case, q, ids=None, limit=PAGE, full=False):
                      "deleted": d, "snippet": " ".join((sn or "").split())}
                     for r, p, k, s, pt, i, d, sn in rows]
         elif kind == "meta":
+            aud = yes(q.get("aud"))             # (2.20) solo gli audio (dall'elenco dei file)
             if text:
                 w.append("(data LIKE ? ESCAPE '\\' OR path LIKE ? ESCAPE '\\')"); a += [L(text)] * 2
             if yes(q.get("gps")):
                 w.append("lat IS NOT NULL")
+            if yes(q.get("vid")) and not aud:    # (2.20) solo i video (per estensione)
+                w.append(video_where()); a += video_args()
+            if yes(q.get("foto")) and not aud:   # (2.20) solo le foto (per estensione)
+                w.append(photo_where()); a += photo_args()
+            if q.get("orig") and fa.is_mobile(case):    # (2.20) telefoni: solo i file allegati alle chat
+                import forense_mobile_gui as fmg
+                fmg.meta_filter(con, q, w, a)
             cf_apply(q, CF_META, w, a)
-            total, rows = page("meta", "path, make, model, taken, lat, lon, author, source, part, "
-                               "inode, deleted", "taken IS NULL, taken")
+            total, rows = page(audio_from() if aud else "meta", "path, make, model, taken, lat, lon, author, source, "
+                               "part, inode, deleted", "path" if aud else "taken IS NULL, taken")
             data = [dict(zip(("id", "path", "make", "model", "taken", "lat", "lon", "author",
                               "source", "part", "inode", "deleted"), r)) for r in rows]
             for d in data:
                 d["taken_tz"] = taken_tz_text(d.get("taken"))
+            if fa.is_mobile(case):           # (2.20) app delle chat in cui il file è allegato
+                import forense_mobile_gui as fmg
+                fmg.meta_origini(con, data)
         elif kind == "carved":
             if text:
                 w.append("name LIKE ? ESCAPE '\\'"); a.append(L(text))
@@ -1260,30 +1341,58 @@ def tl_hist(case, q):
     tl_where(q, w, a)
     cond = (" WHERE " + " AND ".join(w)) if w else ""
     con = fa.db_ro(case)
-    tsx = "ts"
     zone = tz_zone(case, q.get("tz"))
-    if zone != "UTC":       # giorni e mesi nel fuso scelto (i filtri restano in UTC)
-        con.create_function("rome", 1, lambda t: to_zone(t, zone), deterministic=True)
-        tsx = "rome(ts)"
     try:
-        if gran == "auto":
-            # giorni se il periodo è breve, poi mesi, poi anni (date anomale molto lontane)
-            lo, hi, nm = con.execute(f"SELECT MIN(substr({tsx},1,10)), MAX(substr({tsx},1,10)), "
-                                     f"COUNT(DISTINCT substr({tsx},1,7)) FROM events{cond}",
-                                     a).fetchone()
-            span = 0
-            if lo and hi:
-                import datetime as _dt
-                try:
-                    span = (_dt.date.fromisoformat(hi) - _dt.date.fromisoformat(lo)).days
-                except ValueError:
-                    span = 10 ** 6
-            gran = "day" if span <= 400 else "month" if nm <= 400 else "year"
-        n = {"day": 10, "month": 7, "year": 4}[gran]
-        rows = con.execute(
-            f"SELECT substr({tsx},1,{n}) k, COUNT(*), SUM(kind='M'), SUM(kind='A'), SUM(kind='C'), "
-            f"SUM(kind='B'), SUM(origin='plaso') FROM events{cond} GROUP BY k ORDER BY k",
-            a).fetchall()
+        if zone != "UTC":
+            # (2.20) giorni e mesi nel fuso scelto: prima i conteggi per MINUTO in UTC (SQL), poi ogni minuto nel fuso
+            # (i cambi di fuso cadono sempre al minuto); prima ogni evento passava da Python: 2,5 milioni di eventi
+            # (iPhone di prova) 38 s, ora ~2 s, stessi risultati. Le date non standard restano come sono (come to_zone).
+            std = "ts GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9][T ][0-9][0-9]:[0-9][0-9]:[0-9][0-9]'"
+            agg = con.execute(f"SELECT CASE WHEN {std} THEN substr(ts,1,16) ELSE ts END m, {std}, COUNT(*), "
+                              f"SUM(kind='M'), SUM(kind='A'), SUM(kind='C'), SUM(kind='B'), SUM(origin='plaso') "
+                              f"FROM events{cond} GROUP BY m, 2", a).fetchall()
+            loc = [((to_zone(m + ":00", zone) if s_ else to_zone(m, zone)) if m is not None else None, v)
+                   for m, s_, *v in agg]
+            if gran == "auto":
+                ks = [k for k, _v in loc if k]
+                lo, hi = (min(k[:10] for k in ks), max(k[:10] for k in ks)) if ks else (None, None)
+                nm = len({k[:7] for k in ks})
+                span = 0
+                if lo and hi:
+                    import datetime as _dt
+                    try:
+                        span = (_dt.date.fromisoformat(hi) - _dt.date.fromisoformat(lo)).days
+                    except ValueError:
+                        span = 10 ** 6
+                gran = "day" if span <= 400 else "month" if nm <= 400 else "year"
+            n = {"day": 10, "month": 7, "year": 4}[gran]
+            tot = {}
+            for k, v in loc:
+                k = k[:n] if isinstance(k, str) else k
+                cur = tot.setdefault(k, [0] * 6)
+                for i, x in enumerate(v):
+                    cur[i] += x or 0
+            rows = [(k, *v) for k, v in sorted(tot.items(), key=lambda kv: (kv[0] is not None, kv[0] or ""))]
+        else:
+            tsx = "ts"
+            if gran == "auto":
+                # giorni se il periodo è breve, poi mesi, poi anni (date anomale molto lontane)
+                lo, hi, nm = con.execute(f"SELECT MIN(substr({tsx},1,10)), MAX(substr({tsx},1,10)), "
+                                         f"COUNT(DISTINCT substr({tsx},1,7)) FROM events{cond}",
+                                         a).fetchone()
+                span = 0
+                if lo and hi:
+                    import datetime as _dt
+                    try:
+                        span = (_dt.date.fromisoformat(hi) - _dt.date.fromisoformat(lo)).days
+                    except ValueError:
+                        span = 10 ** 6
+                gran = "day" if span <= 400 else "month" if nm <= 400 else "year"
+            n = {"day": 10, "month": 7, "year": 4}[gran]
+            rows = con.execute(
+                f"SELECT substr({tsx},1,{n}) k, COUNT(*), SUM(kind='M'), SUM(kind='A'), SUM(kind='C'), "
+                f"SUM(kind='B'), SUM(origin='plaso') FROM events{cond} GROUP BY k ORDER BY k",
+                a).fetchall()
     finally:
         con.close()
     return {"gran": gran, "bins": [{"k": k, "n": t, "M": m, "A": ac, "C": c, "B": b, "plaso": p}
@@ -1317,8 +1426,8 @@ def ensure_nav(case):
     key = str(case.root)
     with NAV_LOCK:
         st = NAV_STATE.get(key)
-        if st and st["state"] in ("building", "ready"):
-            return st
+        if st and (st["state"] == "building" or (st["state"] == "ready" and nav_file(case).exists())):
+            return st                   # pronto ma cancellato (es. ricalcolo delle date dopo il cambio del fuso): si rifà
         ok = False
         if nav_file(case).exists():
             try:
@@ -1476,6 +1585,7 @@ def nav_tree(case, q):
                                  (p["offset"],)).fetchone() if p.get("readable") else None) or (0, 0)
                 out.append({"part": p["offset"], "path": "",
                             "name": (tr("Volume APFS «{v1}»").format(v1=p['apfs'].get('name')) if p.get("apfs")
+                                     else tr("Estrazione «{v1}»").format(v1=p.get('desc')) if p.get("mobile")
                                      else tr("Partizione {offset}").format(offset=p['offset'])),
                             "fs": p.get("fs"), "os": p.get("os"), "nitems": r[0], "ndirs": r[1],
                             "enc": enc.get(p["offset"])})
@@ -1496,7 +1606,7 @@ def nav_tree(case, q):
         con.close()
     dirs = [{"path": p, "name": n, "deleted": d, "ndirs": nd, "nitems": ni} for p, n, d, nd, ni in rows]
     part = int(q["part"])
-    if not (q.get("path") or "") and not fa.ap.is_apfs_part(part):
+    if not (q.get("path") or "") and not fa.ap.is_apfs_part(part) and not fa.is_mobile(case):
         # cartella virtuale con lo spazio non allocato del file system (come $Unalloc di Autopsy)
         dirs.append({"path": "$Unalloc", "name": "$Unalloc", "deleted": 0, "ndirs": 0, "nitems": None, "virtual": "ua"})
     return {"state": "ready", "dirs": dirs}
@@ -1569,6 +1679,15 @@ def clean_fs_path(p):
     return p.replace("\\", "/").strip("/")
 
 
+def _sysdiag_di(case, path):
+    """(2.20) Sysdiagnose registrato da cui viene il percorso (nome dell'archivio o della sua cartella in testa), o None."""
+    p = str(path or "").replace("\\", "/").lstrip("/")
+    for v in (case.meta.get("sysdiagnose") or []) if fa.is_mobile(case) else []:
+        if p and (p.startswith(v.get("nome") or "\0") or (v.get("cartella") and p.startswith(v["cartella"] + "/"))):
+            return v
+    return None
+
+
 def nav_locate(case, b):
     """Dove si trova un file nell'albero: per offset+inode, per percorso, o per id di Esplora."""
     con = nav_db(case)
@@ -1592,6 +1711,11 @@ def nav_locate(case, b):
     finally:
         con.close()
     if not r:
+        sd = _sysdiag_di(case, b.get("path"))
+        if sd:                              # (2.20) fonte dentro un sysdiagnose acquisito a parte: non è nell'albero
+            raise ValueError(tr("La fonte è dentro il sysdiagnose «{n}», acquisito a parte e non copiato nel caso: non è "
+                                "nell'albero dell'estrazione. Il file letto da iLEAPP è nel suo rapporto ({r}).").format(
+                n=sd.get("nome"), r=(sd.get("ileapp") or {}).get("rapporto") or "leapp/"))
         raise ValueError(tr("File non trovato nell'albero del file system."))
     part, path, isdir, deleted = r
     parent = path.rpartition("/")[0]
@@ -1703,6 +1827,8 @@ def export_csv(case, b):
     import csv
     kind, rows = selected_rows(case, b)
     cols = CSV_COLS.get(kind) or EXT_CSV[kind]
+    if kind == "meta" and fa.is_mobile(case):   # (2.20) telefoni: app delle chat in cui il file è allegato
+        cols = cols + [("chat", "origine_chat")]
     if kind == "trace" and rows and "count" not in rows[0]:
         cols = [c for c in cols if c[0] != "count"]
     d = case.export_dir / "elenchi"
@@ -1766,7 +1892,7 @@ def export_targets(case, kind, rows):
         elif kind == "hits":
             if x.get("source") == "carving":
                 carved[x["name"]] = None
-            elif x.get("source") in ("x", "image", "mail", "art", "posta"):
+            elif x.get("source") in ("x", "image", "mail", "art", "posta", "chat"):
                 skipped += x.get("source") != "x"
             else:
                 add_fs(x["part"], x["inode"], x["path"], x["deleted"])
@@ -1944,6 +2070,7 @@ def preview(b):
 import base64, hashlib, tempfile
 CACHE_MAX = 2 << 30            # oltre questa dimensione il file non viene copiato in cache
 THUMB_SEM = threading.Semaphore(3)
+THUMB_GEN = f"{fa.APP_VERSION}-2"           # (2.20) versione dei segni «.nessuna»: cambiandola si riprovano
 PAGE_SEM = threading.Semaphore(2)     # pagine PDF disegnate in parallelo al massimo
 PAGE_BLOCK = 4                        # pagine disegnate con un solo pdftoppm
 LO_LOCK = threading.Lock()            # LibreOffice: un profilo, una conversione alla volta
@@ -1957,10 +2084,58 @@ OFFICE_EXT = {".xls", ".xlsx", ".xlsm", ".xlsb", ".ods", ".ppt", ".pptx", ".pptm
               ".odp", ".key", ".numbers", ".vsd", ".vsdx", ".pub"}
 VIDEO_MIME = {".mp4": "video/mp4", ".m4v": "video/mp4", ".mov": "video/quicktime",
               ".webm": "video/webm", ".3gp": "video/3gpp"}
+# (2.20) marchi «ftyp» delle foto HEIF/AVIF: con «ftyp» e un altro marchio un file senza estensione è un video MP4/MOV
+HEIF_BRANDS = (b"heic", b"heix", b"hevc", b"heim", b"heis", b"mif1", b"msf1", b"avif", b"avis")
+
+
+def video_brand(ext, head):
+    """Estensione (.mp4/.mov) di un video senza estensione riconosciuto dall'intestazione, altrimenti None."""
+    brand = head[8:12] if head[4:8] == b"ftyp" else b""
+    if ext or not brand or brand in HEIF_BRANDS:
+        return None
+    return ".mov" if brand == b"qt  " else ".mp4"
+
+
 VIDEO_OTHER = {".avi", ".mkv", ".wmv", ".mpg", ".mpeg", ".flv", ".mts", ".m2ts"}
+VIDEO_EXT = sorted(set(VIDEO_MIME) | VIDEO_OTHER)       # (2.20) sottovoce «Video» di Foto e metadati
+
+
+def video_where(col="path"):
+    return "(" + " OR ".join(f"lower({col}) LIKE ?" for _ in VIDEO_EXT) + ")"
+
+
+def video_args():
+    return ["%" + e for e in VIDEO_EXT]
+
+
+PHOTO_EXT = sorted(IMG_ALL)         # (2.20) casella «Solo foto» di Foto e metadati
+
+
+def photo_where(col="path"):
+    return "(" + " OR ".join(f"lower({col}) LIKE ?" for _ in PHOTO_EXT) + ")"
+
+
+def photo_args():
+    return ["%" + e for e in PHOTO_EXT]
 AUDIO_MIME = {".mp3": "audio/mpeg", ".m4a": "audio/mp4", ".aac": "audio/aac", ".wav": "audio/wav",
               ".ogg": "audio/ogg", ".oga": "audio/ogg", ".opus": "audio/ogg", ".flac": "audio/flac",
               ".amr": "audio/amr"}
+# (2.20) sottovoce «Audio» di Foto/Video/Audio: i file audio non sono nella tabella meta (l'indicizzazione dei metadati
+# guarda foto, video e documenti) e si prendono dall'elenco dei file del caso, anche nei casi già preparati
+AUDIO_EXT = sorted(set(AUDIO_MIME) | {".caf", ".aif", ".aiff", ".wma", ".3ga", ".m4r", ".awb"})
+
+
+def audio_where(col="path"):
+    """Condizione SQL (estensioni costanti, senza parametri: si usa anche dentro una sottoquery)."""
+    return "(" + " OR ".join(f"lower({col}) LIKE '%{e}'" for e in AUDIO_EXT) + ")"
+
+
+def audio_from():
+    """Righe «come meta» dei file audio: dalla tabella files, con i metadati se l'indicizzazione li ha letti."""
+    return ("(SELECT f.rowid AS rowid, COALESCE(m.source, 'fs') AS source, f.part AS part, f.inode AS inode, "
+            "f.deleted AS deleted, f.path AS path, m.make AS make, m.model AS model, m.taken AS taken, m.lat AS lat, "
+            "m.lon AS lon, m.author AS author, m.data AS data FROM files f LEFT JOIN meta m "
+            "ON m.part = f.part AND m.inode = f.inode WHERE f.type LIKE '%/r' AND " + audio_where("f.path") + ")")
 TEXT_LIKE = set(fa.TEXT_EXT) | {".ini", ".cfg", ".conf", ".yaml", ".yml", ".js", ".py", ".sh",
                                 ".bat", ".ps1", ".vbs", ".sql", ".tsv", ".srt", ".vcf", ".ics",
                                 ".plist", ".reg", ".inf", ".css", ".php", ".c", ".h", ".java",
@@ -2023,7 +2198,9 @@ def prune_cache(case, limit=None):
         return 0
     base = fa.cache_base(case)
     files, total = [], 0
-    for sub in ("file", "pdf", "pagine", "conv", "miniature", "tmp"):
+    # (2.20) le miniature (pochi KB l'una) non si tolgono: prima finivano via insieme alle copie dei video da cui erano
+    # state fatte, e a ogni apertura di un caso con molti video si rifacevano tutte
+    for sub in ("file", "pdf", "pagine", "conv", "tmp"):
         d = base / sub
         if not d.is_dir():
             continue
@@ -2587,8 +2764,23 @@ def make_thumb(case, it, f, size, out):
             if run_quiet([tool("pdftoppm"), "-f", "1", "-l", "1", "-scale-to", str(size), "-jpeg",
                           "-singlefile", str(f), str(out.with_suffix(""))], 60) and out.exists():
                 return True
+        # (2.20) video senza estensione (es. allegati di Telegram): riconosciuto dall'intestazione MP4/MOV («ftyp», non le
+        # foto HEIC/AVIF) e passato a Quick Look e ffmpeg con un collegamento temporaneo con l'estensione giusta: senza
+        # estensione Quick Look non riconosce il file e resta bloccato
+        vext = video_brand(ext, head)
+        if vext:
+            ext = vext
+            vf = td / ("v" + ext)
+            try:
+                os.link(f, vf)          # collegamento fisico: con un collegamento simbolico Quick Look risale al file
+            except OSError:
+                shutil.copyfile(f, vf)
+            f = vf
         if IS_MAC and shutil.which("qlmanage"):  # Quick Look: Office, Pages, video, testo...
-            if run_quiet(["qlmanage", "-t", "-s", str(size), "-o", str(td), str(f)], 30):
+            # (2.20) un video che Quick Look sa leggere esce in meno di un secondo; uno che non sa leggere lo teneva
+            # fermo 30 s, occupando uno dei tre posti delle miniature (poi il fotogramma lo ricava il browser)
+            vid = ext in VIDEO_MIME or ext in VIDEO_OTHER
+            if run_quiet(["qlmanage", "-t", "-s", str(size), "-o", str(td), str(f)], 10 if vid else 30):
                 png = next(td.glob("*.png"), None)
                 if png:
                     shutil.move(str(png), out)
@@ -2617,8 +2809,13 @@ def thumb_bytes(case, b):
     if out.exists():
         data = out.read_bytes()
         return data, sniff_mime(data) or "image/jpeg"
-    if none.exists():
-        return None
+    # (2.20) il segno «miniatura non riuscita» vale solo per la versione che l'ha scritto: con una versione nuova (es. le
+    # miniature dei video senza estensione) si riprova; i segni vuoti delle versioni precedenti si riprovano una volta
+    try:
+        if none.read_text(encoding="ascii", errors="replace") == THUMB_GEN:
+            return None
+    except OSError:
+        pass
     if it.get("size") and it["size"] > (512 << 20) and it["ext"] not in IMG_ALL:
         return None
     with THUMB_SEM:
@@ -2626,10 +2823,33 @@ def thumb_bytes(case, b):
             f = cached_file(case, it)
             ok = bool(f) and make_thumb(case, it, f, size, out)
             if not ok:
-                none.touch()
+                none.write_text(THUMB_GEN, encoding="ascii")
                 return None
     data = out.read_bytes()
     return data, sniff_mime(data) or "image/jpeg"
+
+
+def thumb_put(case, b, data):
+    """(2.20) Fotogramma di un video ricavato dal browser quando il server non ha la miniatura (Quick Look non legge il
+    file, su Windows/Linux manca ffmpeg): diventa la miniatura del video nella cache del caso, così la volta dopo arriva
+    subito. Solo JPEG, solo per i video, mai sopra una miniatura già fatta (è una copia ricostruibile, come le altre)."""
+    if data[:3] != b"\xff\xd8\xff" or len(data) > (2 << 20):
+        raise ValueError(tr("Miniatura non valida."))
+    it = file_ident(case, b)
+    ext = it["ext"]
+    if not (ext in VIDEO_MIME or ext in VIDEO_OTHER):
+        f = cached_file(case, it, limit=0) if not ext else None
+        if not (f and video_brand(ext, open(f, "rb").read(16))):
+            raise ValueError(tr("Miniatura accettata solo per i video."))
+    size = max(64, min(int(b.get("size") or 256), 1600))
+    out = cache_dir(case, "miniature") / f"{it['key']}_{size}.jpg"
+    if out.exists():
+        return False
+    tmp = out.with_name(out.name + ".parziale")
+    tmp.write_bytes(data)
+    tmp.replace(out)
+    out.with_suffix(".nessuna").unlink(missing_ok=True)
+    return True
 
 
 def office_pdf(case, it, f):
@@ -2771,6 +2991,12 @@ def view_info(case, b):
         return mail_view(case, b)
     if b.get("source") == "art":
         return art_view(case, b)
+    if b.get("source") == "chat":               # messaggio di una chat nei Preferiti (2.20)
+        import forense_mobile_gui as fmg
+        return fmg.msg_view(sys.modules[__name__], case, b)
+    if b.get("source") == "rub":                # voce delle rubriche dalla ricerca veloce (2.20)
+        import forense_mobile_gui as fmg
+        return fmg.rub_view(sys.modules[__name__], case, b)
     it = file_ident(case, b)
     size, f = file_size(case, it)
     ext = it["ext"]
@@ -2795,6 +3021,13 @@ def view_info(case, b):
         return {**base, "type": "none", "note": tr("File vuoto (0 byte): per i file cancellati il "
                 "contenuto può non essere più recuperabile.")}
     if head.startswith(b"SQLite format 3\x00"):
+        if fa.is_mobile(case) and it["source"] == "fs":     # (2.20) telefoni: con i file -wal/-shm/-journal accanto
+            import forense_mobile_gui as fmg
+            try:
+                html, nota = fmg.sqlite_preview(sys.modules[__name__], case, it)
+                return {**base, "type": "html", "html": html, "note": tr("Database SQLite: tabelle e prime righe (sola lettura).") + " " + nota}
+            except (sqlite3.Error, OSError):
+                pass
         try:
             return {**base, "type": "html", "html": sqlite_view(f), "note": tr("Database SQLite: tabelle e prime righe (sola lettura).")}
         except sqlite3.Error:
@@ -2825,6 +3058,10 @@ def view_info(case, b):
                 "apri la scheda Testo (installando LibreOffice si vedono le pagine).")}
     if ext in VIDEO_MIME:
         return {**base, "type": "video", "src": media_url("raw", it), "mime": VIDEO_MIME[ext]}
+    vext = video_brand(ext, head)               # (2.20) video senza estensione (es. allegati di Telegram)
+    if vext:
+        return {**base, "type": "video", "src": media_url("raw", it), "mime": VIDEO_MIME[vext],
+                "note": tr("Video riconosciuto dall'intestazione del file (il file non ha estensione).")}
     if ext in AUDIO_MIME:
         return {**base, "type": "audio", "src": media_url("raw", it), "mime": AUDIO_MIME[ext]}
     if ext in TEXT_LIKE or printable_ratio(head) > 0.92:
@@ -2845,8 +3082,8 @@ def view_info(case, b):
 
 def file_details(case, b):
     """Scheda Metadati: istat (date, attributi, cluster) ed exiftool."""
-    if b.get("source") in ("mail", "art"):
-        v = mail_view(case, b) if b.get("source") == "mail" else art_view(case, b)
+    if b.get("source") in ("mail", "art", "chat"):
+        v = view_info(case, b)
         return {"istat": v.get("headers") or "", "exif": "", "sha256": ""}
     tz = b.get("tz")
     it = file_ident(case, b)
@@ -2879,6 +3116,10 @@ def file_details(case, b):
         istat = t["file_metadata"](it["part"], it["inode"])
         if fa.ap.is_apfs_part(int(it["part"])):
             istat, note = apfs_istat_to_zone(case, istat, tz)
+        elif fa.is_mobile(case):        # estrazione di un telefono: date UTC come APFS
+            istat, _n = apfs_istat_to_zone(case, istat, tz)
+            note = tr("Orari scritti in: {v1} (zip e tar registrano le date in UTC, salvo le date DOS dichiarate "
+                      "sotto).").format(v1=tz_label(case, tz))
         else:
             istat, note = istat_to_zone(case, istat, tz)
         if re.search(r"^Directory Entry:", istat, re.M) and re.search(r"^Accessed:", istat, re.M):
@@ -2933,9 +3174,9 @@ def file_text(case, b):
         body = con.execute("SELECT body FROM mail WHERE id=?", (v["id"],)).fetchone()[0]
         con.close()
         return {"text": "\n".join(f"{k}: {x}" for k, x in h.items() if x) + "\n\n" + (body or "")}
-    if b.get("source") == "art":
-        v = art_view(case, b)
-        return {"text": re.sub(r"<[^>]+>", " ", v["html"].split("</style>")[-1])}
+    if b.get("source") in ("art", "chat"):
+        v = view_info(case, b)
+        return {"text": v.get("headers") or re.sub(r"<[^>]+>", " ", v["html"].split("</style>")[-1])}
     it = file_ident(case, b)
     if it["source"] == "x":
         return {"text": x_text(case, it)}
@@ -3026,6 +3267,69 @@ def bm_categories(case):
         con.close()
 
 
+def _oid(it):
+    """Identificativo di un elemento non-file (artefatto, messaggio, posta, file estratto): id, o inode per le righe
+    delle ricerche; errore chiaro se manca."""
+    v = it.get("id") if it.get("id") not in (None, "") else it.get("inode")
+    if v in (None, "") or not str(v).lstrip("-").isdigit():
+        raise ValueError(tr("Elemento non valido: manca il riferimento."))
+    return int(v)
+
+
+def item_ref(case, b):
+    """Riferimento testuale di un elemento per Preferiti, Reperto e registro: i file per offset e inode (nei casi
+    smartphone per percorso nell'estrazione), messaggi e artefatti per database, tabella e riga; per gli artefatti
+    anche i file citati (2.20) con il modo in cui sono stati trovati."""
+    t = _item_ref(case, b)
+    if (b.get("source") or "fs") == "art":
+        try:
+            c = cited_info(case, {"id": _oid(b)})
+            fs = [x["label"] for x in c["file"] if x.get("ruolo") == "file"]
+            if fs:
+                t += "; " + tr("file citati: {f}").format(f="; ".join(fs))
+        except (ValueError, sqlite3.Error, OSError, TypeError):
+            pass
+    return t
+
+
+def _item_ref(case, b):
+    src = b.get("source") or "fs"
+    if fa.is_mobile(case) and src in ("fs", "art", "chat"):
+        import forense_mobile_gui as fmg
+        cx = fa.db_ro(case)
+        try:
+            return fmg.ref(case, cx, src, _oid(b) if src != "fs" else None, b.get("part"), b.get("inode"), b.get("path"))
+        finally:
+            cx.close()
+    if src == "fs":
+        return tr("{path} (offset {part}, inode {inode})").format(path=b.get("path") or "", part=b.get("part"), inode=b.get("inode"))
+    if src == "carving":
+        return tr("file recuperato {v1}").format(v1=b.get("name") or b.get("path") or "")
+    if src == "ua":
+        return tr("spazio non allocato {v1}").format(v1=b.get("path") or b.get("inode") or "")
+    if src == "image":
+        return tr("byte {v1} della copia forense").format(v1=b.get("at"))
+    oid = _oid(b)
+    cx = fa.db_ro(case)
+    try:
+        if src == "art":
+            r = cx.execute("SELECT title, cat, src_path, part, inode FROM artifacts WHERE id=?", (oid,)).fetchone()
+            return (tr("artefatto «{t}»").format(t=r[0]) + ("" if not r[2] else tr(" — fonte {p}").format(p=r[2]) if r[4] in (None, "") else
+                                                            tr(" — fonte {src_path} (offset {part}, inode {inode})").format(
+                src_path=r[2], part=r[3], inode=r[4])) + ", " + tr("riga {id} della tabella artifacts del caso").format(id=oid)
+                    if r else tr("artefatto {id}").format(id=oid))
+        if src == "mail":
+            r = cx.execute("SELECT subject, src_path, part, inode FROM mail WHERE id=?", (oid,)).fetchone()
+            return (tr("messaggio «{subject}» ({src_path}, offset {part}, inode {inode})").format(subject=r[0], src_path=r[1], part=r[2], inode=r[3])
+                    if r else tr("messaggio di posta {id}").format(id=oid))
+        if src == "x":
+            r = cx.execute("SELECT path FROM xitems WHERE id=?", (oid,)).fetchone()
+            return tr("file estratto {path} (id {inode})").format(path=r[0] if r else "", inode=oid)
+    finally:
+        cx.close()
+    return str(oid)
+
+
 def bm_add(case, b):
     """Aggiunge i file selezionati (cartelle comprese, con il loro contenuto) a una categoria,
     creata se non esiste."""
@@ -3034,12 +3338,12 @@ def bm_add(case, b):
         raise ValueError(tr("Indica il nome della categoria."))
     it = b.get("item")
     xs, others = {}, []
-    if it and (it.get("source") in ("x", "mail", "art")):
+    if it and (it.get("source") in ("x", "mail", "art", "chat")):
         fs, carved, skipped = {}, [], 0
         if it["source"] == "x":
-            xs = {int(it.get("id") or it.get("inode")): (it.get("path"), None)}
+            xs = {_oid(it): (it.get("path"), None)}
         else:
-            others = [(it["source"], int(it.get("id") or it.get("inode")))]
+            others = [(it["source"], _oid(it))]
     elif it:                                   # un solo file (riga o anteprima)
         if (it.get("source") or "fs") == "carving":
             fs, carved, skipped = {}, [Path(str(it.get("name") or "")).name], 0
@@ -3123,6 +3427,12 @@ def bm_add(case, b):
                         if r:
                             batch.append((cid, "mail", None, str(oid), f"✉ {r[0]} — {r[1]}", r[0], 0, None, r[2],
                                           None, None, None, note, now))
+                    elif src == "chat":                 # messaggio di una chat (2.20)
+                        import forense_mobile_gui as fmg
+                        r = fmg.msg_item(cx, oid)
+                        if r:
+                            batch.append((cid, "chat", None, str(oid), r[0], r[1], 0, None, r[2],
+                                          None, None, None, note, now))
                     else:
                         r = cx.execute("SELECT title, cat, ts FROM artifacts WHERE id=?", (oid,)).fetchone()
                         if r:
@@ -3139,7 +3449,14 @@ def bm_add(case, b):
         con.close()
         if nav is not None:
             nav.close()
-    case.log("preferiti", {"categoria": name, "aggiunti": total - before, "saltati": skipped})
+    refs = []                      # riferimenti degli elementi nel registro a catena (al massimo 20)
+    for x in ([it] if it else [{"source": s, "id": o} for s, o in others[:20]]):
+        try:
+            refs.append(item_ref(case, x))
+        except (ValueError, sqlite3.Error):
+            pass
+    case.log("preferiti", {"categoria": name, "aggiunti": total - before, "saltati": skipped,
+                           **({"riferimenti": refs} if refs else {})})
     return {"cid": cid, "name": name, "added": total - before, "total": total, "skipped": skipped}
 
 
@@ -3396,11 +3713,29 @@ def plaso_fs_path(p):
     return clean_fs_path(p)
 
 
+def resolve_path(case, b):
+    """(2.20) Un percorso citato (risposta dell'agente, testo di un evento): file della copia/estrazione con il metodo."""
+    import forense_percorsi as fp
+    r = fp.risolvi_testo(case, str(b.get("path") or ""), b.get("user") or None)
+    out = cited_ref(dict(r, campo="", valore=b.get("path"), ruolo="file"), fa.is_mobile(case))
+    out["found"] = r.get("stato") == "trovato"
+    return out
+
+
 def tl_resolve(case, b):
-    """Il file del file system a cui si riferisce un evento di plaso (dal suo percorso)."""
+    """Il file del file system a cui si riferisce un evento di plaso (dal suo percorso): stessa ricerca dei file citati
+    (forense_percorsi), poi il confronto diretto sull'albero."""
     p = plaso_fs_path(b.get("path"))
     if not p:
         raise ValueError(tr("L'evento non indica un file."))
+    try:
+        import forense_percorsi as fp
+        r = fp.risolvi_testo(case, p)
+        if r.get("stato") == "trovato" and r.get("inode") and not r.get("isdir"):
+            return {"part": r["part"], "inode": str(r["inode"]), "path": r["path"], "deleted": r.get("deleted"),
+                    "metodo": r.get("metodo"), "label": fp.etichetta_disco(r, fa.is_mobile(case))}
+    except (ValueError, sqlite3.Error, OSError):
+        pass
     con = nav_db(case)
     try:
         sql = ("SELECT part, inode, path, deleted FROM nav WHERE isdir=0 AND inode IS NOT NULL "
@@ -3460,6 +3795,50 @@ def doc_ext_counts(con, limit=60):
     return cnt.most_common(limit)
 
 
+# (2.20) risposte lente ma stabili (albero dei Risultati, conteggi, grafico della Timeline) tenute in memoria finché non
+# cambia nessun file della cartella del caso (data e dimensione): nei casi grandi la prima volta servono secondi, poi
+# la stessa richiesta è immediata; un'analisi, una ricerca o un preferito nuovi cambiano i file e svuotano la memoria.
+_MEMO = {}
+_MEMO_LOCK = threading.Lock()
+
+
+def case_stamp(case):
+    out = []
+    try:
+        for f in sorted(Path(case.root).iterdir()):
+            # database del caso e case.json; non il registro (cresce a ogni operazione) né l'indice della ricerca veloce
+            if f.is_file() and (f.name == "case.json" or (".sqlite" in f.name and not f.name.startswith(("ricerca_veloce", "._")))):
+                st = f.stat()
+                out.append((f.name, st.st_mtime_ns, st.st_size))
+    except OSError:
+        pass
+    return tuple(out)
+
+
+_MEMO_KEYLOCK = {}
+
+
+def memo(case, key, fn):
+    """Risposta in memoria finché i file del caso non cambiano; due richieste uguali insieme la calcolano una volta."""
+    k = (str(case.root), lg.lingua()) + tuple(key)
+    with _MEMO_LOCK:
+        kl = _MEMO_KEYLOCK.setdefault(k, threading.Lock())
+    with kl:
+        stamp = case_stamp(case)
+        with _MEMO_LOCK:
+            hit = _MEMO.get(k)
+        if hit and hit[0] == stamp:
+            return hit[1]
+        v = fn()
+        with _MEMO_LOCK:
+            _MEMO[k] = (stamp, v)
+            while len(_MEMO) > 200:
+                old = next(iter(_MEMO))
+                _MEMO.pop(old)
+                _MEMO_KEYLOCK.pop(old, None)
+        return v
+
+
 def res_tree(case):
     """Voci e sottovoci per la vista ad albero dei Risultati."""
     con = fa.db_ro(case)
@@ -3474,7 +3853,18 @@ def res_tree(case):
                "carved": q("SELECT type, COUNT(*) FROM carved GROUP BY 1 ORDER BY 2 DESC LIMIT 40") if has("carved") else [],
                "doc": q("SELECT kind, COUNT(*) FROM doc_text GROUP BY 1 ORDER BY 2 DESC LIMIT 20") if has("doc_text") else [],
                "docext": doc_ext_counts(con) if has("doc_text") else [],
-               "gps": con.execute("SELECT COUNT(*) FROM meta WHERE lat IS NOT NULL").fetchone()[0] if has("meta") else 0}
+               "gps": con.execute("SELECT COUNT(*) FROM meta WHERE lat IS NOT NULL").fetchone()[0] if has("meta") else 0,
+               "video": con.execute("SELECT COUNT(*) FROM meta WHERE " + video_where(), video_args()).fetchone()[0]
+               if has("meta") else 0,
+               "foto": con.execute("SELECT COUNT(*) FROM meta WHERE " + photo_where(), photo_args()).fetchone()[0]
+               if has("meta") else 0,
+               "audio": con.execute("SELECT COUNT(*) FROM files WHERE type LIKE '%/r' AND " + audio_where()).fetchone()[0]}
+        if has("meta") and fa.is_mobile(case):   # (2.20) foto, video e audio allegati alle chat (in tutto e per tipo)
+            import forense_mobile_gui as fmg
+            out["chatmedia"] = fmg.meta_counts(con)
+            out["chatmedia"]["foto"] = fmg.media_counts(con, "meta", photo_where(), photo_args())
+            out["chatmedia"]["vid"] = fmg.media_counts(con, "meta", video_where(), video_args())
+            out["chatmedia"]["aud"] = fmg.media_counts(con, "files", "type LIKE '%/r' AND " + audio_where(), [])
     finally:
         con.close()
     out["searches"] = [{"sid": s["sid"], "title": s["title"], "total": s["total"]} for s in search_list(case)]
@@ -3592,8 +3982,8 @@ def _pdf_w(text, style, size):
 class PdfDoc:
     W, H, M = 595.28, 841.89, 50
 
-    def __init__(self, title):
-        self.title = title
+    def __init__(self, title, ia=False):
+        self.title, self.ia = title, ia
         self.pages, self.ops, self.y = [], None, 0
         self.new_page()
 
@@ -3724,7 +4114,10 @@ class PdfDoc:
         objs[cat - 1] = f"<< /Type /Catalog /Pages {pages_id} 0 R >>".encode()
         objs[pages_id - 1] = (f"<< /Type /Pages /Kids [{' '.join(f'{k} 0 R' for k in kids)}] "
                               f"/Count {len(kids)} >>").encode()
-        info = add(f"<< /Title ({self._esc(self.title)}) /Producer ({fa.APP_NAME} {fa.APP_VERSION}) >>")
+        # (2.20.1, AI Act art. 50) nei metadati: il documento contiene testo generato da IA
+        ia = (f" /Subject ({self._esc(ia_meta_testo())}) /Keywords (AI-generated content; {fa.APP_NAME})"
+              if self.ia else "")
+        info = add(f"<< /Title ({self._esc(self.title)}) /Producer ({fa.APP_NAME} {fa.APP_VERSION}){ia} >>")
         buf = bytearray(b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n")
         offs = []
         for i, o in enumerate(objs, 1):
@@ -3738,8 +4131,12 @@ class PdfDoc:
         return bytes(buf)
 
 
-def report_pdf(md_text, title):
-    d = PdfDoc(title)
+def ia_meta_testo():
+    return tr("Contiene testo generato da un modello di IA (reperti dell'agente): da verificare")
+
+
+def report_pdf(md_text, title, ia=False):
+    d = PdfDoc(title, ia)
     sizes = {1: 18, 2: 14, 3: 12}
     for b in md_blocks(md_text):
         if b[0] == "h":
@@ -3773,7 +4170,7 @@ def _docx_runs(runs, size=None, bold=False):
     return "".join(out)
 
 
-def report_docx(md_text, title):
+def report_docx(md_text, title, ia=False):
     import zipfile, io
     body = []
     for b in md_blocks(md_text):
@@ -3853,7 +4250,10 @@ def report_docx(md_text, title):
             '<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" '
             'xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" '
             'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">'
-            f'<dc:title>{_x(title)}</dc:title><dc:creator>{_x(fa.APP_NAME)}</dc:creator></cp:coreProperties>')
+            f'<dc:title>{_x(title)}</dc:title><dc:creator>{_x(fa.APP_NAME)}</dc:creator>'
+            + (f'<dc:description>{_x(ia_meta_testo())}</dc:description>'
+               f'<cp:keywords>AI-generated content; {_x(fa.APP_NAME)}</cp:keywords>' if ia else "")
+            + '</cp:coreProperties>')
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
         for name, data in (("[Content_Types].xml", ctypes), ("_rels/.rels", rels),
@@ -3885,7 +4285,8 @@ def report_export(case, fmt, tz=None):
               + tr(" Le date di FAT/exFAT sono ora locale del dispositivo, già riportata a UTC col fuso indicato "
                 "nei dati del caso.") + rest)
     title = tr("Report di analisi forense – {name}").format(name=case.root.name)
-    data = report_pdf(md, title) if fmt == "pdf" else report_docx(md, title)
+    ia = fa.report_ia(case)
+    data = report_pdf(md, title, ia) if fmt == "pdf" else report_docx(md, title, ia)
     p = case.root / f"report.{fmt}"
     if p.exists():
         p.chmod(0o644)
@@ -3937,6 +4338,9 @@ def ext_results(case, q, ids=None, limit=PAGE):
                 raise ValueError(tr("Artefatti non ancora estratti."))
             if q.get("cat"):
                 w.append("cat = ?"); a.append(q["cat"])
+            if fa.is_mobile(case):              # smartphone (2.20): sottovoci dell'albero
+                import forense_mobile_gui as fmg
+                fmg.art_filter(con, q, w, a)
             if text:
                 w.append("(title LIKE ? ESCAPE '\\' OR detail LIKE ? ESCAPE '\\' OR user LIKE ? ESCAPE '\\' "
                          "OR src_path LIKE ? ESCAPE '\\')"); a += [L(text)] * 4
@@ -4018,7 +4422,75 @@ def ext_results(case, q, ids=None, limit=PAGE):
                 r["data"] = json.loads(r["data"])
             except ValueError:
                 pass
+    if kind == "art" and fa.is_mobile(case):        # smartphone (2.20): percorsi nell'estrazione, fonte di iLEAPP/ALEAPP
+        import forense_mobile_gui as fmg
+        fmg.fix_art_rows(case, rows)
+    if kind == "art" and limit and len(rows) <= 1000:
+        cited_rows(case, rows)
     return {"kind": kind, "total": total, "offset": off, "page": PAGE, "rows": rows}
+
+
+def cited_ref(x, mobile):
+    """(2.20) Esito di forense_percorsi per la pagina: campi utili, testo dell'esito e metodo."""
+    import forense_percorsi as fp
+    if not x:
+        return None
+    d = {k: x.get(k) for k in ("campo", "valore", "ruolo", "stato", "metodo", "part", "inode", "path", "size", "isdir",
+                               "deleted", "copie", "verifica", "rapporto", "tipo", "percorso", "incorporato_in", "nota",
+                               "candidati", "n_candidati", "copie_elenco", "cartelle", "sha256")}
+    tc = lambda c: tr(fp.CAMPI_INTERNI[c]) if c in fp.CAMPI_INTERNI else c
+    d["campi"] = [tc(c) for c in (x.get("campi") or [x.get("campo")]) if c]
+    if d["campo"] in fp.CAMPI_INTERNI:
+        d["campo"] = tc(d["campo"])
+    d["livello"] = x.get("livello") or fp.livello(x)
+    d["label"] = fp.etichetta_disco(x, mobile)
+    d["metodo_lbl"] = tr(fp.METODI[x["metodo"]]) if x.get("metodo") in fp.METODI else ""
+    d["metodi_lbl"] = fp.metodo_testo(x)
+    return d
+
+
+def cited_rows(case, rows):
+    """(2.20) Righe della tabella degli artefatti: file citati (ricerca veloce, senza hash) per la miniatura e l'icona."""
+    import forense_percorsi as fp
+    mobile = fa.is_mobile(case)
+    try:
+        idx = fp.Indice(case)
+    except (ValueError, sqlite3.Error, OSError):
+        return
+    try:
+        for r in rows:
+            try:
+                c = fp.file_citati(case, r, veloce=True, idx=idx)
+            except Exception:
+                continue
+            fs = [x for x in c["file"] if x["ruolo"] == "file"]
+            if not fs:
+                continue
+            ok = [x for x in fs if x["stato"] in ("trovato", "rapporto")]
+            img = next((x for x in ok if x.get("tipo") == "immagine"), None)
+            lv = min((x.get("livello") or fp.livello(x) for x in fs), key=("certo", "probabile", "assente").index)
+            r["cited"] = {"n": len(fs), "ok": len(ok), "img": cited_ref(img, mobile) if img else None,
+                          "first": cited_ref(fs[0], mobile), "livello": lv,
+                          "label": "\n".join(fp.etichetta_disco(x, mobile) for x in fs)}
+    finally:
+        idx.close()
+
+
+def cited_info(case, b):
+    """(2.20) File citati da un artefatto, con l'esito completo (anche per hash) e la fonte risolta."""
+    import forense_percorsi as fp
+    con = fa.db_ro(case)
+    try:
+        r = con.execute("SELECT id, cat, ts, title, detail, user, src_path, part, inode, data FROM artifacts WHERE id=?",
+                        (int(b.get("id") or 0),)).fetchone()
+    finally:
+        con.close()
+    if not r:
+        raise ValueError(tr("Artefatto non trovato."))
+    row = dict(zip(("id", "cat", "ts", "title", "detail", "user", "src_path", "part", "inode", "data"), r))
+    mobile = fa.is_mobile(case)
+    c = fp.file_citati(case, row)
+    return {"fonte": cited_ref(c["fonte"], mobile), "file": [cited_ref(x, mobile) for x in c["file"]]}
 
 
 def ext_tree(case):
@@ -4028,6 +4500,9 @@ def ext_tree(case):
     try:
         if fa.table_exists(con, "artifacts"):
             out["art"] = con.execute("SELECT cat, COUNT(*) FROM artifacts GROUP BY cat ORDER BY 2 DESC").fetchall()
+            if fa.is_mobile(case):              # smartphone (2.20): categorie e artefatti di iLEAPP/ALEAPP, app delle chat
+                import forense_mobile_gui as fmg
+                out["artsub"] = fmg.art_tree(con)
         if fa.table_exists(con, "anomalies"):
             out["anom"] = con.execute("SELECT kind, COUNT(*) FROM anomalies GROUP BY kind ORDER BY MAX(sev) DESC").fetchall()
         if fa.table_exists(con, "xitems"):
@@ -4158,13 +4633,36 @@ def art_view(case, b):
     if not r:
         raise ValueError(tr("Artefatto non trovato."))
     aid, cat, ts, title, detail, user, src, part, inode, data = r
+    cited = None
+    try:                                         # (2.20) file citati dalla riga e fonte risolta nella copia/estrazione
+        import forense_percorsi as fp
+        mobile = fa.is_mobile(case)
+        c = fp.file_citati(case, dict(zip(("id", "cat", "ts", "title", "detail", "user", "src_path", "part", "inode", "data"), r)))
+        cited = {"fonte": cited_ref(c["fonte"], mobile), "file": [cited_ref(x, mobile) for x in c["file"]]}
+    except (ValueError, sqlite3.Error, OSError):
+        pass
     fe = fe_mod()
+    segreti = None
     rows = [(tr("Categoria"), tr(fe.ART_CATS.get(cat, cat))), (tr("Data ({v1})").format(v1=tz_label(case, b.get('tz'))), fmt_ts(case, b.get("tz"), ts)), (tr("Elemento"), title),
-            (tr("Dettagli"), detail), (tr("Utente"), user), (tr("Fonte"), f"{src} (offset {part}, inode {inode})" if src else "")]
+            (tr("Dettagli"), detail), (tr("Utente"), user), (tr("Fonte"), f"{src} (offset {part}, inode {inode})" if src and inode not in (None, "") else src or "")]
     try:
-        for k, v in (json.loads(data) if data else {}).items():
-            if v not in (None, "", []):
-                rows.append((k.replace("_", " "), ", ".join(map(str, v)) if isinstance(v, list) else str(v)))
+        dd = json.loads(data) if data else {}
+        segreti = dd.get("segreti") if isinstance(dd, dict) and cat == "leapp" else None
+        mrows = None
+        if fa.is_mobile(case):                  # smartphone (2.20): campi di iLEAPP/ALEAPP, conversazioni
+            import forense_mobile_gui as fmg
+            mrows = fmg.art_rows(sys.modules[__name__], case, dd, b.get("tz"))
+        if mrows is not None:
+            fonte = (fmg.leapp_src(case, dd.get("artefatto") or src, dd.get("campi")) if cat == "leapp" and inode is None
+                     else src)
+            rows = [(k, tr("Messaggi delle chat") if k == tr("Categoria") and cat == "messaggi" else
+                     tr("{p} (percorso nell'estrazione)").format(p=fonte) if k == tr("Fonte") and fonte else
+                     "" if k == tr("Fonte") else v)
+                    for k, v in rows if k not in (tr("Dettagli"), tr("Utente"))] + [(k, v) for k, v in mrows if v not in (None, "", [])]
+        else:
+            for k, v in dd.items():
+                if v not in (None, "", []):
+                    rows.append((k.replace("_", " "), ", ".join(map(str, v)) if isinstance(v, list) else str(v)))
     except ValueError:
         pass
     h = "<table style='border-collapse:collapse;font:13px/1.5 -apple-system,Segoe UI,sans-serif;width:100%'>" + "".join(
@@ -4172,11 +4670,15 @@ def art_view(case, b):
         f"{html_mod.escape(k)}</th><td style='padding:5px 10px;border-bottom:1px solid #ddd;word-break:break-word'>"
         f"{html_mod.escape(str(v or ''))}</td></tr>" for k, v in rows) + "</table>"
     return {"type": "html", "title": title, "name": title, "source": "art", "id": aid, "size": 0, "deleted": 0,
-            "part": part, "inode": inode, "magic": "", "html": CSP_DOC + h, "src_path": src}
+            "part": part, "inode": inode, "magic": "", "html": CSP_DOC + h, "src_path": src, "cited": cited,
+            "segreti": segreti}
 
 
-def sqlite_view(f):
-    con = sqlite3.connect(f"file:{Path(f).as_posix()}?mode=ro&immutable=1", uri=True)
+def sqlite_view(f, copia=False):
+    """Tabelle e prime righe. `copia` (2.20): f è una copia di lavoro con -wal/-journal accanto, da aprire normalmente
+    (il file -wal entra nella lettura); senza, il file si apre immutabile e il -wal NON viene letto."""
+    con = (sqlite3.connect(str(f)) if copia else
+           sqlite3.connect(f"file:{Path(f).as_posix()}?mode=ro&immutable=1", uri=True))
     parts = []
     try:
         tabs = [r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")][:60]
@@ -4250,7 +4752,9 @@ def x_targets(case, kind, rows):
 def ext_ref_label(kind, x):
     if kind == "art":
         return (tr("artefatto «{title}» ({cat}, {v1}): {detail}").format(title=x['title'], cat=x['cat'], v1=(x['ts'] + ' UTC') if x['ts'] else tr('senza data'), detail=x['detail'])
-                + (tr(" — fonte {src_path} (offset {part}, inode {inode})").format(src_path=x['src_path'], part=x['part'], inode=x['inode']) if x.get("src_path") else ""))
+                + (tr(" — fonte {p} (percorso nell'estrazione)").format(p=x['src_path']) if x.get("estrazione") and x.get("src_path") else
+                   tr(" — fonte {p}").format(p=x['src_path']) if x.get("src_path") and x.get("inode") in (None, "") else
+                   tr(" — fonte {src_path} (offset {part}, inode {inode})").format(src_path=x['src_path'], part=x['part'], inode=x['inode']) if x.get("src_path") else ""))
     if kind == "mail":
         return (tr("messaggio «{subject}» del {v1} da {sender} a {recipients} ({src_path} › {folder}, offset "
                    "{part}, inode {inode})").format(subject=x['subject'], v1=(x['date'] + ' UTC') if x['date'] else '?', sender=x['sender'], recipients=x['recipients'], src_path=x['src_path'], folder=x['folder'], part=x['part'], inode=x['inode']))
@@ -4844,6 +5348,91 @@ def hits_list(case, q, ids=None, limit=PAGE):
             "rows": [dict(zip(HIT_COLS, r)) for r in rows]}
 
 
+def fast_search(case, q):
+    """(2.20) Ricerca veloce nei risultati del caso (forense_ricerca_veloce): stato dell'indice o risultati raggruppati."""
+    import forense_ricerca_veloce as rv
+    con = fa.db_ro(case)
+    try:
+        if not rv.aggiornato(case, con):
+            st = rv.stato(case)
+            if not st or "fine" in st:
+                if st and st.get("errore") and not q.get("riprova"):
+                    return {"stato": "errore", "errore": st["errore"]}
+                st = rv.avvia(case, fa.db_ro)
+            return {"stato": "costruzione", "fatte": st.get("fatte", 0), "totale": st.get("totale", 0),
+                    "secondi": round(time.time() - st.get("inizio", time.time()))}
+        testo = (q.get("q") or "").strip()
+        if not testo:
+            return {"stato": "pronto"}
+        lbl = {}
+        if fa.is_mobile(case):
+            import forense_mobile_chat as fmc
+            lbl = {k: tr(v) for k, v in fmc.APP_LBL.items()}
+        t0 = time.time()
+        r = rv.risultati(case, con, testo, lbl)
+        rub = [x for g in r["gruppi"] if g["chiave"] == "rub" for x in g["righe"]]
+        if rub and fa.is_mobile(case):          # database della rubrica nell'estrazione (per «Fonte» nell'anteprima)
+            import forense_mobile as fm
+            m = fm.mx(case)
+            try:
+                for x in rub:
+                    y = m.execute("SELECT id, part FROM mobile_files WHERE path=? AND isdir=0", (x["dove"],)).fetchone() \
+                        if x.get("dove") else None
+                    if y:
+                        x["inode"], x["part"] = str(y[0]), y[1]
+            finally:
+                m.close()
+        r.update(stato="pronto", q=testo, ms=round((time.time() - t0) * 1000))
+        return r
+    finally:
+        con.close()
+
+
+def fast_search_save(case, b):
+    """(2.20) Salva una ricerca veloce come ricerca del caso (scheda e voce «🔎 Ricerca», Preferiti, CSV)."""
+    import forense_ricerca_veloce as rv
+    testo = (b.get("q") or "").strip()
+    con = fa.db_ro(case)
+    try:
+        if not rv.aggiornato(case, con):
+            raise ValueError(tr("L'indice della ricerca veloce non è pronto."))
+        ids, tot, extra = rv.cerca_id(case, testo, rv.MAX_SALVA)
+        rows = []
+        for fonte, rid, _tx in ids:
+            rid = int(rid)
+            if fonte == "art":
+                r = con.execute("SELECT title, cat, ts FROM artifacts WHERE id=?", (rid,)).fetchone()
+                if r:
+                    rows.append(("art", None, str(rid), f"[{r[1]}] {r[0]}", r[0], 0, None, r[2]))
+            elif fonte == "msg" and fa.is_mobile(case):
+                import forense_mobile_gui as fmg
+                r = fmg.msg_item(con, rid)
+                if r:
+                    rows.append(("chat", None, str(rid), r[0], r[1], 0, None, r[2]))
+            elif fonte == "mail":
+                r = con.execute("SELECT subject, sender, date FROM mail WHERE id=?", (rid,)).fetchone()
+                if r:
+                    rows.append(("mail", None, str(rid), f"✉ {r[0]} — {r[1]}", r[0], 0, None, r[2]))
+    finally:
+        con.close()
+    title = (b.get("title") or "").strip() or tr("Risultati: ") + testo
+    params = {"mode": "veloce", "terms": testo, "where": ["veloce"]}
+    note = {"non_salvati": tot - len(rows)} if tot > len(rows) else {}
+    sc = search_db(case)
+    try:
+        sid = sc.execute("INSERT INTO searches(title, created, params, total, elapsed, note) VALUES (?,?,?,?,?,?)",
+                         (title, fa.now(), json.dumps(params, ensure_ascii=False), len(rows), 0,
+                          json.dumps(note, ensure_ascii=False))).lastrowid
+        sc.executemany("INSERT INTO hits(sid, source, part, inode, path, name, deleted, size, mtime, wheres, terms, detail) "
+                       "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                       [(sid, *r, tr("risultati del caso"), testo, "") for r in rows])
+        sc.commit()
+    finally:
+        sc.close()
+    case.log("ricerca", {"sid": sid, "titolo": title, "parametri": params, "risultati": len(rows)})
+    return {"sid": sid, "title": title, "total": len(rows)}
+
+
 def search_list(case):
     if not (case.root / "ricerche.sqlite").exists():
         return []
@@ -4869,6 +5458,36 @@ def search_delete(case, sid):
     case.log("ricerca_eliminata", {"sid": int(sid)})
 
 
+def summary_cached(case, what):
+    """Riepilogo del caso all'apertura: fa.summary_md legge tutto il database (sul caso iOS 17 grande 3–7 s a ogni
+    apertura); si tiene nella cache del caso finché case.json, i database e le impostazioni non cambiano."""
+    sig = [what, lg.lingua()]
+    for f in [case.root / "case.json", fa.SETTINGS_PATH, *sorted(case.root.glob("*.sqlite*"))]:
+        try:
+            st = os.stat(lp(f))
+            sig.append([f.name, st.st_mtime_ns, st.st_size])
+        except OSError:
+            sig.append([f.name, None])
+    path = fa.cache_base(case) / "riepilogo_apertura.json"
+    try:
+        with open(lp(path), encoding="utf-8") as fh:
+            c = json.load(fh)
+        if c.get("sig") == sig:
+            return c["text"], c["questions"]
+    except (OSError, ValueError, KeyError):
+        pass
+    text, questions = fa.summary_md(case, what)
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_suffix(".tmp")
+        with open(lp(tmp), "w", encoding="utf-8") as fh:
+            json.dump({"sig": sig, "text": text, "questions": questions}, fh, ensure_ascii=False)
+        os.replace(lp(tmp), lp(path))
+    except OSError:
+        pass
+    return text, questions
+
+
 def run_task(name, fn, with_progress=False):
     """Operazione lunga in background; lo stato si legge con /api/task?name=..."""
     if SES.tasks.get(name, {}).get("done") is False:
@@ -4891,12 +5510,12 @@ def run_task(name, fn, with_progress=False):
 
 # ----------------------------------------------------------- HTTP
 
-BIN_PATHS = {"/api/thumb", "/api/page", "/api/conv", "/api/raw"}
+BIN_PATHS = {"/api/thumb", "/api/page", "/api/conv", "/api/raw", "/api/mobile/leapp_media", "/api/mobile/att_thumb"}
 
 
 # Richieste che producono testi del caso (report, esportazioni, riscontri, verifiche): nella lingua del caso,
 # scelta alla sua creazione; tutte le altre nella lingua dell'interfaccia.
-CASE_LANG_PATHS = {"/api/report", "/api/report_export", "/api/export", "/api/export_x", "/api/portable",
+CASE_LANG_PATHS = {"/api/report", "/api/report_export", "/api/export", "/api/export_x", "/api/portable", "/api/mobile/export_chat",
                    "/api/riscontro", "/api/verify", "/api/finding", "/api/case_info_set", "/api/hashlist_compare"}
 
 
@@ -4943,6 +5562,9 @@ class Handler(BaseHTTPRequestHandler):
         u = urlparse(self.path)
         if u.path == "/":
             html = (HERE / "forense_gui.html").read_text(encoding="utf-8")
+            if (HERE / "forense_mobile.html").exists():      # parte smartphone (2.20), se inclusa nel pacchetto
+                import forense_mobile_gui as fmg
+                html = html.replace("<!--REPERTIA_MOBILE-->", fmg.fragment())
             return self._send(200, html.replace("__TOKEN__", TOKEN).replace("__LINGUA__", lingua_js()), "text/html")
         q = {k: v[0] for k, v in parse_qs(u.query).items()}
         if u.path in BIN_PATHS:
@@ -4985,6 +5607,14 @@ class Handler(BaseHTTPRequestHandler):
             return self._bin(r[0], r[1])
         if path == "/api/page":
             return self._bin(page_png(SES.case, q), "image/jpeg")
+        if path == "/api/mobile/leapp_media":            # allegati copiati da iLEAPP/ALEAPP nel loro rapporto (2.20)
+            import forense_mobile_gui as fmg
+            data, ctype = fmg.leapp_media(SES.case, q)
+            return self._bin(data, ctype)
+        if path == "/api/mobile/att_thumb":              # miniatura di un allegato salvata nel database dell'app (2.20)
+            import forense_mobile_gui as fmg
+            data, ctype = fmg.att_thumb(SES.case, q)
+            return self._bin(data, ctype)
         if path == "/api/conv":
             return self._bin(converted_image(SES.case, q), "image/jpeg")
         if path == "/api/raw":
@@ -4994,7 +5624,8 @@ class Handler(BaseHTTPRequestHandler):
                 raise ValueError(tr("File troppo grande per l'anteprima."))
             data_head = open(f, "rb").read(16)
             # mai HTML/SVG/script: solo immagini e media dichiarati per tipo
-            ctype = RAW_MIME.get(it["ext"]) or sniff_mime(data_head) or "application/octet-stream"
+            ctype = RAW_MIME.get(it["ext"]) or sniff_mime(data_head) or \
+                VIDEO_MIME.get(video_brand(it["ext"], data_head) or "") or "application/octet-stream"
             start, end = 0, size - 1
             m = re.match(r"bytes=(\d*)-(\d*)", self.headers.get("Range") or "")
             code = 200
@@ -5033,6 +5664,18 @@ class Handler(BaseHTTPRequestHandler):
         if not self._allowed() or self.headers.get("X-Token") != TOKEN:
             return self._send(403, "vietato", "text/plain")
         n = int(self.headers.get("Content-Length") or 0)
+        u = urlparse(self.path)
+        if u.path == "/api/thumb_put":          # (2.20) corpo JPEG, non JSON
+            try:
+                if not SES.case:
+                    raise ValueError(tr("Nessun caso aperto."))
+                if n <= 0 or n > (2 << 20):
+                    raise ValueError(tr("Miniatura non valida."))
+                data = self.rfile.read(n)
+                q = {k: v[0] for k, v in parse_qs(u.query).items()}
+                return self._json({"ok": True, "salvata": thumb_put(SES.case, q, data)})
+            except Exception as e:
+                return self._json({"error": str(e)}, 400)
         try:
             body = json.loads(self.rfile.read(n) or b"{}")
             path = urlparse(self.path).path
@@ -5043,6 +5686,9 @@ class Handler(BaseHTTPRequestHandler):
 
     # --- GET
     def get(self, path, q):
+        if path.startswith("/api/mobile/"):           # casi smartphone (2.20)
+            import forense_mobile_gui as fmg
+            return fmg.get(sys.modules[__name__], path, q)
         if path == "/api/home":
             st = fa._raw_settings()
             return {"req": requirements(),
@@ -5055,27 +5701,40 @@ class Handler(BaseHTTPRequestHandler):
             since = int(q.get("since", 0))
             return {"lines": PREP.lines[since:], "total": len(PREP.lines),
                     "running": PREP.running, "rc": PREP.rc, "add": PREP.add, "ask": PREP.ask, "next_image": PREP.next_image,
+                    "av": PREP.avanz(),
                     "root": str(PREP.root) if PREP.root else None}
         if path == "/api/events":
             since = int(q.get("since", 0))
             return {"events": SES.events[since:], "busy": SES.busy,
                     "findings": SES.case.findings() if SES.case else []}
+        if path == "/api/trascr/stato":         # (2.20) motore, ffmpeg e modelli della trascrizione
+            import forense_trascrizione as ftr
+            return ftr.stato()
+        if path == "/api/trascr/segmenti":
+            import forense_trascrizione as ftr
+            if not SES.case:
+                raise ValueError(tr("Nessun caso aperto."))
+            return {"trascrizioni": ftr.segmenti(SES.case, q.get("part"), q.get("inode"))}
         if path == "/api/results":
             if not SES.case:
                 raise ValueError(tr("Nessun caso aperto."))
             return results(SES.case, q)
         if path == "/api/counts":
-            return counts(SES.case)
+            return memo(SES.case, ("counts",), lambda: counts(SES.case))
         if path == "/api/tl_hist":
-            return tl_hist(SES.case, q)
+            return memo(SES.case, ("tl_hist",) + tuple(sorted((k, str(v)) for k, v in q.items())), lambda: tl_hist(SES.case, q))
         if path == "/api/tree":
             return nav_tree(SES.case, q)
         if path == "/api/searches":
             return {"searches": search_list(SES.case)}
+        if path == "/api/ricerca_veloce":           # (2.20) ricerca veloce nei risultati del caso
+            if not SES.case:
+                raise ValueError(tr("Nessun caso aperto."))
+            return fast_search(SES.case, q)
         if path == "/api/bm_cats":
             return {"cats": bm_categories(SES.case)}
         if path == "/api/res_tree":
-            return res_tree(SES.case)
+            return memo(SES.case, ("res_tree",), lambda: res_tree(SES.case))
         if path == "/api/hashlists":
             return {"liste": fe_mod().hash_lists(), "esito": (SES.case.meta.get("liste_hash") if SES.case else None)}
         if path == "/api/convs":
@@ -5090,6 +5749,9 @@ class Handler(BaseHTTPRequestHandler):
 
     # --- POST
     def post(self, path, b):
+        if path.startswith("/api/mobile/"):           # casi smartphone (2.20)
+            import forense_mobile_gui as fmg
+            return fmg.post(sys.modules[__name__], path, b)
         if path == "/api/choose":
             p = choose_file()
             return {"path": p} if p else {"cancelled": True}
@@ -5109,6 +5771,54 @@ class Handler(BaseHTTPRequestHandler):
             case, tool = SES.case, (b.get("strumento") or "").strip()[:120]
             run_task("riscontro", lambda progress: fr.riscontro(case, src, tool, progress), with_progress=True)
             return {"ok": True}
+        if path == "/api/trascr/scarica":      # (2.20) modello di trascrizione: solo con il consenso dell'analista
+            import forense_trascrizione as ftr
+            if b.get("accetto") is not True:
+                raise ValueError(tr("Il download del modello richiede il consenso dell'analista."))
+            mid, case = b.get("modello"), SES.case
+            run_task("trascr_modello", lambda progress: ftr.scarica(mid, True, progress, case), True)
+            return {"ok": True}
+        if path == "/api/trascr/importa":
+            import forense_trascrizione as ftr
+            p = choose_file(tr("Scegli il file del modello (ggml-….bin)"), kind="any")
+            if not p:
+                return {"cancelled": True}
+            case = SES.case
+            run_task("trascr_modello", lambda progress: ftr.importa(p, progress, case), True)
+            return {"ok": True, "path": p}
+        if path == "/api/trascr/cartella":     # (2.20) apre la cartella dei modelli nel Finder / Esplora risorse
+            import forense_trascrizione as ftr
+            reveal(ftr.models_dir())
+            return {"ok": True}
+        if path == "/api/trascr/rimuovi":
+            import forense_trascrizione as ftr
+            return ftr.rimuovi(b.get("modello"), SES.case)
+        if path == "/api/registro_scegli":         # (2.20) verifica del registro: file audit_log.jsonl o cartella del caso
+            p = (choose_folder(tr("Scegli la cartella del caso")) if b.get("folder")
+                 else choose_file(tr("Scegli il registro audit_log.jsonl"), kind="any"))
+            return {"path": p} if p else {"cancelled": True}
+        if path == "/api/registro_verifica":       # (2.20) ricalcolo della catena del registro (anche di un altro caso)
+            import forense_registro as frg
+            own = bool(b.get("caso"))
+            if own and not SES.case:
+                raise ValueError(tr("Nessun caso aperto."))
+            src = SES.case.root if own else Path(clean_path(b.get("path") or "")).expanduser()
+            hf = (b.get("hash") or "").strip() or None
+            vo = str(b.get("voci") or "").strip()
+            if vo and not vo.isdigit():
+                raise ValueError(tr("Il numero di voci deve essere un numero intero."))
+            try:
+                R = frg.verifica(src, hf, int(vo) if vo else None)
+            except FileNotFoundError as e:
+                raise ValueError(str(e))
+            out = {"esito": frg.esito_breve(R), "integro": R["integro"], "testo": frg.testo(R), "voci": R["voci"],
+                   "hash_finale": R["hash_finale"], "atteso": R.get("atteso"),
+                   "file_diversi": len((R.get("esportati") or {}).get("diversi") or []) + len(((R.get("esportati") or {}).get("manifest") or {}).get("diversi") or [])}
+            if own:                                 # la verifica del caso aperto resta nel suo registro (dopo le righe verificate)
+                SES.case.log("verifica_registro", {"esito": out["esito"], "voci": R["voci"], "hash_finale": R["hash_finale"],
+                                                   "hash_atteso": hf, "voci_attese": int(vo) if vo else None,
+                                                   "file_diversi": out["file_diversi"]})
+            return out
         if path == "/api/choose_folder":
             p = choose_folder(b.get("prompt") or tr("Scegli la cartella"))
             return {"path": p} if p else {"cancelled": True}
@@ -5160,11 +5870,13 @@ class Handler(BaseHTTPRequestHandler):
                 addon_check("carving")
             if b.get("ocr"):
                 addon_check("ocr")
+            tro = trascr_check(b.get("trascrizione"))
             PREP.start(Path(info["case_root"]), image=info["path"], plaso=bool(b.get("plaso")),
                        carving=bool(b.get("carving")), hash_file=bool(b.get("hash_file")),
                        no_hash=bool(b.get("no_hash")), estese=bool(b.get("estese")),
                        vss=bool(b.get("vss")), ocr=bool(b.get("ocr")),
-                       info=fa.info_caso_clean(b.get("info")), fuso=fuso, lingua=lg.valida(b.get("lingua") or lg.lingua()))
+                       info=fa.info_caso_clean(b.get("info")), fuso=fuso, lingua=lg.valida(b.get("lingua") or lg.lingua()),
+                       trascrizione=tro)
             return {"root": info["case_root"], "existing": False}
         if path in ("/api/cache_info", "/api/cache_set", "/api/cache_clear", "/api/copy_case"):
             if not SES.case:
@@ -5204,6 +5916,22 @@ class Handler(BaseHTTPRequestHandler):
                 raise ValueError(tr("Una preparazione è già in corso."))
             if SES.busy:
                 raise ValueError(tr("Attendi che l'agente finisca o interrompilo."))
+            if what == "trascrizione":       # (2.20) opzioni scelte dall'analista: le legge il sottoprocesso
+                o = b.get("opzioni") or {}
+                o = {"scope": o.get("scope") if o.get("scope") in ("chat", "tutti", "selezione") else "chat",
+                     "modello": str(o.get("modello") or ""), "lingua": str(o.get("lingua") or "auto")[:8],
+                     "rifai": bool(o.get("rifai")), "max_min": float(o.get("max_min") or 0),
+                     "scelti": []}
+                if o["scope"] == "selezione" and (b.get("opzioni") or {}).get("scelti"):   # un audio dall'anteprima
+                    o["scelti"] = [[int(pt), str(ino)] for pt, ino in b["opzioni"]["scelti"]][:200]
+                if o["scope"] == "selezione" and b.get("sel"):     # selezione corrente (come per i Preferiti)
+                    kind, rows = selected_rows(SES.case, b["sel"])
+                    fs, _c, _s = export_targets(SES.case, kind, rows)
+                    o["scelti"] = [[int(pt), str(ino)] for pt, ino, _p in fs][:200000]
+                if o["scope"] == "selezione" and not o["scelti"]:
+                    raise ValueError(tr("Nessun audio selezionato."))
+                SES.case.meta["trascrizione_opzioni"] = o
+                SES.case.save()
             addon_check(what)
             if what == "immagine":
                 ev = SES.case.meta.get("evidence", SES.case.meta.get("image", ""))
@@ -5256,12 +5984,28 @@ class Handler(BaseHTTPRequestHandler):
             return {"convs": SES.list_convs()}
         if path == "/api/locate_file":
             return nav_locate(SES.case, b)
+        if path == "/api/cited":
+            if not SES.case:
+                raise ValueError(tr("Nessun caso aperto."))
+            return cited_info(SES.case, b)
+        if path == "/api/resolve_path":
+            if not SES.case:
+                raise ValueError(tr("Nessun caso aperto."))
+            return resolve_path(SES.case, b)
+        if path == "/api/item_ref":
+            if not SES.case:
+                raise ValueError(tr("Nessun caso aperto."))
+            return {"text": item_ref(SES.case, b)}
         if path == "/api/search_start":
             if not SES.case:
                 raise ValueError(tr("Nessun caso aperto."))
             case = SES.case
             run_task("search", lambda progress: run_search(case, b, progress), True)
             return {"ok": True}
+        if path == "/api/ricerca_veloce_salva":     # (2.20) ricerca veloce salvata come ricerca del caso
+            if not SES.case:
+                raise ValueError(tr("Nessun caso aperto."))
+            return fast_search_save(SES.case, b)
         if path == "/api/search_stop":
             SEARCH_STOP.set()
             return {"ok": True}
@@ -5370,14 +6114,22 @@ class Handler(BaseHTTPRequestHandler):
             t = (b.get("title") or "").strip()
             if not t:
                 raise ValueError(tr("Serve almeno un titolo."))
-            SES.case_tools["record_finding"](t, (b.get("description") or "").strip(),
-                                             (b.get("references") or "").strip())
+            # (2.20.1) scritto dall'analista nel modulo «Registra reperto»: origine «analista», non modello IA
+            fa.add_finding(SES.case, t, (b.get("description") or "").strip(), (b.get("references") or "").strip(),
+                           fa.FINDING_ANALISTA)
+            return {"findings": SES.case.findings()}
+        if path == "/api/finding_confirm":       # (2.20.1) «Confermo, verificato»: operatore e data nel registro
+            fa.confirm_finding(SES.case, b.get("n"), b.get("operatore"))
             return {"findings": SES.case.findings()}
         if path == "/api/portable":
             import forense_portatile as fp
             opts = {k: b.get(k) for k in ("contenuto", "cancellati", "testi", "plaso", "tracce", "zip",
-                                           "auto_mb")}
+                                           "auto_mb", "segreti")}
             run_task("portable", lambda progress: fp.export_portable(SES.case, opts, progress), True)
+            return {"ok": True}
+        if path == "/api/portable_stop":
+            import forense_portatile as fp
+            fp.STOP.set()
             return {"ok": True}
         if path == "/api/portable_estimate":
             import forense_portatile as fp
@@ -5411,6 +6163,12 @@ class Handler(BaseHTTPRequestHandler):
                 url = (b.get("url") or "").strip()
                 if not re.fullmatch(r"(https?://)?[\w.\-\[\]:]+(:\d+)?/?(v1/?)?", url):
                     raise ValueError(tr("Indirizzo non valido: es. 192.168.1.20 oppure http://192.168.1.20:8080"))
+                if fa.url_esterno(url) and not b.get("esterno_ok") and conf.get("esterno_confermato") != url:
+                    # (2.20.1) server fuori dalla rete locale: prima l'avviso esplicito all'analista, poi si usa
+                    return {"conferma_esterno": url}
+                if fa.url_esterno(url):
+                    conf["esterno_confermato"] = url
+                    SES.case.log("server_llm_esterno_confermato", {"url": url})
                 conf["url"] = url
                 if b.get("api_key") is not None:
                     conf["api_key"] = b["api_key"].strip()
@@ -5468,7 +6226,7 @@ class Handler(BaseHTTPRequestHandler):
         c = SES.case
         conf = fa.load_settings()
         return {"case": case_summary(c), "conv": SES.conv, "llm": SES.llm and
-                {k: SES.llm.get(k) for k in ("backend", "url", "model", "ctx", "notes", "remoto")},
+                {k: SES.llm.get(k) for k in ("backend", "url", "model", "ctx", "notes", "remoto", "esterno")},
                 "llm_error": SES.llm_error, "findings": c.findings(),
                 "llm_conf": {"modo": conf["modo"], "url": conf["url"], "has_key": bool(conf["api_key"])}}
 

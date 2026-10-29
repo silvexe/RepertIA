@@ -56,6 +56,10 @@ nav button .n{margin-left:auto;font-size:11.5px;color:var(--muted)}
 nav .sep{height:1px;background:var(--line);margin:8px 4px}
 nav .foot{font-size:11.5px;color:var(--muted);padding:8px 10px;line-height:1.4}
 main{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden}
+.pcrumbs{display:flex;align-items:center;gap:5px;padding:4px 14px;border-bottom:1px solid var(--line);font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;flex:none}
+.pcrumbs button{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:6px;padding:0 8px;cursor:pointer;line-height:20px}
+.pcrumbs a{cursor:pointer;color:var(--ink);text-decoration:underline dotted;text-underline-offset:3px}.pcrumbs .sep{opacity:.6}
+.pcrumbs>span:last-child{color:var(--ink);font-weight:600;overflow:hidden;text-overflow:ellipsis}
 .view{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
 .scroll{overflow:auto;flex:1;min-height:0}
 .pad{padding:18px 22px}
@@ -75,9 +79,16 @@ main{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden}
 .find{border-left:3px solid var(--accent);padding:6px 12px;margin:10px 0;background:var(--panel2);border-radius:0 8px 8px 0}
 .find h3{margin:0 0 4px;font-size:14.5px}
 .find .refs{font-size:12.5px;color:var(--muted);margin-top:6px;overflow-wrap:anywhere}
+.find .flbl{display:inline-block;font-size:11.5px;font-weight:600;border-radius:6px;padding:2px 7px;margin:2px 0 6px;border:1px solid currentColor;color:var(--warn)}
+.find .flbl.ok{color:var(--ok)}
 a.ref{cursor:pointer;text-decoration:underline}
 /* esplora */
 .split{flex:1;display:flex;min-height:0}
+/* divisori trascinabili dei riquadri (2.20): doppio clic = larghezza predefinita */
+.psplit{width:6px;cursor:col-resize;flex:none;background:var(--line);opacity:.4;align-self:stretch}
+.psplit:hover,.psplit.on{opacity:1;background:var(--accent)}
+.pv>.psplit{position:absolute;left:-3px;top:0;bottom:0;z-index:6}
+body.dragging,body.dragging *{cursor:col-resize!important;user-select:none!important}
 .tree{width:240px;flex:none;border-right:1px solid var(--line);overflow:auto;padding:6px 0;background:var(--panel)}
 .tn{display:flex;align-items:center;gap:4px;padding:2px 8px;cursor:pointer;white-space:nowrap;font-size:13px}
 .tn:hover{background:var(--panel2)}.tn.on{background:var(--accent-soft);color:var(--accent)}
@@ -88,8 +99,28 @@ a.ref{cursor:pointer;text-decoration:underline}
 /* lista virtuale */
 .vl{flex:1;min-height:0;display:flex;flex-direction:column}
 .vh,.vr{display:grid;align-items:center;gap:10px;padding:0 12px;font-size:13px}
-.vh{height:30px;border-bottom:1px solid var(--line);color:var(--muted);font-size:12px;background:var(--panel);flex:none}
-.vf{display:grid;gap:10px;padding:3px 12px 4px;border-bottom:1px solid var(--line);background:var(--panel);flex:none;align-items:start;font-size:12px}
+.vh{height:30px;border-bottom:1px solid var(--line);color:var(--muted);font-size:12px;background:var(--panel);flex:none;position:relative;z-index:3;overflow:hidden}
+.vh>span{position:relative;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vh .crs{position:absolute;top:0;right:0;width:7px;height:100%;cursor:col-resize;z-index:4}
+.vh .crs:hover{background:linear-gradient(to right,transparent 4px,var(--accent) 4px,var(--accent) 6px,transparent 6px)}
+.vh .vrst{position:absolute;right:4px;top:4px;border:1px solid var(--line);background:var(--panel);color:var(--muted);border-radius:6px;font-size:11px;padding:1px 7px;cursor:pointer;z-index:5}
+.vh .vrst:hover{border-color:var(--accent);color:var(--accent)}
+body.colresizing,body.colresizing *{cursor:col-resize!important;user-select:none!important}
+.kvl .k{font-size:11px;color:var(--muted);margin-right:4px}.kvl .s{color:var(--muted);margin:0 6px}
+.cthumb{width:36px;height:36px;object-fit:cover;border-radius:4px;vertical-align:middle;margin-right:6px;background:#eee}
+.cfile{margin-right:5px}.cfile.no{filter:grayscale(1);opacity:.55}
+.cited{border:1px solid var(--line);border-left:4px solid var(--line);border-radius:8px;padding:8px 10px;margin:8px 0}
+.cited.certo{border-left-color:#2a8a3e}.cited.assente{border-left-color:#b0261c}.cited.probabile{border-left-color:#c98a00}
+.cesito{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:4px 0 2px;font-weight:600}
+.cesito.certo{color:#2a8a3e}.cesito.probabile{color:#a86f00}.cesito.assente{color:#b0261c}
+.chelp{border:1px solid var(--line);background:transparent;color:inherit;border-radius:50%;width:20px;height:20px;padding:0;font:600 12px/18px sans-serif;cursor:pointer}
+.chelptxt{font-size:12.5px;line-height:1.45;border:1px solid var(--line);border-radius:6px;padding:6px 9px;margin:4px 0}.chelptxt p{margin:2px 0}
+.ccands{margin:6px 0 0;padding-left:16px;font-size:12.5px}.ctech{margin-top:6px;font-size:12.5px}.ctech summary{cursor:pointer}
+.citeddir{font-size:12.5px;padding:4px 10px;border:1px dashed var(--line);border-radius:8px;margin:8px 0}
+.cthumb.probabile{outline:2px solid #c98a00;outline-offset:1px}.cthumb.assente{outline:2px solid #b0261c;outline-offset:1px}
+.cited .cpath{font:12px/1.4 ui-monospace,Menlo,Consolas,monospace;word-break:break-all;margin:3px 0}.cited .cbig{max-width:160px;max-height:160px;border-radius:6px;margin-top:6px}
+.kvb>div{margin:0 0 3px}.kvb .k{font-size:11px;color:var(--muted);margin-right:6px}.kvb .v{white-space:pre-wrap;overflow-wrap:normal;word-break:normal}.kvb .lt{overflow-wrap:anywhere}
+.vf{display:grid;gap:10px;padding:3px 12px 4px;border-bottom:1px solid var(--line);background:var(--panel);flex:none;align-items:start;font-size:12px;overflow:hidden}
 .vf>span{display:flex;flex-direction:column;gap:2px;min-width:0}
 .vf input{width:100%;min-width:0;font-size:11.5px;padding:2px 5px;border:1px solid var(--line);border-radius:5px;background:var(--panel2);color:var(--ink)}
 .vf input:focus{outline:none;border-color:var(--accent)}
@@ -99,14 +130,15 @@ a.ref{cursor:pointer;text-decoration:underline}
 .cfd{border:1px solid var(--line);background:var(--panel2);color:var(--ink);border-radius:5px;font-size:11px;padding:0 5px;cursor:pointer}
 .cfd.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
 .vh .srt{cursor:pointer;user-select:none}.vh .srt:hover{color:var(--ink)}.vh .sa{margin-left:4px;color:var(--accent);font-size:11px}
-.cfpop{position:fixed;z-index:60;width:300px;max-height:70vh;display:flex;flex-direction:column;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 28px rgba(0,0,0,.28);padding:8px;gap:6px;font-size:12.5px}
+.cfpop{position:fixed;z-index:60;width:300px;max-height:80vh;display:flex;flex-direction:column;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 28px rgba(0,0,0,.28);padding:8px;gap:6px;font-size:12.5px}
 .cfpop button{border:1px solid var(--line);background:var(--panel2);color:var(--ink);border-radius:6px;padding:3px 9px;cursor:pointer;font-size:12px}
 .cfpop button:hover{border-color:var(--accent)}
 .cfpb{display:flex;flex-direction:column;gap:4px}.cfpb button{text-align:left}
 .cfps{font-size:12px;padding:3px 6px;border:1px solid var(--line);border-radius:5px;background:var(--panel2);color:var(--ink)}
-.cfpl{overflow:auto;max-height:42vh;border:1px solid var(--line);border-radius:5px}
+.cfpl{overflow:auto;flex:1 1 auto;min-height:60px;border:1px solid var(--line);border-radius:5px}
+.cfpop>.cfpb,.cfpop>.cfps,.cfpop>.cfpf{flex:none}
 .cfpi{display:flex;gap:6px;align-items:center;padding:3px 8px;cursor:pointer}.cfpi:hover{background:var(--panel2)}
-.cfpv{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.cfpn{color:var(--muted);font-size:11.5px}
+.cfpv{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.cfgrip{position:absolute;left:-3px;top:8px;bottom:8px;width:7px;cursor:ew-resize;border-radius:3px}.cfgrip:hover{background:var(--accent);opacity:.35}.cfpn{color:var(--muted);font-size:11.5px}
 .cfpf{display:flex;gap:6px;justify-content:flex-end}
 .vfx{border:1px solid var(--accent);color:var(--accent);background:none;border-radius:99px;font-size:11px;padding:0 7px;margin-left:6px;cursor:pointer}
 .vb{flex:1;overflow:auto;position:relative}
@@ -121,7 +153,7 @@ a.ref{cursor:pointer;text-decoration:underline}
 .tag.note{border-color:var(--warn);color:var(--warn)}
 .empty{padding:30px;color:var(--muted);text-align:center}
 /* anteprima */
-.pv{width:min(42vw,700px);flex:none;border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-height:0}
+.pv{width:min(42vw,700px);flex:none;position:relative;border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-height:0}
 .pvh{padding:10px 14px;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:flex-start}
 .pvh .nm{font-weight:600;overflow-wrap:anywhere}
 .pvh .pt{font-size:12px;color:var(--muted);overflow-wrap:anywhere}
@@ -149,6 +181,15 @@ table.dt td{overflow-wrap:anywhere}
 .mb i{display:block;width:100%;background:var(--accent);opacity:.55;border-radius:3px 3px 0 0;min-height:2px}
 .mb.on i{opacity:1}.mb:hover i{opacity:.85}
 .mb span{font-size:10px;color:var(--muted);white-space:nowrap;margin-top:3px;line-height:1.1;text-align:center}
+.tltop{flex:none;display:flex;flex-direction:column;min-height:0}.tltop.hsized .months{flex:1;height:auto;min-height:40px}
+.hsplit{flex:none;height:8px;cursor:row-resize;position:relative;display:flex;align-items:center;justify-content:center;touch-action:none;user-select:none}
+.hsplit::before{content:"";width:42px;height:3px;border-radius:3px;background:var(--line)}
+.hsplit:hover::before,.hsplit.on::before{background:var(--accent)}
+.hsplit .hst{position:absolute;left:8px;top:50%;transform:translateY(-50%);border:1px solid var(--line);background:var(--panel);color:var(--muted);border-radius:5px;font-size:10px;line-height:1;padding:1px 4px;cursor:pointer;z-index:1}
+.hsplit .hsl{display:none}.hsplit.coll{height:22px;border-bottom:1px solid var(--line);justify-content:flex-start;padding-left:34px}
+.hsplit.coll::before{display:none}.hsplit.coll .hsl{display:inline;font-size:12px;color:var(--muted);cursor:pointer}
+.hcoll{display:none!important}.hsized{overflow:auto!important}
+body.vdragging,body.vdragging *{cursor:row-resize!important;user-select:none!important}
 .days{display:flex;gap:2px;align-items:flex-end;height:78px;padding:8px 14px 2px;background:var(--panel);border-bottom:1px solid var(--line)}
 .db{flex:1;min-width:6px;max-width:30px;cursor:pointer;display:flex;flex-direction:column;justify-content:flex-end;height:100%}
 .db b{font-size:9.5px;font-weight:400;color:var(--muted);text-align:center;line-height:14px}
@@ -196,7 +237,8 @@ mark{background:var(--warn-soft);color:inherit;border-radius:3px}
   #printArea .mono{font-family:Menlo,Consolas,monospace;font-size:8pt}
   #printArea .meta{color:#444;font-size:9.5pt}
 }
-@media (max-width:1000px){nav{width:58px}nav button span.l,nav .n,nav .foot{display:none}.tree{display:none}.pv{position:fixed;inset:56px 0 0 0;width:auto;z-index:20}}
+@media (max-width:1000px){nav{width:58px}nav button span.l,nav .n,nav .foot{display:none}.tree,.tree+.psplit,.pv>.psplit{display:none}.pv{position:fixed;inset:56px 0 0 0;width:auto;z-index:20}}
+.fqres{flex:1;min-height:0;overflow:auto;padding:0 14px 10px}.fqg{margin:6px 0;border:1px solid var(--line);border-radius:8px;padding:4px 8px}.fqg summary{cursor:pointer;padding:3px 0}.fqr{display:grid;grid-template-columns:150px 1fr;gap:10px;padding:5px 4px;border-top:1px solid var(--line);cursor:pointer;font-size:12.5px}.fqr:hover{background:rgba(127,127,127,.08)}.fqt{white-space:nowrap;opacity:.75}.fqe{display:block;opacity:.75;overflow-wrap:anywhere}.fqr mark{background:#fde68a;color:#111;border-radius:2px}
 </style>
 </head>
 <body>
@@ -232,6 +274,7 @@ mark{background:var(--warn-soft);color:inherit;border-radius:3px}
     <div class="foot" id="navFoot"></div>
   </nav>
   <main>
+    <div class="pcrumbs" id="pCrumbs"></div>
     <div id="selbar" class="hidden"></div>
     <section class="view" id="v-sum"><div class="scroll"><div class="pad" id="sumBody"></div></div></section>
     <section class="view hidden" id="v-exp">
@@ -239,11 +282,11 @@ mark{background:var(--warn-soft);color:inherit;border-radius:3px}
         <input type="search" id="expFilter" placeholder="Filtra questa cartella…" style="max-width:260px">
         <label class="hint"><input type="checkbox" id="expDel"> solo cancellati</label>
         <label class="hint"><input type="checkbox" id="expSub"> anche sottocartelle</label><button class="btn small" data-csv="exp">Esporta CSV</button></div>
-      <div class="split"><div class="tree" id="tree"></div><div class="vl" id="expList"></div></div>
+      <div class="split"><div class="tree" id="tree"></div><div class="psplit" id="treeSplit" title="Trascina per allargare o stringere l'albero delle cartelle; doppio clic: larghezza predefinita"></div><div class="vl" id="expList"></div></div>
     </section>
     <section class="view hidden" id="v-src">
       <div class="bar">
-        <select id="srcMode"><option value="name">Nome o percorso</option><option value="text">Contenuto dei file (testo e stringhe)</option><option value="meta">Metadati</option><option value="hash">Hash (anche lista)</option></select>
+        <select id="srcMode"><option value="fast">⚡ Risultati del caso</option><option value="name">Nome o percorso</option><option value="text">Contenuto dei file (testo e stringhe)</option><option value="meta">Metadati</option><option value="hash">Hash (anche lista)</option></select>
         <input type="search" id="srcQ" placeholder="Cosa cerchi?">
         <label class="hint"><input type="checkbox" id="srcCase"> maiuscole/minuscole</label>
         <label class="hint"><input type="checkbox" id="srcDel"> solo cancellati</label>
@@ -252,18 +295,20 @@ mark{background:var(--warn-soft);color:inherit;border-radius:3px}
       </div>
       <div class="prog hidden" id="srcProg" style="margin:8px 14px 0"><i></i></div>
       <div class="hint" id="srcInfo" style="padding:6px 14px"></div>
+      <div class="fqres hidden" id="srcFast"></div>
       <div class="vl" id="srcList"></div>
     </section>
     <section class="view hidden" id="v-tl">
-      <div class="months" id="months"></div>
-      <div class="days hidden" id="days"></div>
+      <div class="tltop" id="tlTop"><div class="months" id="months"></div>
+      <div class="days hidden" id="days"></div></div>
+      <div class="hsplit" id="tlSplit" title="Trascina in su o in giù per cambiare l'altezza del grafico; doppio clic: altezza predefinita; ▾/▸ comprime o riapre"></div>
       <div class="bar"><span class="hint grow" id="tlInfo">Scegli un mese</span>
         <select id="tlOrig"><option value="">Tutte le origini</option><option value="tsk">File system</option><option value="plaso">plaso</option></select>
         <input type="search" id="tlQ" placeholder="Filtra eventi…" style="max-width:260px"><button class="btn small" data-csv="tl">Esporta CSV</button></div>
       <div class="vl" id="tlList"></div>
     </section>
     <section class="view hidden" id="v-meta">
-      <div class="bar"><input type="search" id="metaQ" placeholder="Filtra per file, dispositivo, autore…"><label class="hint"><input type="checkbox" id="metaGps"> solo con GPS</label><span class="hint grow" id="metaInfo"></span><button class="btn small" data-csv="meta">Esporta CSV</button></div>
+      <div class="bar"><input type="search" id="metaQ" placeholder="Filtra per file, dispositivo, autore…"><label class="hint"><input type="checkbox" id="metaGps"> solo con GPS</label><label class="hint"><input type="checkbox" id="metaVid"> solo video</label><label class="hint"><input type="checkbox" id="metaFoto"> solo foto</label><select id="metaOrig" class="hidden"></select><span class="hint grow" id="metaInfo"></span><button class="btn small" data-csv="meta">Esporta CSV</button></div>
       <div class="vl" id="metaList"></div>
     </section>
     <section class="view hidden" id="v-att">
@@ -279,7 +324,7 @@ mark{background:var(--warn-soft);color:inherit;border-radius:3px}
       <div class="vl" id="trcList"></div>
     </section>
     <section class="view hidden" id="v-art">
-      <div class="bar"><select id="artCat"><option value="">Tutte le categorie</option></select><input type="search" id="artQ" placeholder="Cerca in elemento, dettagli, utente…"><span class="hint grow" id="artInfo"></span><button class="btn small" data-csv="art">Esporta CSV</button></div>
+      <div class="bar"><select id="artCat"><option value="">Tutte le categorie</option></select><select id="artSub" class="hidden"></select><input type="search" id="artQ" placeholder="Cerca in elemento, dettagli, utente…"><span class="hint grow" id="artInfo"></span><button class="btn small" data-csv="art">Esporta CSV</button></div>
       <div class="vl" id="artList"></div>
     </section>
     <section class="view hidden" id="v-mail">
@@ -297,7 +342,7 @@ mark{background:var(--warn-soft);color:inherit;border-radius:3px}
     <section class="view hidden" id="v-bm">
       <div class="bar"><span class="hint grow" id="bmInfo">Seleziona dei file in qualsiasi elenco (caselle a sinistra) e premi «⭐ Preferiti», oppure usa ⭐ nell'anteprima di un file.</span>
         <button class="btn small" id="bmNew">Nuova categoria</button><button class="btn small" id="bmRen">Rinomina</button><button class="btn small" id="bmDel">Elimina categoria</button><button class="btn small" id="bmCsv">Esporta CSV</button><button class="btn small" id="bmJson" title="Salva i preferiti creati qui in un file da passare a un altro analista">Esporta preferiti</button><label class="btn small" title="Aggiunge i preferiti da un file esportato da questo report">Importa<input type="file" id="bmImp" accept=".json,application/json" hidden></label></div>
-      <div class="split"><div class="bmcats" id="bmCats"></div><div class="vl" id="bmList"></div></div>
+      <div class="split"><div class="bmcats" id="bmCats"></div><div class="psplit" id="bmSplit" title="Trascina per allargare o stringere l'elenco delle categorie; doppio clic: larghezza predefinita"></div><div class="vl" id="bmList"></div></div>
     </section>
     <section class="view hidden" id="v-notes"><div class="scroll"><div class="pad">
       <div class="card"><h2>Note</h2>
@@ -309,7 +354,7 @@ mark{background:var(--warn-soft);color:inherit;border-radius:3px}
         </div></div>
       <div id="notesBody"></div></div></div></section>
   </main>
-  <aside class="pv hidden" id="pv">
+  <aside class="pv hidden" id="pv"><div class="psplit" id="pvSplit" title="Trascina per allargare o stringere l'anteprima; doppio clic: larghezza predefinita"></div>
     <div class="pvh"><div class="grow"><div class="nm" id="pvName"></div><div class="pt" id="pvPath"></div></div><button class="btn small" id="pvBm" title="Aggiungi questo file ai preferiti">⭐ Preferiti</button> <button class="btn small" id="pvClose">✕</button></div>
     <div class="pvt" id="pvTabs"><button data-t="view" class="on">Anteprima</button><button data-t="text">Testo</button><button data-t="hex">Esadecimale</button><button data-t="info">Dettagli</button><button data-t="note">Nota</button></div>
     <div class="pvb" id="pvBody"></div>
@@ -348,7 +393,7 @@ trDom(document.body);
 "use strict";
 /* RepertIA - report portatile. I dati arrivano dai file dati/*.js tramite FD.push. Nessun
    contenuto delle prove viene interpretato come HTML: tutto passa da esc() o textContent. */
-const FD = {case: null, files: [], atts: [], texts: [], meta: [], traces: [], carved: [], ev: {}, det: {}, _wait: {},
+const FD = {case: null, files: [], atts: [], texts: [], meta: [], traces: [], carved: [], ev: {}, evd: {}, lp: {}, det: {}, _wait: {},
   push(name, obj){
     if (name === "case") this.case = obj;
     else if (name === "files") for (const r of obj) this.files.push(r);
@@ -357,12 +402,22 @@ const FD = {case: null, files: [], atts: [], texts: [], meta: [], traces: [], ca
     else if (name === "meta") this.meta = obj;
     else if (name === "traces") this.traces = obj;
     else if (name === "carved") this.carved = obj;
-    else if (name === "events") this.ev[obj.m] = obj.rows;
+    else if (name === "events"){ if (obj.d) (this.evd[obj.d] = this.evd[obj.d] || {})[obj.p] = obj.rows; else this.ev[obj.m] = obj.rows; }
     else if (name === "detail") this.det[obj.id] = obj;
     else if (name === "ext") this.ext = obj;
+    else if (name === "leapp") this.lp[obj.f] = obj.rows;
   }};
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+/* (2.20.1, AI Act) origine e verifica dei reperti: stessa regola del programma (fa.finding_label) */
+function findLabel(x){
+  const ia = x.origine === "modello IA";
+  if (x.stato === "verificato") return TF("Verificato da {0} il {1}", x.verificato_da || "", x.verificato_il || "") + (ia ? TF(" (generato da modello IA: {0})", x.modello || "?") : "");
+  if (ia) return TF("Generato da modello IA ({0}) – da verificare", x.modello || "?");
+  if (x.origine === "analista") return T("Inserito dall'analista");
+  return T("Origine non registrata (caso di una versione precedente) – da verificare");
+}
+function findLblHtml(x){ return `<div class="flbl${x.stato === "verificato" || x.origine === "analista" ? " ok" : ""}">${esc(findLabel(x))}</div>`; }
 /* data dei metadati (EXIF, QuickTime, PDF…): come scritta nel file, con il fuso solo se il file lo indica */
 function fmtTaken(s){
   s = String(s || "").trim(); if (!s) return "";
@@ -474,8 +529,9 @@ $("themeBtn").onclick = () => {
   const dark = document.documentElement.dataset.theme ? document.documentElement.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
   document.documentElement.dataset.theme = dark ? "light" : "dark"; store.set("repertia_tema", document.documentElement.dataset.theme);
 };
-function loadScript(src, drop){
-  return new Promise((ok, ko) => { const s = document.createElement("script"); s.src = src;
+function loadScript(src, drop, ordered){
+  // ordered: si scarica insieme agli altri ma si esegue nell'ordine di inserimento (async = false)
+  return new Promise((ok, ko) => { const s = document.createElement("script"); s.src = src; if (ordered) s.async = false;
     s.onload = () => { if (drop) s.remove(); ok(); }; s.onerror = () => { s.remove(); ko(new Error(T("File mancante: ") + src)); }; document.head.appendChild(s); });
 }
 /* testi a blocchi: un blocco alla volta (in coda), gli ultimi tenuti in memoria */
@@ -495,7 +551,17 @@ function textChunk(n){
 }
 
 /* ---------- dati ---------- */
-let C, F, KEY = new Map(), KIDS = new Map(), ATT = new Map(), ATT_BY_KEY = new Map(), META_BY_KEY = new Map();
+let C, F, ATT = new Map(), ATT_BY_KEY = new Map(), META_BY_KEY = new Map();
+/* indici del catalogo annidati per partizione: con chiavi concatenate «part:inode» e «part\u0000cartella» in un solo Map
+   l'avvio del report del caso iOS 17 grande (830.000 voci) passava 4,5 s qui; annidati ~0,1 s.
+   KEY.get("part:inode") resta per i dataset delle pagine; KIDS.get(part, cartella) = righe figlie */
+const KEY = {m: new Map(),
+  getPI(part, inode){ const x = this.m.get("" + part); return x ? x.get("" + inode) : undefined; },
+  setPI(part, inode, i){ let x = this.m.get("" + part); if (!x){ x = new Map(); this.m.set("" + part, x); } x.set("" + inode, i); },
+  get(k){ k = String(k); const j = k.indexOf(":"); return j < 0 ? undefined : this.getPI(k.slice(0, j), k.slice(j + 1)); }};
+const KIDS = {m: new Map(),
+  get(part, dir){ const x = this.m.get("" + part); return x ? x.get(dir || "") : undefined; },
+  add(part, dir, i){ let x = this.m.get("" + part); if (!x){ x = new Map(); this.m.set("" + part, x); } dir = dir || ""; const a = x.get(dir); if (a) a.push(i); else x.set(dir, [i]); }};
 const PATH = i => F[i][1] ? F[i][1] + "/" + F[i][2] : F[i][2];
 const keyOf = (part, inode) => part + ":" + inode;
 async function boot(){
@@ -504,19 +570,18 @@ async function boot(){
   const c = FD.case;
   const ttl = (c.info_caso || {}).nome || c.case; $("hTitle").textContent = ttl; document.title = ttl + T(" · Report portatile RepertIA");
   const list = [...c.file_chunks.map(f => "dati/" + f), ...(c.att_chunks || []).map(f => "dati/" + f), "dati/meta.js", "dati/carving.js", "dati/tracce.js", ...(c.ext ? ["dati/estese.js"] : [])];
-  for (let i = 0; i < list.length; i++){
-    $("loadMsg").textContent = TF("Carico il catalogo… {0} di {1}", i + 1, list.length);
-    $("loadBar").style.width = (100 * (i + 1) / list.length) + "%";
-    try{ await loadScript(list[i]); }catch(e){ toast(e.message); }
-  }
+  // tutti i blocchi richiesti insieme (eseguiti nell'ordine): prima uno alla volta, scaricamento e lettura in fila
+  let nDone = 0;
+  const step = () => { nDone++; $("loadMsg").textContent = TF("Carico il catalogo… {0} di {1}", nDone, list.length);
+    $("loadBar").style.width = (100 * nDone / list.length) + "%"; };
+  await Promise.all(list.map(src => loadScript(src, false, true).then(step, e => { step(); toast(e.message); })));
   C = {}; c.cols.forEach((k, i) => C[k] = i); F = FD.files;
   $("loadMsg").textContent = T("Preparo l'albero…");
   await new Promise(r => setTimeout(r, 10));
   for (let i = 0; i < F.length; i++){
     const r = F[i];
-    if (r[C.inode] != null && !r[C.isdir]){ const k = keyOf(r[C.part], r[C.inode]); const p = KEY.get(k); if (p == null || (F[p][C.deleted] && !r[C.deleted])) KEY.set(k, i); }
-    const pk = r[C.part] + "\u0000" + (r[C.parent] || "");
-    let a = KIDS.get(pk); if (!a){ a = []; KIDS.set(pk, a); } a.push(i);
+    if (r[C.inode] != null && !r[C.isdir]){ const p = KEY.getPI(r[C.part], r[C.inode]); if (p == null || (F[p][C.deleted] && !r[C.deleted])) KEY.setPI(r[C.part], r[C.inode], i); }
+    KIDS.add(r[C.part], r[C.parent], i);
   }
   const AC = {}; (c.att_cols || []).forEach((k, i) => AC[k] = i);
   for (const r of FD.atts){
@@ -538,9 +603,10 @@ async function boot(){
   if (!FD.traces.length) $("navTrc").classList.add("hidden");
   const X = FD.ext || {};
   [["art", "navArt", "nArt"], ["mail", "navMail", "nMail"], ["x", "navX", "nX"], ["anom", "navAnom", "nAnom"]].forEach(([k, nav, n]) => {
-    const L = (X[k] || []).length; $(nav).classList.toggle("hidden", !L); $(n).textContent = L ? nf(L) : ""; });
+    const L = (X[k] || []).length + (k === "art" ? X.leapp_n || 0 : 0); $(nav).classList.toggle("hidden", !L); $(n).textContent = L ? nf(L) : ""; });
   $("navFoot").innerHTML = TF("Generato il {0}<br>{1}<br>Solo consultazione, senza IA.", esc(ftsRaw(c.generated, true)), esc(c.app));
   tzSelRefresh(); initNotes(); initBmStore(); renderSummary(); $("loading").remove();
+  PNAV.replace();
 }
 
 /* ---------- navigazione tra le viste ---------- */
@@ -548,6 +614,7 @@ let VIEW = "sum";
 const inited = {};
 document.querySelectorAll("nav button[data-v]").forEach(b => b.onclick = () => show(b.dataset.v));
 function show(v){
+  if (typeof PNAV !== "undefined" && VIEW && VIEW !== v) PNAV.replace();        // stato della vista che si lascia
   VIEW = v;
   document.querySelectorAll("nav button[data-v]").forEach(b => b.classList.toggle("on", b.dataset.v === v));
   document.querySelectorAll("main .view").forEach(s => s.classList.toggle("hidden", s.id !== "v-" + v));
@@ -555,6 +622,39 @@ function show(v){
   if (v === "notes") renderNotes();
   if (v === "bm") renderBmCats();
   renderSelBar();
+  PNAV.push();
+}
+/* ---------- Indietro del browser e briciole (2.20): ogni vista, categoria degli artefatti e conversazione aperta è un
+   passo della cronologia del browser; le briciole in alto dicono dove si è e ogni voce è cliccabile ---------- */
+const PNAV = {restoring: false,
+  state(){ return {v: VIEW, art: VIEW === "art" && EXV.art.getState ? EXV.art.getState() : null, chat: VIEW === "chat" && window.PCHAT && PCHAT.state ? PCHAT.state() : null}; },
+  push(){
+    if (!this.restoring){ const s = this.state(); try{ if (JSON.stringify(history.state) !== JSON.stringify(s)) history.pushState(s, ""); }catch(e){} }
+    pcrumbs();
+  },
+  replace(){ if (!this.restoring){ try{ history.replaceState(this.state(), ""); }catch(e){} } pcrumbs(); }};
+window.addEventListener("popstate", async e => {
+  const st = e.state; if (!st || !st.v) return;
+  PNAV.restoring = true;
+  try{
+    show(st.v);
+    if (st.v === "art" && st.art && EXV.art.setState) EXV.art.setState(st.art);
+    if (st.v === "chat" && window.PCHAT) await PCHAT.restore(st.chat);
+  }finally{ PNAV.restoring = false; pcrumbs(); }
+});
+function pcrumbs(){
+  const el = $("pCrumbs"); if (!el) return;
+  const b = document.querySelector(`nav button[data-v="${VIEW}"] .l`), c = [{label: b ? b.textContent : VIEW, go: () => show(VIEW)}];
+  if (VIEW === "art" && EXV.art.getState){
+    const s = EXV.art.getState(), cs = $("artCat"), ss = $("artSub");
+    if (s.cat) c.push({label: cs.options[cs.selectedIndex].textContent, go: () => EXV.art.setState({cat: s.cat, sub: "", q: ""})});
+    if (s.sub) c.push({label: ss.options[ss.selectedIndex].textContent.trim(), go: () => EXV.art.setState(s)});
+  }
+  if (VIEW === "chat" && window.PCHAT && PCHAT.crumbs) c.push(...PCHAT.crumbs());
+  el.innerHTML = `<button title="${esc(T("Indietro (anche il tasto Indietro del browser)"))}" data-h="-1">←</button><button title="${esc(T("Avanti"))}" data-h="1">→</button> ` +
+    c.map((x, i) => (i ? `<span class="sep">›</span>` : "") + (x.go && i < c.length - 1 ? `<a data-c="${i}">${esc(x.label)}</a>` : `<span>${esc(x.label)}</span>`)).join("");
+  el.querySelectorAll("[data-h]").forEach(x => x.onclick = () => history.go(+x.dataset.h));
+  el.querySelectorAll("[data-c]").forEach(a => a.onclick = () => c[+a.dataset.c].go());
 }
 
 /* ---------- lista virtuale ---------- */
@@ -575,6 +675,106 @@ function fdate(v){
   if (m[2] === ":" || m[5] == null) return `${m[1]}-${m[3]}-${m[4]}`;
   return (fts(`${m[1]}-${m[3]}-${m[4]}T${m[5]}:${m[6]}:${m[7]}`) || "").slice(0, 10);
 }
+// riquadro del filtro sempre dentro la finestra (2.20): sotto il pulsante se c'è spazio, altrimenti sopra; l'elenco dei valori
+// scorre al suo interno e ordinamento, campo di ricerca e pulsanti restano visibili
+function cfPlace(pop, btn){
+  if (!pop || !pop.isConnected) return;
+  const M = 6, vw = window.innerWidth, vh = window.innerHeight, W = Math.min(cfW(), vw - 2 * M);
+  const r = btn && btn.isConnected ? btn.getBoundingClientRect() : (pop._r || {left: vw / 2, right: vw / 2, top: vh / 3, bottom: vh / 3, width: 0});
+  pop._r = {left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width};
+  pop.style.width = W + "px";
+  pop.style.left = Math.max(M, Math.min(vw - W - M, r.left - W + r.width + 20)) + "px";
+  pop.style.maxHeight = "none"; pop.style.top = "0px"; pop.style.bottom = "auto";
+  const want = Math.min(pop.scrollHeight, Math.round(vh * 0.8)), below = vh - r.bottom - 4 - M, above = r.top - 4 - M;
+  let h, top;
+  if (want <= below || below >= above){ h = Math.min(want, Math.max(below, 0)); top = r.bottom + 4; }
+  else { h = Math.min(want, above); top = r.top - 4 - h; }
+  if (h < 200){ h = Math.min(want, vh - 2 * M); top = Math.max(M, Math.min(vh - M - h, top)); }
+  pop.style.maxHeight = Math.max(120, h) + "px";
+  pop.style.top = Math.max(M, Math.min(vh - M - Math.max(120, h), top)) + "px";
+}
+// (2.20) larghezza del riquadro dei valori: maniglia sul bordo sinistro (trascina; doppio clic = predefinita), ricordata
+const CFW_KEY = "repertia_cfw:p", CFW_DEF = 300;
+function cfW(){ try{ return Math.max(220, +localStorage.getItem(CFW_KEY) || CFW_DEF); }catch(e){ return CFW_DEF; } }
+function cfGrip(pop){
+  const g = document.createElement("div"); g.className = "cfgrip"; g.title = T("Trascina per allargare; doppio clic: larghezza predefinita");
+  pop.appendChild(g);
+  g.onmousedown = e => {
+    e.preventDefault(); e.stopPropagation();
+    const x0 = e.clientX, w0 = pop.getBoundingClientRect().width;
+    const mv = ev => { const w = Math.max(220, Math.min(window.innerWidth - 12, w0 + (x0 - ev.clientX))); try{ localStorage.setItem(CFW_KEY, String(Math.round(w))); }catch(er){} cfPlace(pop, pop._btn); };
+    const up = () => { document.removeEventListener("mousemove", mv, true); document.removeEventListener("mouseup", up, true); };
+    document.addEventListener("mousemove", mv, true); document.addEventListener("mouseup", up, true);
+  };
+  g.ondblclick = e => { e.stopPropagation(); try{ localStorage.removeItem(CFW_KEY); }catch(er){} cfPlace(pop, pop._btn); };
+}
+function cfPlaceNow(){ const o = document.getElementById("cfPop"); if (o) cfPlace(o, o._btn); }
+window.addEventListener("resize", cfPlaceNow);
+/* riquadri ridimensionabili (2.20): divisore trascinabile; doppio clic = larghezza predefinita; misura ricordata nel
+   browser (se la memoria locale è disponibile); «Ripristina colonne» rimette anche i riquadri */
+const PANES = [];
+const paneKey = k => "repertia_pane:p:" + k;
+function paneSplit(sp, o){
+  if (!sp) return;
+  // limite massimo solo se il riquadro è già disposto (alla prima apertura la sua area può essere ancora nascosta)
+  const clamp = w => { const lo = o.min || 140, hi = o.max ? o.max() : 2000; return Math.round(Math.max(lo, hi > lo ? Math.min(w, hi) : w)); };
+  const p = {key: o.key, reset(){ o.set(null); try{ localStorage.removeItem(paneKey(o.key)); }catch(e){} }};
+  PANES.push(p);
+  const v = +store.get(paneKey(o.key), 0); if (v > 0) o.set(clamp(v));
+  sp.addEventListener("mousedown", e => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    const x0 = e.clientX, w0 = o.el().getBoundingClientRect().width;
+    sp.classList.add("on"); document.body.classList.add("dragging");
+    const mv = ev => o.set(clamp(w0 + o.dir * (ev.clientX - x0)));
+    const up = () => { document.removeEventListener("mousemove", mv); document.removeEventListener("mouseup", up);
+      sp.classList.remove("on"); document.body.classList.remove("dragging"); store.set(paneKey(o.key), Math.round(o.el().getBoundingClientRect().width));
+      paneRedraw(); };
+    document.addEventListener("mousemove", mv); document.addEventListener("mouseup", up);
+  });
+  sp.addEventListener("dblclick", e => { e.preventDefault(); p.reset(); paneRedraw(); });
+}
+function paneRedraw(){ LISTS.forEach(l => { try{ l.drawHead && l.drawHead(); l.draw && l.draw(true); }catch(e){} }); }
+function paneReset(){ PANES.forEach(p => p.reset()); }
+function paneAny(){ return PANES.some(p => p.any ? p.any() : +store.get(paneKey(p.key), 0) > 0); }
+/* divisori orizzontali (2.20), come nell'interfaccia: trascina in su/giù, doppio clic = altezza predefinita, ▾/▸ comprime */
+function hsplit(sp, o){
+  if (!sp) return null;
+  sp.innerHTML = `<button class="hst" type="button"></button><span class="hsl"></span>`;
+  const btn = sp.querySelector(".hst"), lbl = sp.querySelector(".hsl"), kh = paneKey("h:" + o.key), kc = paneKey("hc:" + o.key);
+  const clamp = h => { const lo = o.min || 40, hi = o.max ? o.max() : 2000; return Math.round(Math.max(lo, hi > lo ? Math.min(h, hi) : h)); };
+  const setH = h => { const el = o.el(); el.style.height = h ? h + "px" : ""; el.classList.toggle("hsized", !!h); };
+  const setC = c => { o.el().classList.toggle("hcoll", c); sp.classList.toggle("coll", c); btn.textContent = c ? "▸" : "▾"; btn.title = c ? T("Riapri") : T("Comprimi"); lbl.textContent = c ? o.label : ""; };
+  const del = k => { try{ localStorage.removeItem(k); }catch(e){} };
+  const p = {key: "h:" + o.key, any: () => +store.get(kh, 0) > 0 || +store.get(kc, 0) > 0,
+    reset(){ del(kh); del(kc); setH(null); setC(false); },
+    toggle(){ const c = !sp.classList.contains("coll"); c ? store.set(kc, 1) : del(kc); setC(c); }};
+  PANES.push(p);
+  const h0 = +store.get(kh, 0); setH(h0 > 0 ? clamp(h0) : null); setC(+store.get(kc, 0) > 0);
+  btn.addEventListener("click", e => { e.stopPropagation(); p.toggle(); });
+  lbl.addEventListener("click", e => { e.stopPropagation(); p.toggle(); });
+  sp.addEventListener("mousedown", e => {
+    if (e.button !== 0 || e.target === btn || e.target === lbl) return;
+    e.preventDefault();
+    // compresso: si riapre solo se lo si trascina davvero
+    let coll = sp.classList.contains("coll");
+    const el = o.el(), y0 = e.clientY, hh = coll ? 0 : el.getBoundingClientRect().height;
+    sp.classList.add("on"); document.body.classList.add("vdragging");
+    const mv = ev => { if (coll){ if (Math.abs(ev.clientY - y0) < 4) return; coll = false; del(kc); setC(false); } setH(clamp(hh + (ev.clientY - y0))); };
+    const up = () => { document.removeEventListener("mousemove", mv); document.removeEventListener("mouseup", up);
+      sp.classList.remove("on"); document.body.classList.remove("vdragging"); if (el.style.height) store.set(kh, Math.round(el.getBoundingClientRect().height)); paneRedraw(); };
+    document.addEventListener("mousemove", mv); document.addEventListener("mouseup", up);
+  });
+  sp.addEventListener("dblclick", e => { e.preventDefault(); p.reset(); paneRedraw(); });
+  return p;
+}
+window.hsplit = hsplit;
+window.paneSplit = paneSplit;
+const paneW = (el, w) => { el.style.width = w ? w + "px" : ""; };
+paneSplit($("treeSplit"), {key: "tree", el: () => $("tree"), dir: 1, min: 140, max: () => window.innerWidth * 0.5, set: w => paneW($("tree"), w)});
+paneSplit($("bmSplit"), {key: "bm", el: () => $("bmCats"), dir: 1, min: 140, max: () => window.innerWidth * 0.5, set: w => paneW($("bmCats"), w)});
+paneSplit($("pvSplit"), {key: "pv", el: () => $("pv"), dir: -1, min: 300, max: () => window.innerWidth - 420, set: w => paneW($("pv"), w)});
+hsplit($("tlSplit"), {key: "tl", el: () => $("tlTop"), min: 40, max: () => window.innerHeight * 0.7, label: T("Grafico della timeline compresso: clic per riaprirlo")});
 function cfPopClose(){ const o = document.getElementById("cfPop"); if (o) o.remove(); document.removeEventListener("mousedown", cfPopOut, true); document.removeEventListener("keydown", cfPopEsc, true); }
 function cfPopOut(e){ const o = document.getElementById("cfPop"); if (o && !o.contains(e.target) && !(e.target.closest && e.target.closest(".cfd"))) cfPopClose(); }
 function cfPopEsc(e){ if (e.key === "Escape") cfPopClose(); }
@@ -590,10 +790,8 @@ function cfMenu(list, j, btn, run, getSrt, cfs, drawHead, drawCf){
   const pop = document.createElement("div");
   pop.id = "cfPop"; pop.className = "cfpop"; pop.dataset.j = j; pop.dataset.l = LISTS.indexOf(list);
   pop.innerHTML = T("<div class=\"cfpb\"><button data-so=\"1\">↑ A→Z / dal più piccolo</button><button data-so=\"-1\">↓ Z→A / dal più grande</button></div>\n    <input class=\"cfps\" type=\"text\" placeholder=\"Cerca nei valori…\"><div class=\"cfpl\"></div>\n    <div class=\"cfpf\"><button data-ok>OK</button><button data-reset>Azzera colonna</button><button data-cancel>Annulla</button></div>");
-  document.body.appendChild(pop);
-  const r = btn.getBoundingClientRect(), W = 300;
-  pop.style.left = Math.max(6, Math.min(window.innerWidth - W - 6, r.left - W + r.width + 20)) + "px";
-  pop.style.top = Math.max(6, Math.min(window.innerHeight - 340, r.top - 330 > 6 && r.bottom + 330 > window.innerHeight ? r.top - 330 : r.bottom + 4)) + "px";
+  document.body.appendChild(pop); cfGrip(pop);
+  pop._btn = btn;
   document.addEventListener("mousedown", cfPopOut, true); document.addEventListener("keydown", cfPopEsc, true);
   const done = () => { cfPopClose(); drawHead(); drawCf(); list.cfCfg.onChange(); };
   pop.querySelectorAll("[data-so]").forEach(b => b.onclick = () => { cfPopClose(); list.setSort(j, +b.dataset.so); });
@@ -604,17 +802,20 @@ function cfMenu(list, j, btn, run, getSrt, cfs, drawHead, drawCf){
     const t = search.value.trim().toLowerCase(), vis = vals.filter(x => !t || x[0].toLowerCase().includes(t));
     const allOn = vis.length && vis.every(x => chk.has(x[0]));
     box.innerHTML = (vals.length ? TF("<label class=\"cfpi\"><input type=\"checkbox\" data-all {0}> <b>(Seleziona tutti{1})</b></label>", allOn ? "checked" : "", t ? T(" i trovati") : "") : T('<div class="hint" style="padding:8px">Nessun valore.</div>')) +
-      vis.map(x => `<label class="cfpi"><input type="checkbox" data-v="${vals.indexOf(x)}" ${chk.has(x[0]) ? "checked" : ""}> <span class="cfpv">${x[0] === "" ? T("<i>(vuoto)</i>") : esc(x[0])}</span><span class="cfpn">${nf(x[1])}</span></label>`).join("") +
+      vis.map(x => `<label class="cfpi"><input type="checkbox" data-v="${vals.indexOf(x)}" ${chk.has(x[0]) ? "checked" : ""}> <span class="cfpv" title="${esc(String(x[0]))}">${x[0] === "" ? T("<i>(vuoto)</i>") : esc(x[0])}</span><span class="cfpn">${nf(x[1])}</span></label>`).join("") +
       (more ? T("<div class=\"hint\" style=\"padding:6px 8px\">Mostrati i 300 valori più frequenti: per gli altri usa il campo di testo.</div>") : "");
     const a = box.querySelector("[data-all]");
     if (a) a.onchange = () => { vis.forEach(x => a.checked ? chk.add(x[0]) : chk.delete(x[0])); draw(); };
     box.querySelectorAll("[data-v]").forEach(c => c.onchange = () => { const v = vals[+c.dataset.v][0]; c.checked ? chk.add(v) : chk.delete(v); const a2 = box.querySelector("[data-all]"); if (a2) a2.checked = vis.every(x => chk.has(x[0])); });
   };
-  draw(); search.oninput = draw; search.focus();
+  draw(); cfPlace(pop, btn); search.oninput = draw; search.focus();
+  // (2.20) con una ricerca nel riquadro valgono solo i valori trovati e spuntati (come in Excel)
+  search.onkeydown = e => { if (e.key === "Enter"){ e.preventDefault(); pop.querySelector("[data-ok]").click(); } };
   pop.querySelector("[data-ok]").onclick = () => {
     const x = cfs[j] || (cfs[j] = {});
-    x.sel = (chk.size >= vals.length && !more) ? [] : [...chk];
-    if (!x.sel.length && !chk.size && vals.length) x.sel = ["\u0001__nessuno__"];
+    const t = search.value.trim().toLowerCase(), keep = t ? vals.filter(y => y[0].toLowerCase().includes(t) && chk.has(y[0])).map(y => y[0]) : [...chk];
+    x.sel = (!t && keep.length >= vals.length && !more) ? [] : keep;
+    if (!keep.length && vals.length) x.sel = ["\u0001__nessuno__"];
     done();
   };
 }
@@ -627,6 +828,10 @@ function VList(el, cols0, rowFn0, onClick, selCfg, cfCfg){
   el.innerHTML = `<div class="vh"></div>${cfCfg ? '<div class="vf"></div>' : ""}<div class="vb"><div class="sp"></div></div>`;
   const head = el.querySelector(".vh"), body = el.querySelector(".vb"), sp = el.querySelector(".sp"), H = 30, foot = el.querySelector(".vf");
   let vis = cols.map((c, i) => i), tpl = "";
+  // colonne ridimensionabili (2.20): larghezze in px scelte col mouse, ricordate per lista se le colonne sono le stesse
+  const wKey = el.id ? "repertia_colw:p:" + el.id : null, wSig = cols.map(c => String(c[0]).replace(/<[^>]*>/g, "")).join("\u0001");
+  let WO = (() => { const v = wKey ? store.get(wKey, null) : null; return v && v.sig === wSig && v.w ? v.w : {}; })();
+  const wSave = () => { if (wKey) store.set(wKey, Object.keys(WO).length ? {sig: wSig, w: WO} : null); };
   const off = selCfg ? 1 : 0, cfs = {};
   const cfActive = () => Object.values(cfs).some(x => x && (x.v || x.min || x.max || x.from || x.to || (x.sel && x.sel.length)));
   let srt = null;     // ordinamento scelto con un clic sull'intestazione: {j, dir: 1 | -1}
@@ -635,8 +840,8 @@ function VList(el, cols0, rowFn0, onClick, selCfg, cfCfg){
     head.innerHTML = vis.map(i => {
       const j = i - off, sortable = cfCfg && j >= 0 && cfCfg.cols[j];
       const ar = sortable && srt && srt.j === j ? `<b class="sa">${srt.dir > 0 ? "▲" : "▼"}</b>` : "";
-      return `<span class="${cols[i][2] || ""}${sortable ? " srt" : ""}"${sortable ? TF(" data-sj=\"{0}\" title=\"Clic: ordina (crescente, decrescente, ordine normale)\"", j) : ""}>${cols[i][0]}${ar}${cfCfg && i === first && cfActive() ? T("<button class=\"vfx\" data-cfclear=\"1\" title=\"Toglie tutti i filtri delle colonne\">✕ filtri</button>") : ""}</span>`;
-    }).join("");
+      return `<span class="${cols[i][2] || ""}${sortable ? " srt" : ""}"${sortable ? TF(" data-sj=\"{0}\" title=\"Clic: ordina (crescente, decrescente, ordine normale)\"", j) : ""}>${cols[i][0]}${ar}${cfCfg && i === first && cfActive() ? T("<button class=\"vfx\" data-cfclear=\"1\" title=\"Toglie tutti i filtri delle colonne\">✕ filtri</button>") : ""}${cols[i][2] === "ckc" ? "" : `<i class="crs" data-rs="${i}" title="${esc(T("Trascina per allargare o stringere la colonna; doppio clic: adatta al testo"))}"></i>`}</span>`;
+    }).join("") + (Object.keys(WO).length || paneAny() ? `<button class="vrst" title="${esc(T("Torna alle larghezze automatiche delle colonne"))}">↔ ${T("Ripristina colonne")}</button>` : "");
   };
   const drawCf = () => {
     foot.style.gridTemplateColumns = tpl;
@@ -652,7 +857,7 @@ function VList(el, cols0, rowFn0, onClick, selCfg, cfCfg){
   const layout = () => {
     const w = el.clientWidth || 1000;
     vis = cols.map((c, i) => i).filter(i => !cols[i][3] || w >= cols[i][3]);
-    tpl = vis.map(i => cols[i][1]).join(" ");
+    tpl = vis.map(i => WO[i] ? WO[i] + "px" : cols[i][1]).join(" ");
     head.style.gridTemplateColumns = tpl;
     drawHead();
     if (cfCfg) drawCf();
@@ -666,6 +871,7 @@ function VList(el, cols0, rowFn0, onClick, selCfg, cfCfg){
       sp.innerHTML = h;
       if (!this.n) sp.innerHTML = T("<div class=\"empty\">Nessun elemento</div>");
     }};
+  o.drawHead = drawHead;            // (2.20) per «Ripristina colonne» dopo un riquadro ridimensionato
   if (cfCfg){
     let tt;
     const apply = (t, delay) => {
@@ -720,7 +926,29 @@ function VList(el, cols0, rowFn0, onClick, selCfg, cfCfg){
     o.openMenu = (j, btn) => cfMenu(o, j, btn, run, () => srt, cfs, drawHead, drawCf);
   }
   layout();
-  body.onscroll = () => o.draw();
+  body.onscroll = () => { o.draw(); head.scrollLeft = body.scrollLeft; if (foot) foot.scrollLeft = body.scrollLeft; };
+  let rsBlock = 0;
+  head.addEventListener("click", e => {
+    if (e.target.closest(".vrst")){ e.stopPropagation(); WO = {}; wSave(); paneReset(); layout(); o.draw(true); return; }
+    if (e.target.closest(".crs") || rsBlock > Date.now()) e.stopImmediatePropagation();
+  }, true);
+  head.addEventListener("mousedown", e => {
+    const h = e.target.closest(".crs"); if (!h || e.button !== 0) return;
+    e.preventDefault();
+    const i = +h.dataset.rs, k = vis.indexOf(i), span = head.children[k], x0 = e.clientX, w0 = span.getBoundingClientRect().width;
+    document.body.classList.add("colresizing");
+    const mv = ev => { WO[i] = Math.max(40, Math.round(w0 + ev.clientX - x0)); layout(); o.draw(true); };
+    const up = () => { document.removeEventListener("mousemove", mv); document.removeEventListener("mouseup", up); document.body.classList.remove("colresizing"); rsBlock = Date.now() + 300; wSave(); };
+    document.addEventListener("mousemove", mv); document.addEventListener("mouseup", up);
+  });
+  head.addEventListener("dblclick", e => {
+    const h = e.target.closest(".crs"); if (!h) return;
+    e.preventDefault(); rsBlock = Date.now() + 300;
+    const i = +h.dataset.rs, k = vis.indexOf(i);
+    let best = head.children[k] ? head.children[k].scrollWidth + 16 : 60;
+    sp.querySelectorAll(".vr").forEach(r => { const c = r.children[k]; if (c) best = Math.max(best, c.scrollWidth + 4); });
+    WO[i] = Math.max(40, Math.min(900, Math.ceil(best))); wSave(); layout(); o.draw(true);
+  });
   try{ new ResizeObserver(() => { const old = tpl; layout(); if (tpl !== old) o.draw(true); else o.draw(); }).observe(el); }
   catch(e){ window.addEventListener("resize", () => { layout(); o.draw(true); }); }
   sp.onclick = e => {
@@ -782,7 +1010,7 @@ function renderSummary(){
   let h = TF("<div class=\"warnbox\">Report portatile in sola consultazione: contiene il catalogo completo del supporto{0}. Per l'integrità confronta <code>impronte.csv</code> e <code>IMPRONTA_REPORT.txt</code> con quanto comunicato da chi ha generato il report.</div>\n  <div class=\"card\"><h2>Caso</h2><div class=\"kv\">\n    <b>Caso</b><span>{1}{2}</span>\n    {3}\n    {4}\n    {5}\n    <b>Fuso del dispositivo</b><span>{6}</span>\n    <b>Copia forense</b><span class=\"mono\">{7}{8}</span>\n    <b>Supporto</b><span>{9}</span>\n    <b>SHA-256 copia</b><span class=\"mono\">{10}{11}</span>\n    {12}\n    {13}\n    <b>Ultima verifica</b><span>{14}</span>\n    <b>Caso creato</b><span>{15}</span>\n    <b>Report generato</b><span>{16} con {17}</span>\n    <b>Contenuto</b><span>{18} voci del file system · {19} eventi · {20} documenti con testo · {21} file con metadati</span>\n    <b>File inclusi</b><span>{22} file ({23}) · {24}</span>\n    <b>Partizioni</b><span>{25}</span>\n    <b>Strumenti</b><span class=\"hint\">{26}</span>\n  </div></div>", c.mode === "tutti" ? T(" e il contenuto di tutti i file") : T(" e il contenuto dei soli file inclusi"), esc((c.info_caso || {}).nome || c.case), (c.info_caso || {}).nome ? TF(" <span class=\"hint\">(cartella {0})</span>", esc(c.case)) : "", (c.info_caso || {}).operatore ? TF("<b>Operatore</b><span>{0}</span>", esc(c.info_caso.operatore)) : "", (c.info_caso || {}).reperto ? TF("<b>Tipo di reperto</b><span>{0}</span>", esc(c.info_caso.reperto)) : "", (c.info_caso || {}).note ? TF("<b>Note</b><span style=\"white-space:pre-wrap\">{0}</span>", esc(c.info_caso.note)) : "", c.fuso_dispositivo ? esc(c.fuso_dispositivo) : T("<span class='hint'>non registrato (date FAT/exFAT convertite con il fuso del PC usato per la preparazione)</span>"), esc(c.evidence), c.converted ? T(" (analizzata tramite conversione raw)") : "", esc(c.disk_type || "-"), hs.length ? hs.map(([k, v]) => esc(k) + ": " + esc(v)).join("<br>") : T("non calcolato"), c.sha256_differito ? T(" <span class='hint'>(calcolato dopo l'avvio dell'analisi)</span>") : "", c.hash_acquisizione != null ? TF("<b>Hash acquisizione</b><span>{0}</span>", c.hash_acquisizione ? "corrispondente" : "<span class='del'>diverso</span>") : "", c.hash_dati ? TF("<b>Hash dei dati acquisiti</b><span>{0}{1}</span>", c.hash_dati.esito === "diverso" ? "<span class='del'>" + esc(c.hash_dati_testo) + "</span>" : esc(c.hash_dati_testo), Object.entries(c.hash_dati.calcolati || {}).map(([a, v]) => `<br><span class="mono">${esc(a.toUpperCase())} ${esc(v)}</span>`).join("")) : "", ver ? (ver.ok ? "integra" : "<span class='del'>diversa</span>") + " · " + esc(ftsRaw(ver.ts, true)) : "-", esc(ftsRaw(c.created, true)), esc(ftsRaw(c.generated, true)), esc(c.app), nf(c.counts.file), nf(c.counts.eventi), nf(c.counts.testi), nf(c.counts.metadati), nf(c.counts.allegati), fsize(c.counts.allegati_byte), {tutti: T("tutti i file del supporto"), piccoli: T("reperti, selezioni e documenti e immagini fino alla dimensione scelta"), scelti: T("solo i file dei reperti e delle selezioni esportate")}[c.mode] || "", parts || "-", Object.entries(c.tools || {}).map(([k, v]) => esc(k) + ": " + esc(v)).join("<br>"));
   if (c.skipped_n) h += TF("<div class=\"warnbox\">{0} file previsti non sono stati inclusi perché non leggibili dalla copia: {1}{2}</div>", nf(c.skipped_n), c.skipped.slice(0, 20).map(s => "inode " + esc(s.file) + " (" + esc(s.motivo) + ")").join("; "), c.skipped_n > 20 ? "…" : "");
   if (c.text_truncated) h += T("<div class=\"warnbox\">I testi dei documenti sono stati inclusi solo in parte (limite di dimensione del report).</div>");
-  h += TF("<div class=\"card\"><h2>Reperti</h2>{0}</div>\n  <div class=\"card\"><h2>Report dell'analisi</h2><div class=\"md\">{1}</div></div>", (c.findings || []).length ? c.findings.map(f => `<div class="find"><h3>${f.n}. ${esc(f.title)}</h3><div style="white-space:pre-wrap">${linkRefs(esc(f.description))}</div><div class="refs">${T("Riferimenti:")} ${linkRefs(esc(f.references))}</div></div>`).join("") : T("<p class='hint'>Nessun reperto registrato.</p>"), linkRefs(md(mdTz(c.report_md || ""))));
+  h += TF("<div class=\"card\"><h2>Reperti</h2>{0}</div>\n  <div class=\"card\"><h2>Report dell'analisi</h2><div class=\"md\">{1}</div></div>", (c.findings || []).length ? c.findings.map(f => `<div class="find"><h3>${f.n}. ${esc(f.title)}</h3>${findLblHtml(f)}<div style="white-space:pre-wrap">${linkRefs(esc(f.description))}</div><div class="refs">${T("Riferimenti:")} ${linkRefs(esc(f.references))}</div></div>`).join("") : T("<p class='hint'>Nessun reperto registrato.</p>"), linkRefs(md(mdTz(c.report_md || ""))));
   $("sumBody").innerHTML = h;
 }
 document.addEventListener("click", e => {
@@ -815,9 +1043,9 @@ function partLabel(p){ const x = (FD.case.partitions || []).find(q => q.offset =
 function renderTree(){
   let h = "";
   const node = (part, path, depth) => {
-    const kids = (KIDS.get(part + "\u0000" + path) || []).filter(i => F[i][C.isdir]);
+    const kids = (KIDS.get(part, path) || []).filter(i => F[i][C.isdir]);
     for (const i of kids){
-      const p = PATH(i), k = part + "\u0000" + p, open = TREE_OPEN.has(k), has = (KIDS.get(k) || []).some(j => F[j][C.isdir]);
+      const p = PATH(i), k = part + "\u0000" + p, open = TREE_OPEN.has(k), has = (KIDS.get(part, p) || []).some(j => F[j][C.isdir]);
       h += `<div class="tn${EXP.part === part && EXP.dir === p ? " on" : ""}" data-p="${part}" data-d="${esc(p)}" style="padding-left:${8 + depth * 14}px"><span class="tw" data-tw="1">${has ? (open ? "▾" : "▸") : ""}</span>📁 <span class="${F[i][C.deleted] ? "del" : ""}">${esc(F[i][C.name])}</span></div>`;
       if (open) node(part, p, depth + 1);
     }
@@ -869,7 +1097,7 @@ function listDir(){
   const q = $("expFilter").value.trim().toLowerCase(), del = $("expDel").checked, sub = $("expSub").checked;
   let rows;
   if (sub){ const pre = EXP.dir ? EXP.dir + "/" : ""; rows = []; for (let i = 0; i < F.length; i++){ const r = F[i]; if (r[C.part] === EXP.part && !r[C.isdir] && (!pre || (r[C.parent] + "/").startsWith(pre))) rows.push(i); } }
-  else rows = (KIDS.get(EXP.part + "\u0000" + EXP.dir) || []).slice();
+  else rows = (KIDS.get(EXP.part, EXP.dir) || []).slice();
   if (q) rows = rows.filter(i => F[i][C.name].toLowerCase().includes(q));
   if (del) rows = rows.filter(i => F[i][C.deleted]);
   rows = EXP.list.filterRows(rows);
@@ -892,9 +1120,116 @@ function initSearch(){
     {view: "src", itemOf: i => { const x = SRC.rows[i]; return x.i != null ? fsItem(x.i) : x.att ? attItem(x.att) : null; }},
     {cols: [{t: "t", get: x => x.path}, {t: "t", get: x => String(x.snip || "").replace(/<[^>]+>/g, "")}, {t: "n", get: x => x.i != null ? F[x.i][C.size] : null}, {t: "d", get: x => x.i != null ? F[x.i][C.mtime] : null}], onChange: () => srcShow()});
   $("srcGo").onclick = runSearch; $("srcQ").onkeydown = e => { if (e.key === "Enter") runSearch(); };
+  $("srcQ").addEventListener("input", () => { if ($("srcMode").value !== "fast") return; clearTimeout(fqpT); fqpT = setTimeout(() => fastSearchP(false), 300); });
+  if (!((FD.ext || {}).art || []).length && !window.PCHAT) $("srcMode").value = "name";   // senza artefatti né chat: nome
+  $("srcMode").addEventListener("change", srcModeUi); srcModeUi();
   $("srcMode").onchange = () => { $("srcQ").placeholder = {name: T("parte del nome o del percorso"), text: T("parole nel testo dei documenti e nel contenuto dei file"), meta: T("dispositivo, autore, data…"), hash: T("uno o più hash MD5, SHA-1 o SHA-256")}[$("srcMode").value]; };
 }
+/* (2.20) ricerca veloce nei risultati del caso inclusi nel report (artefatti, anche iLEAPP/ALEAPP, chiamate, chat e
+   conversazioni), come nel programma: gruppi chiusi, numeri di telefono in qualunque formato (ultime 9 cifre) */
+let FQP = null, fqpT = null;
+const FQ_TEL = /\+?\d[\d\s().\-\/]{4,}\d/g;
+const fqTel = s => (String(s || "").match(FQ_TEL) || []).map(x => x.replace(/\D/g, "")).filter(x => x.length >= 6).join(" ");
+async function fastIdxP(){
+  // solo le cifre dei numeri di telefono (poche e corte) restano in memoria: il testo si confronta sul posto, senza copie
+  // (un portatile di un telefono può avere centinaia di MB di artefatti già in memoria)
+  if (FQP) return FQP;
+  $("srcInfo").textContent = T("Preparo la ricerca nei risultati del caso (una volta sola)…");
+  await new Promise(r => setTimeout(r, 30));
+  if (!FD.chat) try{ await loadScript("dati/chat.js"); }catch(e){}
+  const N = new Map(), art = (FD.ext && FD.ext.art) || [], add = (k, x) => { const t = fqTel(x); if (t) N.set(k, t); };
+  art.forEach((r, i) => { if (/\d{3}/.test(r[2] || "") || /\d{3}/.test(r[3] || "")) add("art:" + i, (r[2] || "") + " " + (r[3] || "") + " " + (r[4] || "")); });
+  if (FD.chat){
+    FD.chat.threads.forEach((t, i) => add("thr:" + i, [t[2], t[3], t[10]].filter(Boolean).join(" ")));
+    FD.chat.msgs.forEach((m, i) => add("msg:" + i, [m[5], m[3], m[4]].filter(Boolean).join(" ")));
+  }
+  return (FQP = {N});
+}
+let FQL = {key: null, hits: [], done: false};      // righe di iLEAPP/ALEAPP trovate per l'ultima ricerca completa
+const fqKey = () => { const raw = $("srcQ").value.trim(), d = raw.replace(/\D/g, ""), num = /^[+\d\s().\-\/]+$/.test(raw) && d.length >= 6;
+  return {raw, num, q: num ? d.slice(-9) : raw.toLowerCase(), key: (num ? "n:" + d.slice(-9) : "t:" + raw.toLowerCase())}; };
+function fqMatch(K){
+  const re = K.num ? null : new RegExp(K.raw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+  return K.num ? (...xs) => xs.some(x => x && /\d{3}/.test(x) && fqTel(x).indexOf(K.q) >= 0) : (...xs) => xs.some(x => x && re.test(x));
+}
+/* full = true (Invio o «Cerca»): scorre anche le righe di iLEAPP/ALEAPP, un file alla volta, senza tenerle in memoria */
+async function fastSearchP(full){
+  const K = fqKey(), O = $("srcFast"), X = FD.ext || {};
+  if (!K.num && K.raw.length < 3){ O.innerHTML = ""; $("srcInfo").textContent = T("Scrivi almeno 3 caratteri (o almeno 6 cifre per un numero di telefono)."); return; }
+  const I = await fastIdxP(), t0 = performance.now(), hits = [], MAXH = 50000, m = fqMatch(K);
+  if (K.num){ for (const [k] of I.N) if (I.N.get(k).indexOf(K.q) >= 0){ const [f, i] = k.split(":"); hits.push([f, +i]); if (hits.length >= MAXH) break; } }
+  else {
+    (X.art || []).forEach((r, i) => { if (hits.length < MAXH && m(r[2], r[3], r[4], r[5])) hits.push(["art", i]); });
+    if (FD.chat){
+      FD.chat.threads.forEach((x, i) => { if (m(x[2], x[3], x[10])) hits.push(["thr", i]); });
+      FD.chat.msgs.forEach((x, i) => { if (hits.length < MAXH && m(x[5], x[3], x[4])) hits.push(["msg", i]); });
+    }
+  }
+  const quick = Math.round(performance.now() - t0);
+  if (full && X.leapp_idx && !(FQL.key === K.key && FQL.done) && !SRC.busy){
+    FQL = {key: K.key, hits: [], done: false};
+    const files = X.leapp_idx.flatMap(x => x[3]), keep = new Set(Object.keys(FD.lp));
+    SRC.busy = true; SRC.stop = false; $("srcStop").classList.remove("hidden"); $("srcGo").disabled = true; $("srcProg").classList.remove("hidden");
+    try{
+      for (let n = 0; n < files.length && !SRC.stop; n++){
+        const fl = files[n];
+        $("srcProg").firstElementChild.style.width = (100 * n / files.length) + "%";
+        $("srcInfo").textContent = TF("Cerco nelle righe di iLEAPP/ALEAPP… file {0} di {1} · {2} trovati", n + 1, files.length, nf(hits.length + FQL.hits.length));
+        if (!FD.lp[fl]) await loadScript("dati/" + fl);
+        for (const r of FD.lp[fl] || []) if (FQL.hits.length < MAXH && m(r[2], r[3], r[4], r[5])) FQL.hits.push(["lrow", 0, r]);
+        if (!keep.has(fl)) delete FD.lp[fl];             // non si tiene in memoria: restano solo le righe trovate
+        if (n % 10 === 9) fastRenderP(hits.concat(FQL.hits), K);
+        if (FQL.key !== fqKey().key) break;
+      }
+      FQL.done = !SRC.stop && FQL.key === fqKey().key;
+    }finally{ SRC.busy = false; $("srcStop").classList.add("hidden"); $("srcGo").disabled = false; $("srcProg").classList.add("hidden"); }
+  }
+  const lh = FQL.key === K.key ? FQL.hits : [], all = hits.concat(lh);
+  fastRenderP(all, K);
+  $("srcInfo").textContent = TF("{0} risultati in {1} ms", nf(all.length), nf(full ? Math.round(performance.now() - t0) : quick)) + (K.num ? " · " + TF("numero (ultime 9 cifre: {0}, in qualunque formato)", K.q) : "") +
+    (all.length >= MAXH ? " · " + TF("mostrati i primi {0}", nf(MAXH)) : "") +
+    (X.leapp_n && !(FQL.key === K.key && FQL.done) ? " · " + TF("Invio o «Cerca»: cerca anche nelle {0} righe di iLEAPP/ALEAPP (caricate a blocchi)", nf(X.leapp_n)) : "");
+}
+function fastRenderP(hits, K){
+  const O = $("srcFast"), num = K.num, q = K.q;
+  const app = a => (window.APP && APP[a]) || APP_LBL[a] || a, cats = (FD.ext || {}).art_cats || {}, G = new Map();
+  const g = (k, t) => { if (!G.has(k)) G.set(k, {t, rows: []}); return G.get(k).rows; };
+  const openArt = r => () => { if (!EXV.art.open){ inited.art = true; initArt(); } EXV.art.open(r); };
+  for (const [f, i, row] of hits){
+    if (f === "art" || f === "lrow"){ const r = f === "art" ? FD.ext.art[i] : row;
+      const k = r[0] === "leapp" ? `leapp|${r[8]}|${r[9]}` : r[0], t = r[0] === "leapp" ? `${cats.leapp || "iLEAPP/ALEAPP"} › ${r[8] || ""} › ${r[9] || ""}` : (cats[r[0]] || r[0]);
+      g(k, t).push({ts: r[1], tit: r[2], ex: r[3], open: openArt(r)}); }
+    else if (f === "msg"){ const mm = FD.chat.msgs[i], th = (FQP.TH || (FQP.TH = new Map(FD.chat.threads.map(t => [t[0], t])))).get(mm[0]) || [];
+      g("chat|" + th[1], T("Chat") + " › " + app(th[1])).push({ts: mm[1], tit: (th[2] || "") + " · " + (mm[2] === "out" ? T("inviato") : (mm[4] || mm[3] || T("ricevuto"))), ex: mm[5] || "", open: () => PCHAT.openMsg(mm[13])}); }
+    else if (f === "thr"){ const t = FD.chat.threads[i];
+      g("thr", T("Conversazioni")).push({ts: t[7], tit: app(t[1]) + " · " + (t[2] || ""), ex: TF("{0} messaggi", nf(t[5] || 0)), open: () => PCHAT.open(t[0])}); }
+  }
+  const ord = ["thr", "chat", "chiamate", "messaggi", "leapp"], groups = [...G.entries()].sort((a, b) => {
+    const ia = ord.findIndex(o => a[0].startsWith(o)), ib = ord.findIndex(o => b[0].startsWith(o));
+    return ((ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib)) || a[1].t.localeCompare(b[1].t); });
+  const mk = s => { s = String(s || ""); if (num) return esc(s.slice(0, 220)); const lo = s.toLowerCase(), j = lo.indexOf(q);
+    if (j < 0) return esc(s.slice(0, 220)); const a = Math.max(0, j - 70); return (a ? "…" : "") + esc(s.slice(a, j)) + "<mark>" + esc(s.slice(j, j + q.length)) + "</mark>" + esc(s.slice(j + q.length, j + q.length + 120)); };
+  const aperti = new Set([...O.querySelectorAll("details.fqg[open]")].map(d => d.dataset.k));
+  O.innerHTML = groups.map(([k, G2]) => `<details class="fqg" data-k="${esc(k)}"><summary><b>${esc(G2.t)}</b> <span class="hint">${nf(G2.rows.length)}</span></summary></details>`).join("") || `<div class="hint" style="padding:8px 14px">${T("Nessun risultato.")}</div>`;
+  const byK = new Map(groups);
+  O.querySelectorAll("details.fqg").forEach(det => {
+    det.ontoggle = () => {
+      if (!det.open || det.dataset.done) return; det.dataset.done = 1;
+      const rows = byK.get(det.dataset.k).rows.sort((a, b) => String(b.ts || "").localeCompare(String(a.ts || "")));
+      det.insertAdjacentHTML("beforeend", rows.slice(0, 500).map((x, i) => `<div class="fqr" data-i="${i}"><span class="fqt">${x.ts ? fts(x.ts) : ""}</span><span class="fqm"><b>${mk(x.tit)}</b><span class="fqe">${mk(x.ex)}</span></span></div>`).join("") +
+        (rows.length > 500 ? `<div class="hint" style="padding:4px">${esc(TF("mostrati i primi {0}", nf(500)))}</div>` : ""));
+      det.querySelectorAll(".fqr").forEach(el => el.onclick = () => rows[+el.dataset.i].open());
+    };
+    if (aperti.has(det.dataset.k)) det.open = true;
+  });
+}
+function srcModeUi(){
+  const fast = $("srcMode").value === "fast";
+  $("srcFast").classList.toggle("hidden", !fast); $("srcList").classList.toggle("hidden", fast);
+  ["srcCase", "srcDel", "srcExt"].forEach(id => { const el = $(id); (el.closest("label") || el).classList.toggle("hidden", fast); });
+}
 async function runSearch(){
+  if ($("srcMode").value === "fast") return fastSearchP(true);
   const mode = $("srcMode").value, raw = $("srcQ").value.trim(), cs = $("srcCase").checked, del = $("srcDel").checked;
   const exts = $("srcExt").value.split(/[,\s]+/).map(s => s.replace(/^\./, "").toLowerCase()).filter(Boolean);
   if (!raw) return toast(T("Scrivi cosa cercare"));
@@ -959,39 +1294,106 @@ function initTimeline(){
   $("tlQ").oninput = filterTl; $("tlOrig").onchange = filterTl;
   if (ms.length) pickMonth(ms.reduce((a, b) => b[1] > a[1] ? b : a)[0]);
 }
+/* (2.20) eventi per giorno (dati/eventi/AAAA-MM/AAAA-MM-GG_N.js): la tabella compare appena arriva il primo giorno; nei mesi
+   con più di TL_MESE_MAX eventi si apre il giorno più ricco e il mese intero si carica solo a richiesta */
+const TL_MESE_MAX = 150000;
+const dayParts = d => ((FD.case.ev_parts || {})[d]) || 0;
+const dayLoaded = d => { const o = FD.evd[d]; return !!o && Object.keys(o).length >= dayParts(d); };
+const dayRows = d => { const o = FD.evd[d] || {}; return Object.keys(o).sort((a, b) => a - b).flatMap(k => o[k]); };
+async function loadDay(d){
+  for (let p = 1; p <= dayParts(d); p++) if (!(FD.evd[d] && FD.evd[d][p])) await loadScript(`dati/eventi/${d.slice(0, 7)}/${d}_${p}.js`);
+}
+const monthDays = m => Object.entries(FD.case.days).filter(([d]) => d.startsWith(m)).sort();
+// giorno con più parti: la tabella compare con la prima parte, le altre arrivano mentre la si usa
+async function loadDayProg(d, seq){
+  const n = dayParts(d);
+  let last = 0;
+  TL.loading = true;
+  try{
+    for (let p = 1; p <= n; p++){
+      if (!(FD.evd[d] && FD.evd[d][p])) await loadScript(`dati/eventi/${d.slice(0, 7)}/${d}_${p}.js`);
+      if (seq !== TL.seq) return;
+      TL.prog = n > 1 && p < n ? TF("carico gli eventi del giorno: parte {0} di {1}…", p, n) : "";
+      if (p === 1 || performance.now() - last > 800){ last = performance.now(); filterTl(); }
+    }
+  }finally{ if (seq === TL.seq){ TL.loading = false; TL.prog = ""; } }
+  if (seq === TL.seq) filterTl();
+}
+async function loadMonth(m, seq){
+  const days = monthDays(m), tot = days.reduce((a, [, n]) => a + n[0] + n[1], 0);
+  let done = 0, last = 0;
+  TL.loading = true;
+  try{
+    for (const [d, n] of days){
+      if (!dayLoaded(d)) await loadDay(d);
+      if (seq !== TL.seq) return;
+      done += n[0] + n[1];
+      TL.prog = TF("carico gli eventi del mese: {0} di {1}…", nf(done), nf(tot));
+      if (!last || performance.now() - last > 800){ last = performance.now(); filterTl(); }
+    }
+    FD.ev[m] = days.flatMap(([d]) => dayRows(d));
+  }finally{ if (seq === TL.seq){ TL.loading = false; TL.prog = ""; } }
+  if (seq === TL.seq) filterTl();
+}
 async function pickMonth(m){
-  TL.month = m; TL.day = null;
+  TL.month = m; TL.day = null; TL.big = false; const seq = TL.seq = (TL.seq || 0) + 1;
   document.querySelectorAll(".mb").forEach(b => b.classList.toggle("on", b.dataset.m === m));
-  if (!FD.ev[m]){ $("tlInfo").textContent = T("Carico gli eventi di ") + m + "…"; try{ await loadScript(`dati/eventi/${m}.js`); }catch(e){ return toast(e.message); } }
-  const days = Object.entries(FD.case.days).filter(([d]) => d.startsWith(m)).sort(), mx = Math.max(1, ...days.map(d => d[1][0] + d[1][1]));
+  const days = monthDays(m), mx = Math.max(1, ...days.map(d => d[1][0] + d[1][1]));
   $("days").classList.remove("hidden");
   $("days").innerHTML = days.map(([d, n]) => `<div class="db" data-d="${d}" title="${d}: ${TF("{0} eventi", nf(n[0] + n[1]))}"><i style="height:${Math.max(1, 50 * (n[0] + n[1]) / mx)}px"></i><b>${+d.slice(8)}</b></div>`).join("");
-  $("days").onclick = e => { const b = e.target.closest(".db"); if (!b) return; TL.day = TL.day === b.dataset.d ? null : b.dataset.d; document.querySelectorAll(".db").forEach(x => x.classList.toggle("on", x.dataset.d === TL.day)); filterTl(); };
-  filterTl();
+  $("days").onclick = async e => { const b = e.target.closest(".db"); if (!b) return;
+    TL.day = TL.day === b.dataset.d ? null : b.dataset.d; document.querySelectorAll(".db").forEach(x => x.classList.toggle("on", x.dataset.d === TL.day));
+    if (TL.day && FD.case.ev_parts && !dayLoaded(TL.day)){ $("tlInfo").textContent = T("Carico gli eventi di ") + TL.day + "…"; TL.seq++; return loadDayProg(TL.day, TL.seq); }
+    if (!TL.day && TL.big && !FD.ev[TL.month]){ TL.seq++; return loadMonth(TL.month, TL.seq); }
+    filterTl(); };
+  if (!FD.case.ev_parts){          // report delle versioni precedenti: un file per mese
+    if (!FD.ev[m]){ $("tlInfo").textContent = T("Carico gli eventi di ") + m + "…"; try{ await loadScript(`dati/eventi/${m}.js`); }catch(e){ return toast(e.message); } }
+    return filterTl();
+  }
+  if (FD.ev[m]) return filterTl();
+  const tot = FD.case.months[m] || 0;
+  if (tot > TL_MESE_MAX){
+    const big = days.reduce((a, b) => (b[1][0] + b[1][1]) > (a[1][0] + a[1][1]) ? b : a)[0];
+    TL.day = big; TL.big = true;
+    document.querySelectorAll(".db").forEach(x => x.classList.toggle("on", x.dataset.d === big));
+    $("tlInfo").textContent = T("Carico gli eventi di ") + big + "…";
+    try{ await loadDayProg(big, seq); }catch(e){ toast(e.message); }
+    return;
+  }
+  $("tlInfo").textContent = T("Carico gli eventi di ") + m + "…";
+  try{ await loadMonth(m, seq); }catch(e){ toast(e.message); }
 }
 function filterTl(){
   const q = $("tlQ").value.trim().toLowerCase(), o = $("tlOrig").value;
-  let rows = FD.ev[TL.month] || [];
-  if (TL.day) rows = rows.filter(e => e[0].startsWith(TL.day));
+  let rows = TL.day ? (FD.ev[TL.month] ? FD.ev[TL.month].filter(e => e[0].startsWith(TL.day)) : dayRows(TL.day))
+    : (FD.ev[TL.month] || (FD.case.ev_parts ? monthDays(TL.month).filter(([d]) => dayLoaded(d)).flatMap(([d]) => dayRows(d)) : []));
   if (o) rows = rows.filter(e => e[2] === o);
   if (q) rows = rows.filter(e => ((e[4] || "") + " " + (e[5] || "") + " " + (e[3] || "")).toLowerCase().includes(q));
   rows = TL.list.filterRows(rows);
   TL.rows = rows; TL.list.sel = -1; TL.list.set(rows.length);
-  $("tlInfo").textContent = TF("{0}: {1} eventi", TL.day || TL.month, nf(rows.length)) + (TL.day ? T(" · clic sullo stesso giorno per tornare al mese") : T(" · clic su un giorno per restringere"));
+  $("tlInfo").innerHTML = esc(TF("{0}: {1} eventi", TL.day || TL.month, nf(rows.length)) + (TL.prog ? " · " + TL.prog : TL.day ? (TL.big && !FD.ev[TL.month]
+      ? TF(" · mese con {0} eventi: si è aperto il giorno più ricco; clic su un altro giorno", nf(FD.case.months[TL.month] || 0)) : T(" · clic sullo stesso giorno per tornare al mese")) : T(" · clic su un giorno per restringere")))
+    + (TL.big && !FD.ev[TL.month] && !TL.loading ? ` <button class="btn small" id="tlAll">${esc(T("Carica tutto il mese"))}</button>` : "");
+  if ($("tlAll")) $("tlAll").onclick = () => { TL.day = null; document.querySelectorAll(".db").forEach(x => x.classList.remove("on")); TL.seq++; loadMonth(TL.month, TL.seq); };
 }
 
 /* ---------- metadati ---------- */
 let MT = {rows: [], list: null};
 function initMeta(){
   MT.list = VList($("metaList"), [[T("File"), "minmax(180px,1fr)"], [T("Dispositivo"), "160px", "", 520], [T("Data (dai metadati)"), "220px", "", 680], ["GPS", "180px", "", 860], [T("Autore"), "130px", "", 1000]],
-    i => { const m = MT.rows[i]; return [`<span class="${m[3] ? "del" : ""}">${esc(m[4])}</span>`, `<span>${esc([m[5], m[6]].filter(Boolean).join(" "))}</span>`, `<span>${fmtTaken(m[7])}</span>`, `<span class="mono">${m[8] != null ? m[8].toFixed(6) + ", " + m[9].toFixed(6) : ""}</span>`, `<span>${esc(m[10] || "")}</span>`]; },
+    i => { const m = MT.rows[i]; return [`<span class="${m[3] ? "del" : ""}">${esc(m[4])}</span>` + (m[11] ? ` <a href="#" class="hint" data-mchat="${m[12]}" title="${esc(T("Apri nella chat"))}">💬 ${esc(m[11])}</a>` : ""), `<span>${esc([m[5], m[6]].filter(Boolean).join(" "))}</span>`, `<span>${fmtTaken(m[7])}</span>`, `<span class="mono">${m[8] != null ? m[8].toFixed(6) + ", " + m[9].toFixed(6) : ""}</span>`, `<span>${esc(m[10] || "")}</span>`]; },
     i => { const m = MT.rows[i]; const fi = KEY.get(keyOf(m[1], m[2])); if (fi != null) openFile(fi); else { const a = ATT_BY_KEY.get("c:" + m[2]); if (a) openAtt(a); } },
     {view: "meta", itemOf: i => { const m = MT.rows[i]; const fi = KEY.get(keyOf(m[1], m[2])); return fi != null ? fsItem(fi) : ATT_BY_KEY.get("c:" + m[2]) ? attItem(ATT_BY_KEY.get("c:" + m[2])) : null; }},
     {cols: [{t: "t", get: m => m[4]}, {t: "t", get: m => [m[5], m[6]].filter(Boolean).join(" ")}, {t: "d", get: m => m[7]}, null, {t: "t", get: m => m[10]}], onChange: () => f()});
-  const f = () => { const q = $("metaQ").value.trim().toLowerCase(), gps = $("metaGps").checked;
-    MT.rows = MT.list.filterRows(FD.meta.filter(m => (!gps || m[8] != null) && (!q || [m[4], m[5], m[6], m[7], m[10]].join(" ").toLowerCase().includes(q))));
+  // (2.20) solo video (per estensione); telefoni: origine = app delle chat in cui il file è allegato (m[11])
+  const VID = /\.(mp4|m4v|mov|webm|3gp|avi|mkv|wmv|mpg|mpeg|flv|mts|m2ts)$/i, FOTO = /\.(jpe?g|jpe|jfif|png|gif|webp|bmp|ico|avif|heic|heif|tiff?|dng|cr2|cr3|nef|arw|orf|raf|psd|tga)$/i;
+  const apps = [...new Set(FD.meta.flatMap(m => m[11] ? m[11].split(", ") : []))].sort();
+  if (apps.length){ $("metaOrig").innerHTML = [["", T("Origine: tutte")], ["*", T("Allegati delle chat")], ...apps.map(a => [a, a])].map(([v, l]) => `<option value="${esc(v)}">${esc(l)}</option>`).join(""); $("metaOrig").classList.remove("hidden"); }
+  const f = () => { const q = $("metaQ").value.trim().toLowerCase(), gps = $("metaGps").checked, vid = $("metaVid").checked, foto = $("metaFoto").checked, og = $("metaOrig").value;
+    MT.rows = MT.list.filterRows(FD.meta.filter(m => (!gps || m[8] != null) && (!vid || VID.test(m[4] || "")) && (!foto || FOTO.test(m[4] || "")) && (!og || (m[11] && (og === "*" || m[11].split(", ").includes(og)))) && (!q || [m[4], m[5], m[6], m[7], m[10]].join(" ").toLowerCase().includes(q))));
     MT.list.set(MT.rows.length); $("metaInfo").textContent = nf(MT.rows.length) + " file"; };
-  $("metaQ").oninput = f; $("metaGps").onchange = f; f();
+  $("metaQ").oninput = f; $("metaGps").onchange = f; $("metaVid").onchange = f; $("metaFoto").onchange = f; $("metaOrig").onchange = f; f();
+  $("metaList").addEventListener("click", e => { const a = e.target.closest("[data-mchat]"); if (!a) return; e.preventDefault(); e.stopPropagation(); if (window.PCHAT) window.PCHAT.openMsg(+a.dataset.mchat); }, true);
 }
 
 /* ---------- file inclusi ---------- */
@@ -1040,16 +1442,139 @@ function initTraces(){
 
 /* ---------- analisi estese: artefatti, posta, archivi e allegati, anomalie ---------- */
 const EXV = {art: {}, mail: {}, x: {}, anom: {}};
+/* artefatti degli smartphone (2.20): r[8] gruppo (categoria di iLEAPP/ALEAPP o app), r[9] voce (artefatto), r[10] dati della
+   conversazione; per iLEAPP/ALEAPP i Dettagli sono i campi in JSON, mostrati come «campo: valore» con le date nel fuso scelto */
+const APP_LBL = {whatsapp: "WhatsApp", imessage: "iMessage/SMS", sms: "SMS/MMS"};
+function artFields(r){
+  if (r[0] !== "leapp" || !r[3] || r[3][0] !== "{") return null;
+  try{ return JSON.parse(r[3]); }catch(e){ return null; }
+}
+// a capo solo tra le parole; i token lunghi senza spazi (URL, hash, identificativi) si possono spezzare ovunque
+const wrapLong = v => String(v).split(/(\s+)/).map(w => w.length > 24 ? `<span class="lt">${esc(w)}</span>` : esc(w)).join("");
+function artKv(r, max){
+  const o = artFields(r); if (!o) return null;
+  const dates = new Set(((FD.ext.leapp_date || {})[r[9]]) || []), ent = Object.entries(o);
+  const val = (k, v) => dates.has(k) ? esc(fts(v)) : wrapLong(v);
+  if (max) return `<span class="kvl">${ent.slice(0, max).map(([k, v]) => `<span class="k">${esc(k)}</span>${val(k, String(v).slice(0, 200))}`).join(`<span class="s">·</span>`)}</span>`;
+  return `<div class="kvb">${ent.map(([k, v]) => `<div><span class="k">${esc(k)}</span><span class="v">${val(k, String(v))}</span></div>`).join("")}</div>`;
+}
+function artChat(r){
+  const d = r[10]; if (!d || !d.chat_thread) return null;
+  const loc = (d.locale || {}).id, al = d.altro || {}, g = d.gruppo, lm = d.ultimo_msg;
+  const who = `📱 ${T("questo dispositivo")}${loc ? " " + esc(loc) : ""} ↔ ` + (g ? `👥 <b>${esc(g.nome || "")}</b> <span class="hint">${TF("{0} partecipanti", nf(g.n))}</span>`
+    : `👤 <b>${esc(al.nome || al.id || T("(sconosciuto)"))}</b>${al.nome && al.id ? " " + esc(al.id) : ""}${al.breve ? ` <span class="hint">· ${T("numero breve/servizio")}</span>` : ""}`);
+  const det = `${esc(fts(d.primo))} → ${esc(fts(d.ultimo))}<br>${TF("inviati {0} · ricevuti {1}", nf(d.inviati), nf(d.ricevuti))}${d.eventi ? " · " + TF("eventi {0}", nf(d.eventi)) : ""} · ${TF("allegati {0}", nf(d.allegati))}` +
+    (lm ? `<br><span class="hint">${lm.dir === "out" ? T("Ultimo (inviato):") : lm.dir === "sys" ? T("Ultimo (evento):") : T("Ultimo (ricevuto):")} ${esc((lm.testo || "[" + (lm.kind || "") + "]").slice(0, 160))}</span>` : "");
+  return {who: who + `<br><span class="hint">${esc(APP_LBL[d.app] || d.app)} · ${d.n === 1 ? T("1 messaggio") : TF("{0} messaggi", nf(d.n))}</span>`, det};
+}
+/* (2.20) file citati da un artefatto, uno per file diverso: r[11] = [[campi, esito, stato, offset, inode, percorso, miniatura,
+   tipo, livello, metodo per campo, candidati, n. candidati, copie, cartelle, verifica, ruolo, nota, n. copie]…] */
+const CLV = {certo: ["✅", "trovato con certezza"], probabile: ["⚠️", "probabile, da verificare"], assente: ["❌", ""]};
+const cPhone = () => !!(FD.ext && FD.ext.art_sub);
+const cAbsent = c => c[15] === "cartella" ? (cPhone() ? T("cartella non presente nell'estrazione") : T("cartella non presente nella copia")) : (cPhone() ? T("non presente nell'estrazione") : T("non presente nella copia"));function citedThumbP(r){
+  const cl = r[11] || [], c = cl.find(x => x[6]), tip = cl.map(x => x[1]).join("\n");
+  if (c) return `<img class="cthumb ${esc(c[8] || "")}" loading="lazy" alt="" src="${esc(c[6])}" title="${esc(tip)}">`;
+  return cl.length ? `<span class="cfile ${cl.some(x => (x[8] || x[2]) !== "assente") ? "ok" : "no"}" title="${esc(tip)}">📎</span>` : "";
+}
+function citedHelpP(){
+  return `<div class="chelptxt hidden"><p>✅ <b>${T("Trovato con certezza")}</b>: ${T("il file è indicato con il percorso completo, con l'hash, o con il collegamento registrato da iLEAPP/ALEAPP. Se l'hash della riga coincide c'è anche «hash verificato».")}</p>
+    <p>⚠️ <b>${T("Probabile, da verificare")}</b>: ${T("la riga indica solo il nome (o il nome e la dimensione): il file mostrato può essere un altro con lo stesso nome. Controllare i candidati.")}</p>
+    <p>❌ <b>${T("Non presente")}</b>: ${cPhone() ? T("nessun file corrispondente nell'estrazione (cancellato, non acquisito o mai salvato sul telefono).") : T("nessun file corrispondente nella copia (cancellato, sovrascritto o su un altro supporto).")}</p>
+    <p>${T("Se più campi della riga indicano lo stesso file vale il metodo più forte.")}</p></div>`;
+}
+function citedBlockP(cl){
+  if (!cl || !cl.length) return "";
+  return `<div class="citedP">` + cl.map(c => {
+    const lv = c[8] || (c[2] === "trovato" ? "certo" : "assente"), [ic, lab] = CLV[lv] || CLV.assente, multi = lv === "probabile" && c[11] > 1;
+    if (c[15] === "cartella") return `<div class="citeddir">📁 ${TF("Cartella citata (campo «{0}»):", esc(c[0] || ""))} <span class="cpath">${esc(c[5] || "")}</span>${c[2] === "trovato" ? "" : ` · <b class="cbad">${cAbsent(c)}</b>`}</div>`;
+    const es = `${ic} ${lv === "assente" ? cAbsent(c) : T(lab)}` + (c[14] === "uguale" ? ` · ${T("hash verificato")}` : c[14] === "diverso" ? ` · ${T("hash DIVERSO da quello registrato nella riga")}` : "");
+    const cands = multi ? `<div class="hint">${TF("{0} file con questo nome: la riga non dice quale. Candidati:", nf(c[11]))}</div><ul class="ccands">` +
+      (c[10] || []).map(x => `<li><span class="cpath">${esc(x[0])}</span> <span class="hint">${x[1] != null ? nf(x[1]) + " B" : ""}</span>${KEY.get(keyOf(x[2], x[3])) != null ? ` <a href="#" data-pk="${esc(keyOf(x[2], x[3]))}">${T("Apri")}</a>` : ""}</li>`).join("") + `</ul>` +
+      (c[11] > (c[10] || []).length ? `<div class="hint">${TF("… e altri {0}", nf(c[11] - (c[10] || []).length))}</div>` : "") : "";
+    const dirs = (c[13] || []).map(d => `📁 ${T("cartella")} <span class="hint">${esc(d[0] || "")}${d[1] === "trovato" ? "" : " · " + (cPhone() ? T("cartella non presente nell'estrazione") : T("cartella non presente nella copia"))}</span>`).join("<br>");
+    const cp = c[12] || [], ncp = c[17] || cp.length;
+    const tech = `<details class="ctech"><summary>${T("Dettagli tecnici")}</summary><div class="hint">${T("Metodo")}: ${esc(c[9] || "")}</div>` + (c[16] ? `<div class="hint">${esc(c[16])}</div>` : "") +
+      (ncp ? `<p class="hint">${ncp === 1 ? T("Un'altra copia con lo stesso percorso finale.") : TF("Altre {0} copie con lo stesso percorso finale.", nf(ncp))} ${cPhone() ? T("La riga indica la parte finale del percorso; nell'estrazione la stessa parte finale c'è anche in queste posizioni (copie di sistema, backup, miniature). Il file mostrato sopra è quello col percorso più vicino a quello indicato; confrontare gli SHA-256 per sapere se il contenuto è uguale.") : T("La riga indica la parte finale del percorso; nella copia la stessa parte finale c'è anche in queste posizioni (installazioni precedenti, copie shadow, backup). Il file mostrato sopra è quello col percorso più vicino a quello indicato; confrontare gli SHA-256 per sapere se il contenuto è uguale.")}</p>` +
+        `<table class="dt"><tr><th>${T("Percorso")}</th><th>${T("Dimensione")}</th><th>SHA-256</th></tr>${cp.map(x => `<tr><td class="cpath">${esc(x[0])}</td><td>${x[1] != null ? nf(x[1]) + " B" : ""}</td><td class="cpath">${esc(x[2] || T("non calcolato"))}</td></tr>`).join("")}</table>` : "") + `</details>`;
+    return `<div class="cited ${esc(lv)}"><b>📎 ${T("File citato")}</b>
+    <div class="cpath">${esc(multi ? (c[5] || "").split("/").pop() : c[5] || "")}</div>
+    <div class="cesito ${esc(lv)}"><span>${esc(es)}</span><button class="chelp" data-ch="1" title="${T("Cosa vuol dire?")}">?</button></div>${citedHelpP()}
+    <div class="hint">${TF("indicato nei campi: {0}", esc(c[0] || ""))}</div>${dirs ? `<div class="hint">${dirs}</div>` : ""}${cands}
+    ${c[6] && !multi ? `<img class="cbig" alt="" src="${esc(c[6])}">` : ""}
+    ${c[2] === "trovato" && !multi && KEY.get(keyOf(c[3], c[4])) == null ? `<div class="hint">${T("Il contenuto del file non è incluso nel report portatile.")}</div>` : ""}${tech}</div>`;
+  }).join("") + `</div>`;
+}
+document.addEventListener("click", ev => {          // «?» dei file citati e «Apri» dei candidati (dentro la finestra della riga)
+  const h = ev.target.closest && ev.target.closest(".citedP [data-ch]");
+  if (h){ ev.preventDefault(); h.parentElement.nextElementSibling.classList.toggle("hidden"); return; }
+  const k = ev.target.closest && ev.target.closest(".citedP [data-pk]");
+  if (k){ ev.preventDefault(); const i = KEY.get(k.dataset.pk); if (i != null) openFile(i); }
+});
+/* (2.20) righe di iLEAPP/ALEAPP in file per artefatto (dati/leapp/…), caricate a richiesta e liberate quando non servono */
+const leappFiles = gs => ((FD.ext || {}).leapp_idx || []).filter(x => x[0] === gs[0] && (gs.length < 2 || x[1] === gs[1])).flatMap(x => x[3]);
+async function leappLoad(files){ for (const fl of files) if (!FD.lp[fl]) await loadScript("dati/" + fl); }
+function leappKeep(files){ const k = new Set(files); for (const fl of Object.keys(FD.lp)) if (!k.has(fl)) delete FD.lp[fl]; }
 function initArt(){
   const X = FD.ext, cats = X.art_cats || {};
-  $("artCat").innerHTML += [...new Set(X.art.map(r => r[0]))].map(k => `<option value="${esc(k)}">${esc(cats[k] || k)}</option>`).join("");
+  $("artCat").innerHTML += [...new Set(X.art.map(r => r[0]).concat(X.leapp_n ? ["leapp"] : []))].map(k => `<option value="${esc(k)}">${esc(cats[k] || k)}</option>`).join("");
+  // sottovoci (solo smartphone): gruppo → voce con il numero di righe
+  const SUB = new Map();
+  if (X.art_sub) for (const r of X.art) if (r[8] != null){
+    const c = SUB.get(r[0]) || new Map(); SUB.set(r[0], c);
+    const g = c.get(r[8]) || {n: 0, s: new Map()}; c.set(r[8], g); g.n++;
+    if (r[9] != null) g.s.set(r[9], (g.s.get(r[9]) || 0) + 1);
+  }
+  for (const [gk, sk, n] of X.leapp_idx || []){         // iLEAPP/ALEAPP: conteggi dall'indice, righe a richiesta
+    const c = SUB.get("leapp") || new Map(); SUB.set("leapp", c);
+    const g = c.get(gk) || {n: 0, s: new Map()}; c.set(gk, g); g.n += n;
+    if (sk) g.s.set(sk, (g.s.get(sk) || 0) + n);
+  }
+  const subOpts = () => {
+    const c = SUB.get($("artCat").value), sel = $("artSub");
+    sel.classList.toggle("hidden", !c);
+    if (!c){ sel.innerHTML = ""; return; }
+    sel.innerHTML = `<option value="">${T("Tutte le voci")}</option>` + [...c.entries()].sort((a, b) => String(a[0]).localeCompare(String(b[0]))).map(([g, e]) =>
+      `<option value="${esc(JSON.stringify([g]))}">${esc(($("artCat").value === "messaggi" ? APP_LBL[g] || g : g) + " (" + nf(e.n) + ")")}</option>` +
+      [...e.s.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([s, n]) => `<option value="${esc(JSON.stringify([g, s]))}">${"\u00a0\u00a0\u00a0\u00a0" + esc(s + " (" + nf(n) + ")")}</option>`).join("")).join("");
+  };
   EXV.art.list = VList($("artList"), [[T("Data e ora (<span class=\"tzl\"></span>)"), "196px"], [T("Categoria"), "130px", "", 620], [T("Elemento"), "minmax(180px,1fr)"], [T("Dettagli"), "minmax(180px,1.4fr)", "", 760]],
-    i => { const r = EXV.art.rows[i]; return [`<span>${fts(r[1])}</span>`, `<span class="hint">${esc(cats[r[0]] || r[0])}</span>`, `<span><b>${esc(r[2])}</b>${r[4] ? ` <span class="hint">· ${esc(r[4])}</span>` : ""}</span>`, `<span class="hint">${esc(r[3])}</span>`]; },
-    i => { const r = EXV.art.rows[i]; modal(r[2], `<table class="dt">${[[T("Categoria"), cats[r[0]] || r[0]], [TF("Data ({0})", tzLbl()), fts(r[1])], [T("Dettagli"), r[3]], [T("Utente"), r[4]], [T("Fonte"), r[5] ? `${r[5]} (offset ${r[6]}, inode ${r[7]})` : ""]].filter(x => x[1]).map(([k, v]) => `<tr><th>${esc(k)}</th><td style="white-space:pre-wrap">${esc(v)}</td></tr>`).join("")}</table>`,
-      r[6] != null && KEY.get(keyOf(r[6], r[7])) != null ? [[T("Apri la fonte"), () => { openFile(KEY.get(keyOf(r[6], r[7]))); }]] : []); }, null,
+    i => { const r = EXV.art.rows[i], ch = artChat(r), kv = ch ? null : artKv(r, 8);
+      return [`<span>${fts(r[1])}</span>`, `<span class="hint">${esc(cats[r[0]] || r[0])}${r[8] != null ? "<br>" + esc(r[0] === "messaggi" ? APP_LBL[r[8]] || r[8] : r[8]) : ""}</span>`,
+        ch ? `<span>${ch.who}</span>` : `<span>${citedThumbP(r)}<b>${esc(r[2])}</b>${r[4] ? ` <span class="hint">· ${esc(r[4])}</span>` : ""}</span>`,
+        ch ? `<span>${ch.det}</span>` : kv ? `<span>${kv}</span>` : `<span class="hint">${esc(r[3])}</span>`]; },
+    i => EXV.art.open(EXV.art.rows[i]), null,
     {cols: [{t: "d", get: r => r[1]}, {t: "t", get: r => cats[r[0]] || r[0]}, {t: "t", get: r => r[2] + " " + (r[4] || "")}, {t: "t", get: r => r[3]}], onChange: () => f()});
-  const f = () => { const c = $("artCat").value, q = $("artQ").value.trim().toLowerCase(); EXV.art.rows = EXV.art.list.filterRows(X.art.filter(r => (!c || r[0] === c) && (!q || (r[2] + " " + r[3] + " " + r[4]).toLowerCase().includes(q)))); EXV.art.list.set(EXV.art.rows.length); $("artInfo").textContent = nf(EXV.art.rows.length) + " artefatti"; };
-  $("artCat").onchange = f; $("artQ").oninput = f; f();
+  EXV.art.open = r => { const ch = artChat(r), kv = artKv(r), d = r[10] || {};
+      const cl = r[11] || [], ci = cl.filter(c => c[2] === "trovato" && c[15] !== "cartella" && !(c[8] === "probabile" && c[11] > 1) && KEY.get(keyOf(c[3], c[4])) != null);
+      const acts = ci.map((c, k) => [ci.length > 1 ? TF("Apri il file citato {0}", k + 1) : T("Apri il file citato"), () => { openFile(KEY.get(keyOf(c[3], c[4]))); }])
+        .concat(r[6] != null && KEY.get(keyOf(r[6], r[7])) != null ? [[T("Apri la fonte"), () => { openFile(KEY.get(keyOf(r[6], r[7]))); }]] : [])
+        .concat(ch && window.PCHAT ? [[T("💬 Apri chat"), () => { PCHAT.open(d.chat_thread); }]] : []);
+      modal(r[2], `<table class="dt">${[[T("Categoria"), cats[r[0]] || r[0]], [T("Gruppo"), r[8] != null ? (r[0] === "messaggi" ? APP_LBL[r[8]] || r[8] : r[8]) : ""], [T("Artefatto"), r[9] || ""], [TF("Data ({0})", tzLbl()), fts(r[1])], [T("Dettagli"), kv || ch ? "" : r[3]], [T("Utente"), r[4]], [T("Fonte"), r[5] ? (X.art_sub && r[7] != null ? TF("{0} (percorso nell'estrazione)", r[5]) : `${r[5]}` + (r[7] != null ? ` (offset ${r[6]}, inode ${r[7]})` : "")) : ""]].filter(x => x[1]).map(([k, v]) => `<tr><th>${esc(k)}</th><td style="white-space:pre-wrap">${esc(v)}</td></tr>`).join("")}</table>` +
+        (ch ? `<p>${ch.who}</p><p>${ch.det}</p>` : "") + citedBlockP(cl) + (kv || ""), acts); };
+  EXV.art.getState = () => ({cat: $("artCat").value, sub: $("artSub").value, q: $("artQ").value});
+  EXV.art.setState = s => { $("artCat").value = s.cat || ""; subOpts(); $("artSub").value = s.sub || ""; $("artQ").value = s.q || ""; f(); };
+  let tq;
+  let fseq = 0;
+  const f = () => { const c = $("artCat").value, q = $("artQ").value.trim().toLowerCase(), sv = $("artSub").value, gs = sv ? JSON.parse(sv) : null;
+    let base = X.art, nota = "";
+    if (c === "leapp" && X.leapp_idx){
+      if (!gs){
+        EXV.art.rows = []; EXV.art.list.set(0);
+        $("artInfo").textContent = TF("Artefatti di iLEAPP/ALEAPP: {0} righe in {1} voci. Scegli una voce nel menu accanto: le sue righe si caricano quando servono.", nf(X.leapp_n), nf(X.leapp_idx.length));
+        return;
+      }
+      const files = leappFiles(gs), seq = ++fseq;
+      if (files.some(fl => !FD.lp[fl])){
+        $("artInfo").textContent = T("Carico le righe della voce…");
+        leappLoad(files).then(() => { if (seq === fseq){ leappKeep(files); f(); } }, e => toast(e.message));
+        return;
+      }
+      base = files.flatMap(fl => FD.lp[fl]);
+    } else if (!c && X.leapp_n) nota = " · " + TF("le {0} righe di iLEAPP/ALEAPP si vedono scegliendo quella categoria", nf(X.leapp_n));
+    EXV.art.rows = EXV.art.list.filterRows(base.filter(r => (!c || r[0] === c) && (!gs || (r[8] === gs[0] && (gs.length < 2 || r[9] === gs[1]))) && (!q || (r[2] + " " + r[3] + " " + r[4]).toLowerCase().includes(q))));
+    EXV.art.list.set(EXV.art.rows.length); $("artInfo").textContent = nf(EXV.art.rows.length) + " artefatti" + nota; };
+  $("artCat").onchange = () => { subOpts(); f(); PNAV.push(); }; $("artSub").onchange = () => { f(); PNAV.push(); };
+  $("artQ").oninput = () => { f(); clearTimeout(tq); tq = setTimeout(() => PNAV.replace(), 400); }; f();
 }
 function xOpen(r){
   if (r[10]) return window.open(r[10], "_blank");
@@ -1112,7 +1637,10 @@ $("pvClose").onclick = () => { $("pv").classList.add("hidden"); PV = null; };
 $("pvBm").onclick = () => { if (!PV) return; const it = PV.type === "fs" ? fsItem(PV.i) : PV.att ? attItem(PV.att) : PV.carved ? carvedItem(PV.carved) : null; if (it) bmDialog([it]); };
 $("pvTabs").onclick = e => { const b = e.target.closest("button"); if (b && PV) pvTab(b.dataset.t); };
 async function detail(a){
-  if (!FD.det[a.id]){ try{ await loadScript(`dati/a/${String(Math.floor(a.id / 1000)).padStart(4, "0")}/${String(a.id).padStart(6, "0")}.js`); }catch(e){ return null; } }
+  // (2.20) i file in blocco hanno i dettagli raggruppati a 100 per file dati (DET_GRP); reperti e selezioni uno per file
+  const src = a.full ? `dati/a/${String(Math.floor(a.id / 1000)).padStart(4, "0")}/${String(a.id).padStart(6, "0")}.js`
+    : `dati/a/g${String(Math.floor(a.id / 100)).padStart(5, "0")}.js`;
+  if (!FD.det[a.id]){ try{ await loadScript(src); }catch(e){ return null; } }
   return FD.det[a.id];
 }
 async function textOf(key){
@@ -1344,11 +1872,11 @@ document.addEventListener("click", e => {
   if (v === "exp") csvItems(EXP.rows.map(fsItem).filter(Boolean), `cartella_${EXP.dir || "radice"}`);
   else if (v === "src") csvDownload(`ricerca_${$("srcQ").value}`, ["percorso", "stato", "trovato", "byte"], SRC.rows.map(x => [x.path, x.del ? "cancellato" : "allocato", x.snip.replace(/<[^>]+>/g, "").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;/g, "'"), x.i != null ? F[x.i][C.size] : ""]));
   else if (v === "tl") csvDownload(`timeline_${TL.day || TL.month}`, ["data_ora_" + zsuf(), "evento", "origine", "fonte", "percorso", "messaggio", "partizione_offset", "inode"], TL.rows.map(e => [cvt(e[0]), KIND[e[1]] || e[1], e[2] === "tsk" ? T("file system") : e[2], e[3], e[4], e[5], e[6], e[7]]));
-  else if (v === "meta") csvDownload("metadati", ["percorso", "stato", "marca", "modello", "data_metadati", "fuso_della_data", "latitudine", "longitudine", "autore", "partizione_offset", "inode"], MT.rows.map(m => [m[4], m[3] ? "cancellato" : "allocato", m[5], m[6], m[7], takenTz(m[7]), m[8], m[9], m[10], m[1], m[2]]));
+  else if (v === "meta") csvDownload("metadati", ["percorso", "stato", "marca", "modello", "data_metadati", "fuso_della_data", "latitudine", "longitudine", "autore", "partizione_offset", "inode"].concat(FD.meta.some(m => m[11]) ? ["origine_chat"] : []), MT.rows.map(m => [m[4], m[3] ? "cancellato" : "allocato", m[5], m[6], m[7], takenTz(m[7]), m[8], m[9], m[10], m[1], m[2]].concat(FD.meta.some(x => x[11]) ? [m[11] || ""] : [])));
   else if (v === "att") csvItems(ATTV.rows.map(attItem), "file_inclusi");
   else if (v === "carv") csvDownload("file_recuperati", ["file", "tipo", "byte", "offset_immagine", "sha256", "file_nel_report"], CV.rows.map(r => [r[0], r[2], r[1], r[3], r[4], r[5] ? ATT.get(r[5]).file : ""]));
   else if (v === "trc") csvDownload("evidenze_di_interesse", ["tipo", "valore", "offset", "contesto"], TR.rows.map(t => [t[0], t[2], t[1], t[3]]));
-  else if (v === "art") csvDownload("artefatti", ["categoria", "data_" + zsuf(), "elemento", "dettagli", "utente", "fonte", "partizione_offset", "inode"], EXV.art.rows.map(r => [FD.ext.art_cats[r[0]] || r[0], cvt(r[1]), ...r.slice(2)]));
+  else if (v === "art") csvDownload("artefatti", ["categoria", "data_" + zsuf(), "elemento", "dettagli", "utente", "fonte", "partizione_offset", "inode", "file_citati"], EXV.art.rows.map(r => [FD.ext.art_cats[r[0]] || r[0], cvt(r[1]), ...r.slice(2, 8), (r[11] || []).map(c => c[1]).join("; ")]));
   else if (v === "mail") csvDownload("posta", ["data_" + zsuf(), "mittente", "destinatari", "cc", "oggetto", "allegati", "formato", "cartella", "file_di_posta"], EXV.mail.rows.map(r => [cvt(r[1]), ...r.slice(2, 10)]));
   else if (v === "xarch") csvDownload("archivi_allegati", ["tipo", "percorso", "byte", "data_" + zsuf(), "protetto", "sha256", "note", "file_nel_report"], EXV.x.rows.map(r => [r[1], r[2], r[4], cvt(r[5]), r[6] ? "si" : "no", r[7], r[8], r[10]]));
   else if (v === "anom") csvDownload("anomalie", ["tipo", "file", "dettaglio", "byte", "gravita", "partizione_offset", "inode"], EXV.anom.rows.map(r => [FD.ext.anom_kinds[r[0]] || r[0], r[1], r[2], r[3], r[4], r[5], r[6]]));
@@ -1392,7 +1920,7 @@ function reportHtml(m, noThumb){
     const hs = Object.entries(c.sha256 || {});
     h += TF("<h2>Caso e copia forense</h2><table><tr><td>Caso</td><td>{0}</td></tr>{1}{2}{3}<tr><td>Copia forense</td><td>{4}</td></tr><tr><td>Supporto</td><td>{5}</td></tr>\n      <tr><td>SHA-256 della copia</td><td class=\"mono\">{6}{7}</td></tr>\n      <tr><td>Partizioni</td><td>{8}</td></tr>\n      <tr><td>Strumenti</td><td class=\"meta\">{9}</td></tr></table>", esc((c.info_caso || {}).nome || c.case), (c.info_caso || {}).operatore ? TF("<tr><td>Operatore</td><td>{0}</td></tr>", esc(c.info_caso.operatore)) : "", (c.info_caso || {}).reperto ? TF("<tr><td>Tipo di reperto</td><td>{0}</td></tr>", esc(c.info_caso.reperto)) : "", (c.info_caso || {}).note ? TF("<tr><td>Note</td><td>{0}</td></tr>", esc(c.info_caso.note)) : "", esc(c.evidence), esc(c.disk_type || ""), hs.length ? hs.map(([k, x]) => esc(k) + ": " + esc(x)).join("<br>") : T("non calcolato"), c.sha256_differito ? T(" (calcolato dopo l'avvio dell'analisi)") : "", (c.partitions || []).map(p => `${esc(p.fs || T("non leggibile"))} · offset ${esc(p.offset)}${p.files != null ? TF(" · {0} voci ({1} cancellate)", nf(p.files), nf(p.deleted)) : ""}`).join("<br>"), Object.entries(c.tools || {}).map(([k, x]) => esc(k) + ": " + esc(x)).join("<br>"));
   }
-  if (on("pFind") && (c.findings || []).length) h += T("<h2>Reperti</h2>") + c.findings.map(f => `<h3>${f.n}. ${esc(f.title)}</h3><p style="white-space:pre-wrap">${esc(f.description)}</p><p class="meta">${T("Riferimenti:")} ${esc(f.references)}</p>`).join("");
+  if (on("pFind") && (c.findings || []).length) h += T("<h2>Reperti</h2>") + c.findings.map(f => `<h3>${f.n}. ${esc(f.title)}</h3><p><b>[${esc(findLabel(f))}]</b></p><p style="white-space:pre-wrap">${esc(f.description)}</p><p class="meta">${T("Riferimenti:")} ${esc(f.references)}</p>`).join("");
   for (const name of pick){
     const items = [...bmItems(name).values()]; const cat = bmCats().find(x => x.name === name);
     h += TF("<h2>⭐ {0} ({1} file)</h2>{2}<table>{3}{4}</table>", esc(name), nf(items.length), cat && cat.note ? `<p>${esc(cat.note)}</p>` : "", head, items.map(x => rowOf(itemByKey(x.key) || {key: x.key, path: x.path, src: "?"}, x.note)).join(""));
@@ -1537,5 +2065,6 @@ $("noteImp").onchange = async e => { const f = e.target.files[0]; if (!f) return
 
 boot();
 </script>
+<!--REPERTIA_MOBILE-->
 </body>
 </html>

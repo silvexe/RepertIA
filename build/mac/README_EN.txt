@@ -1,10 +1,16 @@
-RepertIA 2.19.0 - By silvexe (Mac Apple Silicon)
-Forensic analysis of disk images with a local language model (LLM).
+RepertIA 2.20.1 - By silvexe (Mac Apple Silicon)
+Forensic analysis of disk images and smartphone extractions with a local language model (LLM).
 
 LANGUAGE
 The interface is available in Italian and English: use the selector at the top right.
 Each case keeps the language chosen when it is created (artifacts and reports);
 cases created with earlier versions are in Italian.
+
+SMARTPHONES (2.20)
+On the start page "Smartphone" opens a full file system extraction of an iPhone or an Android phone
+(zip from Cellebrite, GrayKey and others, tar, tar.gz or folder): chats (WhatsApp, iMessage/SMS,
+SMS/MMS) with the bubble view, address books, timeline, searches and reports as for disks.
+iLEAPP and ALEAPP (MIT licence) are included in strumenti/ileapp and strumenti/aleapp.
 
 INSTALLATION
 1. Drag RepertIA.app into the Applications folder (or wherever you prefer).

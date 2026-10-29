@@ -1,0 +1,422 @@
+{
+  "set": "RepertIA – estrazioni di smartphone (2.20)",
+  "fonte": "estratti di immagini pubbliche (Josh Hickman iOS 15; Android 15 «anne_a15») dai test di iLEAPP e ALEAPP (licenza MIT) e dati costruiti",
+  "indipendente": false,
+  "nota": "Costruito con tools/collaudo_mobile.py; android aggiornato il 26/10/2026. Portachiavi finto aggiunto il 26/10/2026. File citati aggiunti il 26/10/2026. File citati aggiunti il 26/10/2026. File citati aggiunti il 26/10/2026. Sysdiagnose aggiunti il 26/10/2026. Sysdiagnose aggiunti il 26/10/2026.",
+  "prove": [
+    {
+      "nome": "20_smartphone_ios_zip",
+      "tipo": "smartphone",
+      "immagine": "smartphone/ios_prova.zip",
+      "opzioni": [
+        "--leapp"
+      ],
+      "indipendente": true,
+      "fonte": "estratti dell'immagine pubblica iOS 15 di Josh Hickman e risultati attesi pubblicati nei test di iLEAPP (admin/test/results: sms, whatsAppMessages)",
+      "descrizione": "Zip in stile Cellebrite FFS con sms.db (con -wal) e ChatStorage.sqlite di WhatsApp reali; valori attesi = risultati di iLEAPP su questi stessi file.",
+      "atteso": {
+        "piattaforma": "ios",
+        "sistema_versione": "15.3.1",
+        "fuso": "America/New_York",
+        "file_sha256": {
+          "filesystem2/mobile/Containers/Shared/AppGroup/694FBBC5-2E69-480A-A25B-FF8CC038BEF8/ChatStorage.sqlite": "72509784f953d7396313962784d097e22b64b2ad32d70290a501fb87708a3b38",
+          "filesystem2/mobile/Library/SMS/Attachments/52/02/D5E09E2F-8C76-461F-814A-3F81B8BB28DA/SANS_DFPS_FOR585_v3.5_2211.pdf": "b4baca7041d5be395d630994fe1b25dc9e30e203cf35a5569e28647f38e70711",
+          "filesystem2/mobile/Library/SMS/Attachments/e0/00/64C762C0-8951-442E-B800-C9876A9A56B0/f7390d55-8690-4b52-a794-bc54c2a58fbd.pdf": "8dfecf616381e9fc158e20a4481a7cddb430cca2888ecf289fc6113ddd315369",
+          "filesystem2/mobile/Library/SMS/sms.db": "a4d7e42300037e9b5fba3ffea0e249184e5bd762b4ae58afcf7ce9f6e1981ee1"
+        },
+        "chat_messaggi": {
+          "imessage": 48,
+          "whatsapp": 32
+        },
+        "chat_orari_sha256": {
+          "imessage": "32dbdeeed9239c4d1641804b7b6834ddd23b1f01164893d740aae0673e5aa5ce",
+          "whatsapp": "dd7b3793b0c3c7c6b5499151a85f87d524abd2a31b364a8a570eb9f2ff8f211f"
+        },
+        "chat_testi": [
+          {
+            "app": "imessage",
+            "ts": "2023-04-15T17:30:09",
+            "contiene": "Google Fi"
+          }
+        ],
+        "allegati_collegati_min": 5,
+        "leapp_righe_min": {
+          "SMS": 48,
+          "WhatsApp - Messages": 32
+        },
+        "date_utc_min": 2,
+        "date_dos_min": 2,
+        "file_citati_livelli": {
+          "SMS": {
+            "certo": 11,
+            "probabile": 0,
+            "assente": 0,
+            "uniti": 8
+          }
+        }
+      },
+      "sha256_immagine": "b6f1faa9ffa3650d219cad8890c692d194c865f0f9f6a02ce076b29a5d156dd2"
+    },
+    {
+      "nome": "21_smartphone_android_targz",
+      "tipo": "smartphone",
+      "immagine": "smartphone/android_prova.tar.gz",
+      "opzioni": [
+        "--decomprimi",
+        "--leapp"
+      ],
+      "indipendente": false,
+      "fonte": "SMS/MMS: estratti dell'immagine pubblica Android 15 «anne_a15» e risultati attesi pubblicati nei test di ALEAPP; WhatsApp: database costruito per il collaudo con contenuto noto",
+      "descrizione": "tar.gz (copia derivata decompressa) con mmssms.db reale e WhatsApp costruito: un messaggio solo nel -wal, foto collegata (anche una solo per hash, una con la sola miniatura, una assente), posizione, gruppo, messaggio eliminato, nomi dalle rubriche; Google Photos costruito per i file citati.",
+      "atteso": {
+        "piattaforma": "android",
+        "sistema_versione": "15",
+        "fuso": "Europe/Rome",
+        "decompressa": true,
+        "chat_messaggi": {
+          "sms": 91,
+          "whatsapp": 12
+        },
+        "chat_orari_sha256": {
+          "sms": "ab5453d0f69a24f8f734dffe4df16f2cc84adae408622e9fea3fb32102f12bdd",
+          "whatsapp": "659315996726d30f8387f8908bf591c2d4f1d874def5948d0e81952806406d1c"
+        },
+        "chat_testi": [
+          {
+            "app": "whatsapp",
+            "ts": "2024-03-16T09:00:00",
+            "contiene": "PAROLA-CHIAVE-COLLAUDO-WAL"
+          },
+          {
+            "app": "whatsapp",
+            "ts": "2024-03-15T10:00:00",
+            "contiene": "Riunione spostata",
+            "mittente": "Giulia"
+          },
+          {
+            "app": "whatsapp",
+            "ts": "2024-03-15T09:03:00",
+            "contiene": "bar della stazione",
+            "mittente": "Marco Rossi"
+          }
+        ],
+        "chat_conversazioni": {
+          "whatsapp": 2
+        },
+        "allegato_sha256": {
+          "IMG-20240315-WA0001.jpg": "61af1a721ab45a7196900006b34db7020ff931622070e9889c1e5411b88f4fef"
+        },
+        "posizione": {
+          "lat": 41.9009,
+          "lon": 12.5016
+        },
+        "leapp_righe_min": {
+          "SMS Messages": 25,
+          "MMS Messages": 67,
+          "SMS and MMS Messages": 92
+        },
+        "date_utc_min": 10,
+        "allegati_esito": {
+          "whatsapp": {
+            "percorso": 1,
+            "hash": 1,
+            "miniatura": 1,
+            "assente": 1
+          }
+        },
+        "allegati_hash_verificati": {
+          "whatsapp": 2
+        },
+        "file_citati": {
+          "Google Photos - Local Media": {
+            "percorso": 1,
+            "nome+dimensione": 1,
+            "assente": 1
+          }
+        }
+      },
+      "sha256_immagine": "49f2da66e54d172f26b85bc5eab8ee343e45b1585d816c0c5841cbc9e217da46"
+    },
+    {
+      "tipo": "smartphone",
+      "immagine": "smartphone/ios_portachiavi.zip",
+      "opzioni": [
+        "--leapp"
+      ],
+      "indipendente": false,
+      "sha256_immagine": "0d30a5c20f8b602de157c509430b778c264a98eae069bfd30af0e8cf41a708e9",
+      "fonte": "costruito per il collaudo di RepertIA con portachiavi FINTI (nessun dato reale)",
+      "nome": "22_smartphone_ios_portachiavi",
+      "portachiavi": "smartphone/portachiavi_finto.plist",
+      "descrizione": "Estrazione iOS minima con un portachiavi finto cifrato (formato Cellebrite) in extra/KeychainDump e un portachiavi finto decifrato passato a iLEAPP con --keychain: SHA-256 nel registro, passaggio a iLEAPP, artefatti del portachiavi, valori segreti nascosti nell'interfaccia, nel report portatile e negli strumenti dell'agente.",
+      "atteso": {
+        "piattaforma": "ios",
+        "sistema_versione": "17.5.1",
+        "portachiavi": {
+          "sha256": "272cd5cfd0345fc9e541e1a1bd9ced54b6824785ac6e694b2ab25bb7261b56c8",
+          "uso": "fornito",
+          "voci_lette": 2,
+          "anche_nell_estrazione": true
+        },
+        "leapp_righe_min": {
+          "Keychain Wifi Credentials": 1,
+          "Keychain Web Passwords": 1
+        },
+        "segreti": {
+          "artefatto": "Keychain Wifi Credentials",
+          "visibile": "Rete-Collaudo-RepertIA",
+          "valore": "PasswordFinta-Estrazione-111",
+          "mai_in_chiaro": [
+            "PasswordFinta-Estrazione-111",
+            "SegretoWeb-Finto-222",
+            "PasswordFinta-Fornita-333"
+          ]
+        }
+      }
+    },
+    {
+      "tipo": "smartphone",
+      "immagine": "smartphone/ios_portachiavi.zip",
+      "opzioni": [
+        "--leapp"
+      ],
+      "indipendente": false,
+      "sha256_immagine": "0d30a5c20f8b602de157c509430b778c264a98eae069bfd30af0e8cf41a708e9",
+      "fonte": "costruito per il collaudo di RepertIA con portachiavi FINTI (nessun dato reale)",
+      "nome": "23_smartphone_ios_portachiavi_estrazione",
+      "descrizione": "La stessa estrazione senza portachiavi fornito: iLEAPP usa quello dell'estrazione e il caso lo dichiara.",
+      "atteso": {
+        "piattaforma": "ios",
+        "portachiavi": {
+          "uso": "estrazione",
+          "file_finisce": "extra/KeychainDump/backup_keychain_v2.plist"
+        },
+        "leapp_righe_min": {
+          "Keychain Wifi Credentials": 1
+        },
+        "segreti": {
+          "artefatto": "Keychain Wifi Credentials",
+          "visibile": "Rete-Collaudo-RepertIA",
+          "valore": "PasswordFinta-Estrazione-111",
+          "mai_in_chiaro": [
+            "PasswordFinta-Estrazione-111",
+            "SegretoWeb-Finto-222"
+          ]
+        }
+      }
+    },
+    {
+      "nome": "24_smartphone_ios_file_citati",
+      "tipo": "smartphone",
+      "immagine": "smartphone/ios_file_citati.zip",
+      "opzioni": [],
+      "indipendente": false,
+      "sha256_immagine": "141a23f1f325de35ce4ffe39e3021847abb1f13f2129aaba766a95cf8a272ed0",
+      "fonte": "costruito per il collaudo di RepertIA (file finti, nessun dato reale); posizioni di IMG_0059.PNG come nell'immagine pubblica iOS 13.4.1 di Josh Hickman",
+      "descrizione": "File citati: cartella e nome in due campi diventano un percorso completo, un solo file citato per file diverso, esito in tre livelli (certo, probabile con i candidati, assente), copie con lo stesso percorso finale.",
+      "atteso": {
+        "piattaforma": "ios",
+        "sistema_versione": "13.4.1",
+        "righe_citate": [
+          {
+            "nome": "Photos.sqlite EXIF Analysis: IMG_0059.PNG (cartella e nome in due campi)",
+            "campi": {
+              "Directory": "DCIM/100APPLE",
+              "Filename": "IMG_0059.PNG",
+              "Bundle Creator": "com.apple.springboard"
+            },
+            "atteso": [
+              {
+                "livello": "certo",
+                "metodo": "percorso",
+                "campi": [
+                  "Directory + Filename"
+                ],
+                "finisce": "mobile/Media/DCIM/100APPLE/IMG_0059.PNG",
+                "cartella_finisce": "mobile/Media/DCIM/100APPLE",
+                "copie": 0
+              }
+            ]
+          },
+          {
+            "nome": "IMG_0059.PNG: percorso completo, cartella e nome nella stessa riga",
+            "campi": {
+              "File Path": "/var/mobile/Media/DCIM/100APPLE/IMG_0059.PNG",
+              "Directory": "DCIM/100APPLE",
+              "Filename": "IMG_0059.PNG"
+            },
+            "atteso": [
+              {
+                "livello": "certo",
+                "metodo": "percorso",
+                "campi": [
+                  "File Path",
+                  "Directory + Filename"
+                ],
+                "finisce": "mobile/Media/DCIM/100APPLE/IMG_0059.PNG",
+                "cartella_finisce": "mobile/Media/DCIM/100APPLE",
+                "copie": 0
+              }
+            ]
+          },
+          {
+            "nome": "IMG_0059.PNG con il nome originale di un altro file (come Photos.sqlite: «Original Filename»)",
+            "campi": {
+              "Directory": "DCIM/100APPLE",
+              "Filename": "IMG_0059.PNG",
+              "Original Filename": "verbale.pdf"
+            },
+            "atteso": [
+              {
+                "livello": "certo",
+                "metodo": "percorso",
+                "campi": [
+                  "Directory + Filename"
+                ],
+                "finisce": "mobile/Media/DCIM/100APPLE/IMG_0059.PNG",
+                "cartella_finisce": "mobile/Media/DCIM/100APPLE"
+              },
+              {
+                "livello": "probabile",
+                "metodo": "nome",
+                "campi": [
+                  "Original Filename"
+                ],
+                "candidati": 2
+              }
+            ]
+          },
+          {
+            "nome": "IMG_0100.JPG: solo il nome, due file con lo stesso nome in cartelle diverse",
+            "campi": {
+              "Filename": "IMG_0100.JPG"
+            },
+            "atteso": [
+              {
+                "livello": "probabile",
+                "metodo": "nome",
+                "candidati": 2
+              }
+            ]
+          },
+          {
+            "nome": "IMG_0100.JPG: nome e dimensione",
+            "campi": {
+              "Filename": "IMG_0100.JPG",
+              "File Size": 632
+            },
+            "atteso": [
+              {
+                "livello": "probabile",
+                "metodo": "nome+dimensione",
+                "candidati": 1,
+                "finisce": "mobile/Media/DCIM/100APPLE/IMG_0100.JPG"
+              }
+            ]
+          },
+          {
+            "nome": "IMG_0100.JPG: nome, dimensione e SHA-256 (hash verificato)",
+            "campi": {
+              "Filename": "IMG_0100.JPG",
+              "File Size": 732,
+              "SHA256": "9a8fe7cde2a8ee6dc848c1c0fb3c742cec24a36ff854970aa145f8d27ded34be"
+            },
+            "atteso": [
+              {
+                "livello": "certo",
+                "metodo": "hash",
+                "verifica": "uguale",
+                "finisce": "Documents/IMG_0100.JPG"
+              }
+            ]
+          },
+          {
+            "nome": "verbale.pdf: stesso percorso finale in due app",
+            "campi": {
+              "File Path": "Documents/Downloads/verbale.pdf"
+            },
+            "atteso": [
+              {
+                "livello": "certo",
+                "metodo": "percorso",
+                "copie": 1
+              }
+            ]
+          },
+          {
+            "nome": "IMG_9999.JPG: non presente",
+            "campi": {
+              "Filename": "IMG_9999.JPG"
+            },
+            "atteso": [
+              {
+                "livello": "assente"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "nome": "25_smartphone_ios_sysdiagnose",
+      "tipo": "smartphone",
+      "immagine": "smartphone/ios_prova.zip",
+      "opzioni": [
+        "--no-chat",
+        "--no-indice"
+      ],
+      "sysdiagnose": [
+        "smartphone/sysdiagnose_2025.04.07_08-06-18-0700_iPhone-OS_iPhone_20A362.tar.gz",
+        "smartphone/sysdiagnose_2027.07.19_10-18-09-0400_iPhone-OS_iPhone_23G71.tar.gz"
+      ],
+      "indipendente": false,
+      "fonte": "ritagli pubblici di sysdiagnose dai test di iLEAPP v2026.4.5 (ps.txt reale iOS 16 20A362; BatteryUI e ManagedSettings reali di iOS 26.6 23G71 con identificativi sostituiti dagli autori), riuniti in archivi nella forma di un sysdiagnose: NON sono sysdiagnose completi",
+      "descrizione": "Due sysdiagnose forniti a parte: SHA-256 nel registro, nessuna copia nel caso, data di creazione e dispositivo dal nome, secondo giro di iLEAPP, righe nel gruppo «Sysdiagnose» marcate «da sysdiagnose <nome>», processi di ps.txt contati senza iLEAPP, sezione nel report.",
+      "atteso": {
+        "piattaforma": "ios",
+        "sysdiagnose": [
+          {
+            "file": "sysdiagnose_2025.04.07_08-06-18-0700_iPhone-OS_iPhone_20A362.tar.gz",
+            "sha256": "937cff284b9d8a3ff4190a645ad1025f231f43ba0824b3592b28420ab0bfa65b",
+            "cartella": "sysdiagnose_2025.04.07_08-06-18-0700_iPhone-OS_iPhone_20A362",
+            "creato_utc": "2025-04-07T15:06:18Z",
+            "build": "20A362",
+            "dispositivo": "iPhone",
+            "righe_min": {
+              "Sysdiagnose Process": 333
+            },
+            "righe_esatte": true
+          },
+          {
+            "file": "sysdiagnose_2027.07.19_10-18-09-0400_iPhone-OS_iPhone_23G71.tar.gz",
+            "sha256": "070a9eaf3b346ca3f2d6a4d7bcb16f67e458dea37b1a52795ae2687d223ec67a",
+            "cartella": "sysdiagnose_2027.07.19_10-18-09-0400_iPhone-OS_iPhone_23G71",
+            "creato_utc": "2027-07-19T14:18:09Z",
+            "build": "23G71",
+            "dispositivo": "iPhone",
+            "file_attesi": [
+              "logs/BatteryUIPlist/BatteryUISysdiagnose.plist",
+              "logs/ManagedSettings/System/DataVersion.plist",
+              "logs/ManagedSettings/System/SettingRecords.plist",
+              "logs/ManagedSettings/User/DataVersion.plist",
+              "logs/ManagedSettings/User/EffectiveSettings.plist",
+              "logs/ManagedSettings/User/FamilyControlsAgent/4A080A7E-22C1-4F59-8B63-E85EEC58B8E9.plist",
+              "logs/ManagedSettings/User/FamilyControlsAgent/clientEffectiveSettings.plist",
+              "logs/ManagedSettings/User/SettingRecords.plist",
+              "logs/ManagedSettings/User/com.apple.Preferences/6CEF1B86-1947-44ED-AF41-7D3B43EE1258.plist",
+              "logs/ManagedSettings/User/com.apple.ScreenTime/13BED1B6-8AB4-4AA3-8B27-1473C5933C23.plist",
+              "logs/ManagedSettings/User/com.apple.ScreenTime/1F3769E5-52C2-48C8-BEB2-0005F5EAF974.plist",
+              "logs/ManagedSettings/User/com.apple.ScreenTime/67E929E2-A8CB-41E7-8F48-7D1D5A8A703E.plist",
+              "logs/ManagedSettings/User/com.apple.ScreenTime/clientEffectiveSettings.plist",
+              "logs/ManagedSettings/User/com.apple.UserSafety/80ACB32B-6A4F-4032-93B8-1F3C9AD2DD7E.plist",
+              "logs/ManagedSettings/User/com.apple.UserSafety/clientEffectiveSettings.plist",
+              "logs/ManagedSettings/User/com.apple.momentsd/03D690FD-832A-4603-8A55-492D7A1F7FAB.plist",
+              "logs/ManagedSettings/User/com.apple.momentsd/clientEffectiveSettings.plist"
+            ]
+          }
+        ]
+      },
+      "sha256_immagine": "b6f1faa9ffa3650d219cad8890c692d194c865f0f9f6a02ce076b29a5d156dd2"
+    }
+  ]
+}

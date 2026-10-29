@@ -56,7 +56,7 @@ def _setup_bundled_tools():
     if not base.is_dir():
         return
     dirs = [base / d for d in ("sleuthkit/bin", "exiftool", "poppler/Library/bin", "poppler/bin",
-                               "testdisk", "ffmpeg/bin", "7zip", "tesseract", "bulk_extractor")]
+                               "testdisk", "ffmpeg/bin", "whisper/bin", "7zip", "tesseract", "bulk_extractor")]
     dirs = [str(d) for d in dirs if d.is_dir()]
     if dirs:
         os.environ["PATH"] = os.pathsep.join(dirs + [os.environ.get("PATH", "")])
@@ -116,7 +116,7 @@ except ImportError:
 
 APP_NAME = "RepertIA"
 APP_BY = "By silvexe"
-APP_VERSION = "2.19.0"
+APP_VERSION = "2.20.1"
 
 # ------------------------------------------------------------ configurazione
 # Tutti i valori si possono passare anche come opzioni di `analizza`.
@@ -247,6 +247,25 @@ def is_local_url(url):
     from urllib.parse import urlsplit
     h = (urlsplit(norm_url(url)).hostname or "").lower()
     return h in ("localhost", "::1") or h.startswith("127.")
+
+
+LOCAL_SUFFIX = (".local", ".lan", ".home.arpa", ".internal", ".intranet", ".localdomain", ".localhost")
+
+
+def url_esterno(url):
+    """(2.20.1, AI Act) True se il server LLM non è su questo computer né nella rete locale: non localhost, non un IP
+    privato (10.x, 172.16-31.x, 192.168.x, anche IPv6 locali) e non un nome della rete locale (senza punti o con
+    suffisso .local, .lan, .home.arpa, .internal…). Non si interroga il DNS."""
+    import ipaddress
+    from urllib.parse import urlsplit
+    h = (urlsplit(norm_url(url)).hostname or "").lower().strip("[]").rstrip(".")
+    if not h or h == "localhost" or h.endswith(LOCAL_SUFFIX):
+        return False
+    try:
+        ip = ipaddress.ip_address(h)
+    except ValueError:
+        return "." in h                  # nome senza punti = nome della rete locale
+    return not (ip.is_loopback or ip.is_private or ip.is_link_local)
 
 
 def _settings_path(nome):
@@ -513,7 +532,9 @@ def ambiente():
         if r:
             v[mod] = r
     here = Path(__file__).resolve().parent
-    files = sorted(list(here.glob("forense_*.py")) + list(here.glob("forense_*.html")) + list(here.glob("lingua_*.json")))
+    # (2.20) anche forense_*.json: la mappa di iLEAPP/ALEAPP decide come si ricavano chat e chiamate
+    files = sorted(list(here.glob("forense_*.py")) + list(here.glob("forense_*.html")) + list(here.glob("forense_*.json"))
+                   + list(here.glob("lingua_*.json")))
     h = hashlib.sha256()
     for p in files:
         h.update(p.name.encode() + b"\0" + hashlib.sha256(p.read_bytes()).digest())
@@ -564,6 +585,67 @@ class Case:
                 if self.findings_path.exists() else [])
 
 
+FINDING_IA = "modello IA"        # (2.20.1, AI Act) origine dei reperti scritti dall'agente (valori fissi in findings.json)
+FINDING_ANALISTA = "analista"
+
+
+def add_finding(case, title, description, references, origine=FINDING_IA):
+    """Aggiunge un reperto a findings.json e al registro. Reperti dell'agente: origine «modello IA», nome del modello,
+    server, stato «da verificare» finché l'analista non li conferma (confirm_finding)."""
+    f = case.findings()
+    rec = {"n": len(f) + 1, "ts": now(), "title": title, "description": description, "references": references,
+           "origine": origine}
+    if origine == FINDING_IA:
+        llm = case.meta.get("llm") or {}
+        rec.update(modello=MODEL or llm.get("model") or "", server=llm.get("url") or "", stato="da verificare")
+    else:
+        rec["stato"] = "inserito dall'analista"
+    f.append(rec)
+    case.findings_path.write_text(json.dumps(f, indent=2, ensure_ascii=False))
+    case.log("finding", rec)
+    return rec
+
+
+def confirm_finding(case, n, operatore):
+    """L'analista conferma di aver verificato il reperto n sugli strumenti forensi: operatore e data in findings.json
+    e nel registro (audit_log.jsonl)."""
+    op = " ".join(str(operatore or "").split())[:120]
+    if not op:
+        raise ValueError(tr("Indica l'operatore che ha verificato il reperto."))
+    f = case.findings()
+    x = next((x for x in f if str(x.get("n")) == str(n)), None)
+    if not x:
+        raise ValueError(tr("Reperto n.{n} non trovato.").format(n=n))
+    x.update(stato="verificato", verificato_da=op, verificato_il=now())
+    case.findings_path.write_text(json.dumps(f, indent=2, ensure_ascii=False))
+    case.log("finding_verificato", {"n": x["n"], "title": x.get("title"), "origine": x.get("origine"),
+                                    "modello": x.get("modello"), "operatore": op, "ts": x["verificato_il"]})
+    return x
+
+
+def finding_verificato(x):
+    """Reperto verificato: confermato dall'analista oppure inserito dall'analista stesso."""
+    return x.get("stato") == "verificato" or x.get("origine") == FINDING_ANALISTA
+
+
+def finding_label(x):
+    """Etichetta del reperto per report e interfaccia."""
+    ia = x.get("origine") == FINDING_IA
+    if x.get("stato") == "verificato":
+        return tr("Verificato da {op} il {data}").format(op=x.get("verificato_da", ""), data=x.get("verificato_il", "")) + (
+            tr(" (generato da modello IA: {m})").format(m=x.get("modello") or "?") if ia else "")
+    if ia:
+        return tr("Generato da modello IA ({m}) – da verificare").format(m=x.get("modello") or "?")
+    if x.get("origine") == FINDING_ANALISTA:
+        return tr("Inserito dall'analista")
+    return tr("Origine non registrata (caso di una versione precedente) – da verificare")
+
+
+def is_mobile(case):
+    """Caso «smartphone» (2.20): estrazione di un telefono, letta da forense_mobile.py (caricato solo per questi casi)."""
+    return (getattr(case, "meta", None) or {}).get("tipo_caso") == "smartphone"
+
+
 def load_case(path):
     case = Case(path)
     if not case.meta:
@@ -596,6 +678,10 @@ def stream_lines(case, cmd):
 def icat_stream(case, offset, inode):
     if ap.is_apfs_part(offset):          # volume APFS: lo legge libfsapfs
         yield from ap.stream(case, offset, inode)
+        return
+    if is_mobile(case):                  # estrazione di uno smartphone: la legge forense_mobile
+        import forense_mobile as fm
+        yield from fm.stream(case, offset, inode)
         return
     cmd = ["icat", "-o", str(offset), case.image, inode]
     case.log("cmd", cmd)
@@ -664,6 +750,7 @@ def hash_image(path, show=False):
 
     def progress(n):
         state["done"] += n
+        avanz(fatti=state["done"], totale=total, unita="B")
         pct = int(state["done"] * 100 / total) // 5 * 5
         if pct != state["last"]:
             state["last"] = pct
@@ -681,6 +768,7 @@ def hash_evidence(case, deferred=False):
         print(tr("Copia forense non raggiungibile: {evidence}. Collega il disco che la contiene.").format(evidence=evidence))
         return False
     print(tr("Calcolo SHA-256 della copia forense..."), flush=True)
+    avanz("hash")
     case.meta["sha256"] = hash_image(evidence, show=True)
     case.meta["sha256_ts"] = now()
     case.meta["sha256_differito"] = bool(deferred)
@@ -778,8 +866,10 @@ def hash_attesi_da_file(img):
 
 def _progress_printer(total, label):
     st = {"last": -1}
+    avanz("hash")          # (2.20) seconda lettura (dati acquisiti): la barra riparte da zero nello stesso passo
 
     def pr(done):
+        avanz(fatti=done, totale=total, unita="B")
         pct = int(done * 100 / (total or 1)) // 5 * 5
         if pct != st["last"]:
             st["last"] = pct
@@ -1185,6 +1275,8 @@ def build_listing(case, offset, con):
         batch.append((offset, m.group(3), d, m.group(1), m.group(4)))
         n += 1
         deleted += d
+        if n % 2000 == 0:
+            avanz(fatti=n)
         if len(batch) >= 20000:
             con.executemany(INSERT_FILE, batch)
             batch.clear()
@@ -2022,9 +2114,13 @@ def build_index(case, con):
     rows = con.execute("SELECT part, inode, deleted, path FROM files "
                        "WHERE type LIKE '%/r' ORDER BY deleted, path").fetchall()
     todo = []
+    skip = skip_for_text
+    if is_mobile(case):                  # smartphone: i dati dell'utente stanno proprio in private/var e data/
+        import forense_mobile as fm
+        skip = fm.skip_for_text
     for part, inode, deleted, path in rows:
         ext = Path(path).suffix.lower()
-        want_text = ext in DOC_EXT and not skip_for_text(path)
+        want_text = ext in DOC_EXT and not skip(path)
         want_meta = ext in META_EXT
         if want_text or want_meta:
             todo.append((part, inode, deleted, path, want_text, want_meta))
@@ -2094,6 +2190,7 @@ def build_index(case, con):
             mapping[str(f.resolve())] = ("fs", part, inode, deleted, path)
             if len(mapping) >= 200:
                 flush()
+        avanz(fatti=k, totale=len(todo))
         if k % 500 == 0:
             con.commit()
             print(tr("  {k} di {v1} file esaminati...").format(k=k, v1=len(todo)), flush=True)
@@ -2521,6 +2618,7 @@ def run_photorec(case, con, cdir):
         while proc.poll() is None:
             time.sleep(10)
             n = sum(1 for d in out.glob("recup.*") for f in d.iterdir() if f.name != "report.xml")
+            avanz(fatti=n)
             if n != last:
                 print(tr("  PhotoRec: {n} file recuperati finora...").format(n=n), flush=True)
                 last = n
@@ -2773,6 +2871,11 @@ def summary_md(case, what="all"):
     con = db_ro(case)
     L, Q = [], []
     try:
+        if is_mobile(case) and what in ("all", "mobile_chat", "mobile_leapp"):    # smartphone (2.20)
+            import forense_mobile_chat as fmc
+            a, b = fmc.summary_md(case, what)
+            L += a
+            Q += b
         if what == "immagine":
             L.append(tr("#### SHA-256 della copia forense"))
             for k, v in (m.get("sha256") or {}).items():
@@ -3181,8 +3284,9 @@ ADDONS = {"immagine": N_("SHA-256 della copia forense"),
           "archivi": N_("archivi e posta elettronica"), "anomalie": N_("estensioni false, file e volumi cifrati"),
           "artefatti": N_("artefatti di sistema e cronologia web"), "vss": N_("copie shadow di Windows e snapshot APFS"),
           "ocr": N_("testo nelle immagini (OCR)"), "phash": N_("hash percettivi delle immagini (immagini simili)"),
+          "trascrizione": N_("trascrizione automatica degli audio"),
           "fuso": N_("date FAT/exFAT col fuso del dispositivo")}
-EXT_ADDONS = ("archivi", "anomalie", "artefatti", "vss", "ocr", "phash")
+EXT_ADDONS = ("archivi", "anomalie", "artefatti", "vss", "ocr", "phash", "trascrizione")
 
 HASH_SCHEMA = """
 CREATE TABLE IF NOT EXISTS hashes(part INTEGER, inode TEXT, path TEXT, deleted INTEGER,
@@ -3227,6 +3331,7 @@ def run_file_hashes(case, con):
             print(tr("  errore su {path}: {e}").format(path=path, e=e), flush=True)
             continue
         nbytes += n
+        avanz(fatti=len(done) + k, totale=total)
         batch.append((part, inode, path, deleted, n, md5, sha1, sha256, now()))
         if len(batch) >= 200 or k == len(todo):
             con.executemany("INSERT OR REPLACE INTO hashes VALUES (?,?,?,?,?,?,?,?,?)", batch)
@@ -3242,6 +3347,7 @@ def run_file_hashes(case, con):
 
 def run_addon(case, con, what):
     """Esegue un'analisi aggiuntiva e ne registra l'esito nel caso. False se non riesce."""
+    avanz(ADDON_FASE.get(what, what))
     if what == "immagine":
         if not hash_evidence(case, deferred=True):
             return False
@@ -3663,11 +3769,12 @@ def rifai_timeline_fuso(case, con):
         n_fat += 1
     tot = con.execute("SELECT COUNT(*) FROM events WHERE origin='tsk'").fetchone()[0]
     case.meta.setdefault("timeline", {})["tsk_events"] = tot
-    try:
-        (case.root / "navigazione.sqlite").unlink()      # indice di comodo: si ricostruisce con le date nuove
-    except OSError:
-        pass
-    if not n_fat:
+    if n_fat:
+        try:
+            (case.root / "navigazione.sqlite").unlink()  # indice di comodo: si ricostruisce con le date nuove
+        except OSError:
+            pass
+    else:
         print(tr("Fuso orario: nessuna partizione FAT/exFAT nel caso, nessuna data da ricalcolare."), flush=True)
     est = case.meta.get("estese") or {}
     if case.meta.get("timeline", {}).get("plaso_events") or "artefatti" in est:
@@ -3677,6 +3784,23 @@ def rifai_timeline_fuso(case, con):
 
 
 ASK_MARK = "@@CIFRATI@@ "
+AVANZ_MARK = "@@AVANZ@@ "
+ADDON_FASE = {"immagine": "hash", "hash": "hashfile"}     # analisi aggiuntiva -> passo della pagina di preparazione
+_avanz_t = [0.0]
+
+
+def avanz(fase=None, fatti=None, totale=None, unita=None):
+    """(2.20) Avanzamento per la barra dell'interfaccia: riga nascosta, uguale in ogni lingua (solo se lanciato
+    dall'interfaccia). fase = passo della pagina (cambia passo subito); fatti/totale: senza totale barra indeterminata; unita "B" = byte.
+    Le righe con soli numeri escono al massimo una al secondo."""
+    if not os.environ.get("FORENSE_DA_GUI"):
+        return
+    t = time.time()
+    if fase is None and t - _avanz_t[0] < 1:
+        return
+    _avanz_t[0] = t
+    d = {k: v for k, v in (("fase", fase), ("fatti", fatti), ("totale", totale), ("unita", unita)) if v is not None}
+    print(AVANZ_MARK + json.dumps(d), flush=True)
 
 
 def preflight_cifrati(case, fresh, args=None):
@@ -3887,6 +4011,7 @@ def cmd_prepare(args):
         hash_evidence(case)
 
     print(tr("Analisi partizioni..."))
+    avanz("parts")
     parts = detect_partitions(case)
     pend = [q for q in parts if q.get("apfs") and not q["readable"]]
     if pend and sys.stdin.isatty():       # da terminale: si chiede la chiave (non si vede né si salva)
@@ -3976,6 +4101,7 @@ def cmd_prepare(args):
     apfs_ev = {}
     for p in readable:
         print(tr("Elenco file - offset {offset} ({fs})...").format(offset=p['offset'], fs=p['fs']))
+        avanz("list")
         if ap.is_apfs_part(p["offset"]):
             p["files"], p["deleted"], apfs_ev[p["offset"]] = ap.index(case, p["offset"], con, print)
         else:
@@ -4004,8 +4130,9 @@ def cmd_prepare(args):
                             "state calcolate con {tz2}.\nPuoi correggerlo dal caso con «Cambia fuso».\n").format(tz=det['tz'], v1=det.get('nome'), tz2=fd['tz'])
               + "!" * 70, flush=True)
     tsk_n = 0
-    for p in readable:
+    for ti, p in enumerate(readable):
         print(tr("Timeline file system - offset {offset}...").format(offset=p['offset']))
+        avanz("tl", ti, len(readable))
         tsk_n += apfs_ev[p["offset"]] if ap.is_apfs_part(p["offset"]) else tsk_timeline(case, p["offset"], con)
     case.meta["timeline"] = {"tsk_events": tsk_n, "plaso_events": 0}
     case.save()
@@ -4023,6 +4150,9 @@ def cmd_prepare(args):
             run_addon(case, con, what)
         except Exception as e:
             print(tr("{v1}: non completata ({vname}: {e})").format(v1=tr(ADDONS[what]), vname=type(e).__name__, e=e), flush=True)
+    if getattr(args, "trascrizione", None):       # (2.20) scelta alla creazione del caso
+        import forense_trascrizione as ftr
+        ftr.da_preparazione(case, con, args.trascrizione)
     con.close()
     plaso_n = case.meta["timeline"]["plaso_events"]
     print(tr("\nTipo: {disk_type}").format(disk_type=case.meta['disk_type']))
@@ -4100,6 +4230,9 @@ def make_tools(case):
             a = parts[_off(offset)]["apfs"]
             return clip(json.dumps({k: a.get(k) for k in ("name", "role", "uuid", "encrypted", "vol")},
                                    ensure_ascii=False, indent=1) + tr("\nFile system APFS (libfsapfs)"))
+        if is_mobile(case):
+            import forense_mobile as fm
+            return clip(fm.fs_info_text(case, _off(offset)))
         cp = sh(case, ["fsstat", "-o", str(_off(offset)), case.image], timeout=600)
         return clip(dec(cp.stdout + cp.stderr))
 
@@ -4112,6 +4245,9 @@ def make_tools(case):
         """
         if ap.is_apfs_part(_off(offset)):
             return list_directory_apfs(_off(offset), inode)
+        if is_mobile(case):
+            import forense_mobile as fm
+            return clip(fm.list_dir_text(case, _off(offset), inode))
         cmd = ["fls", "-o", str(_off(offset)), case.image]
         if inode:
             cmd.append(_ino(inode))
@@ -4165,6 +4301,9 @@ def make_tools(case):
         """
         if ap.is_apfs_part(_off(offset)):
             return clip(ap.istat_text(case, _off(offset), _ino(inode)))
+        if is_mobile(case):
+            import forense_mobile as fm
+            return clip(fm.istat_text(case, _off(offset), _ino(inode)))
         cp = sh(case, ["istat", *tsk_tz(case), "-o", str(_off(offset)), case.image, _ino(inode)], timeout=600)
         return clip(istat_zona(case, _off(offset), dec(cp.stdout + cp.stderr)))
 
@@ -4594,12 +4733,8 @@ def make_tools(case):
             description: descrizione, separando fatti osservati e ipotesi
             references: riferimenti verificabili (offset, inode, percorso, timestamp, hash)
         """
-        f = case.findings()
-        f.append({"n": len(f) + 1, "ts": now(), "title": title,
-                  "description": description, "references": references})
-        case.findings_path.write_text(json.dumps(f, indent=2, ensure_ascii=False))
-        case.log("finding", f[-1])
-        return tr("Reperto n.{v1} registrato.").format(v1=len(f))
+        x = add_finding(case, title, description, references, FINDING_IA)
+        return tr("Reperto n.{v1} registrato.").format(v1=x["n"])
 
     def find_by_hash(hashes: str) -> str:
         """Cerca file della copia per hash MD5, SHA-1 o SHA-256 (anche più hash separati da
@@ -4642,6 +4777,9 @@ def make_tools(case):
         tools += fe.agent_tools(case)
     except ImportError:
         pass
+    if is_mobile(case):                  # smartphone: strumenti per chat, contatti e artefatti di iLEAPP/ALEAPP
+        import forense_mobile_chat as fmc
+        tools += fmc.agent_tools(case)
     tools.append(record_finding)
     return {t.__name__: t for t in tools}
 
@@ -4738,6 +4876,9 @@ def system_prompt(case):
         extra += fe.prompt_extra(case)
     except ImportError:
         pass
+    if is_mobile(case):
+        import forense_mobile_chat as fmc
+        extra += fmc.prompt_extra(case)
     return tr(SYSTEM_TEMPLATE).format(disk_type=m.get("disk_type"), parts=parts,
                                   tl=json.dumps(m.get("timeline")),
                                   extra="\n".join(extra) or tr("- nessuna"))
@@ -4758,16 +4899,38 @@ def trim_history(messages, keep_last=8, budget=None):
             m["content"] = TRIMMED
 
 
+def risposta_ia_label(model=None):
+    """(2.20.1, AI Act art. 50) Etichetta fissa sotto ogni risposta dell'agente."""
+    return tr("Risposta generata da modello IA ({m}): spunto da verificare").format(m=model or MODEL or "?")
+
+
 def print_emit(kind, data):
     """Uscita predefinita (terminale) degli eventi dell'agente."""
     if kind == "tool":
         print(f"  -> {data['name']}({data['args']})")
     elif kind == "answer":
         print("\n" + data)
+        print("\n" + risposta_ia_label())
     elif kind in ("thinking", "tool_result"):
         pass
     else:
         print(f"  [{data}]" if kind == "info" else data)
+
+
+CTX_PIENO_RE = re.compile(r"(?i)no user query found|context (length|window|size)|maximum context|exceeds? .*context|"
+                          r"n_ctx|prompt is too long|too many tokens")
+
+
+def llm_errore_testo(e):
+    """(2.20) Errore del server LLM per l'analista. Contesto pieno (il server ha tagliato l'inizio della conversazione,
+    domanda compresa: es. Qwen su Ollama «no user query found in messages»): spiega cosa fare, con il dettaglio originale."""
+    if CTX_PIENO_RE.search(str(e)):
+        return tr("Contesto del modello pieno: con i risultati degli strumenti la conversazione supera i {ctx} token del "
+                  "server LLM, che ne ha tagliato l'inizio (compresa la domanda). Alza il contesto del modello (Ollama: "
+                  "Impostazioni → Context length oppure OLLAMA_CONTEXT_LENGTH=32768; LM Studio: carica il modello con un "
+                  "contesto di 32768 o più) e premi «Ricollega», oppure fai una domanda più mirata. Dettaglio del server: "
+                  "{e}").format(ctx=NUM_CTX, e=e)
+    return tr("Errore del server LLM: {e}").format(e=e)
 
 
 def agent_turn(case, tools, messages, emit=print_emit, stop=None):
@@ -4790,7 +4953,7 @@ def agent_turn(case, tools, messages, emit=print_emit, stop=None):
                 trim_history(messages, keep_last=2, budget=0)
                 retried = True
                 continue
-            emit("error", tr("Errore del server LLM: {e}").format(e=e))
+            emit("error", llm_errore_testo(e))
             return
         msg = resp.choices[0].message
         calls = msg.tool_calls or []
@@ -4883,14 +5046,22 @@ def connect_llm(backend="auto", url="", model="", ctx=0, api_key=None):
     if NUM_CTX < 16384:
         notes.append(tr("Contesto ridotto: fai domande brevi e mirate."))
     return {"backend": label, "url": base, "model": MODEL, "ctx": NUM_CTX,
-            "models": ids, "notes": notes, "remoto": not is_local_url(base)}
+            "models": ids, "notes": notes, "remoto": not is_local_url(base), "esterno": url_esterno(base)}
 
 
 def start_session(case, llm):
     case.meta["model"] = MODEL
-    case.meta["llm"] = {k: llm.get(k) for k in ("backend", "url", "model", "ctx", "remoto")}
+    case.meta["llm"] = {k: llm.get(k) for k in ("backend", "url", "model", "ctx", "remoto", "esterno")}
     case.save()
     case.log("sessione", case.meta["llm"])
+    if llm.get("esterno"):               # (2.20.1) server fuori dalla rete locale: resta scritto nel caso
+        case.meta.setdefault("llm_esterni", [])
+        if llm.get("url") not in case.meta["llm_esterni"]:
+            case.meta["llm_esterni"].append(llm.get("url"))
+            case.save()
+        case.log("server_llm_esterno", {"url": llm.get("url"), "modello": llm.get("model"),
+                                        "avviso": "server esterno indicato dall'analista: domande e contenuti letti "
+                                                  "dall'agente escono dalla rete locale"})
     return make_tools(case), [{"role": "system", "content": system_prompt(case)}]
 
 
@@ -4923,7 +5094,7 @@ def cmd_analyze(args):
             continue
         if q == "/reperti":
             for f in case.findings():
-                print(f"{f['n']}. {f['title']} - {f['references']}")
+                print(f"{f['n']}. {f['title']} - {f['references']} [{finding_label(f)}]")
             continue
         mark = len(messages)
         messages.append({"role": "user", "content": q})
@@ -4962,6 +5133,55 @@ def bookmarks(case, only_report=True):
         con.close()
 
 
+def cited_report_md(case, bms, limit=300):
+    """(2.20) Righe del report: file citati dagli artefatti nei Preferiti, con esito (trovato con certezza / probabile,
+    da verificare / non presente) e metodo per ogni campo, come nel pannello «File citato»."""
+    ids = [int(it["inode"]) for cat in bms for it in cat["items"]
+           if it["source"] == "art" and str(it["inode"] or "").isdigit()]
+    ids = list(dict.fromkeys(ids))[:limit]
+    if not ids:
+        return []
+    try:
+        import forense_percorsi as fp
+        idx = fp.Indice(case)
+    except Exception:
+        return []
+    out = []
+    mobile = is_mobile(case)
+    con = db_ro(case)
+    try:
+        for i in ids:
+            r = con.execute("SELECT id, cat, ts, title, detail, user, src_path, part, inode, data FROM artifacts WHERE id=?",
+                            (i,)).fetchone()
+            if not r:
+                continue
+            try:
+                c = fp.file_citati(case, dict(zip(("id", "cat", "ts", "title", "detail", "user", "src_path", "part",
+                                                   "inode", "data"), r)), idx=idx)
+            except Exception:
+                continue
+            fs = [x for x in c["file"] if x.get("ruolo") == "file"]
+            if fs:
+                out += [f"- **{r[3]}**"] + [
+                    "  - " + tr("{e} — {p}; metodo: {m}{v}").format(
+                        e=tr(fp.LIVELLI[x["livello"]]) if mobile or x["livello"] != "assente" else tr("non presente nella copia"),
+                        p=fp.percorso_mostrato(x), m=fp.metodo_testo(x),
+                        v=tr("; hash verificato") if x.get("verifica") == "uguale" else
+                        tr("; ATTENZIONE: hash diverso da quello registrato nella riga") if x.get("verifica") == "diverso" else "")
+                    + (tr("; {n} candidati: {l}").format(n=x["n_candidati"], l=", ".join(c2["path"] for c2 in x["candidati"]))
+                       if x["livello"] == "probabile" and (x.get("n_candidati") or 0) > 1 else "")
+                    for x in fs]
+    finally:
+        con.close()
+        idx.close()
+    if not out:
+        return []
+    return [tr("### File citati dagli artefatti nei Preferiti"), "",
+            tr("Per ogni file nominato da un artefatto: esito della ricerca nella copia/estrazione e metodo, campo per "
+               "campo. «Trovato con certezza» = percorso completo, hash o collegamento registrato da iLEAPP/ALEAPP; "
+               "«probabile, da verificare» = solo nome o nome e dimensione; «non presente» = non trovato."), ""] + out + [""]
+
+
 def info_caso_md(m):
     i = m.get("info_caso") or {}
     out = []
@@ -4973,29 +5193,51 @@ def info_caso_md(m):
     return out
 
 
+def verifica_reperti_md(f):
+    """(2.20.1) Frase sulla verifica dei reperti: «tutti verificati» solo se lo sono davvero."""
+    if not f:
+        return ""
+    ok = sum(1 for x in f if finding_verificato(x))
+    if ok == len(f):
+        return tr("Ogni reperto è stato verificato dall'analista sugli strumenti forensi. ")
+    return tr("Reperti verificati dall'analista sugli strumenti forensi: {ok} su {n}; {d} da verificare (generati dal "
+              "modello IA o di origine non registrata). ").format(ok=ok, n=len(f), d=len(f) - ok)
+
+
+def report_ia(case):
+    """True se il report contiene testo generato da un modello IA (reperti dell'agente o di origine non registrata)."""
+    return any(x.get("origine") != FINDING_ANALISTA for x in case.findings())
+
+
 def write_report(case):
     m, f = case.meta, case.findings()
+    mob = is_mobile(case)
+    if mob:                              # (2.20) smartphone: solo gli strumenti usati davvero in questo caso
+        import forense_mobile_chat as fmc
+        usati = fmc.strumenti_usati(case)
     llm_m = m.get("llm") or {}
     backend = llm_m.get("backend", tr("server locale"))
-    where_llm = (tr("eseguito sul server della rete interna {v1}").format(v1=llm_m.get('url')) if llm_m.get("remoto")
+    where_llm = (tr("server esterno indicato dall'analista: {v1}").format(v1=llm_m.get('url')) if llm_m.get("esterno")
+                 else tr("eseguito sul server della rete interna {v1}").format(v1=llm_m.get('url')) if llm_m.get("remoto")
                  else tr("eseguito localmente"))
     L = [tr("# Report di analisi forense"), "",
          tr("- Generato: {v1} con {APP_NAME} {APP_VERSION} ({APP_BY})").format(v1=now(), APP_NAME=APP_NAME, APP_VERSION=APP_VERSION, APP_BY=APP_BY),
          *info_caso_md(m),
-         tr("- Copia forense: `{v1}`").format(v1=m.get('evidence', m['image'])),
+         (tr("- Estrazione: `{v1}`") if mob else tr("- Copia forense: `{v1}`")).format(v1=m.get('evidence', m['image'])),
          *([tr("- Copia derivata creata da RepertIA: volume {v1} all'offset {v2} decifrato con {v3} il "
                "{v4} dalla copia `{v5}` (SHA-256 della copia derivata `{v6}`)").format(v1=m['derivata'].get('volume'), v2=m['derivata'].get('offset'), v3=m['derivata'].get('credenziale'), v4=m['derivata'].get('creata'), v5=m['derivata'].get('derivata_da'), v6=m['derivata'].get('sha256'))] if m.get("derivata") else []),
          *([tr("- Analizzata tramite conversione raw (ewfexport): `{image}`").format(image=m['image'])]
            if m.get("converted_from_e01") else []),
          tr("- Tipo di supporto: {v1}").format(v1=m.get('disk_type')),
-         (tr("- Fuso orario del dispositivo per le date in ora locale (FAT/exFAT): ") + fuso_testo(m)
+         (_fuso_telefono_md(m) if mob else
+          tr("- Fuso orario del dispositivo per le date in ora locale (FAT/exFAT): ") + fuso_testo(m)
           + tr(". Le altre date (NTFS, ext4, APFS, HFS+, registro, browser) sono già assolute e le tabelle le "
             "riportano in UTC.") if m.get("fuso_dispositivo") else
           tr("- Fuso orario del dispositivo: non registrato (caso preparato prima della 2.13.7). Le date di "
           "FAT/exFAT sono state convertite in UTC con il fuso del computer usato per la preparazione.")),
          tr("- Modello LLM: {v1} ({backend}, {where_llm})").format(v1=m.get('model', '-'), backend=backend, where_llm=where_llm),
-         tr("- Strumenti usati nelle analisi: ") + "; ".join(f"{k}: {v}" for k, v in (m.get("tool_versions") or {}).items()),
-         "", tr("## Hash dei file della copia forense (SHA-256)"), ""]
+         tr("- Strumenti usati nelle analisi: ") + "; ".join(f"{k}: {v}" for k, v in (usati if mob else (m.get("tool_versions") or {}).items())),
+         "", tr("## Hash dell'estrazione (SHA-256)") if mob else tr("## Hash dei file della copia forense (SHA-256)"), ""]
     for k, v in (m.get("sha256") or {}).items():
         L.append(f"- `{k}`: `{v}`")
     if not m.get("sha256"):
@@ -5008,9 +5250,12 @@ def write_report(case):
         L.append(tr("- Calcolato il {sha256_ts}, prima dell'analisi.").format(sha256_ts=m['sha256_ts']))
     if "hash_uguale_ad_acquisizione" in m:
         L.append(tr("- Corrispondenza con l'hash di acquisizione: {hash_uguale_ad_acquisizione}").format(hash_uguale_ad_acquisizione=m['hash_uguale_ad_acquisizione']))
-    L += ["", tr("## Hash dei dati acquisiti (contenuto del supporto originale)"), "",
-          tr("Lo SHA-256 qui sopra è quello dei file della copia; questo è l'hash dei dati del supporto, "
-          "confrontato con quello registrato dal programma di acquisizione (nell'E01 o nel suo log)."), ""]
+    L += (["", tr("## Hash confrontato con quello dell'acquisizione"), "",
+           tr("Hash dell'estrazione confrontato con quello registrato dal programma di acquisizione, se c'è un suo "
+              "log accanto al file."), ""] if mob else
+          ["", tr("## Hash dei dati acquisiti (contenuto del supporto originale)"), "",
+           tr("Lo SHA-256 qui sopra è quello dei file della copia; questo è l'hash dei dati del supporto, "
+           "confrontato con quello registrato dal programma di acquisizione (nell'E01 o nel suo log)."), ""])
     L += hash_dati_md(m.get("hash_dati"))
     if m.get("verifiche"):
         L += ["", tr("Verifiche successive:"), ""]
@@ -5019,17 +5264,19 @@ def write_report(case):
                  + (tr(" (file della copia {v1}").format(v1='uguali' if v.get('file') else 'DIVERSI')
                     + (tr("; dati {dati}").format(dati=v['dati']) if v.get("dati") else "") + ")" if "file" in v else "")
                  + (tr("; registro: {registro}").format(registro=v['registro']) if v.get("registro") else ""))
-    L += ["", tr("## Partizioni"), "",
-          tr("| Offset | File system | Descrizione | OS | File | Cancellati |"),
-          "|---|---|---|---|---|---|"]
-    for p in m.get("partitions", []):
+    L += [] if mob else ["", tr("## Partizioni"), "",
+                         tr("| Offset | File system | Descrizione | OS | File | Cancellati |"),
+                         "|---|---|---|---|---|---|"]
+    for p in ([] if mob else m.get("partitions", [])):
         L.append(f"| {p['offset']} | {p.get('fs') or tr('non leggibile')} | {p['desc']} | "
                  f"{p.get('os') or '-'} | {p.get('files', '-')} | {p.get('deleted', '-')} |")
     tl = m.get("timeline") or {}
     L += ["", tr("## Analisi eseguite"), "",
-          tr("- Timeline del file system (Sleuth Kit): {v1} eventi").format(v1=tl.get('tsk_events', 0)),
-          tr("- Timeline di sistema (plaso): ") + (f"{tl['plaso_events']} eventi"
-                                                 if tl.get("plaso_events") else tr("non eseguita"))]
+          (tr("- Timeline dei file dell'estrazione (date registrate nello zip/tar): {v1} eventi") if is_mobile(case) else
+           tr("- Timeline del file system (Sleuth Kit): {v1} eventi")).format(v1=tl.get('tsk_events', 0))]
+    if not mob:
+        L.append(tr("- Timeline di sistema (plaso): ") + (f"{tl['plaso_events']} eventi"
+                                                        if tl.get("plaso_events") else tr("non eseguita")))
     i = m.get("indice")
     L.append(tr("- Testo dei documenti e metadati (exiftool): {documenti} documenti indicizzati, "
                 "{metadati} file con metadati, {gps} con coordinate GPS").format(documenti=i['documenti'], metadati=i['metadati'], gps=i['gps'])
@@ -5054,8 +5301,11 @@ def write_report(case):
         if be:
             L.append(tr("- Evidenze di interesse (bulk_extractor): ")
                      + (", ".join(f"{k} {v}" for k, v in be["kinds"].items()) or "nessuna"))
-    else:
+    elif not mob:
         L.append(tr("- Carving dello spazio libero: non eseguito"))
+    if is_mobile(case):                  # smartphone: estrazione, chat, iLEAPP/ALEAPP e limiti
+        import forense_mobile_chat as fmc
+        L += fmc.report_md(case)
     exp = sorted(case.export_dir.glob("selezione_*/manifest.csv")) if case.export_dir.exists() else []
     if exp:
         L += ["", tr("## File esportati"), ""]
@@ -5067,7 +5317,7 @@ def write_report(case):
         L.append(tr("Nessun reperto registrato."))
     bms = bookmarks(case)
     for x in f:
-        L += [f"### {x['n']}. {x['title']}", "", x["description"], "",
+        L += [f"### {x['n']}. {x['title']}", "", f"**[{finding_label(x)}]**", "", x["description"], "",
               tr("**Riferimenti:** {references}").format(references=x['references']), ""]
     if bms:
         L += [tr("## Preferiti"), "",
@@ -5083,20 +5333,22 @@ def write_report(case):
                 L.append("| " + " | ".join(cell(v) for v in (
                     it["path"], it["part"] if it["source"] in ("fs", "ua") and (it["part"] or 0) >= 0
                     else "disco" if it["source"] == "ua" else {"carving": "recuperato", "x": "estratto",
-                                                               "mail": "posta", "art": "artefatto"}.get(it["source"], ""),
+                                                               "mail": "posta", "art": "artefatto",
+                                                               "chat": tr("messaggio")}.get(it["source"], ""),
                     it["inode"] if it["source"] == "fs" else _ua_pos(it["inode"]) if it["source"] == "ua" else "",
                     tr("non allocato") if it["source"] == "ua" else "cancellato" if it["deleted"] else "allocato",
                     it["size"], (it["mtime"] or "").replace("T", " "), it["sha256"] or "", it["note"])) + " |")
             if len(cat["items"]) > 5000:
                 L.append(tr("| … altri {v1} file (elenco completo nel report portatile) | | | | | | | |").format(v1=len(cat['items']) - 5000))
             L.append("")
+        L += cited_report_md(case, bms)
     try:
         import forense_estesa as fe
         L += fe.report_md(case)
     except ImportError:
         pass
     est = m.get("estese") or {}
-    L += [tr("## Note metodologiche"), "",
+    L += [tr("## Note metodologiche"), "", fmc.metodo_md(case, llm_m)] if mob else [tr("## Note metodologiche"), "",
           tr("L'analisi è stata condotta su copia in sola lettura con The Sleuth Kit")
           + (tr(", plaso") if tl.get("plaso_events") else "")
           + (tr(", exiftool") if m.get("indice") else "")
@@ -5108,31 +5360,48 @@ def write_report(case):
           + (tr(", Sleuth Kit APFS (snapshot)") if (est.get("vss") or {}).get("snapshot_apfs") else "")
           + (tr(", Tesseract (OCR)") if "ocr" in est else "")
           + tr(", con il supporto di un modello linguistico ")
-          + (tr("eseguito su un server della rete interna, senza servizi esterni. ") if llm_m.get("remoto")
+          + (tr("su un server esterno indicato dall'analista: {v1}. ").format(v1=llm_m.get("url")) if llm_m.get("esterno")
+             else tr("eseguito su un server della rete interna, senza servizi esterni. ") if llm_m.get("remoto")
              else tr("eseguito localmente. "))
-          + tr("Ogni reperto è stato verificato dall'analista sugli strumenti forensi. "
-          "La traccia completa di comandi e risposte è in `audit_log.jsonl`.")]
+          + verifica_reperti_md(f)
+          + tr("La traccia completa di comandi e risposte è in `audit_log.jsonl`.")]
     try:
         import forense_riscontro as fr
         L += [""] + fr.report_md(case) if m.get("riscontri") else []
     except ImportError:
         pass
-    L += ambiente_md(m)
+    L += ambiente_md(m, usati if mob else None)
     av = audit_verifica(case)
     L += ["", tr("## Registro delle operazioni (audit_log.jsonl)"), "",
           tr("- Stato: {v1}").format(v1=audit_testo(av)),
-          tr("- SHA-256 dell'ultima riga al momento del report: `{v1}`").format(v1=av.get('ultimo_hash') or '-'),
+          tr("- Voci nel registro al momento del report: {v1}").format(v1=av.get('righe', 0)),
+          tr("- Hash finale del registro (SHA-256 dell'ultima riga) al momento del report: `{v1}`").format(v1=av.get('ultimo_hash') or '-'),
           tr("- Ogni riga contiene lo SHA-256 della precedente: una riga modificata, tolta o inserita dopo "
           "questa data rompe la catena; l'hash qui sopra fissa il registro a questo report (la riga "
-          "«report» successiva vi si aggancia).")]
+          "«report» successiva vi si aggancia)."),
+          tr("- Verifica successiva: «Verifica registro» in RepertIA, oppure da terminale `python3 forense_registro.py "
+             "<cartella del caso> --hash-finale {h} --voci {n}` (il file è tra i sorgenti di RepertIA e usa solo Python): "
+             "dice se il registro di allora è ancora tutto lì, quali righe sono state alterate o tolte e se i file esportati "
+             "sono ancora uguali.").format(h=av.get('ultimo_hash') or '-', n=av.get('righe', 0))]
     path = case.root / "report.md"
     path.write_text("\n".join(L), encoding="utf-8")
     case.log("report", str(path))
     return path
 
 
-def ambiente_md(m):
-    """Versioni degli strumenti e impronta del programma: alla preparazione e ora."""
+def _fuso_telefono_md(m):
+    """(2.20) Riga del fuso nei report dei casi smartphone (niente FAT/NTFS)."""
+    f = m.get("fuso_dispositivo") or {}
+    det = f.get("rilevato") or {}
+    return tr("- Fuso orario del telefono, usato per le poche date senza fuso (es. date DOS degli zip): {tz} ({o}{d}). "
+              "Le altre date dell'estrazione e dei database sono assolute e le tabelle le riportano in UTC.").format(
+        tz=f.get("tz") or "-", o=f.get("origine") or "-",
+        d=(", " + tr("letto da {p}").format(p=det["origine"])) if det.get("origine") and det.get("tz") else "")
+
+
+def ambiente_md(m, usati=None):
+    """Versioni degli strumenti e impronta del programma: alla preparazione e ora. (2.20) `usati` (casi smartphone):
+    elenco degli strumenti usati nel caso; delle versioni installate si mostrano solo quelle."""
     L = []
     try:
         cur = ambiente()
@@ -5150,9 +5419,16 @@ def ambiente_md(m):
             continue
         L.append(tr("- {APP_NAME} {v1} {lab} ({v2}); impronta del programma (SHA-256 dei file forense_* e lingua_*): "
                     "`{v3}`").format(APP_NAME=APP_NAME, v1=a.get('versione'), lab=lab, v2=a.get('ts'), v3=a.get('impronta_programma')))
-        L.append("  - " + "; ".join(f"{k}: {v}" for k, v in (a.get("strumenti") or {}).items()))
+        st = a.get("strumenti") or {}
+        if usati is not None:
+            nomi = {k.lower() for k, _v in usati}
+            st = {k: v for k, v in st.items() if k in ("python", "sistema") or k.lower() in nomi}
+        L.append("  - " + "; ".join(f"{k}: {v}" for k, v in st.items()))
     if same:
         L.append(tr("- Alla stesura del report programma e strumenti sono identici a quelli della preparazione."))
+    if usati is not None:
+        L.append(tr("- Strumenti usati in questo caso:"))
+        L += [f"  - {k}: {v}" for k, v in usati]
     if prep and cur and prep.get("impronta_programma") != cur.get("impronta_programma"):
         L.append(tr("- Nota: il programma è cambiato tra la preparazione e il report (aggiornamento): i risultati "
                  "già presenti nel caso sono quelli prodotti dalla versione della preparazione."))
@@ -5238,6 +5514,9 @@ def main():
                         "artefatti di sistema e cronologia web"))
     p.add_argument("--vss", action="store_true", help=tr("copie shadow di Windows"))
     p.add_argument("--ocr", action="store_true", help=tr("testo nelle immagini (Tesseract)"))
+    p.add_argument("--trascrizione", metavar="JSON",
+                   help=tr("trascrizione degli audio con Whisper (ultimo passo): opzioni in JSON, es. "
+                           "{\"scope\": \"tutti\", \"modello\": \"small\", \"lingua\": \"auto\"}; il modello va installato prima"))
     p.add_argument("--info", help=tr("dati del caso in JSON: nome, operatore, reperto, note"))
     p.add_argument("--lingua", choices=sorted(lg.LINGUE),
                    help=tr("lingua dei testi del caso (artefatti, report): it o en; predefinita quella delle impostazioni"))

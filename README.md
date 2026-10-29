@@ -1,14 +1,35 @@
 # RepertIA
 
-**Forensic analysis of disk and USB drive images, with a local, offline AI assistant.**
+**Forensic analysis of disk and USB drive images and smartphone extractions, with a local, offline AI assistant.**
 🇮🇹 **Versione italiana: [README.it.md](README.it.md)**
 
-RepertIA analyses forensic images (E01, raw/dd, dmg) from a single local web interface, on Apple Silicon Macs, Windows
+RepertIA analyses forensic images (E01, raw/dd, dmg) and, from 2.20, full file system extractions of iPhones and Android
+phones from a single local web interface, on Apple Silicon Macs, Windows
 or Linux (experimental). It uses established forensic tools (The Sleuth Kit, libewf, plaso, PhotoRec, bulk_extractor,
 ExifTool, libyal) and gathers their results into a case you can browse with filters, timelines and previews. An optional
 language model running on the analyst's own computer answers questions in English or Italian, citing files, offsets and
 inodes.
 **No data leaves the computer**: no cloud, no accounts, no telemetry; the interface listens only on 127.0.0.1.
+
+**RepertIA works completely WITHOUT artificial intelligence.** The local AI model is **not included** in the packages:
+it is an optional choice of the user (LM Studio, llama-server or Ollama), which can be used or not. Without a model all
+analyses, searches and reports work just the same.
+
+## Download
+
+| System | File |
+|---|---|
+| Windows (installer) | [RepertIA-2.20.1-Setup.exe](https://github.com/silvexe/RepertIA/releases/download/v2.20.1/RepertIA-2.20.1-Setup.exe) |
+| Windows (portable) | [RepertIA-2.20.1-Windows.zip](https://github.com/silvexe/RepertIA/releases/download/v2.20.1/RepertIA-2.20.1-Windows.zip) |
+| Mac (Apple Silicon) | [RepertIA-2.20.1-Mac.zip](https://github.com/silvexe/RepertIA/releases/download/v2.20.1/RepertIA-2.20.1-Mac.zip) |
+| Linux x86_64 (experimental) | [RepertIA-2.20.1-Linux.tar.gz](https://github.com/silvexe/RepertIA/releases/download/v2.20.1/RepertIA-2.20.1-Linux.tar.gz) |
+| Acceptance test (*collaudo*) | [RepertIA-collaudo.zip](https://github.com/silvexe/RepertIA/releases/download/v2.20.1/RepertIA-collaudo.zip) |
+| SHA-256 checksums | [SHA256SUMS.txt](https://github.com/silvexe/RepertIA/releases/download/v2.20.1/SHA256SUMS.txt) |
+
+All versions: <https://github.com/silvexe/RepertIA/releases>
+
+**If you do not use GitHub:** download the ready-to-use program from this table. The green **Code › Download ZIP**
+button downloads only the source code, not the program to install.
 
 > **Disclaimer.** RepertIA is a personal project. It is not certified or validated by any third party and is not
 > affiliated with any office or public administration. Results must be confirmed with a second tool or on the original
@@ -23,12 +44,14 @@ inodes.
 | Encrypted volumes | Detection of BitLocker, LUKS, FileVault, VeraCrypt (high entropy); decryption of BitLocker, LUKS1 and APFS with the key (never stored) |
 | Windows artifacts | For every installation on the disk (including Windows.old): accounts and logons (SAM and event logs), Prefetch, Amcache, UserAssist, ShimCache, BAM, SRUM, LNK files and jump lists, ShellBags, Activity History, NTFS journal `$UsnJrnl`, events (services, power on/off, Remote Desktop, Defender, USB), networks, Recycle Bin, browsers |
 | macOS artifacts | Data volume, quarantine, launch items, TCC, iMessage, recent documents, Safari, KnowledgeC, Bluetooth, Time Machine |
+| Smartphones (2.20) | iPhone and Android full file system extractions (zip from Cellebrite, GrayKey and others, tar, tar.gz, folder) read without copying; WhatsApp, iMessage/SMS and SMS/MMS chats with a bubble view (also in the portable report), address books, attachments linked to the files and previewed over the chat, chat export (HTML/CSV with SHA-256); iLEAPP and ALEAPP included, with the chats of the other apps and a Calls view derived from their results; optional iOS keychain acquired separately (e.g. GrayKey) passed to iLEAPP, secret values hidden by default; iOS sysdiagnoses (one or more) read with a second iLEAPP run |
+| Cited files (2.20) | File paths and names cited by artifacts, chat attachments, timeline rows and agent answers found in the image or extraction (phone, Windows and macOS paths; folder and name fields joined; by path, hash or name and size), one box per file with the result in three levels (✅ found with certainty, ⚠️ probable with the candidates, ❌ not present) and a preview, also in the Word/PDF report; WhatsApp attachments verified with their SHA-256, thumbnail from the database when the file is missing |
 | Timeline | File system + plaso; dates in UTC, Italian time or the device's time zone (detected); FAT/exFAT converted correctly |
 | Content | Document text with full-text search, OCR (Tesseract), EXIF/GPS metadata, archives, PST/OST/MBOX/EML mail |
 | Recovery | Carving with PhotoRec, bulk_extractor features, File Explorer thumbnail cache |
 | Anomalies | Fake extensions and disguised executables (deleted files are verified to avoid false positives), encrypted files and containers |
 | Images and hash sets | Perceptual hashes (similar images), NSRL hash sets, Project VIC / CAID, folders of reference images |
-| Safeguards | The image is never modified; data hashes compared with the acquisition hashes; hash-chained audit log; tool versions and program fingerprint in the report |
+| Safeguards | The image is never modified; data hashes compared with the acquisition hashes; hash-chained audit log with entries and final hash in the report and *Verify log* (also from the terminal, `tools/verifica_registro.py`); tool versions and program fingerprint in the report |
 | Reports | Case report (Markdown, Word, PDF) and a portable HTML report for readers who do not have the forensic image |
 
 User interface, reports and case texts are **in English or Italian** (each case's language is chosen when it is
@@ -39,11 +62,11 @@ and known limitations: [VALIDATION.md](VALIDATION.md) (Italian original: [VALIDA
 
 ## Download and installation
 
-Ready-made packages are in the **Releases** section:
+After downloading the package for your system (see [Download](#download)):
 
 | | Mac (Apple Silicon) | Windows 10/11 64-bit | Linux x86_64 (experimental) |
 |---|---|---|---|
-| Package | `RepertIA-<version>-Mac.zip` (app with Python, plaso and libraries) | `RepertIA-<version>-Setup.exe` (no administrator rights needed) or the portable `RepertIA-<version>-Windows.zip` | `RepertIA-<version>-Linux.tar.gz` + `./installa.sh` (Ubuntu 24.04+, Debian 13) |
+| Installation | unzip and move `RepertIA.app` (with Python, plaso and libraries) where you like; first start: right-click › Open | run the Setup.exe (no administrator rights needed) or unzip the portable zip | extract and run `./installa.sh` (Ubuntu 24.04+, Debian 13) |
 | External tools | installed with Homebrew on first start | included | installed with apt by `installa.sh`, which also sets up Python, plaso and the libraries |
 | Acceptance test | `RepertIA-collaudo.zip` + *Collaudo RepertIA.command* | same zip, Start menu › RepertIA › Collaudo | same zip, `./collaudo.sh` |
 | AI model (optional) | LM Studio, llama-server or Ollama, on the same computer or on the internal network | as Mac | as Mac |
@@ -109,6 +132,10 @@ Building the packages: [docs/BUILDING.md](docs/BUILDING.md).
   (EU) 2024/1689) and, in Italy, by Law 132/2025 and its implementing decrees. RepertIA is a personal, uncertified
   project: **anyone using it for official work must assess its compliance and have it authorised under their own
   organisation's rules** (for example impact assessment and human oversight). This section is not legal advice.
+- **AI Act (2.20.1).** Intended purpose, excluded uses, the Article 6(3) assessment, how the Article 50 transparency
+  obligations are met (AI-generated findings marked "to be checked" until the analyst confirms them, label under every
+  answer, AI metadata in Word/PDF reports, warning before using an external LLM server) and a note for adopting offices:
+  **[AI_ACT.en.md](AI_ACT.en.md)**.
 
 ## Acceptance test
 

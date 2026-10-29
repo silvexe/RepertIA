@@ -1,5 +1,5 @@
-RepertIA 2.19.0 - By silvexe (Linux x86_64)
-Analisi forense di copie di dischi con un modello linguistico (LLM) locale.
+RepertIA 2.20.1 - By silvexe (Linux x86_64)
+Analisi forense di copie di dischi ed estrazioni di smartphone con un modello linguistico (LLM) locale.
 
 VERSIONE LINUX (SPERIMENTALE)
 Stesso programma delle versioni Mac e Windows (stessa impronta dei sorgenti). Il collaudo è stato
@@ -12,9 +12,16 @@ LINGUA
 L'interfaccia è in italiano o in inglese: si sceglie con il selettore in alto a destra.
 Ogni caso mantiene la lingua scelta alla sua creazione (artefatti e report). In inglese: README_EN.txt.
 
+SMARTPHONE (2.20)
+Nella pagina iniziale "Smartphone" apre un'estrazione del file system completo di un iPhone o di un
+telefono Android (zip di Cellebrite, GrayKey e altri, tar, tar.gz o cartella): chat (WhatsApp,
+iMessage/SMS, SMS/MMS) con la vista a fumetti, rubriche, timeline, ricerche e report come per i dischi.
+iLEAPP e ALEAPP (licenza MIT) sono inclusi in strumenti/ileapp e strumenti/aleapp.
+Su Linux le loro librerie le installa installa.sh.
+
 INSTALLAZIONE
 1. Estrai l'archivio dove preferisci (ad esempio nella cartella personale):
-     tar -xzf RepertIA-2.19.0-Linux.tar.gz
+     tar -xzf RepertIA-2.20.1-Linux.tar.gz
 2. Apri un terminale nella cartella RepertIA ed esegui:
      ./installa.sh
    Serve internet e la password di amministratore. Lo script:

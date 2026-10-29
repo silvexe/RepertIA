@@ -1,10 +1,16 @@
-RepertIA 2.19.0 - By silvexe (Mac Apple Silicon)
-Analisi forense di copie di dischi con un modello linguistico (LLM) locale.
+RepertIA 2.20.1 - By silvexe (Mac Apple Silicon)
+Analisi forense di copie di dischi ed estrazioni di smartphone con un modello linguistico (LLM) locale.
 
 LINGUA
 L'interfaccia è in italiano o in inglese: si sceglie con il selettore in alto a destra.
 Ogni caso mantiene la lingua scelta alla sua creazione (artefatti e report); i casi creati
 con le versioni precedenti sono in italiano. In inglese: README_EN.txt.
+
+SMARTPHONE (2.20)
+Nella pagina iniziale "Smartphone" apre un'estrazione del file system completo di un iPhone o di un
+telefono Android (zip di Cellebrite, GrayKey e altri, tar, tar.gz o cartella): chat (WhatsApp,
+iMessage/SMS, SMS/MMS) con la vista a fumetti, rubriche, timeline, ricerche e report come per i dischi.
+iLEAPP e ALEAPP (licenza MIT) sono inclusi in strumenti/ileapp e strumenti/aleapp.
 
 INSTALLAZIONE
 1. Trascina RepertIA.app nella cartella Applicazioni (o dove preferisci).

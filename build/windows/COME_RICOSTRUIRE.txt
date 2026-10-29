@@ -4,6 +4,9 @@ Struttura installata (cartella app\ dell'installer):
   RepertIA.bat, Aggiorna strumenti.bat, Collaudo.bat (2.14), LEGGIMI.txt, README_EN.txt, repertia.ico
   RepertIA\    forense_agent.py, forense_gui.py, forense_gui.html, forense_portatile.py,
                forense_portatile.html, forense_estesa.py, forense_apfs.py, forense_collaudo.py, forense_riscontro.py, forense_lingua.py,
+       forense_mobile*.py, forense_mobile*.html, forense_mobile_leapp_mappa.json (smartphone, dalla 2.20),
+       forense_percorsi.py + forense_percorsi.json (file citati e tabella dei percorsi, dalla 2.20),
+       forense_registro.py (verifica del registro a catena, dalla 2.20; usabile anche da solo con Python),
        lingua_en.json (dizionario inglese), README.md (gli stessi del Mac)
   python\      Python 3.12 per Windows (python-build-standalone, install_only_stripped)
                + in Lib\site-packages i pacchetti openai e pillow (pip download --platform win_amd64)
@@ -24,6 +27,9 @@ Struttura installata (cartella app\ dell'installer):
                                tesseract-ocr-w64-setup-5.4.0, estratto con 7z x; elenco ricavato con
                                objdump -p); libtesseract-5.dll ridotta con strip --strip-debug
   strumenti\tessdata           eng, ita, osd .traineddata (github.com/tesseract-ocr/tessdata_fast)
+  strumenti\ffmpeg            (dalla 2.20) solo bin\ffmpeg.exe + LICENSE.txt + VERSIONE.txt dalla build LGPL win64 di BtbN
+                               (github.com/BtbN/FFmpeg-Builds, ffmpeg-n<ver>-win64-lgpl-<ramo>.zip; controllare lo SHA-256
+                               con checksums.sha256 della release; allegare alla Release il sorgente del commit esatto)
   strumenti\bulk_extractor    bulk_extractor.exe (v2.2.0, cross-compilato su Linux con MinGW-w64 posix,
                                tutto statico, solo DLL di sistema) + LICENSE.md, COPYING e licenses\
                                Ricetta: .github/workflows/mingw.yml del repository simsong/bulk_extractor
@@ -35,3 +41,13 @@ Struttura installata (cartella app\ dell'installer):
 
 Compilazione (Linux con nsis, o Windows con NSIS):
   makensis -DVER=2.6 repertia.nsi     -> RepertIA-2.6-Setup.exe
+
+2.20 - iLEAPP e ALEAPP (casi smartphone): con build/leapp/prepara_leapp.sh (eseguito sul Mac) si ottengono
+strum_win/ileapp e strum_win/aleapp (librerie win_amd64 per Python 3.12 in site/); vanno in app\strumenti\ileapp e
+app\strumenti\aleapp (nell'installer: File /r come le altre cartelle di strumenti).
+
+2.20 - Trascrizione degli audio: whisper-bin-x64.zip della release b5454 di whisper.cpp (= v1.9.5, commit d1be6fde;
+SHA-256 6ba69e3482d7826214f90a6a9c84ca07782aec1e1d0c6a7c30c994fd5d816ccb). Da Release\ si copiano in
+app\strumenti\whisper\bin: whisper-cli.exe, whisper.dll, ggml.dll, ggml-base.dll, ggml-cpu-*.dll, più msvcp140.dll,
+vcruntime140.dll e vcruntime140_1.dll (ridistribuibili Visual C++, presi da strumenti\sleuthkit\bin e python\);
+LICENSE (MIT) in app\strumenti\whisper. I modelli NON vanno nel pacchetto.

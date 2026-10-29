@@ -1,0 +1,76 @@
+{
+  "#": "RepertIA (2.20) – file citati. Tabella di corrispondenza dei percorsi usata da forense_percorsi.py per trovare nella copia forense o nell'estrazione i file che una riga cita (artefatti, timeline, chat, risposte dell'agente). Per aggiungere un caso: una riga [prefisso del dispositivo, percorso nella copia/estrazione] nella sezione del sistema (valgono tutte le righe che corrispondono; iOS: «filesystem2/» = /private/var nelle estrazioni in stile Cellebrite); i confronti non distinguono maiuscole e minuscole. Le regole dei campi sono espressioni regolari (Python) sui nomi dei campi.",
+  "android": [
+    ["/storage/emulated/0/", "data/media/0/"],
+    ["/storage/emulated/legacy/", "data/media/0/"],
+    ["/storage/self/primary/", "data/media/0/"],
+    ["/sdcard/", "data/media/0/"],
+    ["/mnt/sdcard/", "data/media/0/"],
+    ["/mnt/user/0/primary/", "data/media/0/"],
+    ["/mnt/runtime/default/emulated/0/", "data/media/0/"],
+    ["/data/user/0/", "data/data/"],
+    ["/data/user_de/0/", "data/user_de/0/"],
+    ["/storage/emulated/", "data/media/"]
+  ],
+  "ios": [
+    ["/var/mobile/", "private/var/mobile/"],
+    ["/var/containers/", "private/var/containers/"],
+    ["/var/root/", "private/var/root/"],
+    ["/private/var/", "private/var/"],
+    ["~/", "private/var/mobile/"],
+    ["/var/", "filesystem2/"],
+    ["/private/var/", "filesystem2/"],
+    ["~/", "filesystem2/mobile/"]
+  ],
+  "windows_variabili": {
+    "%USERPROFILE%": "Users/{utente}",
+    "%HOMEPATH%": "Users/{utente}",
+    "%APPDATA%": "Users/{utente}/AppData/Roaming",
+    "%LOCALAPPDATA%": "Users/{utente}/AppData/Local",
+    "%TEMP%": "Users/{utente}/AppData/Local/Temp",
+    "%TMP%": "Users/{utente}/AppData/Local/Temp",
+    "%PUBLIC%": "Users/Public",
+    "%ALLUSERSPROFILE%": "ProgramData",
+    "%PROGRAMDATA%": "ProgramData",
+    "%SYSTEMROOT%": "Windows",
+    "%WINDIR%": "Windows",
+    "%SYSTEMDRIVE%": "",
+    "%PROGRAMFILES%": "Program Files",
+    "%PROGRAMFILES(X86)%": "Program Files (x86)",
+    "%COMMONPROGRAMFILES%": "Program Files/Common Files"
+  },
+  "windows_prefissi": [
+    "\\\\?\\Volume{[^}]*}\\",
+    "\\\\?\\GLOBALROOT\\Device\\HarddiskVolumeShadowCopy[0-9]+\\",
+    "\\\\?\\[A-Za-z]:\\",
+    "\\\\.\\[A-Za-z]:\\",
+    "\\Device\\HarddiskVolume[0-9]+\\",
+    "\\VOLUME{[^}]*}\\",
+    "\\??\\[A-Za-z]:\\",
+    "[A-Za-z]:\\",
+    "[A-Za-z]:/"
+  ],
+  "macos": [
+    ["/private/var/", "private/var/"],
+    ["/var/", "private/var/"],
+    ["/private/tmp/", "private/tmp/"],
+    ["/tmp/", "private/tmp/"],
+    ["/private/etc/", "private/etc/"],
+    ["/etc/", "private/etc/"],
+    ["/System/Volumes/Data/", ""]
+  ],
+  "campi": {
+    "fonte": "^(source|fonte|origine)\\b|^source\\w*$|^file di origine|^repository source$|^owner metadata source$|^source db",
+    "cartella": "(folder|directory|\\bdir\\b|cache_folder|sandbox|bundle path|event path|staging directory|cartella)",
+    "hash_sha256": "(sha-?256|file_hash|media_hash|hash del file)",
+    "hash_sha1": "sha-?1\\b",
+    "hash_md5": "\\bmd5\\b",
+    "dimensione": "^(size|file size|filesize|file_size|media_size|total_bytes|bytes|dimensione|size \\(bytes\\))$",
+    "nome": "^(file ?name|filename|name of file|media_name|media name|transfer_name|nome del file|nome file|attachment name)$",
+    "esclusi": "(url|uri$|host|domain|link|key|regex|pattern|query|command|cmdline|argument|variant|mime|content.?type|message type|time ?zone|build|fingerprint|component|activity|bundle ?id|package name|bucket|reason|token|zid|password|passcode|cookie|^value$|^data$|^id$|^name$|identifier|account|signature|cert|xml path|xpath|\\btype$|filesystem)",
+    "file": "(path|file|media|attach|thumb|image|img|picture|photo|pic\\b|audio|video|voice|snapshot|screenshot|icon|wallpaper|avatar|location|saved?\\b|cache|asset|bitmap|preview|layout|recovered|download|document|artwork|animation|sticker|capture|payload|response|\\blog\\b|percorso|allegat|programma|program\\b|eseguibile|executable|destinazione|target|elemento|contenuto nel cestino)"
+  },
+  "campi_inclusi": "(local uri|file uri|uri file|asset url)",
+  "estensioni_nome": "^[^/\\\\:*?\"<>|]{1,200}\\.(jpe?g|jfif|png|gif|bmp|webp|heic|heif|tiff?|mp4|m4v|mov|3gp|avi|mkv|webm|ts|mp3|m4a|aac|amr|opus|ogg|wav|caf|flac|pdf|docx?|xlsx?|pptx?|odt|ods|rtf|txt|csv|json|xml|plist|db|sqlite|sqlite3|zip|rar|7z|apk|ipa|vcf|ics|html?|mhtml|eml|msg|pst|lnk|exe|dll|log|dat|thumb|exo|enc|crypt\\d*)$",
+  "radici_assolute": "^(/storage/|/sdcard|/mnt/|/data/|/system/|/product/|/vendor/|/apex/|/private/|/var/|/Users/|/Volumes/|/Applications/|/Library/|/System/|/home/|/root/|/tmp/|/opt/|/media/|/srv/|/etc/|~/)"
+}

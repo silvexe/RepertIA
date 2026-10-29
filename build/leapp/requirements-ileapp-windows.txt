@@ -1,0 +1,41 @@
+astc_decomp_faster
+# numpy 1.26.4 has no Windows ARM64 wheel, and MSVC 19.51 fails to build it there
+# (internal compiler errors), so Windows ARM64 takes numpy 2 on every version, as
+# 3.13 and later do everywhere.
+numpy==1.26.4; python_version < "3.13" and (platform_system != "Windows" or platform_machine != "ARM64")
+numpy>=2.1; python_version >= "3.13" or (platform_system == "Windows" and platform_machine == "ARM64")
+# Compiled Unified Log prefilter.
+pyahocorasick==2.3.1
+pytypedstream
+bencoding
+bs4
+# admin/scripts/fetch_unifiedlog_iterator.py falls back to certifi's CA bundle on
+# python.org installs, which ship without a certificate store until the user runs
+# 'Install Certificates.command'. Without this, a fresh build venv cannot fetch the
+# Unified Log parser binary (CERTIFICATE_VERIFY_FAILED).
+certifi
+ijson
+mmh3
+mdplistlib
+# The zip seeker reads a CLBX zip's file times from its metadata.msgpack.
+msgpack==1.2.3
+nska-deserialize>=1.3.1
+nska_deserialize
+packaging>=24.0
+pandas
+pathlib2==2.3.5
+standard-imghdr; python_version >= "3.13"  # PGPy imports stdlib imghdr, removed in Python 3.13 (PEP 594)
+pillow
+pillow_heif
+# protobuf is required by the vendored scripts/blackboxprotobuf. Do NOT add the
+# PyPI 'blackboxprotobuf' back: it pins protobuf==3.10.0, reintroducing patched
+# CVEs. 5.29.6 is the minimum that clears CVE-2022-1941/2025-4565/2026-0994.
+protobuf==5.29.6
+pycryptodome
+
+pyliblzfse
+
+pytz
+simplekml
+cryptography
+pyasn1

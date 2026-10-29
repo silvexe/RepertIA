@@ -20,6 +20,20 @@ in [THIRD_PARTY_LICENSES.en.md](../THIRD_PARTY_LICENSES.en.md).
 4. `python3 tools/controlla_pubblicazione.py . --parole <private list>`: no sensitive data.
 5. **The packages contain `VALIDAZIONE.md`, `THIRD_PARTY_LICENSES.md` and the manual**: after any change to these
    documents the packages must be rebuilt, even if the program does not change.
+6. "Download" / "Scarica" table at the top of `README.md` and `README.it.md`: update the version number in the direct
+   links to the Release files (`releases/download/v<version>/RepertIA-<version>-…`), the same as in the Release text.
+
+## iLEAPP and ALEAPP (from 2.20)
+
+Smartphone cases use iLEAPP and ALEAPP, included in the packages in `strumenti/ileapp` and `strumenti/aleapp`, each with its
+libraries in `site/` (separate from those of RepertIA and plaso). On the Mac, with the app's Python:
+
+    build/leapp/prepara_leapp.sh RepertIA.app/Contents/Resources/python/bin/python3 <work folder>
+
+produces `strum_mac` (arm64 libraries), `strum_win` (win_amd64 libraries for Python 3.12, downloaded from PyPI) and
+`strum_linux` (only the programs, the `requirements-repertia.txt` lists and the `wheels` folder: the libraries are installed
+by `installa.sh`). The versions are fixed in the script and in the `build/leapp/requirements-*.txt` lists. The smartphone
+acceptance test (`atteso_smartphone.json`) also checks the rows imported by iLEAPP and ALEAPP.
 
 ## Mac (Apple Silicon)
 

@@ -14,7 +14,7 @@ permettono di leggere file locali in altro modo da una pagina aperta con doppio 
 Il contenuto delle prove non viene mai interpretato come HTML: è mostrato come testo,
 immagini o pagine PDF già convertite in immagini.
 """
-import base64, csv, hashlib, html, json, os, re, shutil, subprocess, threading, time
+import base64, csv, errno, sys, hashlib, html, json, os, re, shutil, subprocess, threading, time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -29,6 +29,8 @@ ATT_CHUNK = 20_000             # file inclusi per file dati
 TEXT_CHUNK = 4 << 20           # caratteri di testo per file dati
 TEXT_PER_DOC = 60_000          # caratteri di testo conservati per documento
 TEXT_TOTAL = 400 << 20         # limite complessivo dei testi
+LEAPP_PARTE = 20_000         # (2.20) righe di iLEAPP/ALEAPP per file nel report portatile
+EV_PARTE = 50_000            # (2.20) eventi per file della timeline nei giorni molto pieni
 MSG_MAX = 400                  # caratteri del messaggio di ogni evento
 FEATURES_MAX = 200_000         # tracce di bulk_extractor
 # anteprime: complete per reperti e selezioni, leggere per i file inclusi in blocco
@@ -44,6 +46,15 @@ UTF16_RE = re.compile(rb"(?:[\x20-\x7e]\x00){5,}")
 REF_RE = re.compile(r"offset\s+(\d+)\s*,\s*inode\s+(\d+(?:-\d+-\d+)?)", re.I)
 CARVED_RE = re.compile(r"file recuperato\s+([^\s,;()]+)", re.I)
 DOC_EXT = g.IMG_NATIVE | g.IMG_CONVERT | {".pdf"} | g.WORD_EXT | g.OFFICE_EXT | g.TEXT_LIKE
+# (2.20) spazio su disco: ogni file occupa almeno un cluster (128 KB su un disco exFAT da 1 TB), quindi con centinaia
+# di migliaia di file piccoli il report occupa molto più della somma delle dimensioni dei file
+DET_GRP = 100                  # dettagli dei file inclusi in blocco: un file dati ogni 100 (prima uno per file)
+RISERVA = 2 << 30              # spazio da lasciare libero sul disco del caso
+DETAIL_B = 7 << 10             # dettaglio di un file nel file dati (intestazione, dati), testo escluso
+PREV_IMG = 600 << 10           # anteprima JPEG di un'immagine da convertire (HEIC, TIFF, RAW…)
+PREV_PAGE = 300 << 10          # pagina JPEG di un PDF o di un documento Office
+CAT_ROW = 300                  # byte del catalogo e delle impronte per voce del file system
+FILE_DATI = 2000               # file dati del report oltre ai dettagli (catalogo, giorni della timeline, iLEAPP…), al massimo
 
 
 def js(name, obj):
@@ -112,33 +123,163 @@ def bulk_query(mode, mb, deleted):
     return q, args
 
 
+def cluster_size(path):
+    """Unità di allocazione del disco (byte): il minimo che occupa un file non vuoto."""
+    try:
+        if os.name == "nt":
+            import ctypes
+            spc, bps, fc, tc = (ctypes.c_ulong() for _ in range(4))
+            root = os.path.splitdrive(os.path.abspath(path))[0] + "\\"
+            if ctypes.windll.kernel32.GetDiskFreeSpaceW(root, ctypes.byref(spc), ctypes.byref(bps),
+                                                        ctypes.byref(fc), ctypes.byref(tc)):
+                return spc.value * bps.value or 4096
+            return 4096
+        st = os.statvfs(path)
+        return st.f_frsize or st.f_bsize or 4096
+    except (OSError, AttributeError, ValueError):
+        return 4096
+
+
+class Spazio:
+    """(2.20) Spazio che il report occupa sul disco: contenuto dei file arrotondato ai cluster, cartelle,
+    anteprime, file dati, testi e stringhe, catalogo e impronte."""
+
+    def __init__(self, cl, testi=TEXT_TOTAL, ad=False):
+        self.cl, self.n, self.bytes, self.disk, self.conv, self.pages, self.text = cl, 0, 0, 0, 0, 0, 0
+        self.ad = ad                               # «._nome» di macOS: tolti man mano, restano quelli delle cartelle
+        self.dirs = set()                          # cartelle che il report crea in file/ (con le madri)
+        self.testi = min(TEXT_TOTAL, testi)        # testi già indicizzati dei documenti (dati/testi)
+
+    def r(self, x):
+        return -(-int(x) // self.cl) * self.cl
+
+    def add(self, path, size, part=None):
+        size = int(size or 0)
+        self.n += 1
+        d = f"{part}/{path or ''}".rsplit("/", 1)[0]
+        while d and d not in self.dirs:
+            self.dirs.add(d)
+            d = d.rpartition("/")[0]
+        self.bytes += size
+        self.disk += self.r(size)
+        ext = Path(path or "").suffix.lower()
+        if ext in g.IMG_CONVERT:
+            self.conv += 1
+        elif ext == ".pdf" or ext in g.WORD_EXT or ext in g.OFFICE_EXT:
+            self.pages += 1
+        elif ext in g.TEXT_LIKE:
+            self.text += min(size, BULK["text"])
+
+    def need(self, voci):
+        """Byte stimati con voci = righe del catalogo (albero del file system)."""
+        cartelle = len(self.dirs) + self.n // 1000 + 10
+        extra = (self.n * DETAIL_B + int(self.text * 1.3)) + self.r(1) * (self.n // DET_GRP + 1)
+        extra += self.conv * self.r(PREV_IMG) + self.pages * BULK["pages"] * self.r(PREV_PAGE)
+        extra += (self.conv + self.pages) * self.cl             # una cartella in anteprime/ per file
+        extra += min(STR_TOTAL, self.bytes // 4) + int(self.testi * 1.3) + voci * CAT_ROW
+        extra += (cartelle + min(FILE_DATI, 50 + voci // 500)) * self.cl * (2 if self.ad else 1)
+        return int((self.disk + extra) * 1.05)
+
+    def out(self, voci):
+        return {"files": self.n, "bytes": self.bytes, "need": self.need(voci)}
+
+
+def testi_case(case):
+    """Caratteri dei testi già indicizzati (doc_text) del caso, per la stima."""
+    con = fa.db_ro(case)
+    try:
+        if not fa.table_exists(con, "doc_text"):
+            return 0
+        return con.execute("SELECT IFNULL(SUM(LENGTH(body)), 0) FROM doc_text").fetchone()[0]
+    finally:
+        con.close()
+
+
 def estimate(case):
-    """Quanti file e quanti byte per ciascuna scelta di contenuto (per la finestra)."""
+    """Quanti file e quanti byte per ciascuna scelta di contenuto (per la finestra), con lo spazio
+    che il report occuperà davvero sul disco del caso."""
     st = g.ensure_nav(case)
     if st["state"] != "ready":
         return {"ready": False, "msg": st.get("msg") or tr("Albero in preparazione…")}
+    try:
+        case.export_dir.mkdir(exist_ok=True)
+        du = shutil.disk_usage(case.export_dir)
+        free, total = du.free, du.total
+    except OSError:
+        free = total = None
+    cl = cluster_size(case.export_dir) if free is not None else 4096
+    ad = free is not None and appledouble(case.export_dir)
     con = g.nav_db(case)
     out = {"ready": True}
     try:
-        for label, deleted in (("tutti", True), ("tutti_allocati", False)):
-            q, a = bulk_query("tutti", 0, deleted)
-            n, s = con.execute(f"SELECT COUNT(*), IFNULL(SUM(size),0) FROM ({q})", a).fetchone()
-            out[label] = {"files": n, "bytes": s}
-        n = s = 0
-        q, a = bulk_query("piccoli", 5, True)
+        voci = con.execute("SELECT COUNT(*) FROM nav").fetchone()[0]
+        tx = testi_case(case)
+        tutti, alloc, picc = Spazio(cl, tx, ad), Spazio(cl, tx, ad), Spazio(cl, tx, ad)
+        q, a = bulk_query("tutti", 0, True)
         for part, inode, path, size, d in con.execute(q, a):
-            if Path(path).suffix.lower() in DOC_EXT:
-                n, s = n + 1, s + (size or 0)
-        out["piccoli_5"] = {"files": n, "bytes": s}
+            tutti.add(path, size, part)
+            if not d:
+                alloc.add(path, size, part)
+            if (size or 0) <= 5 << 20 and Path(path).suffix.lower() in DOC_EXT:
+                picc.add(path, size, part)
+        out["tutti"] = tutti.out(voci)
+        out["tutti_allocati"] = alloc.out(voci)
+        out["piccoli_5"] = picc.out(voci)
     finally:
         con.close()
-    try:
-        case.export_dir.mkdir(exist_ok=True)
-        out["free"] = shutil.disk_usage(case.export_dir).free
-    except OSError:
-        out["free"] = None
+    out.update({"free": free, "total": total, "cluster": cl, "riserva": RISERVA, "appledouble": ad})
     out["image_ok"] = Path(case.image).exists()
     return out
+
+
+def appledouble(path):
+    """(2.20) True se macOS su questo disco (exFAT, FAT, rete) salva gli attributi estesi in un file «._nome»
+    accanto a ogni file e cartella: contiene solo com.apple.provenance ma occupa un cluster intero (128 KB)."""
+    if sys.platform != "darwin":
+        return False
+    probe = os.path.join(path, f".repertia_prova_{os.getpid()}")
+    try:
+        with open(probe, "w") as f:
+            f.write("x")
+        return os.path.exists(os.path.join(path, "._" + os.path.basename(probe)))
+    except OSError:
+        return False
+    finally:
+        for q in (probe, os.path.join(path, "._" + os.path.basename(probe))):
+            try:
+                os.unlink(q)
+            except OSError:
+                pass
+
+
+def togli_ad(p):
+    """Toglie il «._nome» di macOS accanto a un file del report (solo sui dischi con appledouble)."""
+    p = str(p)
+    try:
+        os.unlink(os.path.join(os.path.dirname(p), "._" + os.path.basename(p)))
+    except OSError:
+        pass
+
+
+def togli_ad_tutti(root):
+    """Toglie tutti i «._nome» di macOS nel report: lì nessun file del supporto inizia con «._» (dest_rel)."""
+    for base, dirs, files in os.walk(root):
+        for fn in files:
+            if fn.startswith("._"):
+                try:
+                    os.unlink(os.path.join(base, fn))
+                except OSError:
+                    pass
+
+
+def disco_pieno(e):
+    """True se l'errore è «disco pieno» (anche ERROR_DISK_FULL di Windows)."""
+    return isinstance(e, OSError) and (e.errno in (errno.ENOSPC, getattr(errno, "EDQUOT", -1))
+                                       or getattr(e, "winerror", None) in (39, 112))
+
+
+def gb(b):
+    return (f"{b / 1e9:.1f} GB" if b >= 1e9 else f"{b / 1e6:.0f} MB").replace(".", ",")
 
 
 # ------------------------------------------------------------ file da includere
@@ -187,7 +328,7 @@ def wanted_files(case, opts, progress):
         try:
             for part, inode, path, size, d in con.execute(q, a):
                 if mode == "tutti" or Path(path).suffix.lower() in DOC_EXT:
-                    add(("fs", part, inode), why, False, size=size or 0)
+                    add(("fs", part, inode), why, False, size=size or 0, path=path)
         finally:
             con.close()
         if mode == "tutti" and fa.table_exists(fa.db_ro(case), "carved"):
@@ -201,12 +342,17 @@ def wanted_files(case, opts, progress):
     return want
 
 
-def dest_rel(it, used, lock):
-    """Percorso nel report che conserva l'albero originale (file/partizione_N/...)."""
+def dest_rel(it, used, lock, ad=False):
+    """Percorso nel report che conserva l'albero originale (file/partizione_N/...). Con ad (macOS su exFAT/FAT)
+    un nome che inizia con «._» diventa «_._…»: lì macOS scriverebbe gli attributi del file accanto sopra il
+    file del supporto (il percorso originale resta nel catalogo)."""
+    def sp(x):
+        x = g.safe_part(x)
+        return "_" + x if ad and x.startswith("._") else x
     if it["source"] == "carving":
-        rel = Path("file", "recuperati_carving", g.safe_part(it["name"]))
+        rel = Path("file", "recuperati_carving", sp(it["name"]))
     else:
-        segs = [g.safe_part(s) for s in (it["path"] or f"inode_{it['inode']}").split("/") if s]
+        segs = [sp(s) for s in (it["path"] or f"inode_{it['inode']}").split("/") if s]
         rel = Path("file", f"partizione_{it['part']}", *segs) if segs else \
             Path("file", f"partizione_{it['part']}", f"inode_{it['inode']}")
     with lock:
@@ -344,6 +490,12 @@ def istat_text(case, it):
             return g.apfs_istat_tokens(fa.ap.istat_text(case, it["part"], it["inode"])[:20000])
         except Exception:
             return ""
+    if fa.is_mobile(case):                   # estrazione di un telefono (2.20): date UTC come APFS
+        import forense_mobile as fm
+        try:
+            return g.apfs_istat_tokens(fm.istat_text(case, it["part"], it["inode"])[:20000])
+        except Exception:
+            return ""
     try:
         cmd = ["istat", *fa.tsk_tz(case), "-o", str(it["part"]), case.image, it["inode"]]
         cp = subprocess.run(cmd, capture_output=True, timeout=120, env=fa.tsk_env(case, cmd))
@@ -369,6 +521,132 @@ def exif_json(dest):
 
 # ------------------------------------------------------------ esportazione
 
+CITED_THUMBS = 3000             # (2.20) miniature delle immagini citate dagli artefatti incluse nel report
+
+
+def art_segreti(case, con, rows, includi):
+    """(2.20) Valori segreti del portachiavi (password, chiavi, token) nelle righe di iLEAPP/ALEAPP: nel caso sono già
+    sostituiti dal segnaposto; si rimettono solo se l'operatore l'ha scelto creando il report (scelta registrata).
+    Restituisce quanti valori sono stati inclusi."""
+    import forense_mobile_portachiavi as fmk
+    if not includi:
+        return 0
+    val = fmk.valori_segreti(con)
+    n = 0
+    for r in rows:
+        sv = val.get(r[-1])
+        if not sv:
+            continue
+        try:
+            d = json.loads(r[11]) if r[11] else {}
+        except ValueError:
+            continue
+        campi = d.get("campi") or {}
+        for k, v in sv.items():
+            campi[k] = v
+            n += 1
+        try:
+            det = json.loads(r[3]) if r[3] and str(r[3]).startswith("{") else None
+        except ValueError:
+            det = None
+        if isinstance(det, dict):
+            det.update({k: v for k, v in sv.items() if k in det})
+            r[3] = json.dumps(det, ensure_ascii=False)
+        for v in sv.values():                       # titolo: i segnaposto nell'ordine dei campi
+            r[2] = str(r[2]).replace(fmk.MASK, str(v)[:80], 1)
+        d["campi"] = campi
+        r[11] = json.dumps(d, ensure_ascii=False)
+    case.log("portatile_valori_segreti", {"inclusi": n})
+    return n
+
+
+def art_cited(case, out, rows):
+    """(2.20) File citati da ogni artefatto, con la stessa ricerca dell'interfaccia (forense_percorsi): l'ultimo elemento
+    della riga (i dati dell'artefatto) diventa [[campi, esito, stato, offset, inode, percorso, miniatura, tipo, livello,
+    metodo per campo, candidati [[percorso, dimensione, offset, inode]…] e il loro numero, copie [[percorso, dimensione,
+    SHA-256]…], cartelle [[percorso, stato]…], verifica, ruolo, nota]…], un elemento per file DIVERSO;
+    la fonte risolta sostituisce quella salvata (iLEAPP/ALEAPP: il database con il percorso completo). Le immagini
+    trovate hanno una miniatura in citati/ (al massimo CITED_THUMBS). Restituisce {"n": miniature, "troncato": bool}."""
+    import forense_percorsi as fp
+    try:
+        idx = fp.Indice(case)
+    except Exception:
+        for r in rows:
+            r[11] = None
+        return {"n": 0, "troncato": False}
+    mobile = fa.is_mobile(case)
+    d = out / "citati"
+    n, cut, done = 0, False, {}
+    try:
+        for r in rows:
+            data = r[11]
+            r[11] = None
+            try:
+                c = fp.file_citati(case, {"cat": r[0], "title": r[2], "user": r[4], "src_path": r[5], "part": r[6],
+                                          "inode": r[7], "data": data}, veloce=True, idx=idx)
+            except Exception:
+                continue
+            f = c.get("fonte")
+            if f and f.get("stato") == "trovato" and r[7] in (None, ""):
+                r[5], r[6], r[7] = f["path"], f["part"], f["inode"]
+            cl = []
+            for x in c["file"][:fp.MAX_CITATI]:
+                th = ""
+                if x.get("tipo") == "immagine" and x["stato"] in ("trovato", "rapporto"):
+                    key = (x.get("part"), x.get("inode"), x.get("rapporto"))
+                    if key in done:
+                        th = done[key]
+                    elif n < CITED_THUMBS:
+                        th = _cited_thumb(case, x, d, n)
+                        done[key] = th
+                        n += bool(th)
+                    else:
+                        cut = True
+                cl.append([", ".join(tr(fp.CAMPI_INTERNI[k]) if k in fp.CAMPI_INTERNI else k for k in x.get("campi") or [x.get("campo")]),
+                           fp.etichetta_disco(x, mobile), x["stato"], x.get("part"), x.get("inode"),
+                           x.get("path") or x.get("percorso"), th, x.get("tipo") or "", x.get("livello") or fp.livello(x),
+                           fp.metodo_testo(x),
+                           [[c["path"], c["size"], c["part"], c["inode"]] for c in x.get("candidati") or []],
+                           x.get("n_candidati") or 0,
+                           [[c["path"], c["size"], c.get("sha256")] for c in x.get("copie_elenco") or []],
+                           [[d.get("path") or d.get("percorso"), d.get("stato")] for d in x.get("cartelle") or []],
+                           x.get("verifica"), x.get("ruolo"), x.get("nota"), x.get("copie") or 0])
+            r[11] = cl or None
+    finally:
+        idx.close()
+    return {"n": n, "troncato": cut}
+
+
+def _cited_thumb(case, x, d, n):
+    """Miniatura (160 px) di un'immagine citata: dal file della copia/estrazione o dalla copia nel rapporto di iLEAPP."""
+    try:
+        if x["stato"] == "trovato":
+            t = g.thumb_bytes(case, {"source": "fs", "part": x["part"], "inode": x["inode"], "size": 160})
+            data = t[0] if t else None
+        else:
+            from PIL import Image
+            import io
+            im = Image.open(case.root / x["rapporto"])
+            im.thumbnail((160, 160))
+            buf = io.BytesIO()
+            im.convert("RGB").save(buf, "JPEG", quality=80)
+            data = buf.getvalue()
+    except Exception:
+        return ""
+    if not data:
+        return ""
+    try:                                     # solo immagini vere (un file danneggiato o finto non diventa una miniatura rotta)
+        from PIL import Image
+        import io
+        Image.open(io.BytesIO(data)).verify()
+    except Exception:
+        return ""
+    d.mkdir(parents=True, exist_ok=True)
+    f = d / f"c{n}.jpg"
+    f.write_bytes(data)
+    return f"citati/{f.name}"
+
+
 def export_ext(case, out, dati, opts):
     """Artefatti di sistema, posta, archivi e allegati, anomalie (forense_estesa) in dati/estese.js;
     con «tutti i file» o «documenti e immagini» anche i file estratti, nella cartella estratti/."""
@@ -377,8 +655,44 @@ def export_ext(case, out, dati, opts):
     ext = {"art": [], "mail": [], "x": [], "anom": []}
     try:
         if has("artifacts"):
+            # smartphone (2.20): anche gruppo/voce per le sottovoci e i dati delle conversazioni
+            mob = fa.is_mobile(case) and "grp" in {r[1] for r in con.execute("PRAGMA table_info(artifacts)")}
             ext["art"] = [list(r) for r in con.execute(
-                "SELECT cat, ts, title, detail, user, src_path, part, inode FROM artifacts ORDER BY ts IS NULL, ts DESC")]
+                "SELECT cat, ts, title, detail, user, src_path, part, inode"
+                + (", grp, sub, CASE WHEN cat='messaggi' THEN data END" if mob else ", NULL, NULL, NULL")
+                + ", data, id FROM artifacts ORDER BY ts IS NULL, ts DESC")]
+            ext["segreti"] = art_segreti(case, con, ext["art"], bool(opts.get("segreti"))) if mob else 0
+            for r in ext["art"]:
+                r.pop()                                                   # id: serviva solo per i valori segreti
+            ext["cited_thumbs"] = art_cited(case, out, ext["art"])      # (2.20) elemento 11: file citati
+            if mob:
+                for r in ext["art"]:
+                    if r[10]:
+                        r[10] = json.loads(r[10])
+                ext["art_sub"] = True
+                ext["leapp_date"] = (case.meta.get("leapp") or {}).get("colonne_data") or {}
+                # (2.20) righe di iLEAPP/ALEAPP in file per artefatto (al massimo LEAPP_PARTE righe ciascuno), caricati
+                # quando servono: in un telefono possono essere centinaia di migliaia (iPhone di prova: 500.000 righe,
+                # 618 MB in estese.js caricati all'avvio, troppi per il browser)
+                rest, by = [], {}
+                for r in ext["art"]:
+                    if r[0] == "leapp":
+                        by.setdefault((r[8] or "", r[9] or ""), []).append(r)
+                    else:
+                        rest.append(r)
+                if by:
+                    idx, n = [], 0
+                    for (gk, sk), rows in sorted(by.items()):
+                        files = []
+                        for i in range(0, len(rows), LEAPP_PARTE):
+                            n += 1
+                            rel = f"leapp/{n // 1000:03d}/{n:06d}.js"
+                            write_js(dati / rel, "leapp", {"f": rel, "rows": rows[i:i + LEAPP_PARTE]})
+                            files.append(rel)
+                        idx.append([gk, sk, len(rows), files])
+                    ext["art"] = rest
+                    ext["leapp_idx"] = idx
+                    ext["leapp_n"] = sum(x[2] for x in idx)
         if has("mail"):
             budget = 40 << 20
             for r in con.execute("SELECT id, date, sender, recipients, cc, subject, n_att, fmt, folder, src_path, body "
@@ -411,18 +725,70 @@ def export_ext(case, out, dati, opts):
         return False
     import forense_estesa as fe
     ext["art_cats"] = {k: tr(v) for k, v in fe.ART_CATS.items()}
+    if ext.get("art_sub"):
+        ext["art_cats"].update({"messaggi": tr("Messaggi delle chat"), "leapp": tr("Artefatti iLEAPP/ALEAPP (smartphone)")})
     ext["anom_kinds"] = {k: tr(v) for k, v in fe.ANOM_KINDS.items()}
     write_js(dati / "estese.js", "ext", ext)
     return True
 
 
+def _strumenti_mobile(case):
+    """(2.20) Casi smartphone: solo gli strumenti usati davvero (iLEAPP/ALEAPP con impronta, lettori di chat, …)."""
+    import forense_mobile_chat as fmc
+    return fmc.strumenti_dict(case)
+
+
+STOP = threading.Event()             # Interrompi della finestra del report portatile (/api/portable_stop)
+
+
+class Interrotto(Exception):
+    pass
+
+
+class SenzaSpazio(Exception):
+    """(2.20) spazio insufficiente prima di cominciare o disco quasi pieno durante l'estrazione."""
+
+
 def export_portable(case, opts, progress):
+    """Crea il report portatile; con Interrompi, o se il disco si riempie, si ferma e toglie la
+    cartella lasciata a metà (il disco non resta pieno)."""
+    STOP.clear()
+    pstate = {"pct": 0.0, "out": None, "pieno": None}
+
+    def togli(evento, extra):
+        out = pstate["out"]
+        if out is not None and out.exists():
+            shutil.rmtree(g.lp(out), ignore_errors=True)
+        case.log(evento, {"cartella": str(out.relative_to(case.root)) if out else None,
+                          "avanzamento_pct": round(pstate["pct"], 1), **extra})
+
+    try:
+        return _export_portable(case, opts, progress, pstate)
+    except Interrotto:
+        togli("report_portatile_interrotto", {})
+        raise ValueError(tr("Report portatile interrotto: la cartella lasciata a metà è stata tolta."))
+    except SenzaSpazio as e:
+        togli("report_portatile_spazio", {"motivo": str(e)})
+        raise ValueError(str(e))
+    except OSError as e:
+        if not disco_pieno(e):
+            raise
+        togli("report_portatile_spazio", {"motivo": str(e)})
+        raise ValueError(tr("Disco pieno durante il report portatile: la cartella lasciata a metà è stata tolta "
+                            "e lo spazio è di nuovo libero. Libera spazio o scegli un'altra opzione."))
+
+
+def _export_portable(case, opts, progress, pstate):
     t0 = time.time()
     opts = dict(opts or {})
-    raw_progress, pstate = progress, {"pct": 0.0}
+    raw_progress = progress
 
     def progress(msg, pct=None, eta=None):
         """Avanzamento per la finestra: messaggio, percentuale complessiva, minuti stimati."""
+        if pstate["pieno"]:
+            raise SenzaSpazio(pstate["pieno"])
+        if STOP.is_set():
+            raise Interrotto()
         if pct is not None:
             pstate["pct"] = max(pstate["pct"], min(100.0, pct))
         raw_progress({"msg": msg, "pct": round(pstate["pct"], 1), "eta": eta})
@@ -434,9 +800,11 @@ def export_portable(case, opts, progress):
         pass
     wait_nav(case, progress)
     out = g.unique(case.export_dir / f"report_portatile_{g.stamp_now()}")
+    pstate["out"] = out
     dati = out / "dati"
     for d in ("a", "eventi", "testi", "file", "allegati"):
         (dati / d).mkdir(parents=True, exist_ok=True)
+    ad = appledouble(g.lp(out))           # (2.20) macOS su exFAT/FAT: «._nome» accanto a ogni file, tolti man mano
     # lingua del report: quella del caso (la pagina si traduce da sé con questo dizionario)
     with open(g.lp(dati / "lingua.js"), "w", encoding="ascii") as f:
         f.write("window.LG = " + json.dumps({"lingua": lg.lingua(), "diz": lg.dizionario(lg.lingua())}) + ";\n")
@@ -451,6 +819,13 @@ def export_portable(case, opts, progress):
                 "FROM meta"):
             meta_rows.append([source, part, inode, deleted, path, make, model, taken, lat, lon, author])
             meta_data[(part, inode) if source != "carving" else ("c", inode)] = data
+        if fa.is_mobile(case):          # (2.20) telefoni: app delle chat in cui il file è allegato (11) e messaggio (12)
+            import forense_mobile_gui as fmg
+            dd = [{"part": m[1], "inode": m[2]} for m in meta_rows]
+            fmg.meta_origini(con, dd)
+            for m, d in zip(meta_rows, dd):
+                if d.get("chat"):
+                    m += [d["chat"], d["chat_mid"]]
     con.close()
 
     # --- contenuto dei file
@@ -467,6 +842,40 @@ def export_portable(case, opts, progress):
     finally:
         nav0.close()
     total_bytes = sum(v.get("size") or 0 for v in want.values()) or 1
+    # (2.20) spazio: prima si controlla che il report ci stia (cluster, anteprime, dati), poi durante
+    # l'estrazione si lascia sempre libera la RISERVA; se manca ci si ferma e si toglie la cartella
+    cl = cluster_size(out)
+    sp = Spazio(cl, testi_case(case) if opts.get("testi", True) else 0, ad)
+    for (src_kind, part, ident), info in want.items():
+        sp.add(info.get("path") or ident, info.get("size"), part)
+    nav0 = g.nav_db(case)
+    try:
+        voci = nav0.execute("SELECT COUNT(*) FROM nav").fetchone()[0]
+    finally:
+        nav0.close()
+    need = sp.need(voci)
+    free0 = shutil.disk_usage(g.lp(out)).free
+    if need + RISERVA > free0:
+        raise SenzaSpazio(tr("Spazio insufficiente per il report portatile: servono circa {need} sul disco del "
+                             "caso ({files} file per {content}, più anteprime, dati e indici; ogni file occupa "
+                             "almeno {cl} KB su questo disco) e ne sono liberi {free}, da cui lasciare liberi "
+                             "{ris}. Libera spazio o scegli un'altra opzione.").format(
+            need=gb(need), files=f"{sp.n:,}".replace(",", "."), content=gb(sp.bytes), cl=cl // 1024,
+            free=gb(free0), ris=gb(RISERVA)))
+    spc = {"bytes": 0, "files": 0}
+
+    def guarda_spazio(written):
+        """(col lock) ogni 256 MB o 500 file controlla lo spazio libero."""
+        spc["bytes"] += written
+        spc["files"] += 1
+        if spc["bytes"] < 256 << 20 and spc["files"] < 500:
+            return
+        spc["bytes"] = spc["files"] = 0
+        free = shutil.disk_usage(g.lp(out)).free
+        if free < RISERVA and not pstate["pieno"]:
+            pstate["pieno"] = tr("Il disco del caso si stava riempiendo (liberi {free}): il report portatile si è "
+                                 "fermato e la cartella lasciata a metà è stata tolta, così lo spazio è di nuovo "
+                                 "libero. Libera spazio o scegli un'altra opzione.").format(free=gb(free))
     con = fa.db_ro(case)
     indexed = set()
     if fa.table_exists(con, "doc_text"):
@@ -484,17 +893,24 @@ def export_portable(case, opts, progress):
     done = {"n": 0, "bytes": 0}
 
     def work(idx, key, info):
+        if STOP.is_set() or pstate["pieno"]:
+            return
         aid = idx + 1
         src_kind, part, ident = key
         try:
             it = g.file_ident(case, {"source": "carving", "name": ident} if src_kind == "c"
                               else {"source": "fs", "part": part, "inode": ident})
-            rel = dest_rel(it, used, lock)
+            rel = dest_rel(it, used, lock, ad)
             dest = out / rel
             extract(case, it, info, dest)
         except Exception as e:     # file non leggibile: si annota e si prosegue
             with lock:
-                skipped.append({"file": str(ident), "motivo": str(e)[:200]})
+                if disco_pieno(e):     # disco pieno: non è un file illeggibile, ci si ferma
+                    pstate["pieno"] = pstate["pieno"] or tr(
+                        "Disco pieno durante il report portatile: la cartella lasciata a metà è stata tolta "
+                        "e lo spazio è di nuovo libero. Libera spazio o scegli un'altra opzione.")
+                else:
+                    skipped.append({"file": str(ident), "motivo": str(e)[:200]})
             return
         lvl = FULL if info["full"] else BULK
         with open(g.lp(dest), "rb") as fh:
@@ -532,10 +948,24 @@ def export_portable(case, opts, progress):
             except ValueError:
                 exif = None
         size = os.path.getsize(g.lp(dest))
-        write_js(dati / "a" / f"{aid // 1000:04d}" / f"{aid:06d}.js", "detail", {
-            "id": aid, "hex": base64.b64encode(head).decode(), "text": text, "html": html_doc,
-            "istat": istat_text(case, it) if lvl["tools"] else "", "exif": exif,
-            "full": info["full"]})
+        det = {"id": aid, "hex": base64.b64encode(head).decode(), "text": text, "html": html_doc,
+               "istat": istat_text(case, it) if lvl["tools"] else "", "exif": exif, "full": info["full"]}
+        if info["full"]:
+            write_js(dati / "a" / f"{aid // 1000:04d}" / f"{aid:06d}.js", "detail", det)
+        else:                      # (2.20) file in blocco: 100 dettagli per file dati (meno file sul disco)
+            line = js("detail", det)
+            gf = g.lp(dati / "a" / f"g{aid // DET_GRP:05d}.js")
+            with lock:
+                with open(gf, "a", encoding="ascii") as fh:
+                    fh.write(line)
+                if ad:
+                    togli_ad(gf)
+        if ad:
+            togli_ad(g.lp(dest))
+            if info["full"]:
+                togli_ad(g.lp(dati / "a" / f"{aid // 1000:04d}" / f"{aid:06d}.js"))
+            if Path(g.lp(pdir)).is_dir():
+                togli_ad_tutti(g.lp(pdir))
         att_rows[idx] = [aid, it["source"], it["part"], it["inode"],
                          it["name"] if it["source"] == "carving" else None, rel.as_posix(), size,
                          it.get("deleted", 0), kind, pages, 1 if preview else 0, sha, md5,
@@ -543,6 +973,7 @@ def export_portable(case, opts, progress):
         with lock:
             done["n"] += 1
             done["bytes"] += size
+            guarda_spazio(size)
             if done["n"] % 10 == 0 or done["n"] == len(items):
                 frac = min(1.0, 0.5 * done["n"] / len(items) + 0.5 * done["bytes"] / total_bytes)
                 el = time.time() - tf
@@ -553,9 +984,15 @@ def export_portable(case, opts, progress):
                          4 + 80 * frac, eta)
 
     tf = time.time()
-    with ThreadPoolExecutor(WORKERS) as ex:
-        list(ex.map(lambda a: work(*a), [(i, k, v) for i, (k, v) in enumerate(items)]))
-    str_fh.close()
+    try:
+        with ThreadPoolExecutor(WORKERS) as ex:
+            list(ex.map(lambda a: work(*a), [(i, k, v) for i, (k, v) in enumerate(items)]))
+    finally:
+        str_fh.close()
+    if pstate["pieno"]:
+        raise SenzaSpazio(pstate["pieno"])
+    if STOP.is_set():
+        raise Interrotto()
     att_rows = [r for r in att_rows if r]
     att_of = {}
     for r in att_rows:
@@ -649,25 +1086,31 @@ def export_portable(case, opts, progress):
         write_js(dati / "meta.js", "meta", meta_rows)
         counts["metadati"] = len(meta_rows)
 
-        # --- timeline: un file per mese, caricato quando serve
+        # --- timeline (2.20): un file per GIORNO (i giorni con più di EV_PARTE eventi in più parti), caricato quando
+        # serve: la tabella compare subito anche nei mesi con milioni di eventi (prima un file per mese da centinaia di MB)
         progress(tr("Timeline…"), 94)
-        months, days = {}, {}
+        months, days, parts = {}, {}, {}
         origins = ["tsk"] + (["plaso"] if opts.get("plaso", True) else [])
-        state = {"m": None, "buf": []}
+        state = {"d": None, "buf": [], "n": 0}
 
         def flush():
-            if state["m"] and state["buf"]:
-                write_js(dati / "eventi" / f"{state['m']}.js", "events",
-                         {"m": state["m"], "rows": state["buf"]})
+            if state["d"] and state["buf"]:
+                state["n"] += 1
+                write_js(dati / "eventi" / state["d"][:7] / f"{state['d']}_{state['n']}.js", "events",
+                         {"d": state["d"], "p": state["n"], "rows": state["buf"]})
+                parts[state["d"]] = state["n"]
+            state["buf"] = []
 
         q = ("SELECT ts, kind, origin, source, path, message, part FROM events WHERE ts > '1970' "
              f"AND origin IN ({','.join('?' * len(origins))}) ORDER BY ts")
         nev = 0
         for ts, kind, origin, source, path, msg, part in con.execute(q, origins):
-            mo = ts[:7]
-            if mo != state["m"]:
+            dy = ts[:10]
+            if dy != state["d"]:
                 flush()
-                state["m"], state["buf"] = mo, []
+                state["d"], state["n"] = dy, 0
+            elif len(state["buf"]) >= EV_PARTE:
+                flush()
             ino = None
             if origin == "tsk":
                 mm = g.EV_RE.search(msg or "")
@@ -675,8 +1118,9 @@ def export_portable(case, opts, progress):
                 msg = None
             state["buf"].append([ts, kind, origin, source, path, (msg or "")[:MSG_MAX] or None,
                                  part, ino])
+            mo = ts[:7]
             months[mo] = months.get(mo, 0) + 1
-            dd = days.setdefault(ts[:10], [0, 0])
+            dd = days.setdefault(dy, [0, 0])
             dd[0 if origin == "tsk" else 1] += 1
             nev += 1
             if nev % 200_000 == 0:
@@ -727,17 +1171,18 @@ def export_portable(case, opts, progress):
         "hash_acquisizione": m.get("hash_uguale_ad_acquisizione"),
         "hash_dati": m.get("hash_dati"), "hash_dati_testo": fa.hash_dati_testo(m.get("hash_dati")) if m.get("hash_dati") else "",
         "verifiche": m.get("verifiche", []), "partitions": m.get("partitions", []), "layout": _layout(case), "non_allocato": _unalloc(case),
-        "tools": m.get("tool_versions") or {}, "timeline": m.get("timeline") or {},
+        "tools": (_strumenti_mobile(case) if fa.is_mobile(case) else m.get("tool_versions") or {}), "timeline": m.get("timeline") or {},
         "hash_file": bool(m.get("hash_file")), "report_md": report_md, "findings": case.findings(),
         "cols": cols, "file_chunks": chunks, "att_chunks": att_chunks, "text_chunks": text_chunks,
         "text_index": text_index,
         "bookmarks": [{"name": c["name"], "note": c["note"],
                        "items": [[(f"c:{Path(str(i['inode'])).name}" if i["source"] == "carving"
+                                   else f"chat:{i['inode']}" if i["source"] == "chat"
                                    else f"{i['part']}:{i['inode']}"), i["note"] or "", i["path"]]
                                  for i in c["items"]]} for c in fa.bookmarks(case)],
         "att_cols": ["id", "source", "part", "inode", "name", "file", "size", "deleted", "kind",
                      "pages", "preview", "sha256", "md5", "why", "full"],
-        "text_truncated": truncated, "months": months, "days": days, "counts": counts,
+        "text_truncated": truncated, "months": months, "days": days, "ev_parts": parts, "counts": counts,
         "skipped": skipped[:500], "skipped_n": len(skipped), "mode": mode,
         "options": {k: v for k, v in opts.items() if k != "zip"},
         "ext": has_ext, "volumi_cifrati": m.get("volumi_cifrati") or [],
@@ -745,6 +1190,10 @@ def export_portable(case, opts, progress):
     write_js(dati / "caso.js", "case", info)
 
     tpl = (HERE / "forense_portatile.html").read_text(encoding="utf-8")
+    if fa.is_mobile(case) and (HERE / "forense_mobile_portatile.html").exists():   # smartphone (2.20): chat
+        import forense_mobile_chat as fmc
+        if fmc.export_portable(case, dati):
+            tpl = tpl.replace("<!--REPERTIA_MOBILE-->", (HERE / "forense_mobile_portatile.html").read_text(encoding="utf-8"))
     (out / "index.html").write_text(tpl.replace("__TITLE__", html.escape(case.root.name)),
                                     encoding="utf-8")
     what = {"scelti": tr("il contenuto dei soli file citati nei reperti e delle selezioni esportate"),
@@ -766,6 +1215,8 @@ def export_portable(case, opts, progress):
 
     # --- impronte di integrità (riusa gli hash già calcolati dei file inclusi)
     progress(tr("Impronte di integrità…"), 98)
+    if ad:
+        togli_ad_tutti(g.lp(out))
     known = {r[5]: r[11] for r in att_rows}
     lines = []
     for root, dirs, files in os.walk(g.lp(out)):
@@ -781,12 +1232,29 @@ def export_portable(case, opts, progress):
     (out / "IMPRONTA_REPORT.txt").write_text(
         tr("SHA-256 di impronte.csv: {fingerprint}\r\nGenerato: {generated}\r\n").format(fingerprint=fingerprint, generated=info['generated']), encoding="utf-8")
     size = sum(int(l.rsplit(";", 2)[1]) for l in lines) + imp.stat().st_size
-    zip_rel = None
+    if ad:
+        togli_ad(g.lp(imp))
+        togli_ad(g.lp(out / "IMPRONTA_REPORT.txt"))
+        togli_ad(g.lp(out))
+    zip_rel = zip_nota = None
     if opts.get("zip"):
         progress(tr("Creo lo zip…"), 99)
-        z = shutil.make_archive(g.lp(out), "zip", root_dir=g.lp(out.parent), base_dir=out.name)
-        zip_rel = os.path.relpath(z, g.lp(case.root))
-    res = {"path": str(out), "rel": str(out.relative_to(case.root)), "zip": zip_rel,
+        free = shutil.disk_usage(g.lp(out)).free
+        if size * 1.02 + RISERVA > free:       # (2.20) lo zip non deve riempire il disco: il report resta
+            zip_nota = tr("Zip non creato: servono circa {need}, liberi {free}. Il report è completo nella "
+                          "cartella.").format(need=gb(size), free=gb(free))
+        else:
+            try:
+                z = shutil.make_archive(g.lp(out), "zip", root_dir=g.lp(out.parent), base_dir=out.name)
+                zip_rel = os.path.relpath(z, g.lp(case.root))
+                if ad:
+                    togli_ad(z)
+            except OSError as e:
+                if not disco_pieno(e):
+                    raise
+                Path(g.lp(out) + ".zip").unlink(missing_ok=True)
+                zip_nota = tr("Zip non creato: disco pieno. Il report è completo nella cartella.")
+    res = {"path": str(out), "rel": str(out.relative_to(case.root)), "zip": zip_rel, "zip_nota": zip_nota,
            "size": size, "fingerprint": fingerprint, "counts": counts, "mode": mode,
            "skipped": skipped[:50], "skipped_n": len(skipped), "elapsed": round(time.time() - t0, 1)}
     case.log("report_portatile", {k: v for k, v in res.items() if k != "skipped"})

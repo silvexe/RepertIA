@@ -9,9 +9,11 @@ RepertIA/
   requirements-linux.txt   moduli Python alle stesse versioni dei pacchetti Mac e Windows (+ xattr, solo Mac/Linux)
   repertia.png             icona (da build/mac/repertia.icns)
   LEGGIMI.txt, README_EN.txt, LICENSE, THIRD_PARTY_LICENSES.md, VALIDAZIONE.md
-  RepertIA/                i file di src/ (forense_*.py, forense_*.html, lingua_en.json, README.md)
+  RepertIA/                i file di src/ (forense_*.py, forense_*.html, forense_*.json, lingua_en.json, README.md)
   strumenti/7zip/7zz       7-Zip 26.01 per Linux x64 (7z2601-linux-x64.tar.xz) + License.txt
   strumenti/tessdata/      eng, ita, osd .traineddata (tessdata_fast, gli stessi del pacchetto Mac)
+  strumenti/ffmpeg/        (dalla 2.20) solo bin/ffmpeg + LICENSE.txt + VERSIONE.txt dalla build LGPL linux64 di BtbN
+                           (ffmpeg-n<ver>-linux64-lgpl-<ramo>.tar.xz, SHA-256 da checksums.sha256; sorgente nella Release)
 
 Il Python e i moduli NON sono nell'archivio: installa.sh li prepara sul computer di destinazione (le librerie
 libyal hanno solo sorgenti per Linux e si compilano). Gli strumenti forensi vengono dalla distribuzione:
@@ -19,3 +21,12 @@ le loro versioni (diverse da quelle dei pacchetti Mac e Windows) sono riportate 
 
 Archivio:  tar --owner=0 --group=0 -czf RepertIA-<versione>-Linux.tar.gz RepertIA
 (gli script e 7zz devono avere il permesso di esecuzione).
+
+2.20 - iLEAPP e ALEAPP (casi smartphone): con build/leapp/prepara_leapp.sh si ottiene strum_linux (programmi senza
+librerie, requirements-repertia.txt di ciascuno e la cartella wheels con i lettori in puro Python); va in
+RepertIA/strumenti/ (ileapp, aleapp, wheels). Le librerie le installa installa.sh in strumenti/<nome>/site.
+
+2.20 - Trascrizione degli audio: whisper-bin-ubuntu-x64.tar.gz della release b5454 di whisper.cpp (= v1.9.5;
+SHA-256 a72becf15d7917f990f6313867a52638b82b7f9ef237fb0c980dac56a135781c). In RepertIA/strumenti/whisper/bin si
+copiano (cp -P, con i collegamenti) whisper-cli, libwhisper.so*, libggml*.so* (whisper-cli cerca le librerie in
+$ORIGIN); LICENSE (MIT) in strumenti/whisper. ffmpeg c'è già (strumenti/ffmpeg). I modelli NON vanno nel pacchetto.
