@@ -60,7 +60,7 @@ volume (plist, sqlite with WAL, bookmarks); APFS (dfvfs) unencrypted and encrypt
 | 2.20.1 | Author's Mac (as for 2.20.0) | 427/427 in Italian and 427/427 in English, from the assembled Mac package: 178 for disks + 249 for smartphones; the 5 new ones concern the AI Act (agent finding "AI model – to be checked" in findings.json and in the report, without the sentence "every finding was verified"; AI metadata in Word and PDF; after "I confirm, verified" the finding is verified with operator and date in the report and in the log; local and private LLM servers told apart from external ones) (77/77 on public images or on values published by third parties) |
 | 2.20.1 | Author's Windows 11 | 417/426 (77/77 on public images): empty rows imported from iLEAPP on Windows (5 errors) and path comparison in the test (4 errors) → fixed in 2.20.2 |
 | 2.20.2 | Author's Mac (as for 2.20.0) | 433/433 in Italian and 433/433 in English, from the assembled Mac package: 178 for disks + 255 for smartphones; the 6 new ones check that no empty row enters the case, also with a TSV written the way iLEAPP does on Windows |
-| 2.20.2 (fixes, before assembly) | Author's Windows 11 | test passed, confirmed by the author |
+| 2.20.2 | Author's Windows 11 (final package) | 433/433, 77/77 on public images |
 
 Carving DFTT 11: 2 files out of 15 (enterprise.wav, haxor2.jpg) are not recovered by PhotoRec: this is a limitation of
 PhotoRec, declared as a "measurement" and not as a requirement.
@@ -69,8 +69,8 @@ PhotoRec, declared as a "measurement" and not as a requirement.
 `collaudo_<date>.md` report with the expert report. Full test on the Mac: 2.18.1 112/112; 2.19.0 112/112 in Italian and
 112/112 in English. Full test also run by the author on Windows for versions 2.17.x to 2.19.0.
 **Linux (experimental, 2.19.0)**: test passed in the Linux development environment; to be repeated on a Linux computer
-installed with `installa.sh` before use in a case. **2.20.2**: acceptance test on the Mac 433/433 in both languages; passed on Windows with the fixes, before
-assembly; to be repeated with the final Windows package and on Linux (packages built on the Mac).
+installed with `installa.sh` before use in a case. **2.20.2**: acceptance test on the Mac 433/433 in both languages and on Windows 11 433/433 with the final
+package; to be repeated on Linux (package built on the Mac).
 
 ## 3. Checks on real images
 

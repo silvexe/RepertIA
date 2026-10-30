@@ -58,7 +58,7 @@ di un Mac (plist, sqlite con WAL, bookmark); APFS (dfvfs) in chiaro e cifrato co
 | 2.20.1 | Mac dell'autore (come la 2.20.0) | 427/427 in italiano e 427/427 in inglese, dal pacchetto Mac assemblato: 178 dei dischi + 249 degli smartphone; i 5 nuovi riguardano l'AI Act (reperto dell'agente «modello IA – da verificare» in findings.json e nel report, senza la frase «ogni reperto è stato verificato»; metadati IA di Word e PDF; dopo «Confermo, verificato» reperto verificato con operatore e data nel report e nel registro; server LLM locali e privati distinti da quelli esterni) (77/77 su immagini pubbliche o su valori pubblicati da terzi) |
 | 2.20.1 | Windows 11 dell'autore | 417/426 (77/77 su immagini pubbliche): righe vuote importate da iLEAPP su Windows (5 errori) e confronto dei percorsi nel collaudo (4 errori) → corretti nella 2.20.2 |
 | 2.20.2 | Mac dell'autore (come la 2.20.0) | 433/433 in italiano e 433/433 in inglese, dal pacchetto Mac assemblato: 178 dei dischi + 255 degli smartphone; i 6 nuovi controllano che nessuna riga vuota entri nel caso, anche con un TSV scritto come fa iLEAPP su Windows |
-| 2.20.2 (correzioni, prima dell'assemblaggio) | Windows 11 dell'autore | collaudo superato, confermato dall'autore |
+| 2.20.2 | Windows 11 dell'autore (pacchetto definitivo) | 433/433, 77/77 su immagini pubbliche |
 
 Carving DFTT 11: 2 file su 15 (enterprise.wav, haxor2.jpg) non vengono recuperati da PhotoRec: è un limite di
 PhotoRec, dichiarato come «misura» e non come requisito.
@@ -67,8 +67,8 @@ PhotoRec, dichiarato come «misura» e non come requisito.
 il rapporto `collaudo_<data>.md` con la consulenza. Collaudo completo sul Mac: 2.18.1 112/112; 2.19.0 112/112 in italiano e
 112/112 in inglese. Collaudo completo eseguito dall'autore anche su Windows per le versioni dalla 2.17.x alla 2.19.0.
 **Linux (sperimentale, 2.19.0)**: collaudo superato nell'ambiente Linux di sviluppo; da ripetere su un computer Linux
-installato con `installa.sh` prima dell'uso in un caso. **2.20.2**: collaudo sul Mac 433/433 in entrambe le lingue; su Windows superato con le correzioni, prima
-dell'assemblaggio; da ripetere con il pacchetto Windows definitivo e su Linux (pacchetti costruiti sul Mac).
+installato con `installa.sh` prima dell'uso in un caso. **2.20.2**: collaudo sul Mac 433/433 in entrambe le lingue e su Windows 11 433/433 con il pacchetto definitivo;
+da ripetere su Linux (pacchetto costruito sul Mac).
 
 ## 3. Verifiche su copie reali
 
