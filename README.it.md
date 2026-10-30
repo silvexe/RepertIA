@@ -15,6 +15,50 @@ computer dell'analista (facoltativo) risponde a domande in italiano o in inglese
 pacchetti: è una scelta facoltativa dell'utente (LM Studio, llama-server od Ollama), che si può usare o meno. Senza
 modello tutte le analisi, le ricerche e i report funzionano lo stesso.
 
+## Schermate
+
+*Schermate reali di RepertIA, realizzate con dati di prova pubblici o costruiti e nomi di fantasia.*
+
+![Albero del file system con una voce cancellata](docs/img/it/risultati.jpg)
+
+### Che cosa si può caricare
+
+| Memorie di massa | Smartphone |
+|---|---|
+| <img src="docs/img/it/carica-memorie.jpg" alt="Scelta della copia forense di un disco" width="420"> | <img src="docs/img/it/carica-smartphone.jpg" alt="Scelta dell'estrazione di uno smartphone" width="420"> |
+| Copie forensi di dischi, SSD, pendrive e schede: E01, raw/dd, img, dmg | Estrazioni del file system completo di iPhone e Android (Cellebrite, GrayKey, altri): zip, tar, tar.gz o cartella. Facoltativi: portachiavi e sysdiagnose di iOS |
+
+<details>
+<summary><b>Altre schermate</b></summary>
+
+<br>
+
+**Timeline**: grafico dell'attività ed eventi, con filtri per data, evento e fonte.
+
+<img src="docs/img/it/timeline.jpg" alt="Timeline" width="800">
+
+**Ricerca**: parole, espressioni regolari o hash, fino ai byte grezzi della copia.
+
+<img src="docs/img/it/ricerca.jpg" alt="Ricerca" width="800">
+
+**Chat**: conversazioni con database, tabella e riga di ogni messaggio. Qui un backup WhatsApp decifrato (backup e chiave finti).
+
+<img src="docs/img/it/chat.jpg" alt="Vista chat" width="800">
+
+**Sysdiagnose di iOS**: acquisiti a parte e letti con iLEAPP.
+
+<img src="docs/img/it/sysdiagnose.jpg" alt="Righe dei sysdiagnose" width="800">
+
+**Portachiavi**: password, chiavi e token restano nascosti; mostrarne uno viene registrato (portachiavi finto).
+
+<img src="docs/img/it/valori-segreti.jpg" alt="Valori segreti nascosti" width="800">
+
+**Reperti dell'IA**: ogni reperto nasce «da verificare» finché l'analista non lo conferma. Qui il n. 1 contiene un errore vero del modello, un'ora locale indicata come UTC: per questo va controllato.
+
+<img src="docs/img/it/reperti.jpg" alt="Reperti dell'IA da verificare e verificati" width="320">
+
+</details>
+
 ## Scarica
 
 | Sistema | File |
@@ -25,6 +69,7 @@ modello tutte le analisi, le ricerche e i report funzionano lo stesso.
 | Linux x86_64 (sperimentale) | [RepertIA-2.20.2-Linux.tar.gz](https://github.com/silvexe/RepertIA/releases/download/v2.20.2/RepertIA-2.20.2-Linux.tar.gz) |
 | Collaudo | [RepertIA-collaudo.zip](https://github.com/silvexe/RepertIA/releases/download/v2.20.2/RepertIA-collaudo.zip) |
 | Impronte SHA-256 | [SHA256SUMS.txt](https://github.com/silvexe/RepertIA/releases/download/v2.20.2/SHA256SUMS.txt) |
+| Guida illustrata (PDF) | [Italiano](docs/guida/RepertIA-guida-illustrata-2.20.2-IT.pdf) · [English](docs/guida/RepertIA-illustrated-guide-2.20.2-EN.pdf) |
 
 Tutte le versioni: <https://github.com/silvexe/RepertIA/releases>
 
