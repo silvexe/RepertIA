@@ -8,8 +8,8 @@
   <key>CFBundleExecutable</key><string>RepertIA</string>
   <key>CFBundleIconFile</key><string>repertia</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>2.20.1</string>
-  <key>CFBundleVersion</key><string>2.20.1</string>
+  <key>CFBundleShortVersionString</key><string>2.20.2</string>
+  <key>CFBundleVersion</key><string>2.20.2</string>
   <key>LSMinimumSystemVersion</key><string>11.0</string>
   <key>NSHumanReadableCopyright</key><string>RepertIA - By silvexe</string>
 </dict>

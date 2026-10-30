@@ -529,6 +529,25 @@ def controlli_sysdiagnose(case, con, a, check):
               tr("tolte {n}, restano {r} righe di altri sysdiagnose").format(n=n, r=altri), interno=True)
 
 
+def controlli_righe_tsv(check):
+    """TSV di iLEAPP come li scrive su Windows (righe chiuse da \\r\\r\\n): nessuna riga vuota nel caso, su ogni sistema."""
+    import forense_mobile_leapp as fml
+    d = Path(tempfile.mkdtemp(prefix="repertia_tsv_"))
+    con = fa.sqlite3.connect(":memory:")
+    try:
+        con.execute("CREATE TABLE artifacts(id INTEGER PRIMARY KEY, cat TEXT, ts TEXT, title TEXT, detail TEXT, user TEXT, "
+                    "src_path TEXT, part INTEGER, inode TEXT, data TEXT)")
+        (d / "_TSV Exports").mkdir()
+        (d / "_TSV Exports" / "Prova.tsv").write_bytes("\ufeffColonna\tValore\r\r\na\t1\r\r\nb\t2\r\r\nc\t3\r\r\n".encode("utf-8"))
+        res = fml.import_tsv(con, d, "iLEAPP", 0)[0]
+        n = con.execute("SELECT COUNT(*) FROM artifacts").fetchone()[0]
+        check(tr("TSV di iLEAPP scritto su Windows: 3 righe nel file, 3 nel caso"), n == 3 and res.get("Prova") == 3,
+              tr("righe {got}").format(got=n), interno=True)
+    finally:
+        con.close()
+        shutil.rmtree(d, ignore_errors=True)
+
+
 def controlli_chiamate_chat(con, check):
     """Chiamate WhatsApp nella chat (lette da call_log o CallHistory.sqlite dell'app): ognuna ha la sua riga nelle
     Chiamate (stessa tabella e riga della fonte), lo stesso orario e la stessa durata, e sta nella conversazione del
@@ -898,6 +917,11 @@ def controlli_smartphone(t, img, case, con, a, check):
         controlli_portachiavi(case, con, a, check)
     if a.get("sysdiagnose"):
         controlli_sysdiagnose(case, con, a, check)
+        controlli_righe_tsv(check)
+    if a.get("leapp_righe_min") or a.get("sysdiagnose"):
+        import forense_mobile_leapp as fml
+        n = fml.righe_vuote(con)
+        check(tr("iLEAPP/ALEAPP: nessuna riga vuota tra gli artefatti"), n == 0, tr("righe {got}").format(got=n), interno=True)
     if t["nome"] == TRASCRIZIONE_PROVA:
         controlli_trascrizione(case, check)
 

@@ -194,6 +194,8 @@ def import_tsv(con, out_dir, tool, part, sysd=None):
             ts_cols = [i for i, h in enumerate(head) if h in dates] or [i for i, h in enumerate(head) if TS_HEAD.search(h or "")]
             n = 0
             for row in rd:
+                if not row:                 # iLEAPP su Windows chiude le righe con \r\r\n: csv vede una riga vuota dopo ognuna
+                    continue
                 if total >= MAX_ROWS:
                     cut = True
                     break
@@ -249,9 +251,16 @@ def _righe_tsv(f):
     """Righe di dati di una tabella TSV (senza l'intestazione), contate come le legge csv."""
     try:
         with open(f, encoding="utf-8-sig", errors="replace", newline="") as fh:
-            return max(sum(1 for _ in csv.reader(fh, delimiter="\t")) - 1, 0)
+            return max(sum(1 for r in csv.reader(fh, delimiter="\t") if r) - 1, 0)
     except OSError:
         return 0
+
+
+def righe_vuote(con):
+    """Righe di iLEAPP/ALEAPP senza alcun campo (la riga «Origine» dei sysdiagnose la aggiunge RepertIA)."""
+    return con.execute("SELECT COUNT(*) FROM artifacts WHERE cat='leapp' AND json_valid(data) AND "
+                       "(SELECT COUNT(*) FROM json_each(data, '$.campi')) <= (json_extract(data, '$.sysdiagnose') IS NOT NULL)"
+                       ).fetchone()[0]
 
 
 def _tabelle_mappa():

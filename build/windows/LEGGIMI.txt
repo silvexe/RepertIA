@@ -1,4 +1,4 @@
-﻿RepertIA 2.20.1 - By silvexe
+﻿RepertIA 2.20.2 - By silvexe
 Analisi forense di copie di dischi ed estrazioni di smartphone con un modello linguistico (LLM) locale.
 
 LINGUA

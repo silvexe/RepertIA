@@ -4,6 +4,7 @@
 """RepertIA - interfaccia dei casi smartphone (dalla 2.20): richieste /api/mobile/* del server di forense_gui.py
 e dati aggiuntivi del riepilogo del caso. La pagina è forense_mobile.html, inserita dal server in forense_gui.html."""
 import json
+import re
 import shutil
 import sqlite3
 import subprocess
@@ -34,10 +35,36 @@ def summary(case):
     out = {"tipo_caso": m.get("tipo_caso"), "mobile": m.get("mobile"), "chat": m.get("chat"), "leapp": m.get("leapp"),
            "decompressa": m.get("decompressa"), "portachiavi": m.get("portachiavi"),
            "portachiavi_testo": fmk.testo_esito((m.get("leapp") or {}).get("portachiavi")),
-           "sysdiagnose": fms.summary(case),
+           "sysdiagnose": fms.summary(case), "righe_vuote_windows": _righe_vuote_windows(case),
            "leapp_disponibile": bool(fml.tool_dir((m.get("mobile") or {}).get("piattaforma") or "ios")
                                      if (m.get("mobile") or {}).get("piattaforma") in fml.TOOLS else None)}
     return out
+
+
+_RIGHE_VUOTE = {}
+
+
+def _righe_vuote_windows(case):
+    """Righe vuote di iLEAPP in un caso preparato su Windows con la 2.20.0 o la 2.20.1 (0 negli altri casi): il caso va
+    rifatto e nessuno lo ripara da solo. Il conto resta in memoria: la pagina chiede il riepilogo spesso."""
+    import forense_agent as fa
+    import forense_mobile_leapp as fml
+    m = case.meta
+    am = m.get("ambiente") or {}
+    win = str((am.get("strumenti") or {}).get("sistema") or "").startswith("Windows") or re.match(r"^[A-Za-z]:\\", str(case.root))
+    if not win or am.get("versione") not in ("2.20.0", "2.20.1"):
+        return 0
+    k = (str(case.root), (m.get("leapp") or {}).get("ts"), len(m.get("sysdiagnose") or []))
+    if k not in _RIGHE_VUOTE:
+        try:
+            con = fa.db_ro(case)
+            try:
+                _RIGHE_VUOTE[k] = fml.righe_vuote(con)
+            finally:
+                con.close()
+        except sqlite3.Error:
+            return 0
+    return _RIGHE_VUOTE[k]
 
 
 def _case(G):

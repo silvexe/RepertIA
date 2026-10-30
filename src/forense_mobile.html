@@ -217,7 +217,7 @@ body.chatopen .toast{z-index:80}
     if (!box){ box = document.createElement("div"); box.id = "mobBox"; box.className = "mobbox"; $("caseParts").insertAdjacentElement("afterend", box); }
     const ch = c.chat || {}, apps = ch.app || {}, lp = c.leapp, mob = c.mobile || {};
     const nmsg = Object.values(apps).reduce((a, x) => a + x.messaggi, 0), nth = Object.values(apps).reduce((a, x) => a + x.conversazioni, 0);
-    box.innerHTML = `📱 <b>${esc((mob.sistema || {}).modello || (c.disk_type || ""))}</b>${mob.produttore ? ` · <span class="hint">${esc(TF("estrazione {0}", mob.produttore))}</span>` : ""}
+    box.innerHTML = `${c.righe_vuote_windows ? `<div class="note" style="margin-bottom:8px">⚠ ${TF("Questo caso contiene {0} righe vuote negli artefatti di iLEAPP: su Windows le versioni 2.20.0 e 2.20.1 le importavano per errore. Conteggi, ricerche e report sono gonfiati e possono comparire chiamate inesistenti. Il caso non è stato modificato: rifallo con la versione aggiornata.", nf(c.righe_vuote_windows))}</div>` : ""}📱 <b>${esc((mob.sistema || {}).modello || (c.disk_type || ""))}</b>${mob.produttore ? ` · <span class="hint">${esc(TF("estrazione {0}", mob.produttore))}</span>` : ""}
       <div style="margin-top:6px">💬 ${nmsg ? TF("{0} messaggi in {1} conversazioni", nf(nmsg), nf(nth)) : T("nessuna chat letta")}
       ${Object.entries(apps).map(([k, a]) => `<div class="hint">${esc(APP[k] || k)}: ${nf(a.messaggi)}</div>`).join("")}</div>
       ${nmsg ? `<button class="btn small primary" id="mobChats">💬 ${T("Apri le chat")}</button>` : ""}

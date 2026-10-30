@@ -2,7 +2,7 @@
 
 *English: [VALIDATION.md](VALIDATION.md).*
 
-Versione del programma: 2.20.1 · Documento aggiornato al 29/10/2026
+Versione del programma: 2.20.2 · Documento aggiornato al 30/10/2026
 
 Questo documento descrive **come è stato verificato RepertIA, con quali dati, con quali risultati e con quali
 limiti noti**. Serve a chi usa il programma in una consulenza per dichiarare l'affidabilità del metodo
@@ -56,6 +56,9 @@ di un Mac (plist, sqlite con WAL, bookmark); APFS (dfvfs) in chiaro e cifrato co
 | 2.19.0 | Linux: ambiente di sviluppo (Ubuntu 24.04, Python 3.13; Sleuth Kit 4.15.0, PhotoRec 7.2 e libewf 20140814 compilati dai sorgenti; senza bulk_extractor) | 112/112 in italiano e 112/112 in inglese (46/46 su immagini pubbliche); carving DFTT 11: 13/15 come sul Mac |
 | 2.20.0 | Mac dell'autore (Python dell'app; iLEAPP 2026.4.5, ALEAPP 2026.4.4) | 422/422 in italiano e 422/422 in inglese, dal pacchetto Mac assemblato: 173 dei dischi + 249 degli smartphone, di cui 18 su WhatsApp e foto/video/audio (backup WhatsApp finto con chiave inventata, avvisi di sistema, lettura su iPhone, Solo foto/Solo video, audio dell'estrazione e delle chat, origine dalle chat) e 17 sulla ricerca veloce nei risultati (indice costruito, messaggio ritrovato da una parte del testo, numero della rubrica ritrovato scritto in un altro formato, anteprima della voce della rubrica, nessun valore segreto del portachiavi nell'indice), 17 sul report portatile (timeline per giorno con tutti gli eventi una volta, righe di iLEAPP/ALEAPP nei file per artefatto, ricerca veloce presente), 33 sui pulsanti dell'interfaccia, 5 su file citati, allegati e riepilogo delle chat, 44 nelle due prove del portachiavi finto, 20 sui file citati in tre livelli (19 nella prova dell'estrazione finta, 8 dei quali sulle righe di prova, e 1 sulle righe SMS reali di iLEAPP), 45 sulla verifica a posteriori del registro, 36 su registro e strumenti nel report 11 sui sysdiagnose (prova 25 con ritagli pubblici dei test di iLEAPP) e 7 sulla trascrizione degli audio (elenco dei modelli, consenso obbligatorio, file non validi rifiutati, percorso del testo con un motore finto; la trascrizione vera con un modello installato è una misura) (77/77 su immagini pubbliche o su valori pubblicati da terzi) |
 | 2.20.1 | Mac dell'autore (come la 2.20.0) | 427/427 in italiano e 427/427 in inglese, dal pacchetto Mac assemblato: 178 dei dischi + 249 degli smartphone; i 5 nuovi riguardano l'AI Act (reperto dell'agente «modello IA – da verificare» in findings.json e nel report, senza la frase «ogni reperto è stato verificato»; metadati IA di Word e PDF; dopo «Confermo, verificato» reperto verificato con operatore e data nel report e nel registro; server LLM locali e privati distinti da quelli esterni) (77/77 su immagini pubbliche o su valori pubblicati da terzi) |
+| 2.20.1 | Windows 11 dell'autore | 417/426 (77/77 su immagini pubbliche): righe vuote importate da iLEAPP su Windows (5 errori) e confronto dei percorsi nel collaudo (4 errori) → corretti nella 2.20.2 |
+| 2.20.2 | Mac dell'autore (come la 2.20.0) | 433/433 in italiano e 433/433 in inglese, dal pacchetto Mac assemblato: 178 dei dischi + 255 degli smartphone; i 6 nuovi controllano che nessuna riga vuota entri nel caso, anche con un TSV scritto come fa iLEAPP su Windows |
+| 2.20.2 (correzioni, prima dell'assemblaggio) | Windows 11 dell'autore | collaudo superato, confermato dall'autore |
 
 Carving DFTT 11: 2 file su 15 (enterprise.wav, haxor2.jpg) non vengono recuperati da PhotoRec: è un limite di
 PhotoRec, dichiarato come «misura» e non come requisito.
@@ -64,8 +67,8 @@ PhotoRec, dichiarato come «misura» e non come requisito.
 il rapporto `collaudo_<data>.md` con la consulenza. Collaudo completo sul Mac: 2.18.1 112/112; 2.19.0 112/112 in italiano e
 112/112 in inglese. Collaudo completo eseguito dall'autore anche su Windows per le versioni dalla 2.17.x alla 2.19.0.
 **Linux (sperimentale, 2.19.0)**: collaudo superato nell'ambiente Linux di sviluppo; da ripetere su un computer Linux
-installato con `installa.sh` prima dell'uso in un caso. **2.20.1**: collaudo sul Mac 427/427 in entrambe le lingue; da
-ripetere su Windows e Linux (pacchetti costruiti sul Mac).
+installato con `installa.sh` prima dell'uso in un caso. **2.20.2**: collaudo sul Mac 433/433 in entrambe le lingue; su Windows superato con le correzioni, prima
+dell'assemblaggio; da ripetere con il pacchetto Windows definitivo e su Linux (pacchetti costruiti sul Mac).
 
 ## 3. Verifiche su copie reali
 

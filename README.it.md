@@ -19,12 +19,12 @@ modello tutte le analisi, le ricerche e i report funzionano lo stesso.
 
 | Sistema | File |
 |---|---|
-| Windows (installazione) | [RepertIA-2.20.1-Setup.exe](https://github.com/silvexe/RepertIA/releases/download/v2.20.1/RepertIA-2.20.1-Setup.exe) |
-| Windows (portatile) | [RepertIA-2.20.1-Windows.zip](https://github.com/silvexe/RepertIA/releases/download/v2.20.1/RepertIA-2.20.1-Windows.zip) |
-| Mac (Apple Silicon) | [RepertIA-2.20.1-Mac.zip](https://github.com/silvexe/RepertIA/releases/download/v2.20.1/RepertIA-2.20.1-Mac.zip) |
-| Linux x86_64 (sperimentale) | [RepertIA-2.20.1-Linux.tar.gz](https://github.com/silvexe/RepertIA/releases/download/v2.20.1/RepertIA-2.20.1-Linux.tar.gz) |
-| Collaudo | [RepertIA-collaudo.zip](https://github.com/silvexe/RepertIA/releases/download/v2.20.1/RepertIA-collaudo.zip) |
-| Impronte SHA-256 | [SHA256SUMS.txt](https://github.com/silvexe/RepertIA/releases/download/v2.20.1/SHA256SUMS.txt) |
+| Windows (installazione) | [RepertIA-2.20.2-Setup.exe](https://github.com/silvexe/RepertIA/releases/download/v2.20.2/RepertIA-2.20.2-Setup.exe) |
+| Windows (portatile) | [RepertIA-2.20.2-Windows.zip](https://github.com/silvexe/RepertIA/releases/download/v2.20.2/RepertIA-2.20.2-Windows.zip) |
+| Mac (Apple Silicon) | [RepertIA-2.20.2-Mac.zip](https://github.com/silvexe/RepertIA/releases/download/v2.20.2/RepertIA-2.20.2-Mac.zip) |
+| Linux x86_64 (sperimentale) | [RepertIA-2.20.2-Linux.tar.gz](https://github.com/silvexe/RepertIA/releases/download/v2.20.2/RepertIA-2.20.2-Linux.tar.gz) |
+| Collaudo | [RepertIA-collaudo.zip](https://github.com/silvexe/RepertIA/releases/download/v2.20.2/RepertIA-collaudo.zip) |
+| Impronte SHA-256 | [SHA256SUMS.txt](https://github.com/silvexe/RepertIA/releases/download/v2.20.2/SHA256SUMS.txt) |
 
 Tutte le versioni: <https://github.com/silvexe/RepertIA/releases>
 

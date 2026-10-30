@@ -683,9 +683,9 @@ class IndiceEstrazione(Indice):
 def leapp_fonte(case, sub, campi):
     """Database da cui iLEAPP/ALEAPP ha letto una riga: il campo «Source…» della riga se è un percorso, altrimenti la riga
     del .lava (meta leapp.fonti) con lo stesso nome del file indicato nella riga o la prima; senza «>> …». None se manca."""
-    fonti = [x.split(" >> ")[0].strip().strip("/") for x in
+    fonti = [x.split(" >> ")[0].strip().replace("\\", "/").strip("/") for x in
              str(((case.meta.get("leapp") or {}).get("fonti") or {}).get(sub) or "").splitlines() if x.strip()]
-    vals = [str(v) for k, v in (campi or {}).items() if _ruolo(k) == "fonte" and v]
+    vals = [str(v).replace("\\", "/") for k, v in (campi or {}).items() if _ruolo(k) == "fonte" and v]     # iLEAPP su Windows: «\\»
     for v in vals:
         p = (valore_percorso(v) or "").strip("/")
         if "/" in p:

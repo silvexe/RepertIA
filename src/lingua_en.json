@@ -3926,5 +3926,8 @@
  "AI Act: i metadati di Word e PDF dichiarano il testo generato da IA": "AI Act: the Word and PDF metadata declare AI-generated text",
  "Word: cp:keywords; PDF: /Keywords": "Word: cp:keywords; PDF: /Keywords",
  "AI Act: dopo «Confermo, verificato» il reperto è verificato (operatore e data) nel report e nel registro": "AI Act: after «I confirm, verified» the finding is verified (operator and date) in the report and in the log",
- "{a} locali/privati, {b} esterni": "{a} local/private, {b} external"
+ "{a} locali/privati, {b} esterni": "{a} local/private, {b} external",
+ "Questo caso contiene {0} righe vuote negli artefatti di iLEAPP: su Windows le versioni 2.20.0 e 2.20.1 le importavano per errore. Conteggi, ricerche e report sono gonfiati e possono comparire chiamate inesistenti. Il caso non è stato modificato: rifallo con la versione aggiornata.": "This case contains {0} empty rows in the iLEAPP artifacts: on Windows, versions 2.20.0 and 2.20.1 imported them by mistake. Counts, searches and reports are inflated and non-existent calls may appear. The case has not been changed: redo it with the updated version.",
+ "TSV di iLEAPP scritto su Windows: 3 righe nel file, 3 nel caso": "iLEAPP TSV written on Windows: 3 rows in the file, 3 in the case",
+ "iLEAPP/ALEAPP: nessuna riga vuota tra gli artefatti": "iLEAPP/ALEAPP: no empty rows among the artifacts"
 }

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-# RepertIA 2.20.1 - moduli Python per Linux: stesse versioni dei pacchetti Mac e Windows.
+# RepertIA 2.20.2 - moduli Python per Linux: stesse versioni dei pacchetti Mac e Windows.
 # Usato da installa.sh: python/bin/pip install --prefer-binary -r requirements-linux.txt
 
 acstore==20260411
