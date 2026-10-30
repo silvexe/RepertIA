@@ -3,6 +3,8 @@
 **Forensic analysis of disk and USB drive images and smartphone extractions, with a local, offline AI assistant.**
 🇮🇹 **Versione italiana: [README.it.md](README.it.md)**
 
+📘 **Illustrated guide (PDF):** [English](docs/guida/RepertIA-illustrated-guide-2.20.2-EN.pdf) · [Italiano](docs/guida/RepertIA-guida-illustrata-2.20.2-IT.pdf)
+
 RepertIA analyses forensic images (E01, raw/dd, dmg) and, from 2.20, full file system extractions of iPhones and Android
 phones from a single local web interface, on Apple Silicon Macs, Windows
 or Linux (experimental). It uses established forensic tools (The Sleuth Kit, libewf, plaso, PhotoRec, bulk_extractor,

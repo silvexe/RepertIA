@@ -3,6 +3,8 @@
 **Analisi forense di copie di dischi e pendrive ed estrazioni di smartphone, con intelligenza artificiale locale e offline.**
 🇬🇧 **English version: [README.md](README.md)**
 
+📘 **Guida illustrata (PDF):** [Italiano](docs/guida/RepertIA-guida-illustrata-2.20.2-IT.pdf) · [English](docs/guida/RepertIA-illustrated-guide-2.20.2-EN.pdf)
+
 RepertIA analizza copie forensi (E01, raw/dd, dmg) e, dalla 2.20, estrazioni del file system completo di iPhone e telefoni
 Android da un'unica interfaccia web locale, su Mac Apple Silicon, Windows o
 Linux (sperimentale).
