@@ -1,4 +1,4 @@
-RepertIA 2.20.2 - By silvexe (Linux x86_64)
+RepertIA 2.20.3 - By silvexe (Linux x86_64)
 Forensic analysis of disk images and smartphone extractions with a local language model (LLM).
 
 LINUX VERSION (EXPERIMENTAL)
@@ -21,7 +21,7 @@ On Linux their libraries are installed by installa.sh.
 
 INSTALLATION
 1. Extract the archive wherever you prefer (for example in your home folder):
-     tar -xzf RepertIA-2.20.2-Linux.tar.gz
+     tar -xzf RepertIA-2.20.3-Linux.tar.gz
 2. Open a terminal in the RepertIA folder and run:
      ./installa.sh
    Internet access and the administrator password are required. The script:

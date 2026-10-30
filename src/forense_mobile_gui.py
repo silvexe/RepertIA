@@ -67,6 +67,16 @@ def _righe_vuote_windows(case):
     return _RIGHE_VUOTE[k]
 
 
+def _wa_chiave(b):
+    """Chiave di 64 cifre dei backup crypt15 scritta dall'analista, controllata; None se non c'è."""
+    import forense_mobile_wabackup as fmwb
+    k = str(b.get("wa_chiave") or "").strip()
+    if not k:
+        return None
+    fmwb.chiave_digitata(k)
+    return k
+
+
 def _case(G):
     if not G.SES.case:
         raise ValueError(tr("Nessun caso aperto."))
@@ -96,7 +106,7 @@ def check(path, dest=None):
             "case_exists": exists, "free": fa.free_bytes(dest or fa.CASES_HOME), "decomprimere": kind == "targz"}
 
 
-def start(G, root, args, add=None):
+def start(G, root, args, add=None, wa_chiave=None):
     """Avvia forense_mobile.py come sottoprocesso con la stessa macchina di Prep (registro a video, interruzione)."""
     import os
     import threading
@@ -107,6 +117,9 @@ def start(G, root, args, add=None):
     t = time.time()
     P.av = {"t0": t, "t_out": t}         # (2.20) barra di avanzamento: tempi da zero
     env = dict(os.environ, FORENSE_DA_GUI="1", PYTHONUTF8="1", PYTHONIOENCODING="utf-8")
+    if wa_chiave:                                  # chiave dei backup crypt15: solo nell'ambiente di questo processo
+        import forense_mobile_wabackup as fmwb
+        env[fmwb.ENV_CHIAVE] = wa_chiave
     extra = ({"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP} if G.IS_WIN else {"start_new_session": True})
     P.proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, env=env,
                               **extra)
@@ -1041,17 +1054,18 @@ def post(G, path, b):
                 raise ValueError(tr("Fuso orario non riconosciuto: usa un nome come Europe/Rome o UTC."))
         args = ["prepara", "--image", info["path"], "--case", info["case_root"],
                 "--lingua", lg.valida(b.get("lingua") or lg.lingua())]
+        wk = _wa_chiave(b)
         tro = G.trascr_check(b.get("trascrizione"))         # (2.20) trascrizione scelta alla creazione del caso
         args += (["--trascrizione", json.dumps(tro)] if tro else [])
         args += (["--no-hash"] if b.get("no_hash") else []) + (["--hash-file"] if b.get("hash_file") else []) + \
                 (["--leapp"] if b.get("leapp") else []) + (["--decomprimi"] if info["decomprimere"] else []) + \
                 (["--fuso", fuso] if fuso else []) + (["--keychain", kc] if kc else []) + \
-                (["--wa-backup"] if b.get("wa_backup") else []) + \
+                (["--wa-backup"] if b.get("wa_backup") or wk else []) + \
                 [y for x in sds for y in ("--sysdiagnose", x)]
         inf = fa.info_caso_clean(b.get("info"))
         if inf:
             args += ["--info", json.dumps(inf, ensure_ascii=False)]
-        start(G, Path(info["case_root"]), args)
+        start(G, Path(info["case_root"]), args, wa_chiave=wk)
         return {"root": info["case_root"], "existing": False}
     if path == "/api/mobile/addon":
         case = _case(G)
@@ -1064,7 +1078,8 @@ def post(G, path, b):
             raise ValueError(tr("Attendi che l'agente finisca o interrompilo."))
         if not Path(case.meta.get("image", "")).exists():
             raise ValueError(tr("L'estrazione non è raggiungibile: collega il disco che la contiene."))
-        start(G, case.root, ["aggiungi", "--case", str(case.root), what], add="mobile_" + what)
+        start(G, case.root, ["aggiungi", "--case", str(case.root), what], add="mobile_" + what,
+              wa_chiave=_wa_chiave(b) if what == "wa-backup" else None)
         return {"root": str(case.root)}
     if path == "/api/mobile/export_chat":
         return export_chat(G, _case(G), b)

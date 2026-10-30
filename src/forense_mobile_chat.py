@@ -810,10 +810,10 @@ def read_whatsapp_android(case, con, part, inode, path, names, backup=None):
                 if cl:              # chiamata: tipo, durata ed esito dalla riga di call_log (verificato su Android 14)
                     cl_usate.add(cl["_id"])
                     dur = cl.get("duration")
-                    res = cl.get("call_result")
+                    esito_cl = cl.get("call_result")
                     tipo.update(tipo=fmca.etichetta_chiamata(tr("video") if cl.get("video_call") else tr("voce"),
                                                              "out" if frm else "in", dur),
-                                durata_s=dur, risposta=True if res == 5 else None,
+                                durata_s=dur, risposta=True if esito_cl == 5 else None,
                                 fonte_chiamata=f"msgstore.db · message + call_log #{cl['_id']}")
                 st = d.get("status")
                 av = mt == 7          # (2.20) avviso di WhatsApp: mai «inviato», anche se il database lo segna from_me = 1

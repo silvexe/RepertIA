@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2026 silvexe
-"""RepertIA - backup locali di WhatsApp Android (.crypt14) decifrati con la chiave trovata nell'estrazione (dalla 2.20).
+"""RepertIA - backup locali di WhatsApp Android (.crypt14, .crypt15) decifrati con la chiave dell'estrazione (dalla 2.20).
 
 WhatsApp salva ogni notte una copia cifrata del database dei messaggi (`WhatsApp/Databases/msgstore*.db.crypt14`). In
 un'estrazione del file system completo c'è spesso anche la chiave, `com.whatsapp/files/key` (158 byte). Un backup è una
@@ -15,11 +15,21 @@ WhatsApp-Chat-Exporter, github.com/KnugiHK/WhatsApp-Chat-Exporter, MIT, Whatsapp
   AES-GCM, con il tag di verifica nei 16 byte che precedono gli ultimi 16; il risultato è compresso zlib.
 Si accetta solo un risultato con il tag GCM verificato e che sia un database SQLite: niente di «decifrato a metà».
 Gli incrementali (`msgstore-increment-N.db.crypt14`) decifrati sono archivi ZIP in un formato interno non documentato: si
-elencano, non si interpretano. crypt12 e crypt15 non sono gestiti (crypt15: la chiave non è nel telefono).
+elencano, non si interpretano. crypt12 non è gestito.
+
+Formato crypt15 (backup cifrati end-to-end; verificato sui file di prova pubblici di wa-crypt-tools, GPL-3.0, tests/res;
+riferimento: WhatsApp-Chat-Exporter, android_crypt.py):
+- chiave: `com.whatsapp/files/encrypted_backup.key` (array Java di 32 byte) oppure la chiave di 64 cifre esadecimali che
+  l'utente ha salvato; la password dei backup da sola non basta (serve ai server di WhatsApp per restituire la chiave);
+- chiave AES = HMAC-SHA256(HMAC-SHA256(32 zeri, chiave), «backup encryption» + 0x01);
+- backup: lunghezza dell'intestazione + 1 byte, poi protobuf (campo 3 → campo 1 = IV); AES-GCM, tag nei 16 byte che
+  precedono gli ultimi 16; il risultato è compresso zlib.
+La chiave scritta dall'analista arriva dalla variabile FORENSIA_WA_CHIAVE, solo in memoria: mai su disco né nel registro.
 
 Le librerie AES (pycryptodome) sono quelle che accompagnano iLEAPP/ALEAPP nella cartella `strumenti/` dei pacchetti.
 """
 import hashlib
+import hmac
 import json
 import os
 import re
@@ -31,6 +41,8 @@ from pathlib import Path
 from forense_lingua import tr, N_  # noqa: E402
 
 KEY_RE = re.compile(r"(^|/)com\.whatsapp(\.w4b)?/files/key$")
+KEY15_RE = re.compile(r"(^|/)com\.whatsapp(\.w4b)?/files/encrypted_backup\.key$")
+ENV_CHIAVE = "FORENSIA_WA_CHIAVE"
 BACKUP_RE = re.compile(r"(^|/)(msgstore[^/]*\.db)\.crypt(\d+)$", re.I)
 INCREMENT_RE = re.compile(r"msgstore-increment-\d+\.db$", re.I)
 CARTELLA = "backup_whatsapp"
@@ -126,6 +138,71 @@ def decifra(data, key_file):
     return None, ("errore", tr("tag GCM non verificato a nessuna delle posizioni note"))
 
 
+def chiave_digitata(s):
+    """32 byte dalla chiave di 64 cifre esadecimali scritta dall'analista (spazi e trattini ammessi)."""
+    t = re.sub(r"[\s-]", "", s or "")
+    if not re.fullmatch(r"[0-9a-fA-F]{64}", t):
+        raise ValueError(tr("La chiave deve avere 64 cifre esadecimali (0-9, a-f)."))
+    return bytes.fromhex(t)
+
+
+def chiave_file15(b):
+    """32 byte della chiave da encrypted_backup.key (array Java serializzato, oppure byte o esadecimale puri), o None."""
+    if len(b) == 32:
+        return bytes(b)
+    if b[:2] == b"\xac\xed":
+        i = b.find(b"\x78\x70")           # fine della descrizione della classe, poi la lunghezza dell'array
+        if i >= 0 and int.from_bytes(b[i + 2:i + 6], "big") == 32 and len(b) >= i + 38:
+            return bytes(b[i + 6:i + 38])
+        return None
+    try:
+        return chiave_digitata(b.decode("ascii"))
+    except (UnicodeDecodeError, ValueError):
+        return None
+
+
+def deriva15(radice):
+    """Chiave AES di un backup crypt15 dalla chiave di 32 byte."""
+    k = hmac.new(bytes(32), radice, hashlib.sha256).digest()
+    return hmac.new(k, b"backup encryption\x01", hashlib.sha256).digest()
+
+
+def posizioni15(data):
+    """[(iv, inizio dei dati cifrati)] di un crypt15: dall'intestazione, poi le posizioni fisse note."""
+    out = []
+    n, i = _varint(data, 0)
+    try:
+        for inizio in (i + 1, i):
+            top = _pb(data[inizio:i + 1 + n if inizio > i else i + n])
+            if 3 in top:
+                iv = _pb(top[3][0])[1][0]
+                if len(iv) == 16:
+                    out.append((iv, i + 1 + n if inizio > i else i + n))
+    except (KeyError, IndexError, ValueError):
+        pass
+    return out + [(data[8:24], data[0] + 2), (data[7:23], data[0] + 1)]
+
+
+def decifra15(data, radice):
+    """Database decifrato (bytes) di un backup crypt15, oppure (esito, motivo)."""
+    AES = _aes()
+    if len(data) < 131:
+        return None, ("formato", tr("file troppo corto per un crypt15"))
+    chiave = deriva15(radice)
+    for iv, off in posizioni15(data):
+        ct = data[off:]
+        for coda in (32, 16):            # tag prima dell'hash finale, oppure in fondo al file
+            try:
+                plain = AES.new(chiave, AES.MODE_GCM, nonce=iv).decrypt_and_verify(ct[:-coda], ct[-coda:len(ct) - coda + 16])
+            except ValueError:
+                continue
+            try:
+                return zlib.decompress(plain), ("decifrato", tr("dati cifrati dal byte {o}").format(o=off))
+            except zlib.error as e:
+                return None, ("errore", tr("tag verificato ma dati non decomprimibili ({e})").format(e=e))
+    return None, ("errore", tr("chiave non valida per questo backup o file danneggiato (tag GCM non verificato)"))
+
+
 def _sha(b):
     return hashlib.sha256(b).hexdigest()
 
@@ -136,10 +213,10 @@ def trova(case, part):
     m = fm.mx(case)
     try:
         rows = m.execute("SELECT id, path, size FROM mobile_files WHERE part=? AND isdir=0 AND (path LIKE '%/files/key' "
-                         "OR path LIKE '%.crypt%')", (part,)).fetchall()
+                         "OR path LIKE '%/files/encrypted_backup.key' OR path LIKE '%.crypt%')", (part,)).fetchall()
     finally:
         m.close()
-    keys = [(str(i), p, s) for i, p, s in rows if KEY_RE.search(p)]
+    keys = [(str(i), p, s) for i, p, s in rows if KEY_RE.search(p) or KEY15_RE.search(p)]
     backups = [(str(i), p, s) for i, p, s in rows if BACKUP_RE.search(p)]
     return keys, sorted(backups, key=lambda x: x[1])
 
@@ -150,33 +227,42 @@ def leggi(case, part, inode):
 
 
 def run(case, part):
-    """Decifra i backup msgstore*.crypt14 di un'estrazione con la chiave trovata nella stessa estrazione. Scrive i database
-    decifrati in <caso>/backup_whatsapp/ (sola lettura) e restituisce l'elenco degli esiti; tutto va nel registro."""
+    """Decifra i backup msgstore*.crypt14/.crypt15 con la chiave trovata nell'estrazione o scritta dall'analista. Scrive i
+    database decifrati in <caso>/backup_whatsapp/ (sola lettura) e restituisce l'elenco degli esiti; tutto va nel registro."""
     keys, backups = trova(case, part)
     out = {"chiavi": [], "backup": []}
     if not backups:
         return out
-    kdata = []
+    kdata, k15 = [], []
     for i, p, _s in keys:
         b = leggi(case, part, i)
         out["chiavi"].append({"percorso": p, "byte": len(b), "sha256": _sha(b)})
-        if len(b) == 158:
+        if KEY15_RE.search(p):
+            r = chiave_file15(b)
+            if r:
+                k15.append((p, r))
+        elif len(b) == 158:
             kdata.append((p, b))
+    if os.environ.get(ENV_CHIAVE):              # solo in memoria: nel registro c'è il fatto, mai il valore
+        k15.append((tr("chiave indicata dall'analista"), chiave_digitata(os.environ[ENV_CHIAVE])))
+        out["chiave_analista"] = True
     dest = Path(case.root) / CARTELLA
     for i, p, size in backups:
         m = BACKUP_RE.search(p)
         e = {"percorso": p, "byte": size, "crypt": int(m.group(3))}
         data = leggi(case, part, i)
         e["sha256"] = _sha(data)
-        if e["crypt"] != 14:
+        if e["crypt"] not in (14, 15):
             e.update(esito="formato", motivo=tr("crypt{n}: formato non gestito in questa versione").format(n=e["crypt"]))
-        elif not kdata:
+        elif e["crypt"] == 14 and not kdata:
             e.update(esito="errore", motivo=tr("nessuna chiave (com.whatsapp/files/key) nell'estrazione"))
+        elif e["crypt"] == 15 and not k15:
+            e.update(esito="errore", motivo=tr("nessuna chiave (encrypted_backup.key) nell'estrazione: indica la chiave di 64 cifre"))
         else:
             raw, (esito, motivo) = None, ("errore", "")
-            for kp, kb in kdata:
-                raw, (esito, motivo) = decifra(data, kb)
-                if raw is not None or esito != "altra_chiave":
+            for kp, kb in (kdata if e["crypt"] == 14 else k15):
+                raw, (esito, motivo) = decifra(data, kb) if e["crypt"] == 14 else decifra15(data, kb)
+                if raw is not None or (e["crypt"] == 14 and esito != "altra_chiave"):
                     e["chiave"] = kp
                     break
             if raw is not None and not raw.startswith(b"SQLite format 3\x00"):

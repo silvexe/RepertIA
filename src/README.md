@@ -3,7 +3,7 @@
 *English: [docs/MANUAL.md](../docs/MANUAL.md).*
 
 **Analisi forense di copie di dischi e pendrive con intelligenza artificiale locale.**
-Versione 2.20.2 · macOS, Windows e Linux (sperimentale) · interfaccia in italiano o in inglese
+Versione 2.20.3 · macOS, Windows e Linux (sperimentale) · interfaccia in italiano o in inglese
 
 RepertIA prende una copia forense (raw, dd, img o E01), la indicizza con strumenti forensi
 riconosciuti e permette di esaminarla in due modi complementari:
@@ -975,9 +975,14 @@ percorso di sempre per E01, dd/raw e dmg. Nell'elenco dei casi l'icona indica il
   AES-GCM corretto e che sia un database SQLite; le copie decifrate restano nel caso (`backup_whatsapp/`, sola lettura)
   e SHA-256 di backup, chiave e copia decifrata vanno nel registro. Esiti dichiarati: *cifrato con un'altra chiave* (la
   firma del backup non è quella della chiave: tipico dei backup fatti prima di un nuovo accesso), *backup incrementale*
-  (archivio in un formato non documentato: elencato, non letto), *formato non gestito* (crypt12, crypt15: per crypt15 la
-  chiave non è nel telefono). Formato verificato sull'immagine Android 14 di Hickman (posizioni da
-  WhatsApp-Chat-Exporter, `android_crypt.py`, MIT). Da terminale: `prepara … --wa-backup` o `aggiungi --case CASO wa-backup`.
+  (archivio in un formato non documentato: elencato, non letto), *formato non gestito* (crypt12), *non decifrato* (chiave assente o sbagliata, tag non verificato). Formato crypt14 verificato
+  sull'immagine Android 14 di Hickman (posizioni da WhatsApp-Chat-Exporter, `android_crypt.py`, MIT). Da terminale: `prepara …
+  --wa-backup` o `aggiungi --case CASO wa-backup`.
+  **crypt15 (backup cifrati end-to-end, 2.20.3)**: la chiave è `com.whatsapp/files/encrypted_backup.key`, se è nell'estrazione,
+  oppure la **chiave di 64 cifre esadecimali** che il titolare ha salvato, da scrivere nel campo *Chiave dei backup crypt15* del
+  nuovo caso o all'avvio dell'analisi aggiuntiva. Resta solo in memoria: non è salvata e nel registro c'è solo il fatto che è
+  stata indicata, quindi per rileggere i backup va riscritta. La password dei backup da sola non basta. Formato verificato su un
+  `msgstore.db.crypt15` reale pubblico (test di wa-crypt-tools, GPL-3.0), con la sua chiave: quel file non contiene messaggi.
 - **Foto e video ↔ chat** (2.20): in Risultati, sotto **Foto/Video/Audio**, le sottovoci **🖼 Foto**, **🎞 Video** e **🎵 Audio** e i filtri
   **Solo foto**, **Solo video** e **Solo audio**; nei casi smartphone la voce **💬 Dalle chat** (una sottovoce per app),
   anche sotto ciascuna di Foto, Video e Audio, elenca i file che sono allegati a
@@ -991,7 +996,7 @@ percorso di sempre per E01, dd/raw e dmg. Nell'elenco dei casi l'icona indica il
 - **Avvisi dell'importazione** (2.20): gli avvisi della lettura delle chat (database cifrati, chiavi trovate, backup) sono
   nel pulsante **⚠ Avvisi dell'importazione (N)** del pannello, che apre una finestra ridimensionabile.
 - **Limiti**: si vede solo quello che c'è nell'estrazione (un'estrazione logica o un backup non contengono i database delle
-  app); i database cifrati (Signal se ALEAPP/iLEAPP non lo decifra, backup di WhatsApp `.crypt15` o fatti con un'altra
+  app); i database cifrati (Signal se ALEAPP/iLEAPP non lo decifra, backup di WhatsApp senza la loro chiave o fatti con un'altra
   chiave) non si leggono; i messaggi cancellati ancora presenti nelle pagine libere dei database non sono recuperati in
   questa versione; le estrazioni non hanno file cancellati del file system.
 - **Collaudo**: due estrazioni di prova in `RepertIA-collaudo/smartphone/` costruite con estratti delle immagini pubbliche
@@ -1227,6 +1232,8 @@ stesso. I file principali sono:
 Nulla si aggiorna da solo, di proposito: ogni caso registra le versioni degli strumenti usati.
 Per aggiornare, tra un caso e l'altro e con internet: Mac `Aggiorna strumenti.command`, Windows *Aggiorna strumenti*
 nel menu Start, Linux `./aggiorna-strumenti.sh`; mostrano le versioni prima e dopo.
+
+**Versione 2.20.3** - **Correzioni per WhatsApp Android.** **`msgstore.db` non letto:** con l'errore `'int' object has no attribute 'find'`, un difetto fermava la lettura dell'intero database quando dopo una chiamata nella chat c'era un allegato. Riguarda Mac, Windows e Linux dalla 2.20.0 in poi: se negli avvisi di un caso compare `msgstore.db: non letto`, le chat lette da RepertIA mancano. Basta rileggere il caso: **Analisi aggiuntive → Chat e rubriche**. **Backup crypt15:** ora si decifrano con `com.whatsapp/files/encrypted_backup.key`, se è nell'estrazione, oppure con la chiave di 64 cifre indicata dall'analista, che resta solo in memoria. Nelle versioni precedenti manuale e guida dicevano che la chiave crypt15 non è nel telefono: era sbagliato. *Provato:* collaudo 437/437 in italiano e in inglese sul Mac e 437/437 su Windows 11 con le correzioni; un crypt15 reale pubblico con chiave nel file, scritta a mano, assente o sbagliata e con un byte alterato; sull'immagine pubblica Android 14 stesso risultato di prima, riga per riga. *Non provato:* un crypt15 con messaggi reali, il pacchetto Windows definitivo, il pacchetto Linux. Il difetto è stato riprodotto su dati costruiti: l'immagine Android 14 non lo presenta.
 
 **Versione 2.20.2** - **Correzione per i casi smartphone su Windows.** iLEAPP su Windows chiude le righe dei suoi file TSV con un ritorno a capo doppio e RepertIA importava una riga vuota dopo ogni riga vera: ogni tabella da N righe diventava 2N+1 (es. 333 → 667). Nei casi smartphone preparati **su Windows** con la 2.20.1 ci sono quindi righe vuote in tutti gli artefatti di iLEAPP, conteggi, ricerche e report gonfiati e possono comparire **chiamate inesistenti**. Mac e Linux non sono interessati, e neppure ALEAPP (Android). Ora le righe vuote si ignorano e, aprendo un caso con questo difetto, RepertIA lo segnala con un avviso: **il caso non viene modificato e va rifatto**, e vanno rifatti anche gli eventuali report. I percorsi delle fonti di iLEAPP si citano sempre con `/`. Il collaudo controlla che non entrino righe vuote, anche con un TSV scritto come su Windows. *Provato:* collaudo 433/433 in italiano e in inglese sul Mac e 433/433 su Windows 11 con il pacchetto definitivo. *Non provato:* il pacchetto Linux.
 
@@ -1506,7 +1513,7 @@ ripreparati per indicizzare i PDF.
 
 ## Pacchetto per Mac Apple Silicon
 
-`RepertIA-2.20.2-Mac.zip` contiene **RepertIA.app** con Python 3.12, openai, Pillow e **plaso
+`RepertIA-2.20.3-Mac.zip` contiene **RepertIA.app** con Python 3.12, openai, Pillow e **plaso
 già inclusi** (niente Docker). Trascina l'app in Applicazioni; la prima volta: tasto destro →
 *Apri* (o *Impostazioni di Sistema → Privacy e sicurezza → Apri comunque*), perché non è firmata
 con un certificato Apple. L'app apre il Terminale, installa con Homebrew gli strumenti che mancano
@@ -1516,7 +1523,7 @@ c'è *Aggiorna strumenti.command* nello zip. Solo per Mac M1 o successivi.
 
 ## Versione Windows
 
-`RepertIA-2.20.2-Setup.exe` installa RepertIA per l'utente corrente (senza diritti di
+`RepertIA-2.20.3-Setup.exe` installa RepertIA per l'utente corrente (senza diritti di
 amministratore) in `%LOCALAPPDATA%\Programs\RepertIA`, con Python e gli strumenti già inclusi:
 plaso, The Sleuth Kit (legge gli E01 direttamente), ExifTool, Poppler, PhotoRec, bulk_extractor, 7-Zip,
 Tesseract OCR (italiano e inglese) e le librerie per posta Outlook, copie shadow e volumi cifrati. Si avvia dal menu
@@ -1537,11 +1544,11 @@ in `%USERPROFILE%\CasiForensi`, le impostazioni in `%APPDATA%\RepertIA`.
 
 ## Versione Linux (sperimentale)
 
-`RepertIA-2.20.2-Linux.tar.gz` è per **Linux x86_64** con Python 3.12 o successivo (Ubuntu 24.04 o
+`RepertIA-2.20.3-Linux.tar.gz` è per **Linux x86_64** con Python 3.12 o successivo (Ubuntu 24.04 o
 successivo, Debian 13). Il programma è lo stesso delle versioni Mac e Windows (stessa impronta dei sorgenti).
 
 ```
-tar -xzf RepertIA-2.20.2-Linux.tar.gz
+tar -xzf RepertIA-2.20.3-Linux.tar.gz
 cd RepertIA
 ./installa.sh          # una volta, con internet: chiede la password di amministratore
 ./RepertIA.sh          # oppure dal menu delle applicazioni
@@ -1691,6 +1698,8 @@ di un Mac (plist, sqlite con WAL, bookmark); APFS (dfvfs) in chiaro e cifrato co
 | 2.20.1 | Windows 11 dell'autore | 417/426 (77/77 su immagini pubbliche): righe vuote importate da iLEAPP su Windows (5 errori) e confronto dei percorsi nel collaudo (4 errori) → corretti nella 2.20.2 |
 | 2.20.2 | Mac dell'autore (come la 2.20.0) | 433/433 in italiano e 433/433 in inglese, dal pacchetto Mac assemblato: 178 dei dischi + 255 degli smartphone; i 6 nuovi controllano che nessuna riga vuota entri nel caso, anche con un TSV scritto come fa iLEAPP su Windows |
 | 2.20.2 | Windows 11 dell'autore (pacchetto definitivo) | 433/433, 77/77 su immagini pubbliche |
+| 2.20.3 | Mac dell'autore (come la 2.20.0) | 437/437 in italiano e 437/437 in inglese, dal pacchetto Mac assemblato: 178 dei dischi + 259 degli smartphone; i 4 nuovi riguardano una chiamata WhatsApp seguita da allegati (difetto della 2.20.2) e un backup crypt15 reale pubblico di wa-crypt-tools, che non contiene messaggi |
+| 2.20.3 (correzioni, prima dell'assemblaggio) | Windows 11 dell'autore | 437/437, 77/77 su immagini pubbliche |
 
 Carving DFTT 11: 2 file su 15 (enterprise.wav, haxor2.jpg) non vengono recuperati da PhotoRec: è un limite di
 PhotoRec, dichiarato come «misura» e non come requisito.
@@ -1699,8 +1708,9 @@ PhotoRec, dichiarato come «misura» e non come requisito.
 il rapporto `collaudo_<data>.md` con la consulenza. Collaudo completo sul Mac: 2.18.1 112/112; 2.19.0 112/112 in italiano e
 112/112 in inglese. Collaudo completo eseguito dall'autore anche su Windows per le versioni dalla 2.17.x alla 2.19.0.
 **Linux (sperimentale, 2.19.0)**: collaudo superato nell'ambiente Linux di sviluppo; da ripetere su un computer Linux
-installato con `installa.sh` prima dell'uso in un caso. **2.20.2**: collaudo sul Mac 433/433 in entrambe le lingue e su Windows 11 433/433 con il pacchetto definitivo;
-da ripetere su Linux (pacchetto costruito sul Mac).
+installato con `installa.sh` prima dell'uso in un caso. **2.20.3**: collaudo sul Mac 437/437 in entrambe le lingue; su Windows 437/437 con le correzioni, prima dell'assemblaggio; da
+ripetere con il pacchetto Windows definitivo e su Linux (pacchetti costruiti sul Mac). Sull'immagine pubblica Android 14 di Hickman
+codice vecchio e nuovo danno lo stesso risultato, riga per riga: su quel telefono il difetto della 2.20.2 non si presenta.
 
 ### 3. Verifiche su copie reali
 
@@ -1766,8 +1776,8 @@ strumento (Registry Explorer, Autopsy, X-Ways, AXIOM…) o direttamente sul dato
   cambiare. **WhatsApp**: il significato dei tipi e dei codici degli avvisi non è pubblicato da WhatsApp; su Android i
   codici degli avvisi sono spiegati con fonti pubbliche e il loro livello (nessuno verificato su un telefono con azioni
   documentate); su iPhone nessuna fonte spiega i codici degli avvisi (si mostrano valori e fatti dal database) e lo stato
-  di lettura dei messaggi inviati non è leggibile. Backup di WhatsApp: solo `.crypt14` con la chiave nell'estrazione
-  (non crypt12/crypt15, non i backup incrementali). Oltre 500.000 righe di iLEAPP/ALEAPP alcune tabelle non sono
+  di lettura dei messaggi inviati non è leggibile. Backup di WhatsApp: `.crypt14` e `.crypt15` con la chiave
+  (non crypt12, non i backup incrementali). Oltre 500.000 righe di iLEAPP/ALEAPP alcune tabelle non sono
   importate (elencate nel caso; chat, messaggi e chiamate hanno la precedenza). La ricerca veloce cerca solo nei risultati
   del caso (non nel contenuto dei file né nella timeline). Chiamate: una riga di interactionC senza numero
   non si unisce alla riga del registro di sistema che le corrisponde (una su iOS 17 di Hickman) e compare come chiamata a sé.
@@ -1940,7 +1950,7 @@ Grafico della Timeline (calcolo per minuto, 2.20.0): confrontato con il calcolo 
 iOS 17.3, Android 14 e DFTT 05, nell'ora del telefono e in ora italiana, per giorno, mese, anno e scelta automatica, con e
 senza filtri (testo, periodo); su iOS 17.3 da circa 40 s a 2-7 s.
 **Non provati**: Windows e Linux, estrazioni GrayKey e Cellebrite reali con i loro metadati, sysdiagnose completi, backup
-WhatsApp crypt12/crypt15, codici degli avvisi WhatsApp su un telefono con azioni di gruppo documentate.
+WhatsApp crypt12 e crypt15 con messaggi reali, codici degli avvisi WhatsApp su un telefono con azioni di gruppo documentate.
 
 
 ### 7. Controllo delle modifiche

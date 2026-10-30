@@ -6,7 +6,7 @@
 and folder names created by the program (`estratti`, `export`, `CasiForensi`…) are in Italian whatever the language.*
 
 **Forensic analysis of disk and USB drive images with local artificial intelligence.**
-Version 2.20.2 · macOS, Windows and Linux (experimental) · interface in English or Italian
+Version 2.20.3 · macOS, Windows and Linux (experimental) · interface in English or Italian
 
 RepertIA takes a forensic image (raw, dd, img or E01), indexes it with established forensic tools and lets you examine
 it in two complementary ways:
@@ -929,9 +929,14 @@ dmg. In the list of cases the icon shows the type.
   database is accepted; the decrypted copies stay in the case (`backup_whatsapp/`, read only) and the SHA-256 of backup,
   key and decrypted copy go into the log. Outcomes declared: *encrypted with another key* (the backup signature is not the
   key's: typical of backups made before a new login), *incremental backup* (archive in an undocumented format: listed,
-  not read), *format not handled* (crypt12, crypt15: for crypt15 the key is not on the phone). Format verified on
+  not read), *format not handled* (crypt12), *not decrypted* (key missing or wrong, tag not verified). crypt14 format verified on
   Hickman's Android 14 image (offsets from WhatsApp-Chat-Exporter, `android_crypt.py`, MIT). From the terminal: `prepara
   … --wa-backup` or `aggiungi --case CASE wa-backup`.
+  **crypt15 (end-to-end encrypted backups, 2.20.3)**: the key is `com.whatsapp/files/encrypted_backup.key`, if it is in the
+  extraction, or the **64-digit hexadecimal key** saved by the owner, entered in the *crypt15 backup key* field of the new case
+  or when starting the additional analysis. It stays in memory only: it is not saved and the log records only that it was given,
+  so it must be entered again to re-read the backups. The backup password alone is not enough. Format verified on a real public
+  `msgstore.db.crypt15` (wa-crypt-tools tests, GPL-3.0) with its key: that file contains no messages.
 - **Photos and videos ↔ chats** (2.20): in Results, under **Photos/Videos/Audio**, the sub-items **🖼 Photos**, **🎞 Videos** and **🎵 Audio** and the
   filters **Photos only**, **Videos only** and **Audio only**; in smartphone cases the item **💬 From chats** (one sub-item
   per app), also under each of Photos, Videos and Audio, lists the files attached to a message and the *Origin* filter chooses the app. Opening an attached photo or video, the **Origin**
@@ -944,7 +949,7 @@ dmg. In the list of cases the icon shows the type.
 - **Import notices** (2.20): the notices of the chat import (encrypted databases, keys found, backups) are in the button
   **⚠ Import notices (N)** of the panel, which opens a resizable window.
 - **Limits**: only what is in the extraction can be seen (a logical extraction or a backup does not contain the app
-  databases); encrypted databases (Signal if ALEAPP/iLEAPP does not decrypt it, WhatsApp backups `.crypt15` or made with
+  databases); encrypted databases (Signal if ALEAPP/iLEAPP does not decrypt it, WhatsApp backups without their key or made with
   another key) cannot be read; deleted messages still present in the free pages of databases are not recovered in this
   version; extractions have no deleted files of the file system.
 - **Validation**: two test extractions in `RepertIA-collaudo/smartphone/` built with excerpts of the public images of Josh
@@ -1178,7 +1183,7 @@ The history of the versions is in [CHANGELOG.en.md](../CHANGELOG.en.md).
 
 ## Mac package (Apple Silicon)
 
-`RepertIA-2.20.2-Mac.zip` contains **RepertIA.app** with Python 3.12, openai, Pillow and **plaso already included** (no
+`RepertIA-2.20.3-Mac.zip` contains **RepertIA.app** with Python 3.12, openai, Pillow and **plaso already included** (no
 Docker). Drag the app into Applications; the first time: right-click → *Open* (or *System Settings → Privacy & Security
 → Open Anyway*), because it is not signed with an Apple certificate. The app opens the Terminal, installs the missing
 tools with Homebrew (Sleuth Kit, libewf, exiftool, poppler, PhotoRec, bulk_extractor, Tesseract) and then the browser.
@@ -1187,7 +1192,7 @@ tools with Homebrew (Sleuth Kit, libewf, exiftool, poppler, PhotoRec, bulk_extra
 
 ## Windows version
 
-`RepertIA-2.20.2-Setup.exe` installs RepertIA for the current user (no administrator rights) in
+`RepertIA-2.20.3-Setup.exe` installs RepertIA for the current user (no administrator rights) in
 `%LOCALAPPDATA%\Programs\RepertIA`, with Python and the tools already included: plaso, The Sleuth Kit (reads E01 files
 directly), ExifTool, Poppler, PhotoRec, bulk_extractor, 7-Zip, Tesseract OCR (Italian and English) and the libraries for
 Outlook mail, shadow copies and encrypted volumes. It is started from the Start menu → **RepertIA**: a black window opens,
@@ -1205,11 +1210,11 @@ to be kept open, and the browser. Cases are in `%USERPROFILE%\CasiForensi`, sett
 
 ## Linux version (experimental)
 
-`RepertIA-2.20.2-Linux.tar.gz` is for **Linux x86_64** with Python 3.12 or later (Ubuntu 24.04 or later, Debian 13).
+`RepertIA-2.20.3-Linux.tar.gz` is for **Linux x86_64** with Python 3.12 or later (Ubuntu 24.04 or later, Debian 13).
 The program is the same as the Mac and Windows versions (same source fingerprint).
 
 ```
-tar -xzf RepertIA-2.20.2-Linux.tar.gz
+tar -xzf RepertIA-2.20.3-Linux.tar.gz
 cd RepertIA
 ./installa.sh          # once, with internet: asks for the administrator password
 ./RepertIA.sh          # or from the applications menu

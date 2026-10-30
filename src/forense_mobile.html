@@ -108,7 +108,10 @@ body.chatopen .toast{z-index:80}
       <div id="mobSdList"></div>
       <div class="kcrow"><input class="pathin" id="mobSd" placeholder="${esc(T("percorso del file sysdiagnose_….tar.gz"))}"><button class="btn" id="mobSdAdd">${T("Aggiungi")}</button><button class="btn" id="mobSdPick">${T("Scegli…")}</button></div>
       <div class="hint">${T("Non viene copiato nel caso: se ne calcola lo SHA-256 (nel registro) e iLEAPP lo legge con un secondo giro (processi, spegnimenti, Wi-Fi, Bluetooth, batteria, impostazioni…). Le righe vanno negli Artefatti, gruppo «Sysdiagnose», marcate con il nome del file.")}</div></div>
-    <label class="opt"><input type="checkbox" id="mobWaBackup"><span>${T("Decifra i backup di WhatsApp (Android), se nell'estrazione c'è la chiave")}<small>${T("I backup .crypt14 sono copie dei giorni precedenti: possono contenere messaggi poi cancellati. Si decifrano con la chiave del telefono (com.whatsapp/files/key) in una copia nel caso; l'estrazione non viene toccata.")}</small></span></label>
+    <label class="opt"><input type="checkbox" id="mobWaBackup"><span>${T("Decifra i backup di WhatsApp (Android), se nell'estrazione c'è la chiave")}<small>${T("I backup .crypt14 e .crypt15 sono copie dei giorni precedenti: possono contenere messaggi poi cancellati. Si decifrano con la chiave del telefono (com.whatsapp/files/key, files/encrypted_backup.key) in una copia nel caso; l'estrazione non viene toccata.")}</small></span></label>
+    <div class="kcbox"><label class="flab" for="mobWaKey">🔑 ${T("Chiave dei backup crypt15")} <span class="hint">${T("facoltativa, 64 cifre esadecimali")}</span></label>
+      <div class="kcrow"><input class="pathin" id="mobWaKey" type="password" autocomplete="off" spellcheck="false"></div>
+      <div class="hint">${T("Serve solo se encrypted_backup.key non è nell'estrazione. Resta in memoria: non viene salvata né scritta nel registro.")}</div></div>
     <label class="opt"><input type="checkbox" id="mobHashFile"><span>${T("Calcola gli hash di tutti i file (MD5, SHA-1, SHA-256)")}<small>${T("Serve per cercare file noti con una lista di hash. Si può fare anche dopo, dal caso.")}</small></span></label>
     <div class="hint" style="margin:-6px 0 14px">${T("Chat (WhatsApp, iMessage/SMS, SMS/MMS), rubriche, testo dei documenti e metadati delle foto vengono letti sempre, in automatico.")}</div>
     <button class="btn primary" id="mobStart" disabled>${T("Avanti")}</button>`;
@@ -157,7 +160,7 @@ body.chatopen .toast{z-index:80}
   $("mobStart").onclick = async () => {
     if (!cur) return;
     if (!(await sdAdd($("mobSd").value))) return;
-    mobOpts = {no_hash: !$("mobHash").checked, leapp: $("mobLeapp").checked, hash_file: $("mobHashFile").checked, wa_backup: $("mobWaBackup").checked, decomprimi: !!cur.decomprimere,
+    mobOpts = {no_hash: !$("mobHash").checked, leapp: $("mobLeapp").checked, hash_file: $("mobHashFile").checked, wa_backup: $("mobWaBackup").checked, wa_chiave: $("mobWaKey").value.trim() || undefined, decomprimi: !!cur.decomprimere,
                keychain: $("mobKc").value.trim() || undefined, sysdiagnose: SD.length ? SD.map(x => x.path) : undefined,
                trascrizione: await trascrOptRead("mobTrascr")};      // (2.20) consenso al modello prima di avviare
     if (mobOpts.keychain && !mobOpts.leapp) return toast(T("Il portachiavi serve a iLEAPP: spunta anche «Artefatti con iLEAPP»."), "bad");
@@ -281,10 +284,16 @@ body.chatopen .toast{z-index:80}
   }
   async function runMobile(what){
     if (!confirm(what === "leapp" ? T("Esegue iLEAPP (iPhone) o ALEAPP (Android) sull'estrazione: può durare a lungo. Gli artefatti importati prima vengono sostituiti. Avviare?")
-      : what === "wa-backup" ? T("Decifra i backup di WhatsApp con la chiave trovata nell'estrazione (copie nel caso, registrate con lo SHA-256) e rilegge chat e rubriche. Avviare?")
+      : what === "wa-backup" ? T("Decifra i backup di WhatsApp con la chiave trovata nell'estrazione o indicata da te (copie nel caso, registrate con lo SHA-256) e rilegge chat e rubriche. Avviare?")
       : T("Rilegge chat e rubriche dall'estrazione (i risultati precedenti vengono sostituiti). Avviare?"))) return;
     try{
-      const r = await api("/api/mobile/addon", {what});
+      let wa_chiave;
+      if (what === "wa-backup"){
+        const k = prompt(T("Chiave di 64 cifre dei backup crypt15 (facoltativa: lascia vuoto se è nell'estrazione). Non viene salvata."), "");
+        if (k === null) return;
+        wa_chiave = k.trim() || undefined;
+      }
+      const r = await api("/api/mobile/addon", {what, wa_chiave});
       startPrepView(T("Caso: ") + r.root, {}, "x"); prepSteps = MSTEPS.filter(s => s[0] === (what === "wa-backup" ? "chat" : what)); curStep = 0; drawSteps(0, null); pollPrep();
     }catch(e){ toast(e.message, "bad"); }
   }

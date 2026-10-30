@@ -645,6 +645,7 @@ def controlli_fase4(case, con, check):
               not r[1] and not r[2] and not r[3], tr("non ricevuti {a}, senza fonte {b}, lettura prima della ricezione {c}").format(a=r[1], b=r[2], c=r[3]),
               interno=True)
     controlli_wa_backup(case, check)
+    controlli_crypt15(case, check)
 
 
 def _crypt14_finto(db, key, iv, firma):
@@ -816,10 +817,75 @@ def controlli_wa_backup(case, check):
             check(tr("backup WhatsApp finto letto come conversazioni: {b} messaggi (attuale {v}), solo nel backup {n}").format(
                 b=nb, v=nv, n=n), W is not None and nb == nv + 1 and k == ["REPERTIA-COLLAUDO-BACKUP"], ", ".join(map(str, k)),
                 interno=True)
+            # chiamata (tipo 90) prima degli allegati: un difetto della 2.20.2 fermava la lettura di tutto il database
+            cols = [c[1] for c in w.db.execute("PRAGMA table_info(message)") if c[1] != "_id"]
+            if tab == "message":
+                w.db.execute("CREATE TABLE IF NOT EXISTS call_log(_id INTEGER PRIMARY KEY, video_call INTEGER, duration INTEGER, "
+                             "call_result INTEGER, timestamp INTEGER, from_me INTEGER, jid_row_id INTEGER, call_id TEXT)")
+                w.db.execute("CREATE TABLE IF NOT EXISTS message_call_log(message_row_id INTEGER, call_log_row_id INTEGER)")
+                t0 = w.db.execute("SELECT MIN(timestamp) FROM message").fetchone()[0]
+                sel = ",".join({"message_type": "90", "timestamp": "?", "key_id": "'REPERTIA-COLLAUDO-CHIAMATA'"}.get(c, c) for c in cols)
+                w.db.execute(f"INSERT INTO message({','.join(cols)}) SELECT {sel} FROM message ORDER BY _id LIMIT 1", (t0 - 1000,))
+                mid = w.db.execute("SELECT MAX(_id) FROM message").fetchone()[0]
+                w.db.execute("INSERT INTO call_log(_id, video_call, duration, call_result, timestamp, from_me, jid_row_id, call_id) "
+                             "VALUES (1, 0, 30, 5, ?, 1, 1, 'c1')", (t0 - 1000,))
+                w.db.execute("INSERT INTO message_call_log VALUES (?, 1)", (mid,))
+                w.db.commit()
+                w.db.execute(f"VACUUM INTO '{(tmp / 'chiamata.db').as_posix()}'")
+                c3 = fa.sqlite3.connect(str(tmp / "prova3.sqlite"))
+                try:
+                    fmc.ensure_schema(c3)
+                    Wc = fmc.read_whatsapp_android(case, c3, part, str(r[0]), r[1], {},
+                                                   backup={"file": tmp / "chiamata.db", "nome": "chiamata"})
+                    nc = c3.execute("SELECT COUNT(*) FROM chat_messages WHERE kind='chiamata'").fetchone()[0]
+                    check(tr("WhatsApp Android: una chiamata seguita da allegati non ferma la lettura del database"),
+                          Wc is not None and nc == 1 and Wc.n_att > 0, tr("{n} chiamate, {a} allegati").format(n=nc, a=Wc.n_att), interno=True)
+                finally:
+                    c3.close()
         finally:
             w.close()
             import shutil
             shutil.rmtree(tmp, ignore_errors=True)
+
+
+def controlli_crypt15(case, check):
+    """Backup crypt15 VERO e la sua chiave (file di prova pubblici di wa-crypt-tools, GPL-3.0): decifrato con il tag GCM
+    verificato, database SQLite integro; un'altra chiave e un byte cambiato sono rifiutati; chiave scritta a mano."""
+    import forense_mobile_wabackup as fmwb
+    if (case.meta.get("mobile") or {}).get("piattaforma") != "android":
+        return
+    d = next((Path(p).parent / "crypt15" for p in (case.meta.get("evidence"), case.meta.get("origine_decompressa"), case.meta.get("image"))
+              if p and (Path(p).parent / "crypt15" / "msgstore-2.26.db.crypt15").is_file()), None)
+    if d is None:
+        check(tr("backup crypt15 reale: file di prova presenti"), False, tr("non trovati"), misura=True)
+        return
+    try:
+        fmwb._aes()
+    except ImportError:
+        check(tr("backup WhatsApp: libreria AES (pycryptodome di iLEAPP/ALEAPP)"), False, tr("non trovata"), misura=True)
+        return
+    bk = (d / "msgstore-2.26.db.crypt15").read_bytes()
+    k = fmwb.chiave_file15((d / "encrypted_backup.key").read_bytes())
+    raw, (es, _m) = fmwb.decifra15(bk, k) if k else (None, ("errore", ""))
+    integro = False
+    if raw:
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            f = Path(tmp) / "x.db"
+            f.write_bytes(raw)
+            c = fa.sqlite3.connect(f)
+            try:
+                integro = c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+            finally:
+                c.close()
+    check(tr("backup crypt15 reale (wa-crypt-tools): decifrato con encrypted_backup.key, tag GCM verificato, SQLite integro"),
+          integro, es, interno=True)
+    guasto = bytearray(bk)
+    guasto[len(bk) // 2] ^= 1
+    check(tr("backup crypt15 reale: un'altra chiave e un byte cambiato sono rifiutati"),
+          fmwb.decifra15(bk, bytes(32))[0] is None and fmwb.decifra15(bytes(guasto), k)[0] is None, "", interno=True)
+    check(tr("backup crypt15: la chiave di 64 cifre scritta dall'analista vale come il file"),
+          bool(k) and fmwb.chiave_digitata(" ".join(k.hex()[i:i + 4] for i in range(0, 64, 4))) == k, "", interno=True)
 
 
 def controlli_smartphone(t, img, case, con, a, check):

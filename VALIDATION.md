@@ -2,7 +2,7 @@
 
 *Translation of [VALIDAZIONE.md](VALIDAZIONE.md); the Italian text prevails.*
 
-Program version: 2.20.2 · Document updated on 30/10/2026
+Program version: 2.20.3 · Document updated on 30/10/2026
 
 This document describes **how RepertIA was verified, with which data, with which results and with which known
 limitations**. It is meant for those who use the program in an expert examination and need to state the reliability of
@@ -61,6 +61,8 @@ volume (plist, sqlite with WAL, bookmarks); APFS (dfvfs) unencrypted and encrypt
 | 2.20.1 | Author's Windows 11 | 417/426 (77/77 on public images): empty rows imported from iLEAPP on Windows (5 errors) and path comparison in the test (4 errors) → fixed in 2.20.2 |
 | 2.20.2 | Author's Mac (as for 2.20.0) | 433/433 in Italian and 433/433 in English, from the assembled Mac package: 178 for disks + 255 for smartphones; the 6 new ones check that no empty row enters the case, also with a TSV written the way iLEAPP does on Windows |
 | 2.20.2 | Author's Windows 11 (final package) | 433/433, 77/77 on public images |
+| 2.20.3 | Author's Mac (as for 2.20.0) | 437/437 in Italian and 437/437 in English, from the assembled Mac package: 178 for disks + 259 for smartphones; the 4 new ones cover a WhatsApp call followed by attachments (2.20.2 defect) and a real public crypt15 backup from wa-crypt-tools, which contains no messages |
+| 2.20.3 (fixes, before assembly) | Author's Windows 11 | 437/437, 77/77 on public images |
 
 Carving DFTT 11: 2 files out of 15 (enterprise.wav, haxor2.jpg) are not recovered by PhotoRec: this is a limitation of
 PhotoRec, declared as a "measurement" and not as a requirement.
@@ -69,8 +71,9 @@ PhotoRec, declared as a "measurement" and not as a requirement.
 `collaudo_<date>.md` report with the expert report. Full test on the Mac: 2.18.1 112/112; 2.19.0 112/112 in Italian and
 112/112 in English. Full test also run by the author on Windows for versions 2.17.x to 2.19.0.
 **Linux (experimental, 2.19.0)**: test passed in the Linux development environment; to be repeated on a Linux computer
-installed with `installa.sh` before use in a case. **2.20.2**: acceptance test on the Mac 433/433 in both languages and on Windows 11 433/433 with the final
-package; to be repeated on Linux (package built on the Mac).
+installed with `installa.sh` before use in a case. **2.20.3**: acceptance test on the Mac 437/437 in both languages; on Windows 437/437 with the fixes, before assembly; to be
+repeated with the final Windows package and on Linux (packages built on the Mac). On Hickman's public Android 14 image the old and
+new code give the same result, row by row: the 2.20.2 defect does not occur on that phone.
 
 ## 3. Checks on real images
 
@@ -137,8 +140,8 @@ offset, inode, registry key).
   database may change. **WhatsApp**: the meaning of the types and of the notice codes is not published by WhatsApp; on
   Android the notice codes are explained with public sources and their level (none verified on a phone with documented
   actions); on iPhone no source explains the notice codes (values and facts from the database are shown) and the read
-  status of sent messages cannot be read. WhatsApp backups: only `.crypt14` with the key in the extraction (not
-  crypt12/crypt15, not incremental backups). Beyond 500,000 iLEAPP/ALEAPP rows some tables are not imported (listed in the
+  status of sent messages cannot be read. WhatsApp backups: `.crypt14` and `.crypt15` with the key (not
+  crypt12, not incremental backups). Beyond 500,000 iLEAPP/ALEAPP rows some tables are not imported (listed in the
   case; chats, messages and calls take precedence). The fast search looks only in the case results (not in the content
   of files or in the timeline). Calls: an interactionC row without a number is not
   merged with the matching system-log row (one in Hickman's iOS 17) and appears as a call of its own.
@@ -307,7 +310,7 @@ Timeline chart (per-minute computation, 2.20.0): compared with the previous even
 17.3, Android 14 and DFTT 05, in the phone's and Italian time, per day, month, year and automatic choice, with and without
 filters (text, period); on iOS 17.3 from about 40 s to 2-7 s.
 **Not tested**: Windows and Linux, real GrayKey and Cellebrite extractions with their metadata, complete sysdiagnoses,
-crypt12/crypt15 WhatsApp backups, WhatsApp notice codes on a phone with documented group actions.
+crypt12 WhatsApp backups and crypt15 with real messages, WhatsApp notice codes on a phone with documented group actions.
 
 ## 7. Change control
 

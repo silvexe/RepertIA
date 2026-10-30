@@ -2,7 +2,7 @@
 
 *English: [VALIDATION.md](VALIDATION.md).*
 
-Versione del programma: 2.20.2 · Documento aggiornato al 30/10/2026
+Versione del programma: 2.20.3 · Documento aggiornato al 30/10/2026
 
 Questo documento descrive **come è stato verificato RepertIA, con quali dati, con quali risultati e con quali
 limiti noti**. Serve a chi usa il programma in una consulenza per dichiarare l'affidabilità del metodo
@@ -59,6 +59,8 @@ di un Mac (plist, sqlite con WAL, bookmark); APFS (dfvfs) in chiaro e cifrato co
 | 2.20.1 | Windows 11 dell'autore | 417/426 (77/77 su immagini pubbliche): righe vuote importate da iLEAPP su Windows (5 errori) e confronto dei percorsi nel collaudo (4 errori) → corretti nella 2.20.2 |
 | 2.20.2 | Mac dell'autore (come la 2.20.0) | 433/433 in italiano e 433/433 in inglese, dal pacchetto Mac assemblato: 178 dei dischi + 255 degli smartphone; i 6 nuovi controllano che nessuna riga vuota entri nel caso, anche con un TSV scritto come fa iLEAPP su Windows |
 | 2.20.2 | Windows 11 dell'autore (pacchetto definitivo) | 433/433, 77/77 su immagini pubbliche |
+| 2.20.3 | Mac dell'autore (come la 2.20.0) | 437/437 in italiano e 437/437 in inglese, dal pacchetto Mac assemblato: 178 dei dischi + 259 degli smartphone; i 4 nuovi riguardano una chiamata WhatsApp seguita da allegati (difetto della 2.20.2) e un backup crypt15 reale pubblico di wa-crypt-tools, che non contiene messaggi |
+| 2.20.3 (correzioni, prima dell'assemblaggio) | Windows 11 dell'autore | 437/437, 77/77 su immagini pubbliche |
 
 Carving DFTT 11: 2 file su 15 (enterprise.wav, haxor2.jpg) non vengono recuperati da PhotoRec: è un limite di
 PhotoRec, dichiarato come «misura» e non come requisito.
@@ -67,8 +69,9 @@ PhotoRec, dichiarato come «misura» e non come requisito.
 il rapporto `collaudo_<data>.md` con la consulenza. Collaudo completo sul Mac: 2.18.1 112/112; 2.19.0 112/112 in italiano e
 112/112 in inglese. Collaudo completo eseguito dall'autore anche su Windows per le versioni dalla 2.17.x alla 2.19.0.
 **Linux (sperimentale, 2.19.0)**: collaudo superato nell'ambiente Linux di sviluppo; da ripetere su un computer Linux
-installato con `installa.sh` prima dell'uso in un caso. **2.20.2**: collaudo sul Mac 433/433 in entrambe le lingue e su Windows 11 433/433 con il pacchetto definitivo;
-da ripetere su Linux (pacchetto costruito sul Mac).
+installato con `installa.sh` prima dell'uso in un caso. **2.20.3**: collaudo sul Mac 437/437 in entrambe le lingue; su Windows 437/437 con le correzioni, prima dell'assemblaggio; da
+ripetere con il pacchetto Windows definitivo e su Linux (pacchetti costruiti sul Mac). Sull'immagine pubblica Android 14 di Hickman
+codice vecchio e nuovo danno lo stesso risultato, riga per riga: su quel telefono il difetto della 2.20.2 non si presenta.
 
 ## 3. Verifiche su copie reali
 
@@ -134,8 +137,8 @@ strumento (Registry Explorer, Autopsy, X-Ways, AXIOM…) o direttamente sul dato
   cambiare. **WhatsApp**: il significato dei tipi e dei codici degli avvisi non è pubblicato da WhatsApp; su Android i
   codici degli avvisi sono spiegati con fonti pubbliche e il loro livello (nessuno verificato su un telefono con azioni
   documentate); su iPhone nessuna fonte spiega i codici degli avvisi (si mostrano valori e fatti dal database) e lo stato
-  di lettura dei messaggi inviati non è leggibile. Backup di WhatsApp: solo `.crypt14` con la chiave nell'estrazione
-  (non crypt12/crypt15, non i backup incrementali). Oltre 500.000 righe di iLEAPP/ALEAPP alcune tabelle non sono
+  di lettura dei messaggi inviati non è leggibile. Backup di WhatsApp: `.crypt14` e `.crypt15` con la chiave
+  (non crypt12, non i backup incrementali). Oltre 500.000 righe di iLEAPP/ALEAPP alcune tabelle non sono
   importate (elencate nel caso; chat, messaggi e chiamate hanno la precedenza). La ricerca veloce cerca solo nei risultati
   del caso (non nel contenuto dei file né nella timeline). Chiamate: una riga di interactionC senza numero
   non si unisce alla riga del registro di sistema che le corrisponde (una su iOS 17 di Hickman) e compare come chiamata a sé.
@@ -308,7 +311,7 @@ Grafico della Timeline (calcolo per minuto, 2.20.0): confrontato con il calcolo 
 iOS 17.3, Android 14 e DFTT 05, nell'ora del telefono e in ora italiana, per giorno, mese, anno e scelta automatica, con e
 senza filtri (testo, periodo); su iOS 17.3 da circa 40 s a 2-7 s.
 **Non provati**: Windows e Linux, estrazioni GrayKey e Cellebrite reali con i loro metadati, sysdiagnose completi, backup
-WhatsApp crypt12/crypt15, codici degli avvisi WhatsApp su un telefono con azioni di gruppo documentate.
+WhatsApp crypt12 e crypt15 con messaggi reali, codici degli avvisi WhatsApp su un telefono con azioni di gruppo documentate.
 
 
 ## 7. Controllo delle modifiche

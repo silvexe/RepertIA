@@ -116,7 +116,7 @@ except ImportError:
 
 APP_NAME = "RepertIA"
 APP_BY = "By silvexe"
-APP_VERSION = "2.20.2"
+APP_VERSION = "2.20.3"
 
 # ------------------------------------------------------------ configurazione
 # Tutti i valori si possono passare anche come opzioni di `analizza`.

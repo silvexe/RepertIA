@@ -8,7 +8,7 @@ qui sotto, ciascuno con la propria licenza. I componenti sono distribuiti senza 
 programmi o librerie separati; i testi delle licenze sono nelle cartelle dei componenti dentro i pacchetti
 (`strumenti/…`, `python/…/*.dist-info/`).
 
-Versioni riferite ai pacchetti **2.18.0 – 2.20.2** (i componenti dei dischi non sono cambiati; la 2.20 aggiunge iLEAPP, ALEAPP, FFmpeg e il motore di trascrizione whisper.cpp).
+Versioni riferite ai pacchetti **2.18.0 – 2.20.3** (i componenti dei dischi non sono cambiati; la 2.20 aggiunge iLEAPP, ALEAPP, FFmpeg e il motore di trascrizione whisper.cpp).
 
 ## Codice sorgente dei componenti GPL e LGPL
 

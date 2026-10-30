@@ -6,7 +6,7 @@
 > Regulation (EU) 2024/1689 ("AI Act"). Whoever adopts the tool must make their own assessment, with their data
 > protection officer and legal office, and check any later amendments to the Regulation and to national law.
 
-Program version it refers to: **2.20.2**.
+Program version it refers to: **2.20.3**.
 
 ## 1. What RepertIA does and where AI is involved
 
