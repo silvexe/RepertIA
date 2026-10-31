@@ -33,6 +33,7 @@ import forense_mobile_wa as fmw  # noqa: E402
 import forense_mobile_ricevute as fmr  # noqa: E402
 import forense_mobile_chiamate as fmca  # noqa: E402
 
+PREF_CHAT_MAX = 2000           # (2.21) messaggi di ogni chat dei Preferiti scritti nel report
 APP_LBL = {"imessage": "iMessage/SMS", "whatsapp": "WhatsApp", "sms": "SMS/MMS",
            "whatsapp_backup": "WhatsApp (backup decifrato)"}
 SCHEMA = """
@@ -1304,7 +1305,7 @@ def summary_md(case, what="all"):
             for app, a in c["app"].items():
                 L.append(tr("- {app}: {c} conversazioni, {n} messaggi, {a} allegati").format(
                     app=APP_LBL.get(app, app), c=a["conversazioni"], n=a["messaggi"], a=a["allegati"]))
-            L.append(tr("- Le conversazioni si leggono con il pulsante «💬 Chat» nel pannello del caso."))
+            L.append(tr("- Le conversazioni si leggono con il pulsante «Apri le chat» nel pannello del caso."))
             Q += [tr("Elenca le conversazioni con più messaggi e i loro partecipanti"),
                   tr("Ci sono messaggi che parlano di appuntamenti, soldi o spostamenti?")]
         else:
@@ -1326,6 +1327,38 @@ def summary_md(case, what="all"):
 
 
 # ------------------------------------------------------------------------------ report portatile
+
+def preferiti_chat_md(case):
+    """(2.21) Sezione del report: testo delle chat nelle categorie dei Preferiti «nel report» (al massimo PREF_CHAT_MAX messaggi
+    per chat; per intero con «Esporta file» dai Preferiti e nel report portatile)."""
+    import forense_agent as fa
+    voci = [x for x in fa.bookmarks_timeline(case) if x["chat"] is not None]
+    if not voci:
+        return []
+    L = [tr("### Chat nei Preferiti"), ""]
+    con = fa.db_ro(case)
+    try:
+        for x in voci:
+            t = con.execute("SELECT app, title, n_msg, first_ts, last_ts, src_path FROM chat_threads WHERE id=?", (x["chat"],)).fetchone()
+            if not t:
+                continue
+            app, title, n, first, last, src = t
+            L += [f"#### {APP_LBL.get(app, app)} · {title}", "",
+                  tr("{n} messaggi, dal {a} al {b} UTC. Fonte: {s}. Categorie: {c}.").format(
+                      n=n, a=(first or "?").replace("T", " "), b=(last or "?").replace("T", " "), s=src or "?", c=", ".join(x["categorie"])), ""]
+            rows = con.execute("SELECT ts, direction, sender, sender_name, text, kind, extra, src_table, src_row FROM chat_messages "
+                               "WHERE thread=? ORDER BY ts, id LIMIT ?", (x["chat"], PREF_CHAT_MAX)).fetchall()
+            for ts, d, snd, sname, text, kind, extra, tb, row in rows:
+                who = tr("questo dispositivo") if d == "out" else (sname or show_id(snd) or tr("non indicato"))
+                body = " ".join((text or "[" + fmw.etichetta(kind, extra) + "]").split())
+                L.append(f"- {(ts or '?').replace('T', ' ')} UTC, {who}: {body} ({tb} #{row})")
+            if (n or 0) > len(rows):
+                L += ["", tr("Primi {m} messaggi su {n}: la chat completa è nel report portatile.").format(m=len(rows), n=n)]
+            L.append("")
+    finally:
+        con.close()
+    return L
+
 
 def export_portable(case, dati):
     """Chat per il report portatile in dati/chat.js: conversazioni, messaggi (testo fino a 20.000 caratteri) e

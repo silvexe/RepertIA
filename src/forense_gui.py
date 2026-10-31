@@ -20,6 +20,7 @@ from urllib.parse import urlparse, parse_qs
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import forense_agent as fa  # noqa: E402
+import forense_diagnostica as fd  # noqa: E402
 import forense_lingua as lg  # noqa: E402
 from forense_lingua import tr, N_  # noqa: E402
 
@@ -84,6 +85,8 @@ class Prep:
             if len(self.lines) > 5000:
                 del self.lines[:1000]
         self.rc = self.proc.wait()
+        if self.rc:
+            fd.errore_processo(self.add, self.rc, self.lines)
 
     def _on_avanz(self, payload):
         try:
@@ -1951,6 +1954,15 @@ def lp(p):
     return p
 
 
+def chat_targets(case, kind, rows):
+    """(2.21) Chat nella selezione: conversazioni intere (schede «messaggi») e id dei messaggi singoli dei Preferiti."""
+    if kind != "hits" or not fa.is_mobile(case):
+        return [], []
+    th = fa.bm_threads(case)
+    chats = list(dict.fromkeys(th[str(x["inode"])] for x in rows if x.get("source") == "art" and str(x["inode"]) in th))
+    return chats, [int(x["inode"]) for x in rows if x.get("source") == "chat"]
+
+
 def export_selection(case, b, progress):
     """Estrae i file selezionati in export/selezione_<data>/ conservando l'albero delle
     cartelle, in sola lettura, con manifest.csv (percorso originale, inode, SHA-256)."""
@@ -1961,7 +1973,9 @@ def export_selection(case, b, progress):
     for i in [i for i, v in xs.items() if not v[1]]:
         del xs[i]
         skipped += 1
-    if not fs and not carved and not xs:
+    chats, msgs = chat_targets(case, kind, rows)
+    skipped = max(0, skipped - len(chats) - len(msgs))
+    if not fs and not carved and not xs and not chats and not msgs:
         raise ValueError(tr("Nella selezione non ci sono file esportabili "
                          "(le tracce e gli eventi senza inode si esportano come elenco CSV)."))
     if fs and not Path(case.image).exists():
@@ -2012,6 +2026,22 @@ def export_selection(case, b, progress):
         os.chmod(lp(dest), 0o444)
         man.append([f"[estratto] {xpath}", "", "", "", os.stat(lp(dest)).st_size, h.hexdigest(),
                     str(dest.relative_to(out))])
+    if chats or msgs:                  # (2.21) chat dei Preferiti: HTML e CSV con allegati, messaggi singoli in un CSV
+        import forense_mobile_gui as fmg
+        cd = out / "chat"
+        for n, tid in enumerate(chats, 1):
+            progress(tr("Chat {n} di {t}").format(n=n, t=len(chats)))
+            r = fmg.export_chat(sys.modules[__name__], case, {"thread": tid, "tz": b.get("tz"), "lingua": lg.lingua(), "da": b.get("chat_da"),
+                                                              "a": b.get("chat_a"), "cartella": str(cd)})
+            for fx in (r or {}).get("files", []):
+                man.append([f"[chat] {tid}", "", "", "", (cd / fx["file"]).stat().st_size, fx["sha256"], f"chat/{fx['file']}"])
+            for a in (r or {}).get("allegati_file", []):
+                man.append([f"[allegato chat] {a['origine']}", "", "", "", (cd / a["file"]).stat().st_size, a["sha256"], f"chat/{a['file']}"])
+        if msgs:
+            cd.mkdir(exist_ok=True)
+            fx = cd / "messaggi_preferiti.csv"
+            fmg.preferiti_csv(case, fx, msgs)
+            man.append([tr("[messaggi nei Preferiti]"), "", "", "", fx.stat().st_size, fa.sha256_file(fx), "chat/messaggi_preferiti.csv"])
     with open(out / "manifest.csv", "w", newline="", encoding="utf-8-sig") as f:
         wr = csv.writer(f, delimiter=";")
         wr.writerow([tr(h) for h in ["percorso_originale", "partizione_offset", "inode", "cancellato", "byte",
@@ -3489,6 +3519,26 @@ def bm_list(case, q, ids=None, limit=PAGE):
             "rows": [dict(zip(HIT_COLS, r)) for r in rows]}
 
 
+def bm_timeline_csv(case, b):
+    """(2.21) Cronologia dei preferiti in CSV nella cartella export del caso."""
+    import csv
+    righe = fa.bookmarks_timeline(case, False, b.get("cid"))
+    if not righe:
+        raise ValueError(tr("Nessun preferito ancora."))
+    f = unique(case.export_dir / f"cronologia_preferiti_{stamp_now()}.csv")
+    f.parent.mkdir(parents=True, exist_ok=True)
+    tz = b.get("tz")
+    with open(f, "w", newline="", encoding="utf-8-sig") as fo:
+        w = csv.writer(fo, delimiter=";")
+        w.writerow([tr("Data ({v1})").format(v1=tz_label(case, tz)), tr("Fino a"), tr("Data (registrata nel caso)"), tr("Evento"), tr("Elemento"),
+                    tr("Categorie"), tr("Nota"), "SHA-256"])
+        for x in righe:
+            w.writerow([fmt_ts(case, tz, x["ts"]) if x["ts"] else tr("senza data"), fmt_ts(case, tz, x["fine"]) if x["fine"] else "", x["ts"],
+                        x["evento"], x["path"], ", ".join(x["categorie"]), x["note"], x["sha256"] or ""])
+    case.log("export_cronologia_preferiti", {"file": f.name, "elementi": len(righe), "sha256": fa.sha256_file(f)})
+    return {"rel": str(f.relative_to(case.root)), "n": len(righe)}
+
+
 def bm_remove(case, b):
     kind, rows = selected_rows(case, b)
     ids = [int(x["id"]) for x in rows]
@@ -4633,6 +4683,12 @@ def art_view(case, b):
     if not r:
         raise ValueError(tr("Artefatto non trovato."))
     aid, cat, ts, title, detail, user, src, part, inode, data = r
+    chat = None
+    if cat == "messaggi" and data:               # (2.21) scheda di una chat: dai Preferiti si deve poter aprire la conversazione
+        try:
+            chat = (json.loads(data) or {}).get("chat_thread")
+        except (ValueError, AttributeError):
+            pass
     cited = None
     try:                                         # (2.20) file citati dalla riga e fonte risolta nella copia/estrazione
         import forense_percorsi as fp
@@ -4671,7 +4727,7 @@ def art_view(case, b):
         f"{html_mod.escape(str(v or ''))}</td></tr>" for k, v in rows) + "</table>"
     return {"type": "html", "title": title, "name": title, "source": "art", "id": aid, "size": 0, "deleted": 0,
             "part": part, "inode": inode, "magic": "", "html": CSP_DOC + h, "src_path": src, "cited": cited,
-            "segreti": segreti}
+            "segreti": segreti, "chat": chat}
 
 
 def sqlite_view(f, copia=False):
@@ -5488,6 +5544,13 @@ def summary_cached(case, what):
     return text, questions
 
 
+def diag_testo():
+    """(2.21) Log diagnostico da consegnare: nessun dato dei casi (forense_diagnostica)."""
+    st = {k: (fa.tool_version([k, o]) if shutil.which(k) else None) or tr("non trovato")
+          for k, o in (("fls", "-V"), ("ewfinfo", "-V"), ("exiftool", "-ver"))}
+    return fd.testo(fa.APP_VERSION, st)
+
+
 def run_task(name, fn, with_progress=False):
     """Operazione lunga in background; lo stato si legge con /api/task?name=..."""
     if SES.tasks.get(name, {}).get("done") is False:
@@ -5505,6 +5568,7 @@ def run_task(name, fn, with_progress=False):
             SES.tasks[name] = {"done": True, "result": res}
         except Exception as e:
             SES.tasks[name] = {"done": True, "error": str(e)}
+            fd.errore("task " + name, e)
     threading.Thread(target=wrap, daemon=True).start()
 
 
@@ -5583,6 +5647,7 @@ class Handler(BaseHTTPRequestHandler):
         try:
             self._json(self.get(u.path, q))
         except Exception as e:
+            fd.errore("GET " + u.path, e)
             self._json({"error": str(e)}, 400)
 
     def _bin(self, data, ctype, code=200, extra=None):
@@ -5682,6 +5747,7 @@ class Handler(BaseHTTPRequestHandler):
             with lg.usa(lg.lingua_caso(SES.case) if SES.case and path in CASE_LANG_PATHS else lg.lingua()):
                 self._json(self.post(path, body))
         except Exception as e:
+            fd.errore("POST " + urlparse(self.path).path, e)
             self._json({"error": str(e)}, 400)
 
     # --- GET
@@ -5731,6 +5797,10 @@ class Handler(BaseHTTPRequestHandler):
             if not SES.case:
                 raise ValueError(tr("Nessun caso aperto."))
             return fast_search(SES.case, q)
+        if path == "/api/bm_timeline":
+            return {"rows": fa.bookmarks_timeline(SES.case, False, q.get("cid"))}
+        if path == "/api/diag_preview":
+            return {"testo": diag_testo()}
         if path == "/api/bm_cats":
             return {"cats": bm_categories(SES.case)}
         if path == "/api/res_tree":
@@ -6066,6 +6136,24 @@ class Handler(BaseHTTPRequestHandler):
             return reveal_trace(SES.case, b.get("kind"))
         if path == "/api/report_export":
             return report_export(SES.case, b.get("fmt"), b.get("tz"))
+        if path == "/api/bm_timeline_csv":
+            return bm_timeline_csv(SES.case, b)
+        if path == "/api/copy_link":
+            cp = clean_path(b.get("path") or "")
+            if not cp:
+                raise ValueError(tr("Indica il percorso della copia forense."))
+            run_task("copylink", lambda progress: fa.collega_copia(SES.case, cp, bool(b.get("conferma")), progress), True)
+            return {"root": str(SES.case.root)}
+        if path == "/api/diag_save":
+            d = choose_folder(tr("Scegli dove salvare il log diagnostico"))
+            if not d:
+                return {"cancelled": True}
+            f = unique(Path(d) / f"RepertIA_diagnostica_{stamp_now()}.txt")
+            f.write_text(diag_testo(), encoding="utf-8")
+            return {"path": str(f)}
+        if path == "/api/diag_js":
+            fd.evento("errore_pagina", messaggio=b.get("messaggio"), riga=int(b.get("riga") or 0), colonna=int(b.get("colonna") or 0))
+            return {"ok": True}
         if path == "/api/bm_add":
             return bm_add(SES.case, b)
         if path == "/api/bm_remove":
@@ -6244,6 +6332,8 @@ def free_port(start=8765):
 
 def main():
     lg.segna_gui()
+    fd.installa(fa.SETTINGS_PATH.parent / "diagnostica.log")
+    fd.evento("avvio", versione=fa.APP_VERSION, sistema=platform.platform(terse=True), python=platform.python_version())
     port = free_port()
     srv = ThreadingHTTPServer(("127.0.0.1", port), Handler)
     url = f"http://127.0.0.1:{port}/"

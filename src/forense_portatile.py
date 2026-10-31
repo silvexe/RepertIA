@@ -1157,6 +1157,7 @@ def _export_portable(case, opts, progress, pstate):
     m = case.meta
     report_md = fa.write_report(case).read_text(encoding="utf-8")
     mode = opts.get("contenuto") or "scelti"
+    bm_th = fa.bm_threads(case)         # (2.21) chat nei Preferiti: si aprono nella vista delle conversazioni
     info = {
         "id": f"{case.root.name}-{g.stamp_now()}", "case": case.root.name,
         "generated": fa.now(), "app": f"{fa.APP_NAME} {fa.APP_VERSION} ({fa.APP_BY})",
@@ -1178,6 +1179,7 @@ def _export_portable(case, opts, progress, pstate):
         "bookmarks": [{"name": c["name"], "note": c["note"],
                        "items": [[(f"c:{Path(str(i['inode'])).name}" if i["source"] == "carving"
                                    else f"chat:{i['inode']}" if i["source"] == "chat"
+                                   else f"chatt:{bm_th[str(i['inode'])]}" if i["source"] == "art" and str(i["inode"]) in bm_th
                                    else f"{i['part']}:{i['inode']}"), i["note"] or "", i["path"]]
                                  for i in c["items"]]} for c in fa.bookmarks(case)],
         "att_cols": ["id", "source", "part", "inode", "name", "file", "size", "deleted", "kind",

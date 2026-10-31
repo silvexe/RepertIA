@@ -116,7 +116,7 @@ except ImportError:
 
 APP_NAME = "RepertIA"
 APP_BY = "By silvexe"
-APP_VERSION = "2.20.3"
+APP_VERSION = "2.21.0"
 
 # ------------------------------------------------------------ configurazione
 # Tutti i valori si possono passare anche come opzioni di `analizza`.
@@ -5108,6 +5108,135 @@ def cmd_analyze(args):
 
 # -------------------------------------------------------------------- report
 
+def bm_threads(case):
+    """(2.21) {id artefatto: id conversazione} degli artefatti «messaggi»: la scheda di una chat nei Preferiti."""
+    if not is_mobile(case):
+        return {}
+    con = db_ro(case)
+    try:
+        if not table_exists(con, "chat_threads"):
+            return {}
+        return {str(a): t for a, t in con.execute("SELECT id, json_extract(data, '$.chat_thread') FROM artifacts WHERE cat='messaggi' "
+                                                  "AND json_valid(data) AND json_extract(data, '$.chat_thread') IS NOT NULL")}
+    finally:
+        con.close()
+
+
+BM_EVENTO = {"mail": N_("data del messaggio"), "chat": N_("data del messaggio"), "art": N_("data dell'artefatto"),
+             "fs": N_("ultima modifica del file"), "x": N_("ultima modifica del file")}
+
+
+def bm_ts(v):
+    """Data di un preferito in forma ordinabile, «» se manca o non si riconosce."""
+    m = re.search(r"\d{4}-\d\d-\d\d(?:[T ]\d\d:\d\d(?::\d\d)?)?", str(v or ""))
+    return m.group(0).replace(" ", "T") if m and not m.group(0).startswith("0000") else ""
+
+
+def bookmarks_timeline(case, only_report=True, cid=None):
+    """(2.21) Cronologia dei preferiti: un elemento una volta sola con tutte le sue categorie, in ordine di data
+    dell'evento (quella salvata nel preferito, per le chat dal primo all'ultimo messaggio); in fondo quelli senza data."""
+    p = case.root / "ricerche.sqlite"
+    if not p.exists():
+        return []
+    con = sqlite3.connect(p.as_uri() + "?mode=ro", uri=True)
+    try:
+        if not table_exists(con, "bm_cat"):
+            return []
+        w, a = [], []
+        if only_report:
+            w.append("c.in_report")
+        if cid:
+            w.append("c.cid = ?")
+            a.append(int(cid))
+        rows = con.execute("SELECT b.id, b.source, b.part, b.inode, b.path, b.name, b.deleted, b.size, b.mtime, b.note, b.sha256, c.name "
+                           "FROM bm b JOIN bm_cat c ON c.cid = b.cid" + (" WHERE " + " AND ".join(w) if w else ""), a).fetchall()
+    finally:
+        con.close()
+    th, chats = bm_threads(case), {}
+    if th:
+        cx = db_ro(case)
+        try:
+            chats = {r[0]: r[1:] for r in cx.execute("SELECT id, first_ts, last_ts FROM chat_threads")}
+        finally:
+            cx.close()
+    out = {}
+    for bid, src, part, inode, path, name, deleted, size, mt, note, sha, cat in rows:
+        k = (src, part, str(inode))
+        if k in out:
+            x = out[k]
+            x["categorie"].append(cat)
+            if note and note not in x["note"]:
+                x["note"] = "; ".join(y for y in (x["note"], note) if y)
+            continue
+        tid = th.get(str(inode)) if src == "art" else None
+        ts, fine = bm_ts(mt), ""
+        if tid is not None and tid in chats:
+            ts, fine = bm_ts(chats[tid][0]) or ts, bm_ts(chats[tid][1])
+        out[k] = {"id": bid, "source": src, "part": part, "inode": inode, "path": path, "name": name, "deleted": deleted, "size": size,
+                  "ts": ts, "fine": fine, "chat": tid, "sha256": sha, "note": note or "", "categorie": [cat],
+                  "evento": tr("conversazione") if tid is not None else tr(BM_EVENTO[src]) if src in BM_EVENTO and ts else ""}
+    return sorted(out.values(), key=lambda x: (not x["ts"], x["ts"], x["id"]))
+
+
+def bookmarks_timeline_md(case):
+    """Sezione del report: cronologia dei preferiti delle categorie «nel report»."""
+    righe = bookmarks_timeline(case)
+    if not righe:
+        return []
+    cell = lambda v: str(v if v is not None else "").replace("|", "\\|").replace("\n", " ")
+    L = [tr("### Cronologia dei preferiti"), "",
+         tr("Elementi dei Preferiti in ordine di data dell'evento. Orari come registrati nel caso (UTC salvo indicazione diversa nel dato); "
+            "la colonna Evento dice a che cosa si riferisce la data. Una data di modifica non prova da sola quando un fatto è avvenuto."), "",
+         tr("| Data | Fino a | Evento | Elemento | Categorie | Nota |"), "|---|---|---|---|---|---|"]
+    for x in righe[:5000]:
+        L.append("| " + " | ".join(cell(v) for v in (x["ts"].replace("T", " ") or tr("senza data"), x["fine"].replace("T", " "), x["evento"],
+                                                     x["path"], ", ".join(x["categorie"]), x["note"])) + " |")
+    if len(righe) > 5000:
+        L.append(tr("| … altri {v1} elementi | | | | | |").format(v1=len(righe) - 5000))
+    return L + [""]
+
+
+def collega_copia(case, nuovo, conferma=False, progress=None):
+    """(2.21) Indica dove si trova ora la copia forense di un caso (altro computer, disco con un altro nome). La copia si
+    accetta solo se il suo SHA-256 è quello del caso; senza hash nel caso serve `conferma` e il registro lo dichiara."""
+    p = Path(nuovo).expanduser()
+    if not p.exists():
+        raise ValueError(tr("File non trovato. Controlla che il disco sia collegato."))
+    m = case.meta
+    da = m.get("evidence", m.get("image", ""))
+    atteso = m.get("sha256") if isinstance(m.get("sha256"), dict) else None
+    ottenuto = None
+    if p.is_file() and atteso:
+        segs, tot, fatti = image_segments(p), 0, 0
+        tot = sum(s.stat().st_size for s in segs) or 1
+
+        def pr(n):
+            nonlocal fatti
+            fatti += n
+            if progress:
+                progress(tr("Controllo SHA-256: {v1:.1f} di {v2:.1f} GB").format(v1=fatti / 1e9, v2=tot / 1e9))
+        ottenuto = {s.name: sha256_file(s, pr) for s in segs}
+        if sorted(ottenuto.values()) != sorted(atteso.values()):
+            case.log("copia_non_collegata", {"da": da, "a": str(p), "motivo": "sha256_diverso"})
+            raise ValueError(tr("Questa non è la copia del caso: lo SHA-256 è diverso. Nessuna modifica fatta."))
+    elif not conferma:
+        return {"serve_conferma": True}
+    im = m.get("image", da)
+    nuova = {"evidence": str(p.resolve())}
+    if im == da:
+        nuova["image"] = nuova["evidence"]
+    else:                               # copia derivata nella cartella del caso: il percorso va riportato alla cartella di ora
+        pezzi = [x for x in re.split(r"[\\/]+", str(im)) if x]
+        cand = next((c for c in (case.root.joinpath(*pezzi[i:]) for i in range(len(pezzi))) if c.exists()), None)
+        if cand is not None:
+            nuova["image"] = str(cand)
+    m.update(nuova)
+    case.save()
+    case.log("copia_collegata", {"da": da, "a": nuova["evidence"], "sha256": "uguale" if ottenuto else "non_confrontato"})
+    return {"ok": True, "sha256": "uguale" if ottenuto else "non_confrontato",
+            "image_ok": Path(m.get("image", "")).exists()}
+
+
 def bookmarks(case, only_report=True):
     """Categorie di segnalibri con i loro file (da ricerche.sqlite), per report e report HTML."""
     p = case.root / "ricerche.sqlite"
@@ -5342,6 +5471,10 @@ def write_report(case):
                 L.append(tr("| … altri {v1} file (elenco completo nel report portatile) | | | | | | | |").format(v1=len(cat['items']) - 5000))
             L.append("")
         L += cited_report_md(case, bms)
+        L += bookmarks_timeline_md(case)
+        if is_mobile(case):
+            import forense_mobile_chat as fmc
+            L += fmc.preferiti_chat_md(case)
     try:
         import forense_estesa as fe
         L += fe.report_md(case)

@@ -7,7 +7,7 @@ The **Release packages** (Mac zip, Windows installer and zip, Linux archive) als
 each under its own license. The components are distributed unmodified and run as separate programs or libraries; the
 license texts are in the component folders inside the packages (`strumenti/…`, `python/…/*.dist-info/`).
 
-Versions refer to the **2.18.0 – 2.20.3** packages (the disk components did not change; 2.20 adds iLEAPP, ALEAPP, FFmpeg and the whisper.cpp transcription engine).
+Versions refer to the **2.18.0 – 2.21.0** packages (the disk components did not change; 2.20 adds iLEAPP, ALEAPP, FFmpeg and the whisper.cpp transcription engine).
 
 ## Source code of GPL and LGPL components
 

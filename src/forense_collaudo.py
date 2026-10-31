@@ -353,6 +353,85 @@ def run_test(t, img, out):
     return res, cp
 
 
+def controlli_preferiti_chat(case, con, check):
+    """(2.21) Scheda di una chat nei Preferiti: l'anteprima porta alla conversazione, la cronologia è in ordine di data, il report
+    e l'esportazione contengono la chat, il periodo limita i messaggi. Su una copia temporanea: il caso del collaudo non cambia."""
+    import forense_gui as G
+    if not fa.table_exists(con, "chat_threads"):
+        return
+    r = con.execute("SELECT a.id, json_extract(a.data, '$.chat_thread') FROM artifacts a JOIN chat_threads t ON t.id = json_extract(a.data, '$.chat_thread') "
+                    "WHERE a.cat='messaggi' AND json_valid(a.data) ORDER BY t.n_msg DESC LIMIT 1").fetchone()
+    if not r:
+        return
+    aid, tid = r
+    with tempfile.TemporaryDirectory() as d:
+        copia = Path(d) / case.root.name
+        shutil.copytree(case.root, copia, ignore=shutil.ignore_patterns("cache", "export", "leapp"))
+        c = fa.Case(copia)
+        G.search_db(c).close()
+        G.bm_add(c, {"cat": "Collaudo", "item": {"source": "art", "id": aid}})
+        v = G.art_view(c, {"id": aid})
+        check(tr("Preferiti: la scheda di una chat porta alla conversazione («Apri chat»)"), v.get("chat") == tid, str(v.get("chat")), interno=True)
+        tl = fa.bookmarks_timeline(c)
+        check(tr("Preferiti: la cronologia indica la chat con il suo periodo"), len(tl) == 1 and tl[0]["chat"] == tid and tl[0]["evento"] == tr("conversazione") and bool(tl[0]["ts"]),
+              json.dumps(tl[0] if tl else None, ensure_ascii=False, default=str)[:160], interno=True)
+        md = fa.write_report(c).read_text(encoding="utf-8")
+        check(tr("Preferiti: il report contiene cronologia e testo della chat"), tr("### Cronologia dei preferiti") in md and tr("### Chat nei Preferiti") in md, "", interno=True)
+        cx = fa.db_ro(c)
+        n_tot = cx.execute("SELECT COUNT(*) FROM chat_messages WHERE thread=?", (tid,)).fetchone()[0]
+        giorno = (cx.execute("SELECT MIN(ts) FROM chat_messages WHERE thread=?", (tid,)).fetchone()[0] or "")[:10]
+        n_giorno = cx.execute("SELECT COUNT(*) FROM chat_messages WHERE thread=? AND substr(ts,1,10)=?", (tid, giorno)).fetchone()[0]
+        cx.close()
+        q = {"cid": G.bm_categories(c)[0]["cid"]}
+        res = G.export_selection(c, {"kind": "hits", "all": True, "query": {"kind": "hits", **q}, "chat_da": giorno, "chat_a": giorno}, lambda *_: None)
+        fh = list((Path(res["path"]) / "chat").glob("chat_*.csv"))
+        righe = sum(1 for x in fh[0].read_text(encoding="utf-8-sig").splitlines() if x and not x.startswith("#")) - 1 if fh else -1
+        check(tr("Preferiti: esportazione della chat limitata a un periodo, nel manifest"),
+              righe >= n_giorno > 0 and (n_tot == n_giorno or n_giorno <= righe < n_tot + 200) and "[chat]" in (Path(res["path"]) / "manifest.csv").read_text(encoding="utf-8-sig"),
+              f"{n_giorno}/{n_tot}", interno=True)
+        p0 = c.meta.get("evidence")
+        c.meta["evidence"] = c.meta["image"] = "/percorso/di/un/altro/computer/copia.dd"
+        c.save()
+        sb = Path(d) / "falso.dd"
+        sb.write_bytes(b"non e la copia")
+        c.meta["sha256"] = {"copia.dd": "0" * 64}
+        c.save()
+        try:
+            fa.collega_copia(c, str(sb))
+            rifiutata = False
+        except ValueError:
+            rifiutata = True
+        c.meta["sha256"] = {"copia.dd": fa.sha256_file(sb)}
+        c.save()
+        r2 = fa.collega_copia(c, str(sb))
+        reg = (c.root / "audit_log.jsonl").read_text(encoding="utf-8")
+        check(tr("Collega copia forense: rifiuta uno SHA-256 diverso, accetta quello giusto, resta nel registro"),
+              rifiutata and r2.get("sha256") == "uguale" and "copia_collegata" in reg and fa.load_case(c.root).meta["evidence"] == str(sb.resolve()),
+              str(p0 is not None), interno=True)
+
+
+def controlli_diagnostica(check):
+    """(2.21) Il log diagnostico non deve contenere percorsi, nomi tra virgolette, numeri, email; resta il dato tecnico."""
+    import forense_diagnostica as fd
+    with tempfile.TemporaryDirectory() as d:
+        vecchio = fd.FILE
+        fd.FILE = Path(d) / "diagnostica.log"
+        try:
+            try:
+                raise ValueError("File '/Users/mario.rossi/Casi/foto al mare.jpg' di +39 333 1234567 mario@esempio.it C:\\Users\\Anna\\casa mia.E01")
+            except ValueError as e:
+                fd.errore("POST /api/prova", e)
+            fd.errore_processo("indice", 1, ["Traceback (most recent call last):", '  File "/Users/mario.rossi/x/forense_agent.py", line 12, in run',
+                                             "foto al mare.jpg", "KeyError: 'segreto'"])
+            t = fd.testo("collaudo")
+        finally:
+            fd.FILE = vecchio
+    vietati = ("mario", "rossi", "foto", "mare", "333", "1234567", "Anna", "casa mia", "segreto")
+    check(tr("Log diagnostici: nessun percorso, nome o numero; restano tipo di errore e riga del programma"),
+          not any(x in t for x in vietati) and "ValueError" in t and "KeyError" in t and "forense_agent.py:12" in t,
+          ", ".join(x for x in vietati if x in t) or tr("nessun dato sensibile"), interno=True)
+
+
 def controlli_reperti_ia(case, check):
     """(2.20.1, AI Act) Un reperto registrato dall'agente (strumento record_finding, con un modello finto) risulta
     «modello IA – da verificare» in findings.json e nel report, che non dice «ogni reperto è stato verificato»; Word e PDF
@@ -960,6 +1039,7 @@ def controlli_smartphone(t, img, case, con, a, check):
     controlli_fase4(case, con, check)
     controlli_ricerca_veloce(case, con, check)
     controlli_portatile_timeline(case, con, check)
+    controlli_preferiti_chat(case, con, check)
     if a.get("posizione"):
         r = con.execute("SELECT COUNT(*) FROM chat_attachments WHERE abs(lat-?) < 1e-6 AND abs(lon-?) < 1e-6",
                         (a["posizione"]["lat"], a["posizione"]["lon"])).fetchone()[0]
@@ -984,6 +1064,7 @@ def controlli_smartphone(t, img, case, con, a, check):
     if a.get("sysdiagnose"):
         controlli_sysdiagnose(case, con, a, check)
         controlli_righe_tsv(check)
+        controlli_diagnostica(check)
     if a.get("leapp_righe_min") or a.get("sysdiagnose"):
         import forense_mobile_leapp as fml
         n = fml.righe_vuote(con)

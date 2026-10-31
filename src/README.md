@@ -3,7 +3,7 @@
 *English: [docs/MANUAL.md](../docs/MANUAL.md).*
 
 **Analisi forense di copie di dischi e pendrive con intelligenza artificiale locale.**
-Versione 2.20.3 · macOS, Windows e Linux (sperimentale) · interfaccia in italiano o in inglese
+Versione 2.21.0 · macOS, Windows e Linux (sperimentale) · interfaccia in italiano o in inglese
 
 RepertIA prende una copia forense (raw, dd, img o E01), la indicizza con strumenti forensi
 riconosciuti e permette di esaminarla in due modi complementari:
@@ -478,6 +478,8 @@ audio, «testo OCR automatico» nell'elenco dei documenti e nel report. Vedi [AI
 ---
 
 ## Preferiti (categorie di file)
+
+**Chat nei Preferiti e cronologia (2.21).** Aprendo la scheda di una chat dai Preferiti compare **💬 Apri chat**. **Esporta file** dai Preferiti salva la chat intera (HTML, CSV, allegati, con SHA-256 nel manifest), limitabile a un periodo; i messaggi singoli vanno in `chat/messaggi_preferiti.csv`. Il report contiene il testo della chat (primi 2.000 messaggi; completa nel report portatile). **🕒 Cronologia dei preferiti** mette tutti gli elementi in ordine di data dell'evento, con la colonna *Evento* che dice a che cosa si riferisce la data: la cronologia è anche nel report ed è esportabile in CSV. Il report contiene solo le categorie «nel report». Una data di modifica non prova da sola quando un fatto è avvenuto.
 
 Nei Risultati seleziona i file con le caselle a sinistra (anche cartelle intere, con tutto il
 contenuto) e premi **⭐ Preferiti**, oppure **⭐ Preferiti** sulla riga di un file (dopo
@@ -959,9 +961,9 @@ percorso di sempre per E01, dd/raw e dmg. Nell'elenco dei casi l'icona indica il
   metodo** (le regole per app, sulle versioni delle app usate da Hickman nel 2024), non i messaggi di un caso: in un caso
   reale non c'è niente con cui confrontare, e l'interfaccia non mostra indicazioni di verifica. Il dettaglio per
   artefatto è nella sezione `verifiche` della mappa.
-- **Limite di 500.000 righe di iLEAPP/ALEAPP** (2.20): se le tabelle di iLEAPP/ALEAPP superano il limite, RepertIA importa
+- **Limite di 2.000.000 di righe di iLEAPP/ALEAPP** (2.21; variabile `FORENSIA_LEAPP_MAX_RIGHE`): su un iPhone di prova iOS 17 i rapporti hanno 21 milioni di righe, 20 delle quali FSEvents. Se le tabelle di iLEAPP/ALEAPP superano il limite, RepertIA importa
   **prima** le tabelle di chat, messaggi e chiamate (quelle della mappa, quelle che iLEAPP/ALEAPP dichiarano come
-  conversazione e quelle con *call*, *messag*, *chat*, *conversation*, *voicemail* nel nome), poi le altre. Le tabelle
+  conversazione e quelle con *call*, *messag*, *chat*, *conversation*, *voicemail* nel nome), poi le altre dalla più piccola. Le tabelle
   rimaste fuori sono elencate nel caso (`leapp.omesse`, con le righe importate e quelle del rapporto) e restano nel
   rapporto di iLEAPP/ALEAPP nella cartella del caso. Sotto il limite l'ordine non cambia. Nella 2.20.0 prima di questa
   correzione, su iOS 17 il limite si riempiva con FSEvents (325.922 righe) e le chat di 23 app non venivano importate.
@@ -1232,6 +1234,8 @@ stesso. I file principali sono:
 Nulla si aggiorna da solo, di proposito: ogni caso registra le versioni degli strumenti usati.
 Per aggiornare, tra un caso e l'altro e con internet: Mac `Aggiorna strumenti.command`, Windows *Aggiorna strumenti*
 nel menu Start, Linux `./aggiorna-strumenti.sh`; mostrano le versioni prima e dopo.
+
+**Versione 2.21.0** - **Preferiti:** dalla scheda di una chat **Apri chat**, chat intera nell'esportazione con periodo facoltativo e nel report, **Cronologia dei preferiti** anche nel report e in CSV. **Collega copia forense** nel menu Caso, con controllo dello SHA-256. **Esporta log diagnostici** senza dati dei casi. **Limite iLEAPP/ALEAPP** portato a 2.000.000 di righe e, oltre il limite, le tabelle piccole prima di quelle enormi (FSEvents). Script `tools/controlla_versioni.py`.
 
 **Versione 2.20.3** - **Correzioni per WhatsApp Android.** **`msgstore.db` non letto:** con l'errore `'int' object has no attribute 'find'`, un difetto fermava la lettura dell'intero database quando dopo una chiamata nella chat c'era un allegato. Riguarda Mac, Windows e Linux dalla 2.20.0 in poi: se negli avvisi di un caso compare `msgstore.db: non letto`, le chat lette da RepertIA mancano. Basta rileggere il caso: **Analisi aggiuntive → Chat e rubriche**. **Backup crypt15:** ora si decifrano con `com.whatsapp/files/encrypted_backup.key`, se è nell'estrazione, oppure con la chiave di 64 cifre indicata dall'analista, che resta solo in memoria. Nelle versioni precedenti manuale e guida dicevano che la chiave crypt15 non è nel telefono: era sbagliato. *Provato:* collaudo 437/437 in italiano e in inglese sul Mac e 437/437 su Windows 11 con le correzioni; un crypt15 reale pubblico con chiave nel file, scritta a mano, assente o sbagliata e con un byte alterato; sull'immagine pubblica Android 14 stesso risultato di prima, riga per riga. *Non provato:* un crypt15 con messaggi reali, il pacchetto Windows definitivo, il pacchetto Linux. Il difetto è stato riprodotto su dati costruiti: l'immagine Android 14 non lo presenta.
 
@@ -1513,7 +1517,7 @@ ripreparati per indicizzare i PDF.
 
 ## Pacchetto per Mac Apple Silicon
 
-`RepertIA-2.20.3-Mac.zip` contiene **RepertIA.app** con Python 3.12, openai, Pillow e **plaso
+`RepertIA-2.21.0-Mac.zip` contiene **RepertIA.app** con Python 3.12, openai, Pillow e **plaso
 già inclusi** (niente Docker). Trascina l'app in Applicazioni; la prima volta: tasto destro →
 *Apri* (o *Impostazioni di Sistema → Privacy e sicurezza → Apri comunque*), perché non è firmata
 con un certificato Apple. L'app apre il Terminale, installa con Homebrew gli strumenti che mancano
@@ -1523,7 +1527,7 @@ c'è *Aggiorna strumenti.command* nello zip. Solo per Mac M1 o successivi.
 
 ## Versione Windows
 
-`RepertIA-2.20.3-Setup.exe` installa RepertIA per l'utente corrente (senza diritti di
+`RepertIA-2.21.0-Setup.exe` installa RepertIA per l'utente corrente (senza diritti di
 amministratore) in `%LOCALAPPDATA%\Programs\RepertIA`, con Python e gli strumenti già inclusi:
 plaso, The Sleuth Kit (legge gli E01 direttamente), ExifTool, Poppler, PhotoRec, bulk_extractor, 7-Zip,
 Tesseract OCR (italiano e inglese) e le librerie per posta Outlook, copie shadow e volumi cifrati. Si avvia dal menu
@@ -1544,11 +1548,11 @@ in `%USERPROFILE%\CasiForensi`, le impostazioni in `%APPDATA%\RepertIA`.
 
 ## Versione Linux (sperimentale)
 
-`RepertIA-2.20.3-Linux.tar.gz` è per **Linux x86_64** con Python 3.12 o successivo (Ubuntu 24.04 o
+`RepertIA-2.21.0-Linux.tar.gz` è per **Linux x86_64** con Python 3.12 o successivo (Ubuntu 24.04 o
 successivo, Debian 13). Il programma è lo stesso delle versioni Mac e Windows (stessa impronta dei sorgenti).
 
 ```
-tar -xzf RepertIA-2.20.3-Linux.tar.gz
+tar -xzf RepertIA-2.21.0-Linux.tar.gz
 cd RepertIA
 ./installa.sh          # una volta, con internet: chiede la password di amministratore
 ./RepertIA.sh          # oppure dal menu delle applicazioni
@@ -1598,8 +1602,14 @@ Variabili utili: `FORENSE_CASI` (cartella dei casi), `FORENSE_BACKEND`, `FORENSE
   compresa. Alza il contesto (Ollama: Impostazioni → *Context length* oppure `OLLAMA_CONTEXT_LENGTH=32768`; LM Studio:
   carica il modello con un contesto di 32768 o più), premi *Ricollega* e controlla il nuovo valore; oppure fai domande
   più mirate (un termine, una fonte). RepertIA non accorcia di più i risultati da solo, per non togliere elementi utili.
-- **«La copia forense non è raggiungibile»**: collega il disco che contiene l'immagine;
-  elenchi, timeline e ricerche funzionano anche senza, mentre anteprime ed esportazioni no.
+- **«La copia forense non è raggiungibile» / «copia non collegata»**: collega il disco che contiene l'immagine;
+  elenchi, timeline e ricerche funzionano anche senza, mentre anteprime ed esportazioni no. Se il caso è stato spostato su un altro
+  computer o il disco ha cambiato nome, usa **Caso → Collega copia forense** (2.21): RepertIA ricalcola lo SHA-256 e accetta la copia
+  solo se è uguale a quella del caso; l'operazione resta nel registro. Senza SHA-256 nel caso serve una conferma e il registro lo dichiara.
+  Non usare «Scegli la copia forense»: crea un caso nuovo.
+- **Qualcosa non funziona**: **Verifiche → Esporta log diagnostici** (anche nella pagina iniziale, 2.21) mostra e salva un file con i
+  soli errori tecnici, senza dati dei casi: percorsi, nomi tra virgolette, email, numeri lunghi e hash vengono tolti. Il file di
+  lavoro è `diagnostica.log` accanto alle impostazioni. Non è il registro del caso (`audit_log.jsonl`), che invece contiene dati del caso e non va consegnato per questo scopo.
 - **Nessuna anteprima per Word/Excel/PowerPoint o anteprima semplificata**: installa
   LibreOffice (gratuito) e riapri l'anteprima; nel frattempo usa la scheda Testo.
 - **Il video non parte**: il browser riproduce mp4/mov/webm; per gli altri formati viene
@@ -1700,6 +1710,8 @@ di un Mac (plist, sqlite con WAL, bookmark); APFS (dfvfs) in chiaro e cifrato co
 | 2.20.2 | Windows 11 dell'autore (pacchetto definitivo) | 433/433, 77/77 su immagini pubbliche |
 | 2.20.3 | Mac dell'autore (come la 2.20.0) | 437/437 in italiano e 437/437 in inglese, dal pacchetto Mac assemblato: 178 dei dischi + 259 degli smartphone; i 4 nuovi riguardano una chiamata WhatsApp seguita da allegati (difetto della 2.20.2) e un backup crypt15 reale pubblico di wa-crypt-tools, che non contiene messaggi |
 | 2.20.3 (correzioni, prima dell'assemblaggio) | Windows 11 dell'autore | 437/437, 77/77 su immagini pubbliche |
+| 2.21.0 | Mac dell'autore (come la 2.20.0) | 448/448 in italiano e 448/448 in inglese, dal pacchetto Mac assemblato, 77/77 su immagini pubbliche; 11 controlli nuovi |
+| 2.21.0 | Windows dell'autore (pacchetto definitivo) | superato (dato riferito dall'autore) |
 
 Carving DFTT 11: 2 file su 15 (enterprise.wav, haxor2.jpg) non vengono recuperati da PhotoRec: è un limite di
 PhotoRec, dichiarato come «misura» e non come requisito.

@@ -4,7 +4,7 @@ Unicode true
 !include "MUI2.nsh"
 !define APP "RepertIA"
 !ifndef VER
-  !define VER "2.20.3"
+  !define VER "2.21.0"
 !endif
 Name "${APP} ${VER}"
 OutFile "RepertIA-${VER}-Setup.exe"

@@ -474,6 +474,26 @@ def ref(case, cx, src, oid=None, part=None, inode=None, path=None):
     return tr("artefatto «{t}»").format(t=title) + out + ", " + riga
 
 
+def preferiti_csv(case, dest, oids):
+    """(2.21) Messaggi singoli dei Preferiti in un CSV: i riferimenti al dato grezzo restano accanto a ogni riga."""
+    import csv
+    import forense_mobile_chat as fmc
+    con = _con(case)
+    try:
+        q = ",".join("?" * len(oids))
+        rows = con.execute("SELECT m.id, m.ts, m.direction, m.sender, m.sender_name, m.text, m.kind, m.extra, m.src_table, m.src_row, m.app, t.title "
+                           f"FROM chat_messages m JOIN chat_threads t ON t.id = m.thread WHERE m.id IN ({q}) ORDER BY m.ts, m.id", oids).fetchall()
+    finally:
+        con.close()
+    with open(dest, "w", encoding="utf-8-sig", newline="") as fo:
+        w = csv.writer(fo, delimiter=";")
+        w.writerow([tr("id"), tr("Data (UTC)"), tr("App"), tr("Conversazione"), tr("Verso"), tr("Mittente"), tr("Nome"), tr("Testo"), tr("Tipo"), tr("Dato grezzo")])
+        for mid, ts, d, snd, sname, text, kind, extra, tb, row, app, title in rows:
+            w.writerow([mid, ts or "", fmc.APP_LBL.get(app, app), title, {"out": tr("inviato"), "in": tr("ricevuto"), "sys": tr("evento")}.get(d, tr("non indicato")),
+                        fmc.show_id(snd) if snd else "", sname or "", text or "", fmw.etichetta(kind, extra), f"{tb} #{row}"])
+    return len(rows)
+
+
 def msg_item(con, mid):
     """Un messaggio come elemento dei Preferiti: (testo della riga, nome, data)."""
     r = con.execute("SELECT m.app, m.ts, m.direction, m.sender, m.sender_name, m.text, m.kind, m.src_table, m.src_row, "
@@ -645,8 +665,12 @@ def export_chat(G, case, b):
         if not t:
             raise ValueError(tr("Conversazione non trovata."))
         _id, app, title, parts, grp, n, first, last, tpart, tinode, tsrc, local = t
+        da, al = str(b.get("da") or "")[:10], str(b.get("a") or "")[:10]      # (2.21) periodo facoltativo, giorni UTC compresi
         msgs = con.execute("SELECT id, ts, direction, sender, sender_name, text, kind, status, read_ts, service, src_table, "
-                           "src_row, extra FROM chat_messages WHERE thread=? ORDER BY ts, id", (tid,)).fetchall()
+                           "src_row, extra FROM chat_messages WHERE thread=? AND (?='' OR ts>=?) AND (?='' OR ts<?) ORDER BY ts, id",
+                           (tid, da, da, al, al + "T99")).fetchall()
+        if not msgs and (da or al):
+            return None
         att = _attachments(con, [r[0] for r in msgs])
         fonti = _db_sources(case, con, tid, tpart, tinode, tsrc)
     finally:
@@ -654,7 +678,7 @@ def export_chat(G, case, b):
     lbl = fmc.APP_LBL.get(app, app)
     when = lambda v: G.fmt_ts(case, tz, v) if v else ""
     stamp = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
-    d = case.export_dir / "chat"
+    d = Path(b["cartella"]) if b.get("cartella") else case.export_dir / "chat"
     d.mkdir(parents=True, exist_ok=True)
     stem = f"chat_{tid}_{_safe(lbl)}_{_safe(title)}_{stamp}"
     adir = d / (stem + "_allegati")
@@ -717,6 +741,7 @@ def export_chat(G, case, b):
             (tr("App"), lbl), (tr("Interlocutori"), f"{loc} ↔ {other}"),
             (tr("Periodo"), f"{when(first)} → {when(last)}"), (tr("Fuso orario usato"), G.tz_label(case, tz)),
             (tr("Messaggi"), str(len(msgs))),
+            *([(tr("Periodo esportato"), tr("dal {a} al {b}, giorni UTC").format(a=da or "…", b=al or "…"))] if da or al else []),
             (tr("Estrazione"), f"{meta.get('image') or ''}" + (f" · SHA-256 {sha_ext}" if sha_ext else ""))]
     for f in fonti:
         head.append((tr("Database di origine"), f"{f['path']} · offset {f['offset']}, inode {f['inode']} · SHA-256 {f['sha256']}"
@@ -779,9 +804,10 @@ def export_chat(G, case, b):
                                                                               if a.get("trascrizione") else None)) if x)
                                                          for a in att.get(mid, [])), f"{tb} #{row}"])
     files = [{"file": f"{fx.name}", "sha256": _sha_file(fx)} for fx in (fh, fc)]
-    case.log("export_chat", {"thread": tid, "app": lbl, "titolo": title, "messaggi": len(msgs), "fuso": G.tz_label(case, tz),
+    case.log("export_chat", {"thread": tid, "app": lbl, "titolo": title, "messaggi": len(msgs), "periodo": [da, al] if da or al else None,
+                             "fuso": G.tz_label(case, tz),
                              "cartella": str(d.relative_to(case.root)), "file": files, "allegati": copied, "fonti": fonti})
-    return {"rel": str(d.relative_to(case.root)), "files": files, "allegati": len(copied),
+    return {"rel": str(d.relative_to(case.root)), "files": files, "allegati": len(copied), "allegati_file": copied,
             "message": tr("Chat esportata in {d}: {f}").format(d=str(d.relative_to(case.root)), f=", ".join(x["file"] for x in files))}
 
 

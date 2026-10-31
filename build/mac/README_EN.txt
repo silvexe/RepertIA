@@ -1,4 +1,4 @@
-RepertIA 2.20.3 - By silvexe (Mac Apple Silicon)
+RepertIA 2.21.0 - By silvexe (Mac Apple Silicon)
 Forensic analysis of disk images and smartphone extractions with a local language model (LLM).
 
 LANGUAGE

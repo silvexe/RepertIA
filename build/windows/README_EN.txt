@@ -1,4 +1,4 @@
-﻿RepertIA 2.20.3 - By silvexe
+﻿RepertIA 2.21.0 - By silvexe
 Forensic analysis of disk images and smartphone extractions with a local language model (LLM).
 
 LANGUAGE

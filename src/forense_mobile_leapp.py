@@ -32,7 +32,11 @@ from pathlib import Path
 from forense_lingua import tr, N_  # noqa: E402
 
 TOOLS = {"ios": ("ileapp", "iLEAPP", "ileapp.py"), "android": ("aleapp", "ALEAPP", "aleapp.py")}
-MAX_ROWS = 500_000
+MAX_ROWS = 2_000_000
+try:
+    MAX_ROWS = max(1000, int(os.environ.get("FORENSIA_LEAPP_MAX_RIGHE") or MAX_ROWS))      # (2.21) limite configurabile
+except ValueError:
+    pass
 TS_HEAD = re.compile(r"(time|date|timestamp|data|created|modified|last|start|end)", re.I)
 TS_VAL = re.compile(r"^(\d{4}-\d\d-\d\d)[ T](\d\d:\d\d:\d\d)(\.\d+)?(Z|[+-]\d\d:?\d\d)?$")
 
@@ -167,8 +171,9 @@ def import_tsv(con, out_dir, tool, part, sysd=None):
     sql = ("INSERT INTO artifacts(cat, ts, title, detail, user, src_path, part, inode, data, grp, sub) "
            "VALUES (?,?,?,?,?,?,?,?,?,?,?)")
     files = [f for f in sorted(tsv_dir.glob("*.tsv")) if not f.name.startswith(".")]   # «._nome.tsv»: AppleDouble di macOS
-    # (2.20) oltre MAX_ROWS righe in tutto: prima le tabelle che servono a chat, chiamate, nomi e account (mappa), poi le
-    # altre in ordine alfabetico; sotto il limite l'ordine resta quello di sempre (stessi id degli artefatti)
+    # (2.20) oltre MAX_ROWS righe in tutto: prima le tabelle che servono a chat, chiamate, nomi e account (mappa), poi (2.21) le
+    # altre dalla più piccola: i milioni di righe di FSEvents non tolgono più posto alle tabelle piccole. Sotto il limite
+    # l'ordine resta quello di sempre (stessi id degli artefatti)
     nel_tsv = {f.stem: _righe_tsv(f) for f in files}
     if sum(nel_tsv.values()) > MAX_ROWS:
         prio = _tabelle_mappa()
@@ -177,7 +182,8 @@ def import_tsv(con, out_dir, tool, part, sysd=None):
         except Exception:
             pass
         prio |= {f.stem for f in files if PRIO_RE.search(f.stem)}      # chiamate, messaggi, chat delle app
-        files = [f for f in files if f.stem in prio] + [f for f in files if f.stem not in prio]
+        files = ([f for f in files if f.stem in prio]
+                 + sorted((f for f in files if f.stem not in prio), key=lambda f: (nel_tsv[f.stem], f.name)))
     for f in files:
         name = f.stem
         cat, dates = info.get(name, (tr("(senza categoria)"), []))

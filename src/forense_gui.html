@@ -82,6 +82,7 @@ h2{font-size:13px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted
 .grow{flex:1}
 
 /* home */
+.tltab{width:100%;border-collapse:collapse;font-size:13px}.tltab th{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line,#8884)}.tltab td{padding:6px 8px;border-bottom:1px solid var(--line,#8882);vertical-align:top}.tltab tbody tr{cursor:pointer}.tltab tbody tr:hover{background:#8881}
 .home{display:grid;grid-template-columns:1.1fr .9fr;gap:22px}
 .kindrow{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}
 .kindbtn{display:flex;flex-direction:column;align-items:flex-start;gap:6px;text-align:left;padding:22px 18px;border:1px solid var(--line);border-radius:var(--radius);background:var(--bg);color:var(--ink);cursor:pointer;font:inherit}
@@ -620,6 +621,7 @@ th.srt .sa{margin-left:5px;color:var(--accent);font-size:11px}
   <div class="mm"><button class="mbtn" aria-haspopup="true">Caso<span class="car">▾</span></button>
     <div class="mdd" role="menu">
       <button class="mi" id="mCaseInfo" role="menuitem">✎ Modifica dati del caso</button>
+      <button class="mi" id="mCopyLink" role="menuitem" title="Indica dove si trova ora la copia forense: serve se il caso è stato spostato su un altro computer o il disco ha cambiato nome">Collega copia forense</button>
       <div class="msep"></div>
       <button class="mi" id="btnFolder" role="menuitem">Cartella caso</button>
       <button class="mi" id="btnExport" role="menuitem">File esportati</button>
@@ -636,6 +638,7 @@ th.srt .sa{margin-left:5px;color:var(--accent);font-size:11px}
       <button class="mi" id="btnLogCheck" role="menuitem" title="Ricalcola la catena di hash del registro di questo caso e la confronta con l'hash finale stampato in un report; ricontrolla gli SHA-256 dei file esportati">🔗 Verifica registro</button>
       <button class="mi" id="btnRiscontro" role="menuitem" title="Confronta i file del caso con l'elenco esportato da un altro strumento (Autopsy, FTK Imager, X-Ways…) sulla stessa copia: hash uguali, diversi, file trovati da uno solo">Riscontro con altro strumento</button>
       <div class="msep"></div>
+      <button class="mi" id="mDiag" role="menuitem" title="Prepara un file con gli errori tecnici del programma, senza dati dei casi, da inviare per capire un malfunzionamento">Esporta log diagnostici</button>
       <button class="mi" id="btnHashLists" role="menuitem" title="Liste di hash (NSRL e altre): escludi i file noti, segnala quelli in una lista">Liste di hash</button>
     </div></div>
   <div class="mm"><button class="mbtn" aria-haspopup="true">Analisi aggiuntive<span class="car">▾</span></button>
@@ -654,6 +657,7 @@ th.srt .sa{margin-left:5px;color:var(--accent);font-size:11px}
         <button class="kindbtn" id="kindDisk"><span class="ico">💽</span><b>Memorie di massa</b><small>Copie di dischi, SSD, pendrive e schede: E01, dd/raw, img, dmg</small></button>
         <button class="kindbtn" id="kindPhone"><span class="ico">📱</span><b>Smartphone</b><small>iPhone e Android: estrazioni del file system completo (Cellebrite, GrayKey, altri) in zip, tar o cartella</small></button>
       </div>
+      <div style="margin-top:12px"><button class="btn small" id="homeDiag" title="Prepara un file con gli errori tecnici del programma, senza dati dei casi">Esporta log diagnostici</button></div>
     </div>
     <div class="card hidden" id="homeDisk">
       <button class="btn small homeback" id="homeDiskBack">← Indietro</button>
@@ -1486,7 +1490,7 @@ function renderCase(s){
   $("caseParts").innerHTML = (c.partitions || []).map(p =>
     `<div>${p.readable ? "●" : "○"} <b>${esc(p.fs || T("non leggibile"))}</b> · ${p.apfs ? T("volume «") + esc(p.apfs.name) + "»" + (p.apfs.encrypted ? " 🔒" : "") : "offset " + p.offset}` +
     (p.files !== undefined ? TF(" · {0} file ({1} cancellati)", p.files, p.deleted) : "") + (p.os ? ` · ${esc(p.os)}` : "") + "</div>").join("") +
-    (c.evidence_ok ? "" : T('<div class="note">⚠ La copia forense non è raggiungibile: collega il disco che la contiene.</div>')) +
+    (c.evidence_ok ? "" : `<div class="note">⚠ ${T("La copia forense non è raggiungibile: collega il disco che la contiene.")} <button class="btn small" id="noteCopyLink">${T("Collega copia forense")}</button></div>`) +
     (c.derivata ? TF("<div class=\"hint\" style=\"margin-top:6px\">Copia derivata da RepertIA: volume {0} decifrato da <span class=\"mono\">{1}</span></div>", esc(c.derivata.volume), esc(base(c.derivata.derivata_da || ""))) : "") +
     ((c.volumi_cifrati || []).length ? `<div class="volbox">🔒 <b>${T("Volumi cifrati")}</b>${c.volumi_cifrati.some(v => !v.apfs) ? T("<div class=\"note\" style=\"margin:6px 0\">⚠ <b>Attenzione:</b> un volume cifrato <b>non viene analizzato</b> finché non è decifrato (nessun file elencato per esso). Gli eventuali file mostrati per un volume cifrato in casi preparati con versioni precedenti <b>non sono il suo contenuto reale</b>. Per analizzarlo usa «Decifra…».</div>") : ""}${c.volumi_cifrati.map(v => `<div class="vol" data-vol="${v.offset}" title="${T("Clic: mostra il volume nell'albero del file system")}">${esc(v.tipo)} · offset ${v.offset} · ${fsize(v.byte)}${v.decifrabile ? "" : T(' <span class="hint">(decifratura non disponibile)</span>')} <span class="hint">→ albero</span></div>`).join("")}
       ${c.volumi_cifrati.some(v => v.decifrabile) ? T("<button class=\"btn small\" id=\"btnDecrypt\">🔓 Decifra…</button>") : ""}
@@ -2034,6 +2038,49 @@ function logCheckDialog(own){
 }
 $("btnLogCheckHome").onclick = () => logCheckDialog(false);
 $("btnLogCheck").onclick = () => logCheckDialog(true);
+function copyLinkDialog(){            // (2.21) la copia si accetta solo con lo stesso SHA-256 del caso
+  const c = caseInfo || {};
+  openModal(T("Collega copia forense"), `<p class="hint" style="margin-top:0">${T("Indica dove si trova ora la copia. RepertIA ricalcola lo SHA-256 e la accetta solo se è uguale a quello del caso: su una copia grande può volerci molto. L'operazione resta nel registro del caso.")}</p>
+    <label class="flab">${T("Percorso registrato nel caso")}</label><pre style="white-space:pre-wrap;margin:4px 0 10px">${esc(c.evidence || "")}</pre>
+    <label class="flab">${T("Nuovo percorso")}</label><input class="pathin" id="clPath" style="margin-top:4px"><button class="btn small" id="clPick" style="margin-top:6px">${T("Scegli il file…")}</button>
+    <div class="hint" id="clProg" style="margin-top:8px"></div>`, [[T("Collega"), async () => {
+      const go = async conferma => {
+        await api("/api/copy_link", {path: $("clPath").value, conferma});
+        for (;;){
+          const t = await api("/api/task?name=copylink").catch(e => ({done: true, error: e.message}));
+          if (!t.done){ if ($("clProg")) $("clProg").textContent = t.progress || T("Controllo in corso…"); await new Promise(r => setTimeout(r, 700)); continue; }
+          if (t.error) throw new Error(t.error);
+          return t.result;
+        }
+      };
+      try{
+        let r = await go(false);
+        if (r.serve_conferma){
+          if (!confirm(T("Il caso non ha uno SHA-256 con cui confrontare questa copia (o è una cartella): non si può verificare che sia la stessa. Collegarla comunque? Il registro lo dichiarerà."))) return;
+          r = await go(true);
+        }
+        $("modal").classList.add("hidden");
+        toast(r.sha256 === "uguale" ? T("Copia collegata: SHA-256 uguale a quello del caso.") : T("Copia collegata senza confronto dello SHA-256."), r.sha256 === "uguale" ? "good" : "bad");
+        openCase(c.root);
+      }catch(e){ toast(e.message, "bad"); if ($("clProg")) $("clProg").textContent = ""; }
+    }, true]]);
+  $("clPick").onclick = async () => { try{ const r = await api("/api/choose", {}); if (r.path) $("clPath").value = r.path; }catch(e){ toast(e.message, "bad"); } };
+}
+$("mCopyLink").onclick = copyLinkDialog;
+document.addEventListener("click", e => { if (e.target.id === "noteCopyLink") copyLinkDialog(); });
+async function diagDialog(){          // (2.21) anteprima obbligatoria: si vede tutto ciò che si consegna
+  try{
+    const r = await api("/api/diag_preview");
+    openModal(T("Log diagnostici"), `<p class="hint" style="margin-top:0">${T("Questo è tutto ciò che viene salvato: solo eventi tecnici, con percorsi, nomi e numeri tolti. Controllalo prima di consegnarlo.")}</p>
+      <pre id="diagTxt" style="max-height:50vh;overflow:auto;white-space:pre-wrap;font-size:12px"></pre>`, [[T("Salva…"), async () => {
+        try{ const s = await api("/api/diag_save", {}); if (s.path){ $("modal").classList.add("hidden"); toast(TF("Salvato in {0}", s.path), "good"); } }catch(e){ toast(e.message, "bad"); }
+      }, true]]);
+    $("diagTxt").textContent = r.testo;
+  }catch(e){ toast(e.message, "bad"); }
+}
+$("mDiag").onclick = diagDialog;
+$("homeDiag").onclick = diagDialog;
+window.addEventListener("error", e => { if (e.message) api("/api/diag_js", {messaggio: e.message, riga: e.lineno, colonna: e.colno}).catch(() => {}); });
 $("btnRiscontro").onclick = () => {
   const last = (caseInfo && caseInfo.riscontri || []).slice(-1)[0];
   openModal(T("Riscontro con un altro strumento"), TF("\n    <p>Esporta dall'altro strumento l'elenco dei file della <b>stessa copia forense</b>, meglio se con gli hash, e indicalo qui:</p>\n    <ul class=\"hint\"><li><b>Autopsy</b>: nella tabella dei file (es. <i>Data Sources</i> o una cartella) il pulsante <i>Save table as CSV</i>; con gli hash serve il modulo <i>Hash Lookup</i>.</li>\n    <li><b>FTK Imager</b>: tasto destro sull'evidenza → <i>Export File Hash List</i> (MD5/SHA1) oppure <i>Export Directory Listing</i>.</li>\n    <li><b>X-Ways, EnCase, AXIOM</b>: esportazione CSV con percorso e hash; <b>Sleuth Kit</b>: <code>fls -r -m / -h immagine</code>.</li></ul>\n    <div class=\"srow\"><input id=\"rsPath\" style=\"flex:1\" placeholder=\"percorso del file CSV\"><button class=\"btn small\" id=\"rsPick\">Scegli…</button></div>\n    <div class=\"srow\"><input id=\"rsTool\" style=\"flex:1\" placeholder=\"strumento e versione (es. Autopsy 4.21.0)\"></div>\n    <p class=\"hint\">RepertIA confronta percorso, stato «cancellato», dimensione e hash (calcola al volo quelli che mancano). L'esito va nel report; il dettaglio riga per riga in <code>riscontri/</code> nel caso.</p>\n    <div id=\"rsOut\">{0}</div>", last ? TF("<p class=\"hint\">Ultimo riscontro ({0}, {1}): {2} hash uguali, <b>{3} diversi</b>, {4} solo nell'altro strumento, {5} solo in RepertIA.</p>", esc(when(last.ts)), esc(last.strumento || last.formato), nf(last.uguali), nf(last.hash_diverso), nf(last.solo_esterno), nf(last.solo_repertia)) : ""),
@@ -3040,11 +3087,17 @@ function renderSelBar(){
 function finderModal(title, html, rel){
   openModal(title, html, [[T("Mostra in ") + FM, () => api("/api/reveal_path", {rel})]]);
 }
-async function exportSel(sec){
+function exportSel(sec){
+  if (!((resCache.rows || []).some(x => ["art", "chat"].includes(x.source)) && stOf(sec).cid)) return exportSelGo(sec);
+  openModal(T("Esporta i preferiti"), `<p class="hint" style="margin-top:0">${T("Le chat selezionate si esportano per intero, con gli allegati. Per limitarle a un periodo indica le date (giorni UTC, compresi).")}</p>
+    <label class="flab">${T("Dal")}</label> <input type="date" id="expDa"> <label class="flab">${T("Al")}</label> <input type="date" id="expAl">`,
+    [[T("Esporta"), async () => { const v = {chat_da: $("expDa").value, chat_a: $("expAl").value}; $("modal").classList.add("hidden"); exportSelGo(sec, v); }]]);
+}
+async function exportSelGo(sec, chat){
   const n = selCount(sec);
   if (n > 500 && !confirm(TF("Vuoi estrarre {0} elementi? Può richiedere tempo e spazio su disco.", nf(n)))) return;
   try{
-    await api("/api/sel_export", selPayload(sec));
+    await api("/api/sel_export", {...selPayload(sec), ...(chat || {}), tz: tzMode()});
     exporting = true; renderSelBar();
     const tick = async () => {
       const t = await api("/api/task?name=export").catch(e => ({done: true, error: e.message}));
@@ -3715,6 +3768,10 @@ async function renderBmPage(){
   $("resTable").innerHTML = TF("<div class=\"srch\"><div class=\"srchcard\">\n    <p class=\"hint\" style=\"margin-top:0\">Per classificare dei file: selezionali in qualsiasi elenco dei Risultati (casella a sinistra) e premi <b>⭐ Preferiti</b> (oppure ⭐ sulla riga del file o nell'anteprima). Ogni categoria si apre in una scheda a parte; quelle con «nel report» entrano nel report e nel report portatile, con il contenuto dei file.</p>\n    {0}\n  </div></div>", cats.length ? cats.map(c => TF("<div class=\"saved\">\n      <div class=\"grow\"><div class=\"t\">⭐ {0} <span class=\"hint\">· {1} file</span></div>\n        <div class=\"hint\">{2}creata {3}</div></div>\n      <label class=\"hint\" title=\"Includi questa categoria nel report e nel report portatile\"><input type=\"checkbox\" data-inr=\"{4}\" {5}> nel report</label>\n      <button class=\"btn small\" data-open=\"{6}\">Apri</button><button class=\"btn small\" data-ren=\"{7}\">Rinomina / nota</button><button class=\"btn small danger\" data-del=\"{8}\">Elimina</button></div>", esc(c.name), nf(c.n), c.note ? esc(c.note) + " · " : "", esc(when(c.created)), c.cid, c.in_report ? "checked" : "", c.cid, c.cid, c.cid)).join("")
       : T('<div class="empty">Nessun preferito ancora.</div>'));
   const tEl = $("resTable"), byId = id => cats.find(c => c.cid == id);
+  if (cats.length){
+    const b = document.createElement("button"); b.className = "btn small"; b.id = "bmTl"; b.textContent = "🕒 " + T("Cronologia dei preferiti");
+    b.style.margin = "0 0 10px"; b.onclick = () => bmTimeline(); tEl.prepend(b);
+  }
   tEl.querySelectorAll("[data-open]").forEach(b => b.onclick = () => openBmTab(byId(b.dataset.open)));
   tEl.querySelectorAll("[data-inr]").forEach(b => b.onchange = () => api("/api/bm_cat_update", {cid: +b.dataset.inr, in_report: b.checked}).catch(e => toast(e.message, "bad")));
   tEl.querySelectorAll("[data-ren]").forEach(b => b.onclick = () => bmEditDialog(byId(b.dataset.ren)));
@@ -3723,6 +3780,30 @@ async function renderBmPage(){
     if (!confirm(TF("Eliminare la categoria «{0}» ({1} file)? I file non vengono toccati; resta traccia nel registro del caso.", c.name, c.n))) return;
     await api("/api/bm_cat_delete", {cid: c.cid}); const id = "b" + c.cid; if (XTABS.find(t => t.id === id)) closeXTab(id);
     renderBmPage(); updBmCount();
+  });
+}
+async function bmTimeline(cid){       // (2.21) tutti i preferiti, o una categoria, in ordine di data dell'evento
+  const tEl = $("resTable"), r = await api("/api/bm_timeline?" + (cid ? "cid=" + cid : "")), cats = (await api("/api/bm_cats")).cats;
+  if (resSec !== "bm") return;
+  const when = v => v ? fts(v) + (tzMode() === "utc" ? " UTC" : "") : "";
+  tEl.dataset.shown = "bmtl";
+  tEl.innerHTML = `<div class="srch"><div class="srchcard"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+    <button class="btn small" id="tlBack">← ${T("Preferiti")}</button><b>${T("Cronologia dei preferiti")}</b>
+    <select id="tlCat"><option value="">${T("Tutte le categorie")}</option>${cats.map(c => `<option value="${c.cid}"${c.cid == cid ? " selected" : ""}>${esc(c.name)}</option>`).join("")}</select>
+    <button class="btn small" id="tlCsv">${T("Esporta elenco CSV")}</button><span class="hint">${TF("{0} elementi", nf(r.rows.length))}</span></div>
+    <p class="hint">${T("La colonna Evento dice a che cosa si riferisce la data. Una data di modifica non prova da sola quando un fatto è avvenuto.")}</p>
+    <table class="tltab"><thead><tr><th>${T("Data")}</th><th>${T("Evento")}</th><th>${T("Elemento")}</th><th>${T("Categorie")}</th><th>${T("Nota")}</th><th></th></tr></thead><tbody>${r.rows.map((x, i) => `<tr data-i="${i}">
+      <td class="mono" style="white-space:nowrap">${x.ts ? esc(when(x.ts)) + (x.fine ? "<br>→ " + esc(when(x.fine)) : "") : T("senza data")}</td><td>${esc(x.evento)}</td><td style="word-break:break-word">${esc(x.path)}</td>
+      <td>${esc(x.categorie.join(", "))}</td><td>${esc(x.note)}</td><td>${x.chat && window.RM ? `<button class="btn small" data-ch="${x.chat}">💬 ${T("Apri chat")}</button>` : ""}</td></tr>`).join("")}</tbody></table></div></div>`;
+  $("tlBack").onclick = () => renderBmPage();
+  $("tlCat").onchange = () => bmTimeline($("tlCat").value);
+  $("tlCsv").onclick = async () => { try{ const c = await api("/api/bm_timeline_csv", {cid: cid || undefined, tz: tzMode()}); toast(TF("Salvato in {0}", c.rel), "good"); }catch(e){ toast(e.message, "bad"); } };
+  tEl.querySelectorAll("[data-ch]").forEach(b => b.onclick = e => { e.stopPropagation(); RM.openChats({thread: +b.dataset.ch}); });
+  tEl.querySelectorAll("tr[data-i]").forEach(tr_ => tr_.onclick = () => {
+    const x = r.rows[+tr_.dataset.i];
+    const it = x.source === "fs" || x.source === "ua" ? {source: x.source, part: x.part, inode: x.inode, path: x.path, name: x.name}
+      : x.source === "carving" ? {source: "carving", name: x.inode, path: x.path} : extRef("hits", x);
+    if (it) pvOpen(it, "bm");
   });
 }
 function bmEditDialog(c){
@@ -3903,6 +3984,10 @@ async function pvTab(t){
 function pvRenderView(v, it){
   if (pvState.it !== it) return;
   pvState.info = v;
+  if (v.chat && window.RM && !$("pvActs").querySelector('[data-pa="chatth"]')){   // (2.21) scheda di una chat, anche dai Preferiti
+    const b = document.createElement("button"); b.className = "btn small"; b.dataset.pa = "chatth"; b.textContent = "💬 " + T("Apri chat");
+    b.onclick = () => RM.openChats({thread: v.chat}); $("pvActs").prepend(b);
+  }
   if (v.type === "mail" || v.source === "art" || v.source === "chat" || v.source === "rub"){
     $("pvSub").textContent = v.type === "mail" ? TF("Messaggio di posta · {0}", v.head.Fonte || "") : v.source === "chat" ? T("Messaggio di una chat") : v.source === "rub" ? T("Voce della rubrica") : T("Artefatto di sistema");
     if (v.type === "mail" && !it.src && v.part != null){ it.src = {source: "fs", part: v.part, inode: v.inode, path: (v.head.Fonte || "").split(" › ")[0]}; }

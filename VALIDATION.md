@@ -2,7 +2,7 @@
 
 *Translation of [VALIDAZIONE.md](VALIDAZIONE.md); the Italian text prevails.*
 
-Program version: 2.20.3 · Document updated on 30/10/2026
+Program version: 2.21.0 · Document updated on 31/10/2026
 
 This document describes **how RepertIA was verified, with which data, with which results and with which known
 limitations**. It is meant for those who use the program in an expert examination and need to state the reliability of
@@ -63,6 +63,8 @@ volume (plist, sqlite with WAL, bookmarks); APFS (dfvfs) unencrypted and encrypt
 | 2.20.2 | Author's Windows 11 (final package) | 433/433, 77/77 on public images |
 | 2.20.3 | Author's Mac (as for 2.20.0) | 437/437 in Italian and 437/437 in English, from the assembled Mac package: 178 for disks + 259 for smartphones; the 4 new ones cover a WhatsApp call followed by attachments (2.20.2 defect) and a real public crypt15 backup from wa-crypt-tools, which contains no messages |
 | 2.20.3 (fixes, before assembly) | Author's Windows 11 | 437/437, 77/77 on public images |
+| 2.21.0 | Author's Mac (as for 2.20.0) | 448/448 in Italian and 448/448 in English, from the assembled Mac package, 77/77 on public images; 11 new checks |
+| 2.21.0 | Author's Windows (final package) | passed (reported by the author) |
 
 Carving DFTT 11: 2 files out of 15 (enterprise.wav, haxor2.jpg) are not recovered by PhotoRec: this is a limitation of
 PhotoRec, declared as a "measurement" and not as a requirement.

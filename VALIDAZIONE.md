@@ -2,7 +2,7 @@
 
 *English: [VALIDATION.md](VALIDATION.md).*
 
-Versione del programma: 2.20.3 · Documento aggiornato al 30/10/2026
+Versione del programma: 2.21.0 · Documento aggiornato al 31/10/2026
 
 Questo documento descrive **come è stato verificato RepertIA, con quali dati, con quali risultati e con quali
 limiti noti**. Serve a chi usa il programma in una consulenza per dichiarare l'affidabilità del metodo
@@ -61,6 +61,8 @@ di un Mac (plist, sqlite con WAL, bookmark); APFS (dfvfs) in chiaro e cifrato co
 | 2.20.2 | Windows 11 dell'autore (pacchetto definitivo) | 433/433, 77/77 su immagini pubbliche |
 | 2.20.3 | Mac dell'autore (come la 2.20.0) | 437/437 in italiano e 437/437 in inglese, dal pacchetto Mac assemblato: 178 dei dischi + 259 degli smartphone; i 4 nuovi riguardano una chiamata WhatsApp seguita da allegati (difetto della 2.20.2) e un backup crypt15 reale pubblico di wa-crypt-tools, che non contiene messaggi |
 | 2.20.3 (correzioni, prima dell'assemblaggio) | Windows 11 dell'autore | 437/437, 77/77 su immagini pubbliche |
+| 2.21.0 | Mac dell'autore (come la 2.20.0) | 448/448 in italiano e 448/448 in inglese, dal pacchetto Mac assemblato, 77/77 su immagini pubbliche; 11 controlli nuovi |
+| 2.21.0 | Windows dell'autore (pacchetto definitivo) | superato (dato riferito dall'autore) |
 
 Carving DFTT 11: 2 file su 15 (enterprise.wav, haxor2.jpg) non vengono recuperati da PhotoRec: è un limite di
 PhotoRec, dichiarato come «misura» e non come requisito.

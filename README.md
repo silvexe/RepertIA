@@ -3,7 +3,7 @@
 **Forensic analysis of disk and USB drive images and smartphone extractions, with a local, offline AI assistant.**
 🇮🇹 **Versione italiana: [README.it.md](README.it.md)**
 
-📘 **Illustrated guide (PDF):** [English](https://github.com/silvexe/RepertIA/releases/download/v2.20.3/RepertIA-illustrated-guide-2.20.3-EN.pdf) · [Italiano](https://github.com/silvexe/RepertIA/releases/download/v2.20.3/RepertIA-guida-illustrata-2.20.3-IT.pdf)
+📘 **Illustrated guide (PDF):** [English](https://github.com/silvexe/RepertIA/releases/download/v2.21.0/RepertIA-illustrated-guide-2.20.3-EN.pdf) · [Italiano](https://github.com/silvexe/RepertIA/releases/download/v2.21.0/RepertIA-guida-illustrata-2.20.3-IT.pdf)
 
 RepertIA analyses forensic images (E01, raw/dd, dmg) and, from 2.20, full file system extractions of iPhones and Android
 phones from a single local web interface, on Apple Silicon Macs, Windows
@@ -65,13 +65,13 @@ analyses, searches and reports work just the same.
 
 | System | File |
 |---|---|
-| Windows (installer) | [RepertIA-2.20.3-Setup.exe](https://github.com/silvexe/RepertIA/releases/download/v2.20.3/RepertIA-2.20.3-Setup.exe) |
-| Windows (portable) | [RepertIA-2.20.3-Windows.zip](https://github.com/silvexe/RepertIA/releases/download/v2.20.3/RepertIA-2.20.3-Windows.zip) |
-| Mac (Apple Silicon) | [RepertIA-2.20.3-Mac.zip](https://github.com/silvexe/RepertIA/releases/download/v2.20.3/RepertIA-2.20.3-Mac.zip) |
-| Linux x86_64 (experimental) | [RepertIA-2.20.3-Linux.tar.gz](https://github.com/silvexe/RepertIA/releases/download/v2.20.3/RepertIA-2.20.3-Linux.tar.gz) |
-| Acceptance test (*collaudo*) | [RepertIA-collaudo.zip](https://github.com/silvexe/RepertIA/releases/download/v2.20.3/RepertIA-collaudo.zip) |
-| SHA-256 checksums | [SHA256SUMS.txt](https://github.com/silvexe/RepertIA/releases/download/v2.20.3/SHA256SUMS.txt) |
-| Illustrated guide (PDF) | [English](https://github.com/silvexe/RepertIA/releases/download/v2.20.3/RepertIA-illustrated-guide-2.20.3-EN.pdf) · [Italiano](https://github.com/silvexe/RepertIA/releases/download/v2.20.3/RepertIA-guida-illustrata-2.20.3-IT.pdf) |
+| Windows (installer) | [RepertIA-2.21.0-Setup.exe](https://github.com/silvexe/RepertIA/releases/download/v2.21.0/RepertIA-2.21.0-Setup.exe) |
+| Windows (portable) | [RepertIA-2.21.0-Windows.zip](https://github.com/silvexe/RepertIA/releases/download/v2.21.0/RepertIA-2.21.0-Windows.zip) |
+| Mac (Apple Silicon) | [RepertIA-2.21.0-Mac.zip](https://github.com/silvexe/RepertIA/releases/download/v2.21.0/RepertIA-2.21.0-Mac.zip) |
+| Linux x86_64 (experimental) | [RepertIA-2.21.0-Linux.tar.gz](https://github.com/silvexe/RepertIA/releases/download/v2.21.0/RepertIA-2.21.0-Linux.tar.gz) |
+| Acceptance test (*collaudo*) | [RepertIA-collaudo.zip](https://github.com/silvexe/RepertIA/releases/download/v2.21.0/RepertIA-collaudo.zip) |
+| SHA-256 checksums | [SHA256SUMS.txt](https://github.com/silvexe/RepertIA/releases/download/v2.21.0/SHA256SUMS.txt) |
+| Illustrated guide (PDF) | [English](https://github.com/silvexe/RepertIA/releases/download/v2.21.0/RepertIA-illustrated-guide-2.20.3-EN.pdf) · [Italiano](https://github.com/silvexe/RepertIA/releases/download/v2.21.0/RepertIA-guida-illustrata-2.20.3-IT.pdf) |
 
 All versions: <https://github.com/silvexe/RepertIA/releases>
 

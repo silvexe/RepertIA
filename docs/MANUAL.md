@@ -6,7 +6,7 @@
 and folder names created by the program (`estratti`, `export`, `CasiForensi`…) are in Italian whatever the language.*
 
 **Forensic analysis of disk and USB drive images with local artificial intelligence.**
-Version 2.20.3 · macOS, Windows and Linux (experimental) · interface in English or Italian
+Version 2.21.0 · macOS, Windows and Linux (experimental) · interface in English or Italian
 
 RepertIA takes a forensic image (raw, dd, img or E01), indexes it with established forensic tools and lets you examine
 it in two complementary ways:
@@ -455,6 +455,8 @@ an AI model (*name*): hint to be checked". Automatic texts are marked as such: "
 ---
 
 ## Favourites (file categories)
+
+**Bookmarked chats and timeline (2.21).** Opening a chat's record from ⭐ Bookmarks shows **💬 Open chat**. **Export files** from ⭐ Bookmarks saves the whole chat (HTML, CSV, attachments, SHA-256 in the manifest), which can be limited to a period; single messages go to `chat/messaggi_preferiti.csv`. The report contains the chat text (first 2,000 messages; complete in the portable report). **🕒 Bookmark timeline** lists all items by event date, with an *Event* column saying what the date refers to; it is also in the report and can be exported to CSV. The report only covers categories marked «in the report». A modification date alone does not prove when something happened.
 
 In the Results select files with the check boxes on the left (whole folders too, with all their content) and press
 **⭐ Favourites**, or **⭐ Favourites** on a file's row (after *Preview*) or in the preview pane: choose an existing
@@ -913,7 +915,7 @@ dmg. In the list of cases the icon shows the type.
   per app, on the app versions used by Hickman in 2024), not the messages of a case: in a real case there is nothing to
   compare with, and the interface shows no verification marks. The detail per artifact is in the `verifiche` section of
   the map.
-- **Limit of 500,000 iLEAPP/ALEAPP rows** (2.20): if the iLEAPP/ALEAPP tables exceed the limit, RepertIA imports **first**
+- **Limit of 2,000,000 iLEAPP/ALEAPP rows** (2.21; variable `FORENSIA_LEAPP_MAX_RIGHE`; then the other tables start from the smallest, because on a test iOS 17 phone 20 of 21 million rows are FSEvents): if the iLEAPP/ALEAPP tables exceed the limit, RepertIA imports **first**
   the chat, message and call tables (those in the map, those iLEAPP/ALEAPP declare as conversations and those with
   *call*, *messag*, *chat*, *conversation*, *voicemail* in the name), then the others. The tables left out are listed in
   the case (`leapp.omesse`, with the rows imported and those in the report) and remain in the iLEAPP/ALEAPP report in the
@@ -1183,7 +1185,7 @@ The history of the versions is in [CHANGELOG.en.md](../CHANGELOG.en.md).
 
 ## Mac package (Apple Silicon)
 
-`RepertIA-2.20.3-Mac.zip` contains **RepertIA.app** with Python 3.12, openai, Pillow and **plaso already included** (no
+`RepertIA-2.21.0-Mac.zip` contains **RepertIA.app** with Python 3.12, openai, Pillow and **plaso already included** (no
 Docker). Drag the app into Applications; the first time: right-click → *Open* (or *System Settings → Privacy & Security
 → Open Anyway*), because it is not signed with an Apple certificate. The app opens the Terminal, installs the missing
 tools with Homebrew (Sleuth Kit, libewf, exiftool, poppler, PhotoRec, bulk_extractor, Tesseract) and then the browser.
@@ -1192,7 +1194,7 @@ tools with Homebrew (Sleuth Kit, libewf, exiftool, poppler, PhotoRec, bulk_extra
 
 ## Windows version
 
-`RepertIA-2.20.3-Setup.exe` installs RepertIA for the current user (no administrator rights) in
+`RepertIA-2.21.0-Setup.exe` installs RepertIA for the current user (no administrator rights) in
 `%LOCALAPPDATA%\Programs\RepertIA`, with Python and the tools already included: plaso, The Sleuth Kit (reads E01 files
 directly), ExifTool, Poppler, PhotoRec, bulk_extractor, 7-Zip, Tesseract OCR (Italian and English) and the libraries for
 Outlook mail, shadow copies and encrypted volumes. It is started from the Start menu → **RepertIA**: a black window opens,
@@ -1210,11 +1212,11 @@ to be kept open, and the browser. Cases are in `%USERPROFILE%\CasiForensi`, sett
 
 ## Linux version (experimental)
 
-`RepertIA-2.20.3-Linux.tar.gz` is for **Linux x86_64** with Python 3.12 or later (Ubuntu 24.04 or later, Debian 13).
+`RepertIA-2.21.0-Linux.tar.gz` is for **Linux x86_64** with Python 3.12 or later (Ubuntu 24.04 or later, Debian 13).
 The program is the same as the Mac and Windows versions (same source fingerprint).
 
 ```
-tar -xzf RepertIA-2.20.3-Linux.tar.gz
+tar -xzf RepertIA-2.21.0-Linux.tar.gz
 cd RepertIA
 ./installa.sh          # once, with internet: asks for the administrator password
 ./RepertIA.sh          # or from the applications menu
@@ -1267,6 +1269,12 @@ Useful variables: `FORENSE_CASI` (cases folder), `FORENSE_BACKEND`, `FORENSE_URL
   not shorten the results further by itself, so as not to remove useful elements.
 - **"The forensic image cannot be reached"**: connect the disk containing the image; lists, timeline and searches work
   without it, previews and exports do not.
+  If the case was moved to another computer or the disk changed name, use **Case → Link forensic copy** (2.21): RepertIA recomputes the
+  SHA-256 and accepts the copy only if it matches the case; the operation stays in the log. With no SHA-256 in the case a confirmation is
+  required and the log states it. Do not use «Choose the forensic copy»: it creates a new case.
+- **Something does not work**: **Checks → Export diagnostic logs** (also on the start page, 2.21) shows and saves a file with technical
+  errors only, with no case data: paths, quoted names, emails, long numbers and hashes are removed. The working file is `diagnostica.log`
+  next to the settings. It is not the case log (`audit_log.jsonl`), which contains case data and must not be handed over for this purpose.
 - **No preview for Word/Excel/PowerPoint or a simplified preview**: install LibreOffice (free) and reopen the preview;
   meanwhile use the Text tab.
 - **The video does not play**: the browser plays mp4/mov/webm; for other formats a frame is shown, or export the file.
