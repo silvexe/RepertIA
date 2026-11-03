@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 silvexe
 """
 forense_portatile.py - RepertIA by silvexe.
@@ -1084,6 +1084,13 @@ def _export_portable(case, opts, progress, pstate):
         counts["stringhe_troncate"] = str_state["full"]
 
         write_js(dati / "meta.js", "meta", meta_rows)
+        docs = []
+        con2 = fa.db_ro(case)
+        if fa.table_exists(con2, "doc_text"):    # (3.0) la sezione Documenti del caso: dimensione e date dal catalogo
+            docs = [[path, lg.valore(kind), source, part, inode, deleted] for path, kind, source, part, inode, deleted in con2.execute(
+                "SELECT path, kind, source, part, inode, deleted FROM doc_text ORDER BY path")]
+        con2.close()
+        write_js(dati / "documenti.js", "docs", docs)
         counts["metadati"] = len(meta_rows)
 
         # --- timeline (2.20): un file per GIORNO (i giorni con più di EV_PARTE eventi in più parti), caricato quando
@@ -1158,6 +1165,8 @@ def _export_portable(case, opts, progress, pstate):
     report_md = fa.write_report(case).read_text(encoding="utf-8")
     mode = opts.get("contenuto") or "scelti"
     bm_th = fa.bm_threads(case)         # (2.21) chat nei Preferiti: si aprono nella vista delle conversazioni
+    # (3.0) data e tipo di evento dei preferiti per la Timeline del report: gli stessi della Timeline del caso
+    bm_tl = {(x["source"], x["part"], str(x["inode"])): (x["ts"], x["evento"], x["fine"]) for x in fa.bookmarks_timeline(case, False)}
     info = {
         "id": f"{case.root.name}-{g.stamp_now()}", "case": case.root.name,
         "generated": fa.now(), "app": f"{fa.APP_NAME} {fa.APP_VERSION} ({fa.APP_BY})",
@@ -1180,15 +1189,28 @@ def _export_portable(case, opts, progress, pstate):
                        "items": [[(f"c:{Path(str(i['inode'])).name}" if i["source"] == "carving"
                                    else f"chat:{i['inode']}" if i["source"] == "chat"
                                    else f"chatt:{bm_th[str(i['inode'])]}" if i["source"] == "art" and str(i["inode"]) in bm_th
-                                   else f"{i['part']}:{i['inode']}"), i["note"] or "", i["path"]]
+                                   else f"{i['part']}:{i['inode']}"), i["note"] or "", i["path"],
+                                  *bm_tl.get((i["source"], i["part"], str(i["inode"])), ("", "", ""))]
                                  for i in c["items"]]} for c in fa.bookmarks(case)],
         "att_cols": ["id", "source", "part", "inode", "name", "file", "size", "deleted", "kind",
                      "pages", "preview", "sha256", "md5", "why", "full"],
         "text_truncated": truncated, "months": months, "days": days, "ev_parts": parts, "counts": counts,
         "skipped": skipped[:500], "skipped_n": len(skipped), "mode": mode,
         "options": {k: v for k, v in opts.items() if k != "zip"},
+        "plaso_eventi": (m.get("timeline") or {}).get("plaso_events") or 0,
         "ext": has_ext, "volumi_cifrati": m.get("volumi_cifrati") or [],
     }
+    try:                    # (3.0) mappa: tutto dentro il report, nessuna rete; il disegno è nostro perché MapLibre non funziona da file://
+        import forense_mappe as fmp
+        mp = fmp.punti(case)
+        if mp["punti"] or any(v["punti"] for v in mp["voli"]):
+            limite = 100000
+            write_js(dati / "mappa.js", "mappa", {"categorie": mp["categorie"], "punti": mp["punti"][:limite], "esclusi": mp["esclusi"], "voli": mp["voli"],
+                                                  "troncato": mp["troncato"] or len(mp["punti"]) > limite})
+            write_js(dati / "sfondo_mappa.js", "sfondo", json.loads((HERE / "mappa" / "ne_110m.geojson").read_text(encoding="utf-8")))
+            info["mappa"] = len(mp["punti"]) + len(mp["voli"])
+    except (OSError, ValueError, sqlite3.Error) as e:
+        progress(tr("Mappa non inclusa: {e}").format(e=e))
     write_js(dati / "caso.js", "case", info)
 
     tpl = (HERE / "forense_portatile.html").read_text(encoding="utf-8")

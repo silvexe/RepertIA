@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 silvexe
 """
 forense_agent.py - RepertIA by silvexe.
@@ -116,7 +116,7 @@ except ImportError:
 
 APP_NAME = "RepertIA"
 APP_BY = "By silvexe"
-APP_VERSION = "2.21.0"
+APP_VERSION = "3.0.0"
 
 # ------------------------------------------------------------ configurazione
 # Tutti i valori si possono passare anche come opzioni di `analizza`.
@@ -154,6 +154,25 @@ def now():
 
 def dec(b):
     return b.decode("utf-8", "replace")
+
+
+def pagina(righe, totale, offset=0, testa=""):
+    """(3.0) Una pagina di risultati per l'agente: dice quali righe contiene e come proseguire, così non scambia una lettura
+    parziale per un elenco completo. Si ferma prima del limite di caratteri, mai a metà riga."""
+    offset = max(0, int(offset or 0))
+    spazio, usato, tenute = MAX_OUT - 300 - len(testa), 0, []
+    for r in righe:
+        if tenute and usato + len(r) + 1 > spazio:
+            break
+        tenute.append(r[:max(spazio, 200)]); usato += len(tenute[-1]) + 1
+    fine = offset + len(tenute)
+    if not tenute:
+        nota = tr("Nessuna riga da questa posizione (totale {n}).").format(n=totale)
+    elif fine < totale:
+        nota = tr("Righe {a}–{b} di {n}. INCOMPLETO: per le successive richiama con offset={b}.").format(a=offset + 1, b=fine, n=totale)
+    else:
+        nota = tr("Righe {a}–{b} di {n}: elenco completo.").format(a=offset + 1, b=fine, n=totale)
+    return "\n".join(([testa] if testa else []) + [nota] + tenute)
 
 
 def clip(text, limit=None):
@@ -534,7 +553,7 @@ def ambiente():
     here = Path(__file__).resolve().parent
     # (2.20) anche forense_*.json: la mappa di iLEAPP/ALEAPP decide come si ricavano chat e chiamate
     files = sorted(list(here.glob("forense_*.py")) + list(here.glob("forense_*.html")) + list(here.glob("forense_*.json"))
-                   + list(here.glob("lingua_*.json")))
+                   + list(here.glob("lingua_*.json")) + [f for f in (here / "mappa").rglob("*") if f.is_file()])
     h = hashlib.sha256()
     for p in files:
         h.update(p.name.encode() + b"\0" + hashlib.sha256(p.read_bytes()).digest())
@@ -2039,6 +2058,55 @@ def pick_meta_date(clean):
     return None, None
 
 
+def gps_da(meta):
+    """(3.0) Latitudine e longitudine con il segno. Con -G1 exiftool dà «GPS:GPSLongitude» senza segno e la direzione a parte
+    (N/S/E/O), «Composite:GPSLongitude» con il segno: prima si leggeva il primo trovato e Ovest e Sud risultavano positivi."""
+    def val(nome):
+        c = meta.get("Composite:" + nome)
+        if c not in ("", None):
+            return float(c)
+        for k, v in meta.items():
+            if k.split(":")[-1] == nome and v not in ("", None):
+                v, r = float(v), next((str(x).strip().upper() for y, x in meta.items() if y.split(":")[-1] == nome + "Ref" and x), "")
+                return -abs(v) if r[:1] in ("S", "W") else v
+        return None
+    try:
+        lat, lon = val("GPSLatitude"), val("GPSLongitude")
+    except (TypeError, ValueError):
+        return None, None
+    if lat is None or lon is None or (lat == 0 and lon == 0):
+        return None, None
+    return lat, lon
+
+
+def gps_ripara(case):
+    """(3.0) Casi preparati prima della 3.0: ricalcola il segno delle coordinate dai metadati salvati, una volta sola, e lo
+    registra. La copia forense non c'entra: cambia solo la tabella dei risultati del caso."""
+    if case.meta.get("gps_segno_3") or not case.db_path.exists():
+        return 0
+    con = sqlite3.connect(case.db_path)
+    n = 0
+    try:
+        if table_exists(con, "meta"):
+            for rid, la, lo, data in con.execute("SELECT rowid, lat, lon, data FROM meta WHERE lat IS NOT NULL").fetchall():
+                try:
+                    a, o = gps_da(json.loads(data or "{}"))
+                except ValueError:
+                    continue
+                if a is not None and (a, o) != (la, lo):
+                    con.execute("UPDATE meta SET lat=?, lon=? WHERE rowid=?", (a, o, rid))
+                    n += 1
+            con.commit()
+    finally:
+        con.close()
+    case.meta["gps_segno_3"] = True
+    if n:
+        case.meta["gps_corretto"] = n
+        case.log("gps_corretto", {"righe": n, "motivo": tr("segno di latitudine e longitudine dei metadati, ricalcolato dai valori salvati")})
+    case.save()
+    return n
+
+
 def exif_run(con, target, mapping):
     """Esegue exiftool su un file o una cartella; mapping: percorso -> (source, part, inode,
     deleted, percorso da mostrare). Inserisce i risultati nella tabella meta."""
@@ -2070,13 +2138,7 @@ def exif_run(con, target, mapping):
         taken, taken_tag = pick_meta_date(clean)
         if taken_tag:
             clean["RepertIA:DataScelta"] = taken_tag      # da quale campo viene la data mostrata
-        lat, lon = g("GPSLatitude"), g("GPSLongitude")
-        try:
-            lat, lon = (float(lat), float(lon)) if lat is not None and lon is not None else (None, None)
-        except (TypeError, ValueError):
-            lat = lon = None
-        if lat == 0 and lon == 0:
-            lat = lon = None
+        lat, lon = gps_da(clean)
         con.execute("INSERT INTO meta VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                     (*info, g("Make"), g("Model"),
                      taken,
@@ -2861,7 +2923,7 @@ def table_exists(con, name):
 
 
 def fmt_n(n):
-    return f"{n:,}".replace(",", ".")
+    return f"{n:,}" if lg.lingua() == "en" else f"{n:,}".replace(",", ".")
 
 
 def summary_md(case, what="all"):
@@ -2894,11 +2956,12 @@ def summary_md(case, what="all"):
             tot = sum(p.get("files", 0) for p in parts)
             dele = sum(p.get("deleted", 0) for p in parts)
             L.append(tr("#### File system"))
-            L.append(f"- {m.get('disk_type')}")
+            L.append(f"- {lg.valore(m.get('disk_type'))}")
             for p in parts:
-                L.append(tr("- Partizione offset {offset}: {v1}").format(offset=p['offset'], v1=p.get('fs'))
+                L.append(tr("- Partizione offset {offset}: {v1}").format(offset=p['offset'], v1=lg.valore(p.get('fs')))
                          + (f", {p['os']}" if p.get("os") else "")
-                         + tr(" — {v1} voci, {v2} cancellate").format(v1=fmt_n(p.get('files', 0)), v2=fmt_n(p.get('deleted', 0))))
+                         + " — " + (tr("1 voce") if p.get('files', 0) == 1 else tr("{v1} voci").format(v1=fmt_n(p.get('files', 0))))
+                         + ", " + (tr("1 cancellata") if p.get('deleted', 0) == 1 else tr("{v2} cancellate").format(v2=fmt_n(p.get('deleted', 0)))))
             cnt = {}
             for (path,) in con.execute("SELECT path FROM files WHERE type LIKE '%/r'"):
                 e = os.path.splitext(path.rsplit("/", 1)[-1])[1].lower()
@@ -2913,7 +2976,9 @@ def summary_md(case, what="all"):
                                "AND kind IN ('M','B') AND ts > '1990' GROUP BY d "
                                "ORDER BY c DESC LIMIT 5").fetchall()
             if first:
-                L.append(tr("- Date dei file: dal {v1} al {v2} (UTC; su FAT spesso ora locale)").format(v1=first[:10], v2=last[:10]))
+                fat = any("fat" in (p.get("fs") or "").lower() for p in parts)    # solo lì la nota sull'ora locale
+                L.append((tr("- Date dei file: dal {v1} al {v2} (UTC; su FAT spesso ora locale)") if fat else
+                          tr("- Date dei file: dal {v1} al {v2} (UTC)")).format(v1=first[:10], v2=last[:10]))
             if days:
                 L.append(tr("- Giorni con più file creati o modificati: ")
                          + ", ".join(f"{d} ({fmt_n(c)})" for d, c in days))
@@ -2926,7 +2991,7 @@ def summary_md(case, what="all"):
             kinds = con.execute("SELECT kind, COUNT(*) FROM doc_text WHERE source='fs' "
                                 "GROUP BY 1 ORDER BY 2 DESC LIMIT 8").fetchall()
             L.append(tr("- Documenti con testo ricercabile: {v1}").format(v1=fmt_n(i['documenti']))
-                     + (" (" + ", ".join(f"{k} {fmt_n(n)}" for k, n in kinds) + ")" if kinds else ""))
+                     + (" (" + ", ".join(f"{lg.valore(k)} {fmt_n(n)}" for k, n in kinds) + ")" if kinds else ""))
             L.append(tr("- File con metadati: {v1}, con coordinate GPS: {v2}").format(v1=fmt_n(i['metadati']), v2=fmt_n(i['gps'])))
             devs = con.execute("SELECT trim(coalesce(make,'') || ' ' || coalesce(model,'')), "
                                "COUNT(*) FROM meta WHERE model IS NOT NULL GROUP BY 1 "
@@ -2943,7 +3008,7 @@ def summary_md(case, what="all"):
             if i["gps"]:
                 Q.append(tr("Quali foto hanno coordinate GPS e dove sono state scattate?"))
             if auth:
-                Q.append("Chi ha creato o modificato i documenti?")
+                Q.append(tr("Chi ha creato o modificato i documenti?"))
         if what in ("all", "plaso") and (m.get("timeline") or {}).get("plaso_events"):
             n = m["timeline"]["plaso_events"]
             L.append(tr("#### Timeline di sistema (plaso)"))
@@ -3787,12 +3852,18 @@ ASK_MARK = "@@CIFRATI@@ "
 AVANZ_MARK = "@@AVANZ@@ "
 ADDON_FASE = {"immagine": "hash", "hash": "hashfile"}     # analisi aggiuntiva -> passo della pagina di preparazione
 _avanz_t = [0.0]
+AVANZ_HOOK = [None]     # (3.0) operazioni eseguite dal server (es. Verifica hash): avanzamento anche alla pagina
 
 
 def avanz(fase=None, fatti=None, totale=None, unita=None):
     """(2.20) Avanzamento per la barra dell'interfaccia: riga nascosta, uguale in ogni lingua (solo se lanciato
     dall'interfaccia). fase = passo della pagina (cambia passo subito); fatti/totale: senza totale barra indeterminata; unita "B" = byte.
     Le righe con soli numeri escono al massimo una al secondo."""
+    if AVANZ_HOOK[0]:
+        try:
+            AVANZ_HOOK[0](fase, fatti, totale)
+        except Exception:
+            pass
     if not os.environ.get("FORENSE_DA_GUI"):
         return
     t = time.time()
@@ -4153,6 +4224,12 @@ def cmd_prepare(args):
     if getattr(args, "trascrizione", None):       # (2.20) scelta alla creazione del caso
         import forense_trascrizione as ftr
         ftr.da_preparazione(case, con, args.trascrizione)
+    con.commit()
+    try:                                          # (3.0) le schede dei droni: i registri si cercano dai nomi, si leggono solo quelli
+        import forense_droni as fdr
+        fdr.run(case, lambda m: print(m, flush=True))
+    except Exception as e:
+        print(tr("Voli: non completato ({vname}: {e})").format(vname=type(e).__name__, e=e), flush=True)
     con.close()
     plaso_n = case.meta["timeline"]["plaso_events"]
     print(tr("\nTipo: {disk_type}").format(disk_type=case.meta['disk_type']))
@@ -4269,7 +4346,7 @@ def make_tools(case):
         return clip("\n".join(out))
 
     def find_files(offset: int, name_contains: str = "", deleted_only: bool = False,
-                   limit: int = 100) -> str:
+                   limit: int = 100, salta: int = 0) -> str:
         """Cerca file per parte del percorso (senza distinzione maiuscole/minuscole).
 
         Args:
@@ -4277,6 +4354,7 @@ def make_tools(case):
             name_contains: testo nel percorso, es. '.docx' o 'Users/mario'; vuoto per tutti
             deleted_only: se true restituisce solo i file cancellati
             limit: numero massimo di risultati (max 500)
+            salta: righe da saltare, per proseguire dopo una risposta incompleta
         """
         o = _off(offset)
         only_del = str(deleted_only).lower() in ("true", "1", "yes", "si")
@@ -4286,11 +4364,10 @@ def make_tools(case):
         con = _db()
         total = con.execute(f"SELECT COUNT(*) FROM files WHERE {cond}", a).fetchone()[0]
         rows = con.execute(f"SELECT deleted, type, inode, path FROM files WHERE {cond} "
-                           "LIMIT ?", a + (limit,)).fetchall()
+                           "ORDER BY rowid LIMIT ? OFFSET ?", a + (limit, max(0, int(salta)))).fetchall()
         con.close()
         lines = [f'{"*" if d else " "} {t} {i}\t{p}' for d, t, i, p in rows]
-        return clip(tr("{total} risultati (mostrati {v1}; * = cancellato)\n").format(total=total, v1=len(lines))
-                    + "\n".join(lines))
+        return pagina(lines, total, salta, tr("* = cancellato. Per proseguire il parametro si chiama «salta» (qui offset è la partizione)."))
 
     def file_metadata(offset: int, inode: str) -> str:
         """Metadati di un file: timestamp, dimensione, attributi, cluster (istat).
@@ -4359,7 +4436,7 @@ def make_tools(case):
                  if not re.match(r"\[(System|ExifTool)\]", l)]
         return clip(tr("Metadati di {v1}:\n").format(v1=_name(o, i)) + "\n".join(lines))
 
-    def search_text(query: str, limit: int = 30) -> str:
+    def search_text(query: str, limit: int = 30, offset: int = 0) -> str:
         """Cerca parole dentro il testo dei documenti (Word, Excel, PowerPoint, PDF, OpenDocument,
         RTF, testo, email) e dei file recuperati col carving. Restituisce file e frammento.
 
@@ -4367,8 +4444,9 @@ def make_tools(case):
             query: parole da cercare (devono comparire tutte), es. 'bonifico Rossi';
                    una frase esatta va tra virgolette
             limit: numero massimo di risultati (max 100)
+            offset: righe da saltare, per proseguire dopo una risposta incompleta
         """
-        limit = max(1, min(int(limit), 100))
+        limit, offset = max(1, min(int(limit), 100)), max(0, int(offset))
         terms = re.findall(r'"[^"]+"|[^\s"]+', query)
         if not terms:
             return tr("Indica almeno una parola.")
@@ -4381,14 +4459,14 @@ def make_tools(case):
                 rows = con.execute(
                     "SELECT source, part, inode, deleted, path, kind, "
                     "snippet(doc_text, 1, '[', ']', ' … ', 16) FROM doc_text "
-                    "WHERE doc_text MATCH ? ORDER BY rank LIMIT ?", (q, limit)).fetchall()
+                    "WHERE doc_text MATCH ? ORDER BY rank, rowid LIMIT ? OFFSET ?", (q, limit, offset)).fetchall()
             else:
                 w = " AND ".join(["(body LIKE ? ESCAPE '\\' OR path LIKE ? ESCAPE '\\')"] * len(terms))
                 a = [x for t in terms for x in (like(t.strip('"')),) * 2]
                 total = con.execute(f"SELECT COUNT(*) FROM doc_text WHERE {w}", a).fetchone()[0]
                 rows = con.execute(f"SELECT source, part, inode, deleted, path, kind, "
-                                   f"substr(body, 1, 200) FROM doc_text WHERE {w} LIMIT ?",
-                                   a + [limit]).fetchall()
+                                   f"substr(body, 1, 200) FROM doc_text WHERE {w} ORDER BY rowid LIMIT ? OFFSET ?",
+                                   a + [limit, offset]).fetchall()
             # testi lunghi: i blocchi oltre i primi MAX_TEXT caratteri stanno in doc_text_extra
             if table_exists(con, "doc_text_extra"):
                 w2 = " AND ".join(["body LIKE ? ESCAPE '\\'"] * len(terms))
@@ -4403,7 +4481,7 @@ def make_tools(case):
                         continue
                     added.add(key)
                     total += 1
-                    if len(rows) < limit:
+                    if not offset and len(rows) < limit:
                         low = body.lower()
                         pos = min([low.find(t.strip('"').lower()) for t in terms
                                    if low.find(t.strip('"').lower()) >= 0] or [0])
@@ -4411,12 +4489,12 @@ def make_tools(case):
                                      body[max(0, pos - 80):pos + 160]))
         finally:
             con.close()
-        out = [tr("{total} documenti corrispondenti (mostrati {v1})").format(total=total, v1=len(rows))]
+        out = []
         for src, part, ino, d, path, kind, snip in rows:
             where = (tr("recuperato col carving: {ino} (usa read_carved)").format(ino=ino) if src == "carving"
                      else tr("offset {part}, inode {ino}{v1}").format(part=part, ino=ino, v1=tr(' CANCELLATO') if d else ''))
             out.append(f"- {path} [{kind}; {where}]\n  {' '.join(snip.split())}")
-        return clip("\n".join(out))
+        return pagina(out, total, offset)
 
     def list_not_indexed(reason: str = "", limit: int = 50) -> str:
         """Elenca i file il cui testo NON è stato indicizzato o lo è solo in parte (file troppo
@@ -4455,7 +4533,7 @@ def make_tools(case):
             out.append(tr("... altri {v1} (elenco completo in non_indicizzati.csv)").format(v1=len(rows) - limit))
         return clip("\n".join(out))
 
-    def search_metadata(contains: str = "", gps_only: bool = False, limit: int = 50) -> str:
+    def search_metadata(contains: str = "", gps_only: bool = False, limit: int = 50, offset: int = 0) -> str:
         """Cerca nei metadati di foto, video e documenti (marca e modello del dispositivo,
         data di scatto o creazione, coordinate GPS, autore). Senza filtri dà un riepilogo.
 
@@ -4463,6 +4541,7 @@ def make_tools(case):
             contains: testo da cercare nei metadati o nel percorso, es. 'iPhone', 'Rossi', '2024:03'
             gps_only: se true mostra solo i file con coordinate GPS
             limit: numero massimo di risultati (max 300)
+            offset: righe da saltare, per proseguire dopo una risposta incompleta
         """
         only_gps = str(gps_only).lower() in ("true", "1", "yes", "si")
         con = _db()
@@ -4490,11 +4569,11 @@ def make_tools(case):
             limit = max(1, min(int(limit), 300))
             total = con.execute(f"SELECT COUNT(*) FROM meta WHERE {cond}", a).fetchone()[0]
             rows = con.execute(f"SELECT source, part, inode, deleted, path, make, model, taken, "
-                               f"lat, lon, author FROM meta WHERE {cond} ORDER BY taken "
-                               f"LIMIT ?", a + [limit]).fetchall()
+                               f"lat, lon, author FROM meta WHERE {cond} ORDER BY taken, rowid "
+                               f"LIMIT ? OFFSET ?", a + [limit, max(0, int(offset))]).fetchall()
         finally:
             con.close()
-        out = [tr("{total} file corrispondenti (mostrati {v1})").format(total=total, v1=len(rows))]
+        out = []
         for src, part, ino, d, path, mk, md, tk, lat, lon, au in rows:
             ref = (tr("carving: {ino}").format(ino=ino) if src == "carving"
                    else tr("offset {part}, inode {ino}{v1}").format(part=part, ino=ino, v1=tr(' CANCELLATO') if d else ''))
@@ -4503,15 +4582,16 @@ def make_tools(case):
                                 f"GPS {lat:.6f},{lon:.6f}" if lat is not None else None,
                                 f"autore {au}" if au else None) if x]
             out.append(f"- {path} [{ref}] " + "; ".join(info))
-        return clip("\n".join(out))
+        return pagina(out, total, offset)
 
-    def carved_files(type: str = "", limit: int = 100) -> str:
+    def carved_files(type: str = "", limit: int = 100, offset: int = 0) -> str:
         """File recuperati con PhotoRec dallo spazio libero (file cancellati il cui indice non
         esiste più). Senza filtri dà anche il riepilogo per tipo.
 
         Args:
             type: estensione da filtrare, es. 'jpg', 'pdf', 'docx'; vuoto per tutti
             limit: numero massimo di risultati (max 500)
+            offset: righe da saltare, per proseguire dopo una risposta incompleta
         """
         limit = max(1, min(int(limit), 500))
         t = type.lower().lstrip(".")
@@ -4520,12 +4600,13 @@ def make_tools(case):
             summ = con.execute("SELECT type, COUNT(*) FROM carved GROUP BY 1 ORDER BY 2 DESC").fetchall()
             cond, a = ("WHERE type = ?", [t]) if t else ("", [])
             rows = con.execute(f"SELECT name, type, size, part, img_offset, sha256 FROM carved "
-                               f"{cond} ORDER BY img_offset LIMIT ?", a + [limit]).fetchall()
+                               f"{cond} ORDER BY img_offset, rowid LIMIT ? OFFSET ?", a + [limit, max(0, int(offset))]).fetchall()
+            totale = con.execute(f"SELECT COUNT(*) FROM carved {cond}", a).fetchone()[0]
         finally:
             con.close()
-        out = [tr("Per tipo: ") + (", ".join(f"{k} {n}" for k, n in summ) or tr("nessun file recuperato"))]
-        out += [tr("- {n} | {ty} | {sz} byte | partizione {p} | byte {off} nell'immagine | SHA-256 {v1}…").format(n=n, ty=ty, sz=sz, p=p, off=off, v1=h[:16]) for n, ty, sz, p, off, h in rows]
-        return clip("\n".join(out))
+        testa = tr("Per tipo: ") + (", ".join(f"{k} {n}" for k, n in summ) or tr("nessun file recuperato"))
+        out = [tr("- {n} | {ty} | {sz} byte | partizione {p} | byte {off} nell'immagine | SHA-256 {v1}…").format(n=n, ty=ty, sz=sz, p=p, off=off, v1=h[:16]) for n, ty, sz, p, off, h in rows]
+        return pagina(out, totale, offset, testa)
 
     def read_carved(name: str, max_chars: int = 8000, start: int = 0) -> str:
         """Legge un file recuperato col carving (testo dei documenti, stringhe dei binari)
@@ -4553,7 +4634,7 @@ def make_tools(case):
             head += tr("Metadati: ") + m[0][:2000] + "\n"
         return head + _show(f.read_bytes()[:50 << 20], f.name, max_chars, start)
 
-    def search_traces(kind: str = "", contains: str = "", limit: int = 100) -> str:
+    def search_traces(kind: str = "", contains: str = "", limit: int = 100, offset: int = 0) -> str:
         """Tracce trovate da bulk_extractor in tutta l'immagine, anche nello spazio libero e nei
         file cancellati: email, url, ricerche web, telefoni, carte di credito, coordinate GPS, IP.
         Senza filtri dà il riepilogo con i valori più frequenti.
@@ -4563,6 +4644,7 @@ def make_tools(case):
                   rfc822, pii, winlnk, winprefetch, vcard; vuoto per tutti
             contains: testo da cercare nel valore o nel contesto
             limit: numero massimo di risultati (max 300)
+            offset: righe da saltare, per proseguire dopo una risposta incompleta
         """
         con = _db()
         try:
@@ -4586,13 +4668,11 @@ def make_tools(case):
             limit = max(1, min(int(limit), 300))
             total = con.execute(f"SELECT COUNT(*) FROM features WHERE {cond}", a).fetchone()[0]
             rows = con.execute(f"SELECT kind, offset, feature, context FROM features WHERE {cond} "
-                               f"ORDER BY pos LIMIT ?", a + [limit]).fetchall()
+                               f"ORDER BY pos, rowid LIMIT ? OFFSET ?", a + [limit, max(0, int(offset))]).fetchall()
         finally:
             con.close()
-        out = [tr("{total} tracce (mostrate {v1}); offset in byte dall'inizio dell'immagine (usa "
-                  "locate_offset per sapere a quale file appartengono)").format(total=total, v1=len(rows))]
-        out += [tr("- [{k}] byte {o} | {v1} | contesto: {v2}").format(k=k, o=o, v1=v, v2=c[:160]) for k, o, v, c in rows]
-        return clip("\n".join(out))
+        out = [tr("- [{k}] byte {o} | {v1} | contesto: {v2}").format(k=k, o=o, v1=v, v2=c[:160]) for k, o, v, c in rows]
+        return pagina(out, total, offset, tr("Offset in byte dall'inizio dell'immagine (usa locate_offset per sapere a quale file appartengono)."))
 
     bsize = {}
 
@@ -4682,7 +4762,7 @@ def make_tools(case):
         return tr("Esportato in {dest} ({n} byte), SHA-256 {v1}").format(dest=dest, n=n, v1=h.hexdigest())
 
     def query_timeline(start: str = "", end: str = "", contains: str = "",
-                       origin: str = "", limit: int = 100) -> str:
+                       origin: str = "", limit: int = 100, offset: int = 0) -> str:
         """Interroga la timeline (orari UTC), ordinata per data.
 
         Args:
@@ -4691,17 +4771,16 @@ def make_tools(case):
             contains: testo da cercare in percorso, sorgente o messaggio
             origin: 'tsk' (file system) o 'plaso' (artefatti di sistema); vuoto per entrambe
             limit: numero massimo di eventi (max 300)
+            offset: righe da saltare, per proseguire dopo una risposta incompleta
         """
         w, p = _where(start, end, contains, origin)
         limit = max(1, min(int(limit), 300))
         con = _db()
         total = con.execute(f"SELECT COUNT(*) FROM events{w}", p).fetchone()[0]
         rows = con.execute(f"SELECT ts, kind, source, message FROM events{w} "
-                           "ORDER BY ts LIMIT ?", p + [limit]).fetchall()
+                           "ORDER BY ts, rowid LIMIT ? OFFSET ?", p + [limit, max(0, int(offset))]).fetchall()
         con.close()
-        out = [tr("{total} eventi corrispondenti (mostrati {v1})").format(total=total, v1=len(rows))]
-        out += [" | ".join(str(x) for x in r) for r in rows]
-        return clip("\n".join(out))
+        return pagina([" | ".join(str(x) for x in r) for r in rows], total, offset)
 
     def timeline_activity(start: str = "", end: str = "", contains: str = "") -> str:
         """Panoramica della timeline: primo/ultimo evento, giorni con più attività, sorgenti.
@@ -4726,7 +4805,7 @@ def make_tools(case):
         return clip("\n".join(out))
 
     def record_finding(title: str, description: str, references: str) -> str:
-        """Registra un reperto rilevante per il report finale.
+        """Registra un reperto di interesse investigativo per il report finale (non conteggi, statistiche o semplici risposte).
 
         Args:
             title: titolo breve del reperto
@@ -4759,8 +4838,110 @@ def make_tools(case):
             out.append(tr("{v1} offset {p} inode {i}\t{pa}\t{sz} B\tMD5 {m5}\tSHA1 {s1}\tSHA256 {s2}").format(v1='*' if d else ' ', p=p, i=i, pa=pa, sz=sz, m5=m5, s1=s1, s2=s2))
         return clip("\n".join(out))
 
+    def query_database(offset: int, inode: str, sql: str, salta: int = 0) -> str:
+        """Esegue una query SQL in sola lettura su un database SQLite del caso (copia di lavoro con -wal e -journal;
+        l'originale non è toccato). La query va nel registro. 200 righe per volta; date e numeri NON convertiti: dichiara
+        unità e fuso quando li interpreti. Per sapere quante righe ci sono usa prima SELECT COUNT(*).
+
+        Args:
+            offset: offset della partizione o dell'estrazione
+            inode: inode del file del database
+            sql: una sola istruzione SELECT
+            salta: righe da saltare, per proseguire dopo una risposta incompleta
+        """
+        import forense_database as fdb
+        import forense_gui as G
+        return clip(fdb.interroga(G, case, {"part": _off(offset), "inode": str(inode)}, sql, salta=salta), MAX_OUT + 300)
+
+    def flights() -> str:
+        """Voli dei droni trovati nel caso: file, formato, stato, date come nella fonte, posizioni, lunghezza calcolata sui
+        punti in metri, quota massima in metri, modello e numero di serie se il registro li riporta. Una traccia dice cosa
+        riporta il file, non chi pilotava. «cifrato» = telemetria non letta.
+        """
+        import forense_droni as fdr
+        out = [json.dumps({k: v.get(k) for k in ("nome", "file", "formato", "stato", "inizio", "fine", "punti_tot", "lunghezza_m", "quota_max", "riepilogo", "sha256", "nota")}, ensure_ascii=False) for v in fdr.voli(case)]
+        return clip("\n".join(out)) if out else tr("Nessun volo letto in questo caso.")
+
+    def location_points(categoria: str = "", da: str = "", a: str = "", offset: int = 0) -> str:
+        """Punti con coordinate del caso (metadati, chat, artefatti iLEAPP/ALEAPP), gli stessi della Mappa. Senza categoria
+        elenca le categorie con il numero di punti. Una posizione è un dato della fonte: non prova che il dispositivo
+        fosse lì. Date come nella fonte, senza conversione di fuso: dichiaralo quando le citi. Nella colonna fonte
+        «a|N» si apre con read_artifact(N), «f|fs|offset|inode|percorso» è un file, «c|N» è un messaggio.
+
+        Args:
+            categoria: nome esatto di una categoria, oppure vuoto per l'elenco
+            da: data iniziale AAAA-MM-GG, facoltativa
+            a: data finale AAAA-MM-GG, facoltativa
+        """
+        import forense_mappe as fmp
+        r = fmp.punti(case)
+        if not categoria:
+            return "\n".join(f"{c['nome']}: {c['punti']}" for c in r["categorie"]) or tr("Nessun punto con coordinate in questo caso.")
+        idx = next((i for i, c in enumerate(r["categorie"]) if c["nome"] == categoria), None)
+        if idx is None:
+            return tr("Categoria sconosciuta: {c}").format(c=categoria)
+        sel = [p for p in r["punti"] if p[2] == idx and (not da or (p[4] and p[4][:10] >= da)) and (not a or (p[4] and p[4][:10] <= a))]
+        off = max(0, int(offset))
+        return pagina([f"{p[3]}\t{p[5]}\t{p[1]}\t{p[0]}" for p in sel[off:off + 200]], len(sel), off, tr("Fonte, data come nella fonte, latitudine, longitudine:"))
+
+    def deleted_records(offset: int, inode: str, salta: int = 0) -> str:
+        """Elenca i record cancellati recuperati dai byte di un database SQLite del caso. Sono DA VERIFICARE: un record
+        può essere la vecchia copia di una riga aggiornata. Citali come tali, con tabella e offset.
+
+        Args:
+            offset: offset della partizione o dell'estrazione
+            inode: inode del file del database
+        """
+        import forense_database as fdb
+        import forense_gui as G
+        return clip(fdb.recuperati_testo(G, case, {"part": _off(offset), "inode": str(inode)}, salta=salta), MAX_OUT + 300)
+
+    def read_artifact(artifact_id: int) -> str:
+        """Tutti i campi di un artefatto del caso, compresi quelli di iLEAPP/ALEAPP. Il numero è quello che i riferimenti
+        chiamano «riga N della tabella artifacts» e che location_points indica come «a|N».
+
+        Args:
+            artifact_id: numero della riga nella tabella artifacts
+        """
+        con = _db()
+        try:
+            r = con.execute("SELECT cat, grp, sub, ts, title, detail, user, src_path, data FROM artifacts WHERE id=?",
+                            (int(artifact_id),)).fetchone()
+        finally:
+            con.close()
+        if not r:
+            return tr("Artefatto {id} non trovato.").format(id=artifact_id)
+        d = dict(zip(("cat", "grp", "sub", "ts", "title", "detail", "user", "src_path"), r[:8]))
+        try:
+            d["data"] = json.loads(r[8]) if r[8] else None
+        except ValueError:
+            d["data"] = r[8]
+        return clip(json.dumps(d, ensure_ascii=False, indent=1))
+
+    def list_bookmarks(category: str = "", offset: int = 0) -> str:
+        """Preferiti del caso in ordine di data dell'evento, con categorie, note e fonte. La colonna evento dice a che
+        cosa si riferisce la data: una data di modifica non prova da sola quando un fatto è avvenuto.
+
+        Args:
+            category: parte del nome di una categoria, oppure vuoto per tutte
+        """
+        righe = bookmarks_timeline(case, False)
+        if category:
+            righe = [x for x in righe if any(category.lower() in c.lower() for c in x["categorie"])]
+        if not righe:
+            return tr("Nessun preferito in questo caso.")
+        off = max(0, int(offset))
+        return pagina([json.dumps({k: x.get(k) for k in ("ts", "fine", "evento", "name", "path", "source", "part", "inode", "categorie", "note")},
+                                  ensure_ascii=False) for x in righe[off:off + 300]], len(righe), off)
+
     tools = [case_overview, fs_info, list_directory, find_files, file_metadata,
              read_file_text, file_hash, export_file, query_timeline, timeline_activity]
+    tools.append(query_database)
+    tools.append(location_points)
+    tools.append(flights)               # (3.0) anche i dischi: i voli si cercano nelle copie forensi
+    tools.append(deleted_records)
+    tools.append(read_artifact)
+    tools.append(list_bookmarks)
     if shutil.which("exiftool"):
         tools.append(file_exif)
     if case.meta.get("indice") or case.meta.get("carving"):
@@ -4824,8 +5005,13 @@ REGOLE
 2. Non inventare. Ogni affermazione cita offset, inode e percorso, oppure timestamp e sorgente.
 3. Separa sempre i FATTI osservati dalle IPOTESI.
 4. Gli orari sono UTC; su FAT/exFAT sono spesso in ora locale del dispositivo.
-5. Registra ogni elemento rilevante con record_finding.
+5. Registra con record_finding solo gli elementi di interesse investigativo: non conteggi, statistiche o semplici risposte.
 6. Rispondi in italiano, in modo chiaro e conciso.
+7. Se uno strumento dice INCOMPLETO non hai visto tutto: prosegui con offset o restringi la ricerca, e nella risposta
+   dichiara quante righe hai esaminato su quante. Non presentare mai una lettura parziale come completa.
+8. Su molti dati parti dai conteggi (count_artifacts, count_messages, timeline_activity), poi leggi solo la parte che serve.
+9. Alle domande generali (cosa c'è di sospetto, riassumi il caso) non sfogliare le cartelle una a una:
+   parti dai conteggi e dagli strumenti di ricerca, poi approfondisci ciò che emerge. Nella risposta dichiara cosa non hai esaminato.
 
 DOVE CERCARE
 - Pendrive / supporto dati: file cancellati (find_files con deleted_only), documenti,
@@ -4971,8 +5157,9 @@ def agent_turn(case, tools, messages, emit=print_emit, stop=None):
         if not calls:
             emit("answer", msg.content or tr("(nessuna risposta)"))
             return
-        if msg.content:
-            emit("thinking", msg.content)
+        if (msg.content or "").strip():
+            # testo scritto mentre registra un reperto: di solito è già la risposta, non un ragionamento
+            emit("answer" if all(c.function.name == "record_finding" for c in calls) else "thinking", msg.content)
         for c in calls:
             name = c.function.name
             try:
@@ -4994,7 +5181,20 @@ def agent_turn(case, tools, messages, emit=print_emit, stop=None):
             emit("tool_result", {"name": name, "output": out})
             messages.append({"role": "tool", "tool_call_id": c.id,
                              "content": f"<<<PROVA>>>\n{out}\n<<<FINE PROVA>>>"})
-    emit("info", tr("Limite di passi raggiunto: chiedi un riepilogo o restringi la domanda."))
+    # passi finiti: una risposta con ciò che è stato visto, che dichiara di essere parziale, invece di fermarsi in silenzio
+    messages.append({"role": "user", "content": tr("Limite di passi raggiunto. Non chiamare altri strumenti: rispondi ora con ciò che hai "
+                                                   "trovato, indicando chiaramente che cosa hai esaminato e che cosa no.")})
+    trim_history(messages)
+    try:
+        resp = client.chat.completions.create(model=MODEL, messages=messages, temperature=0.2)
+        testo = resp.choices[0].message.content or ""
+        messages.append({"role": "assistant", "content": testo})
+        case.log("assistant", {"content": testo, "limite_passi": True})
+        if testo:
+            emit("answer", testo)
+    except Exception as e:
+        emit("error", llm_errore_testo(e))
+    emit("info", tr("Analisi NON completa: raggiunto il limite di {n} passi. Scrivi «continua» per proseguire o restringi la domanda.").format(n=MAX_STEPS))
 
 
 class LLMError(Exception):
@@ -5170,11 +5370,14 @@ def bookmarks_timeline(case, only_report=True, cid=None):
             continue
         tid = th.get(str(inode)) if src == "art" else None
         ts, fine = bm_ts(mt), ""
+        pos = re.match(r"⌖ (\S+(?: \d\d:\d\d(?::\d\d)?)?)", note or "")      # (3.0) punto preferito della mappa: conta la data della posizione
+        if pos and bm_ts(pos.group(1)):
+            ts = bm_ts(pos.group(1))
         if tid is not None and tid in chats:
             ts, fine = bm_ts(chats[tid][0]) or ts, bm_ts(chats[tid][1])
         out[k] = {"id": bid, "source": src, "part": part, "inode": inode, "path": path, "name": name, "deleted": deleted, "size": size,
                   "ts": ts, "fine": fine, "chat": tid, "sha256": sha, "note": note or "", "categorie": [cat],
-                  "evento": tr("conversazione") if tid is not None else tr(BM_EVENTO[src]) if src in BM_EVENTO and ts else ""}
+                  "evento": tr("conversazione") if tid is not None else tr("data della posizione") if pos and ts else tr(BM_EVENTO[src]) if src in BM_EVENTO and ts else ""}
     return sorted(out.values(), key=lambda x: (not x["ts"], x["ts"], x["id"]))
 
 
@@ -5231,6 +5434,9 @@ def collega_copia(case, nuovo, conferma=False, progress=None):
         if cand is not None:
             nuova["image"] = str(cand)
     m.update(nuova)
+    for x in m.get("partitions") or []:     # (3.0) smartphone: i file si leggono da qui, non da «image»
+        if x.get("mobile"):
+            x["mobile"]["file"] = m.get("image", nuova["evidence"])
     case.save()
     case.log("copia_collegata", {"da": da, "a": nuova["evidence"], "sha256": "uguale" if ottenuto else "non_confrontato"})
     return {"ok": True, "sha256": "uguale" if ottenuto else "non_confrontato",
@@ -5338,17 +5544,78 @@ def report_ia(case):
     return any(x.get("origine") != FINDING_ANALISTA for x in case.findings())
 
 
+def modelli_usati(case):
+    """(3.0) Modelli IA usati davvero in questo caso, dal registro: una «sessione» dice solo che il server era collegato;
+    contano le domande e le risposte che la seguono. None se il registro non si può leggere."""
+    usati, cur = {}, None
+    try:
+        with open(case.log_path, encoding="utf-8", errors="replace") as fh:
+            for riga in fh:
+                try:
+                    r = json.loads(riga)
+                except ValueError:
+                    continue
+                ev = r.get("event")
+                if ev == "sessione":
+                    cur = r.get("data") or {}
+                elif ev in ("user", "assistant"):
+                    c = cur or {}
+                    u = usati.setdefault((c.get("model"), c.get("url")), {**c, "domande": 0, "risposte": 0, "dal": r.get("ts"), "al": None})
+                    u["al"] = r.get("ts")
+                    if ev == "user":
+                        u["domande"] += 1
+                    elif not (r.get("data") or {}).get("tool_calls"):
+                        u["risposte"] += 1
+    except OSError:
+        return None
+    return list(usati.values())
+
+
+def modelli_report_md(case):
+    """(3.0) Righe del report: quale modello IA è stato usato nel caso, oppure che non ne risulta nessuno."""
+    usati = modelli_usati(case)
+    if usati is None:
+        return [tr("- Modello IA: non determinabile (registro del caso non leggibile).")]
+    L = []
+    for u in usati:
+        dove = (tr("server esterno indicato dall'analista: {v1}").format(v1=u.get("url")) if u.get("esterno")
+                else tr("eseguito sul server della rete interna {v1}").format(v1=u.get("url")) if u.get("remoto")
+                else tr("eseguito localmente"))
+        L.append(tr("- Modello IA usato: {m} ({backend}, {dove}): {d} domande, {r} risposte, dal {dal} al {al} (dal registro del caso).").format(
+            m=u.get("model") or tr("nome non registrato"), backend=u.get("backend") or tr("server locale"), dove=dove,
+            d=u["domande"], r=u["risposte"], dal=u["dal"], al=u["al"]))
+    non_analista = [x for x in case.findings() if x.get("origine") != FINDING_ANALISTA]
+    if not L:
+        if not non_analista:
+            return [tr("- Modello IA: nessuno. Dal registro del caso non risultano domande a un modello IA.")]
+        return [tr("- Modello IA: il registro del caso non riporta domande a un modello, ma ci sono reperti attribuiti a un modello o "
+                   "di origine non registrata: {n} (vedi le etichette dei reperti).").format(n=len(non_analista))]
+    L.append(tr("- Reperti di questo report generati dal modello o di origine non registrata: {n}. Le conversazioni con il modello "
+                "restano nel caso e non entrano nel report.").format(n=len(non_analista)))
+    return L
+
+
+def modello_metodo_md(case):
+    """(3.0) Frase delle note metodologiche: il supporto del modello si dichiara solo se c'è stato davvero (dal registro)."""
+    usati = modelli_usati(case)
+    if usati is None:
+        return tr("Uso di un modello linguistico non determinabile (registro del caso non leggibile). ")
+    if not usati:
+        return tr("Nessun modello linguistico risulta usato. ")
+    if any(u.get("esterno") for u in usati):
+        return tr("Con il supporto di un modello linguistico su un server esterno indicato dall'analista: {v1}. ").format(
+            v1=", ".join(sorted({str(u.get("url")) for u in usati if u.get("esterno")})))
+    if any(u.get("remoto") for u in usati):
+        return tr("Con il supporto di un modello linguistico eseguito su un server della rete interna, senza servizi esterni. ")
+    return tr("Con il supporto di un modello linguistico eseguito localmente. ")
+
+
 def write_report(case):
     m, f = case.meta, case.findings()
     mob = is_mobile(case)
     if mob:                              # (2.20) smartphone: solo gli strumenti usati davvero in questo caso
         import forense_mobile_chat as fmc
         usati = fmc.strumenti_usati(case)
-    llm_m = m.get("llm") or {}
-    backend = llm_m.get("backend", tr("server locale"))
-    where_llm = (tr("server esterno indicato dall'analista: {v1}").format(v1=llm_m.get('url')) if llm_m.get("esterno")
-                 else tr("eseguito sul server della rete interna {v1}").format(v1=llm_m.get('url')) if llm_m.get("remoto")
-                 else tr("eseguito localmente"))
     L = [tr("# Report di analisi forense"), "",
          tr("- Generato: {v1} con {APP_NAME} {APP_VERSION} ({APP_BY})").format(v1=now(), APP_NAME=APP_NAME, APP_VERSION=APP_VERSION, APP_BY=APP_BY),
          *info_caso_md(m),
@@ -5364,7 +5631,7 @@ def write_report(case):
             "riportano in UTC.") if m.get("fuso_dispositivo") else
           tr("- Fuso orario del dispositivo: non registrato (caso preparato prima della 2.13.7). Le date di "
           "FAT/exFAT sono state convertite in UTC con il fuso del computer usato per la preparazione.")),
-         tr("- Modello LLM: {v1} ({backend}, {where_llm})").format(v1=m.get('model', '-'), backend=backend, where_llm=where_llm),
+         *modelli_report_md(case),
          tr("- Strumenti usati nelle analisi: ") + "; ".join(f"{k}: {v}" for k, v in (usati if mob else (m.get("tool_versions") or {}).items())),
          "", tr("## Hash dell'estrazione (SHA-256)") if mob else tr("## Hash dei file della copia forense (SHA-256)"), ""]
     for k, v in (m.get("sha256") or {}).items():
@@ -5481,7 +5748,7 @@ def write_report(case):
     except ImportError:
         pass
     est = m.get("estese") or {}
-    L += [tr("## Note metodologiche"), "", fmc.metodo_md(case, llm_m)] if mob else [tr("## Note metodologiche"), "",
+    L += [tr("## Note metodologiche"), "", fmc.metodo_md(case)] if mob else [tr("## Note metodologiche"), "",
           tr("L'analisi è stata condotta su copia in sola lettura con The Sleuth Kit")
           + (tr(", plaso") if tl.get("plaso_events") else "")
           + (tr(", exiftool") if m.get("indice") else "")
@@ -5492,10 +5759,7 @@ def write_report(case):
           + (tr(", libvshadow (copie shadow)") if "vss" in est else "")
           + (tr(", Sleuth Kit APFS (snapshot)") if (est.get("vss") or {}).get("snapshot_apfs") else "")
           + (tr(", Tesseract (OCR)") if "ocr" in est else "")
-          + tr(", con il supporto di un modello linguistico ")
-          + (tr("su un server esterno indicato dall'analista: {v1}. ").format(v1=llm_m.get("url")) if llm_m.get("esterno")
-             else tr("eseguito su un server della rete interna, senza servizi esterni. ") if llm_m.get("remoto")
-             else tr("eseguito localmente. "))
+          + ". " + modello_metodo_md(case)
           + verifica_reperti_md(f)
           + tr("La traccia completa di comandi e risposte è in `audit_log.jsonl`.")]
     try:

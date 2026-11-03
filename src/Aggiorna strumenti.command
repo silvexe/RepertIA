@@ -1,5 +1,5 @@
 #!/bin/bash
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 silvexe
 # Aggiorna Sleuth Kit, libewf, exiftool, poppler, PhotoRec, bulk_extractor,
 # client openai e plaso (Docker). Serve internet.

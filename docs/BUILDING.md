@@ -48,6 +48,8 @@ Structure and components in [build/mac/COME_RICOSTRUIRE.txt](../build/mac/COME_R
 zip -qry -X RepertIA-<version>-Mac.zip RepertIA      # -y keeps Python's symbolic links
 ```
 
+After zipping, check the execute permission of `MacOS/RepertIA`, `Resources/avvia.command` and the two `.command` files next to the app, then start the program from the extracted app: the command-line acceptance test does not go through these files.
+
 For a new version it is enough to extract the previous zip, replace the files in `Resources/RepertIA/`, update
 `Info.plist` and `LEGGIMI.txt` and compress again.
 
@@ -56,7 +58,7 @@ For a new version it is enough to extract the previous zip, replace the files in
 Structure in [build/linux/COME_RICOSTRUIRE.txt](../build/linux/COME_RICOSTRUIRE.txt): a `RepertIA/` folder with the
 scripts from `build/linux/` (`installa.sh`, `RepertIA.sh`, `collaudo.sh`, `aggiorna-strumenti.sh`,
 `requirements-linux.txt`, `repertia.png`, `LEGGIMI.txt`, `README_EN.txt`), `LICENSE`, `THIRD_PARTY_LICENSES.md`,
-`VALIDAZIONE.md`, `RepertIA/` (the files of `src/`), `strumenti/7zip/7zz` (7z2601-linux-x64.tar.xz) and
+`VALIDAZIONE.md`, `RepertIA/` (the files of `src/`), `strumenti/7zip/7zz` (7z2605-linux-x64.tar.xz) and
 `strumenti/tessdata` (as in the Mac package, with `LICENSE.txt`). Python, plaso and the libraries are installed on the
 target computer by `installa.sh`.
 
@@ -73,7 +75,7 @@ The installer's `app\` folder contains `RepertIA.bat`, `Aggiorna strumenti.bat`,
 `python\`, `strumenti\`. Also put `LICENSE`, `THIRD_PARTY_LICENSES.md` and `VALIDAZIONE.md` in `app\`:
 `File /r app\*.*` includes them in the installer. The installer is bilingual: `LEGGIMI.txt` and `README_EN.txt` must be
 next to `repertia.nsi` ("License" page in Italian or English). The Windows `LEGGIMI.txt` ends with the full text of the
-GPL (the installer's "License" page).
+AGPL (the installer's "License" page).
 
 **Installer** (with NSIS):
 
@@ -104,6 +106,7 @@ check the result: `python3 nsis_x.py <new>.exe test/` and compare with the expec
 
 ## Publishing a version
 
+0. Check the final packages: `python3 tools/controlla_pacchetti.py <packages folder>` (permissions, links, version, required files, sources equal to `src/`, Setup equal to the zip, checksums, start from the Mac zip). Then by hand: double-click the app from the **downloaded** zip, Setup on Windows.
 1. Acceptance test on Mac, Windows and Linux and data check: `python3 tools/controlla_pubblicazione.py .` (with
    `--parole` and a private list, never in the repository) must report no sensitive data.
 2. `git commit -s`, `git tag v<version>`, `git push origin main v<version>`.

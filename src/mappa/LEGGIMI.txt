@@ -1,0 +1,6 @@
+Componenti della mappa (RepertIA 3.0), inclusi senza modifiche:
+- MapLibre GL JS 6.16.0, BSD-3-Clause: LICENSE-maplibre.txt (https://github.com/maplibre/maplibre-gl-js)
+- pmtiles 4.5.0 (dist/pmtiles.js), BSD-3-Clause: LICENSE-pmtiles.txt (https://github.com/protomaps/PMTiles)
+- ne_50m.geojson e ne_110m.geojson (report portatile): confini degli stati di Natural Earth 1:50m e 1:110m, pubblico dominio (https://www.naturalearthdata.com/about/terms-of-use/),
+  solo le geometrie, coordinate arrotondate a 3 decimali. I confini non esprimono alcuna posizione su dispute territoriali.
+- fonts/: glifi di Noto Sans Regular, Medium e Italic da protomaps/basemaps-assets (commit 028c18f, 31/10/2025), SIL OFL 1.1: fonts/OFL.txt (https://github.com/protomaps/basemaps-assets)

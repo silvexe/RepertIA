@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 silvexe
 """RepertIA - backup locali di WhatsApp Android (.crypt14, .crypt15) decifrati con la chiave dell'estrazione (dalla 2.20).
 

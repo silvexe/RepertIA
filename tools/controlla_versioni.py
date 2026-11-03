@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 silvexe
 """RepertIA (2.21): confronta le versioni dei componenti indicate in THIRD_PARTY_LICENSES.md e nello script di iLEAPP/ALEAPP
 con l'ultima release pubblicata. Si lancia PRIMA di fissare una versione e prima di costruire i pacchetti; non aggiorna nulla.
@@ -18,11 +18,15 @@ COMPONENTI = [("iLEAPP", "gh", "abrignoni/iLEAPP"), ("ALEAPP", "gh", "abrignoni/
               ("The Sleuth Kit", "gh", "sleuthkit/sleuthkit"), ("bulk_extractor", "gh", "simsong/bulk_extractor"),
               ("Tesseract OCR", "gh", "tesseract-ocr/tesseract"), ("plaso", "gh", "log2timeline/plaso"),
               ("pytsk3", "pypi", "pytsk3"), ("Pillow", "pypi", "Pillow"), ("yara-python", "pypi", "yara-python"),
-              ("ExifTool", "gh", "exiftool/exiftool"), ("whisper.cpp", "gh", "ggml-org/whisper.cpp")]
+              ("ExifTool", "txt", "https://exiftool.org/ver.txt"), ("whisper.cpp", "gh", "ggml-org/whisper.cpp")]
 NUM = re.compile(r"\d+(?:\.\d+)+|\d{6,}")
 
 
 def ultima(fonte, nome):
+    if fonte == "txt":                  # ExifTool non pubblica release su GitHub: l'ultima versione è in un file di testo
+        rq = urllib.request.Request(nome, headers={"User-Agent": "RepertIA-controlla-versioni"})
+        with urllib.request.urlopen(rq, timeout=25) as r:
+            return r.read().decode("ascii", "replace").strip()
     url = (GH if fonte == "gh" else PYPI).format(nome)
     h = {"User-Agent": "RepertIA-controlla-versioni", "Accept": "application/json"}
     if fonte == "gh" and os.environ.get("GITHUB_TOKEN"):        # senza token GitHub limita le richieste

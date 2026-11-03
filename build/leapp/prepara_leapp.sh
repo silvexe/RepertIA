@@ -1,5 +1,5 @@
 #!/bin/bash
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 silvexe
 # RepertIA 2.20 - prepara le cartelle strumenti/ileapp e strumenti/aleapp per i pacchetti Mac, Windows e Linux.
 # Uso: ./prepara_leapp.sh <python 3.12 dell'app per Mac> <cartella di lavoro>

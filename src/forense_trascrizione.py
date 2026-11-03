@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 silvexe
 """RepertIA (2.20) - trascrizione automatica degli audio con Whisper (whisper.cpp), sul computer, senza rete e senza LLM.
 
@@ -222,6 +222,30 @@ def _whisper(model, wav, lang, out, timeout):
         if t:
             segs.append([round((o.get("from") or 0) / 1000, 2), round((o.get("to") or 0) / 1000, 2), t])
     return (d.get("result") or {}).get("language") or lang, segs
+
+
+DETTATURA_MAX = 30 << 20            # byte di una registrazione: oltre due minuti di parlato
+
+
+def dettatura(dati, lingua):
+    """(3.0) Dettatura di un prompt: l'audio resta in una cartella temporanea, cancellata subito, e non entra nel caso.
+    Modello: il più adatto fra quelli già installati, senza scaricare nulla. Restituisce (testo, modello, durata in secondi)."""
+    if not exe() or not ffmpeg():
+        raise ValueError(tr("Motore di trascrizione o ffmpeg non trovati: reinstalla RepertIA."))
+    inst = installed()
+    mid = next((x for x in ("small", "base", "turbo") if x in inst), None)
+    if not mid:
+        raise ValueError(tr("Nessun modello di trascrizione installato."))
+    if not dati or len(dati) > DETTATURA_MAX:
+        raise ValueError(tr("Registrazione vuota o troppo lunga."))
+    with tempfile.TemporaryDirectory(prefix="repertia_dettatura_") as d:
+        d = Path(d)
+        (d / "voce.bin").write_bytes(dati)
+        durata = _wav(d / "voce.bin", d / "voce.wav", 120)
+        if durata is None:
+            raise ValueError(tr("Audio del microfono non leggibile."))
+        _lang, segs = _whisper(inst[mid]["path"], d / "voce.wav", lingua, d / "testo", 300)
+    return " ".join(s[2] for s in segs).strip(), mid, round(durata, 1)
 
 
 def opzioni(d):

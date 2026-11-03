@@ -1,5 +1,5 @@
 #!/bin/bash
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 silvexe
 # RepertIA - Installazione su Linux (Ubuntu 24.04 o successivo, Debian 13). Serve internet una volta.
 # 1) installa con apt gli strumenti forensi (Sleuth Kit, libewf, PhotoRec, Poppler, ExifTool, Tesseract)

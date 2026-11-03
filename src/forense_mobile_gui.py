@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 silvexe
 """RepertIA - interfaccia dei casi smartphone (dalla 2.20): richieste /api/mobile/* del server di forense_gui.py
 e dati aggiuntivi del riepilogo del caso. La pagina è forense_mobile.html, inserita dal server in forense_gui.html."""
@@ -153,6 +153,7 @@ def threads(case, q):
                            + (" WHERE " + " AND ".join(w) if w else "") + " ORDER BY last_ts DESC LIMIT 5000", a).fetchall()
         apps = dict(con.execute("SELECT app, COUNT(*) FROM chat_messages GROUP BY app").fetchall())
         out = []
+        lid_f = con.execute("SELECT lid, fonte FROM chat_lid").fetchall() if con.execute("SELECT 1 FROM sqlite_master WHERE name = 'chat_lid'").fetchone() else []
         for i, app, t, p, g, n, f, l, src, origin, local, tpart, tinode in rows:
             last = con.execute("SELECT text, kind, direction, extra FROM chat_messages WHERE thread=? ORDER BY ts DESC, id DESC LIMIT 1",
                                (i,)).fetchone()
@@ -160,7 +161,8 @@ def threads(case, q):
                         "first": f, "last": l, "src": src, "preview": (last[0] or "")[:120] if last else "",
                         "preview_kind": last[1] if last else "", "preview_out": bool(last and last[2] == "out"),
                         "preview_tipo": fmw.etichetta(last[1], last[3]) if last and last[1] == "non gestito" else None,
-                        "origin": origin, "local": fmc.show_id(local) if local else None, "part": tpart, "inode": tinode})
+                        "origin": origin, "local": fmc.show_id(local) if local else None, "part": tpart, "inode": tinode,
+                        "lid_fonti": sorted({x[1] for x in lid_f if x[0] in (p or "")})})
         return {"threads": out, "apps": apps}
     finally:
         con.close()
@@ -1084,7 +1086,7 @@ def post(G, path, b):
         tro = G.trascr_check(b.get("trascrizione"))         # (2.20) trascrizione scelta alla creazione del caso
         args += (["--trascrizione", json.dumps(tro)] if tro else [])
         args += (["--no-hash"] if b.get("no_hash") else []) + (["--hash-file"] if b.get("hash_file") else []) + \
-                (["--leapp"] if b.get("leapp") else []) + (["--decomprimi"] if info["decomprimere"] else []) + \
+                (["--drone"] if b.get("drone") else []) + (["--leapp"] if b.get("leapp") else []) + (["--decomprimi"] if info["decomprimere"] else []) + \
                 (["--fuso", fuso] if fuso else []) + (["--keychain", kc] if kc else []) + \
                 (["--wa-backup"] if b.get("wa_backup") or wk else []) + \
                 [y for x in sds for y in ("--sysdiagnose", x)]

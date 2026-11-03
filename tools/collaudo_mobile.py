@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 silvexe
 """Costruisce le estrazioni di prova degli smartphone per il collaudo di RepertIA (2.20) e il file dei valori attesi.
 

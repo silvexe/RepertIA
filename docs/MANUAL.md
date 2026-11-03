@@ -5,8 +5,8 @@
 [VALIDATION.md](../VALIDATION.md). Names of buttons and menus are given as they appear in the English interface; file
 and folder names created by the program (`estratti`, `export`, `CasiForensi`…) are in Italian whatever the language.*
 
-**Forensic analysis of disk and USB drive images with local artificial intelligence.**
-Version 2.21.0 · macOS, Windows and Linux (experimental) · interface in English or Italian
+**Forensic analysis of disk and USB drive images, smartphone extractions and drone flight logs, with local artificial intelligence.**
+Version 3.0.0 · macOS, Windows and Linux (experimental) · interface in English or Italian
 
 RepertIA takes a forensic image (raw, dd, img or E01), indexes it with established forensic tools and lets you examine
 it in two complementary ways:
@@ -19,12 +19,17 @@ it in two complementary ways:
 
 ---
 
+**Reset interface.** **↺ Reset interface**, in the case bar, puts columns, panes, views, tree, filters and displayed time back as they were at first opening and reopens the case. Case data is not touched: findings, bookmarks, searches, log and analyses remain, as do theme, language and operator. Widths and views are shared by all cases.
+
+**Guide.** On the start page, **📖 Guide** opens the illustrated guide, a single page in Italian and English with contents and search, at the language of the interface. It does not use the network.
+
 ## Privacy: everything stays on your computer
 
 RepertIA is designed to work **only locally**. Case data are **never sent to third parties**.
 
 - **No external services.** There are no accounts, cloud, telemetry, usage statistics or automatic updates. The program
   contacts no website during the analysis.
+- **Downloads only on request and with no case open (3.0).** Background maps and transcription models are downloaded only with a click of the analyst and with no case open (models also when starting a new analysis, before the case exists): with a case open the program refuses. Only the chosen map or model is requested and no case data is sent.
 - **The AI model is local.** The agent talks only to the LLM server started on your computer (`localhost`: LM Studio
   port 1234, llama-server 8080, Ollama 11434). Questions, answers and content read from the evidence stay on the
   machine.
@@ -44,7 +49,7 @@ The internet is needed only, and only when you ask, to **install or update the t
 client, the plaso Docker image; on Linux apt and PyPI). At those times no case data is transmitted. Note: Homebrew may
 send anonymous installation statistics on its own; they are disabled with `brew analytics off`.
 
-> The only intended exception: if you choose **Network server** in the *LLM server* panel (or the `FORENSE_URL`
+> The only intended exception: if you choose **Network server** in the *AI model* menu (or the `FORENSE_URL`
 > variable / the `--url` option), the questions and the content read by the agent go to that server on the internal
 > network; the report states it, with its address. The connection to the LLM server is always direct, never through a
 > proxy. By default RepertIA uses only servers on this computer (`localhost`).
@@ -123,11 +128,10 @@ English.
   steps and answers: the agent remembers the context and you can continue where you left off.
 - **New conversation** opens a clean one; earlier ones stay in **Conversations**, from where you can reopen or delete
   them (they remain in the `audit_log.jsonl` log anyway).
-- If the LLM server is not running, RepertIA opens the Results directly; when you start it, **Retry** in the *LLM
-  server* panel reconnects the agent without losing the conversation.
+- If the LLM server is not running, RepertIA opens the Results directly; when you start it, **Retry** in the *AI model* menu reconnects the agent without losing the conversation.
 
 ### LLM server on another computer
-In the *LLM server* panel choose **This computer** (default: the server is looked for automatically on ports 8080, 1234
+In the *AI model* menu choose **This computer** (default: the server is looked for automatically on ports 8080, 1234
 and 11434) or **Network server**: enter the server's address (e.g. `192.168.1.20`, or with the port
 `http://192.168.1.20:8080`), the API key if needed, and press **Connect**. Without a port, 8080, 1234 and 11434 are
 tried. The choice is saved (`~/Library/Application Support/RepertIA/impostazioni.json` on the Mac) and applies to all
@@ -153,7 +157,7 @@ shows *(external server)* and the report says "external server indicated by the 
 | **Files** | Complete list of files, deleted ones too, with search in path and extension. |
 | **Timeline** | **Activity bar chart** and table of events (modified, accessed, metadata changed, created; file system and plaso). |
 | **Documents** | Search for words and phrases *inside* documents (Word, Excel, PowerPoint, PDF, OpenDocument, RTF, text, email). In the tree view the entry is split **by extension** (`.docx · Word`, `.xlsx · Excel`, `.pdf · PDF`…, plus *E-mail* and *No extension*, with the number of documents): a click shows only that family; the same filter is the section's *Extension* field. |
-| **Photos/Videos/Audio** | Device, date taken, GPS and authors read with exiftool (photos, videos and documents); sub-items **Photos**, **Videos** and **Audio** (audio files from the case file list, also in cases already prepared). |
+| **Photos/Videos/Audio** | File size and dates (can be filtered and sorted, as in Documents); device, date taken, GPS and authors read with exiftool (photos, videos and documents); sub-items **Photos**, **Videos** and **Audio** (audio files from the case file list, also in cases already prepared). |
 | **Recovered files** | Files recovered from free space with PhotoRec (if run). |
 | **Items of interest** | Emails, websites, searches, phone numbers, GPS found by bulk_extractor (if run). |
 | **⭐ Favourites** | File categories created by the analyst (see *Favourites*). |
@@ -171,7 +175,7 @@ portable report `$Unalloc` shows the list of runs already computed (position and
 
 **Tree view (default).** The sections are a side tree, with indented sub-entries: deleted files, file-system and plaso
 timeline (with plaso's individual sources), photos with GPS, types of recovered files, types of items of interest,
-saved searches, favourite categories and open tabs. A sub-entry opens the section with the filter already set.
+saved searches, favourite categories and open tabs. A sub-entry opens the section with the filter already set. Each opened item stays as a tab in a bar above the table: the 6 most recent are in view, all of them under **Open tabs (N)**, most recent first, with ✕ to close them; **✕ Close all**, next to it, closes them in one go. They stay for that case in this browser and remind you what you have already looked at. Clicking a row opens the preview, also for calls and events without a direct file; changing item closes the previous preview.
 **☰ Tab view** switches to horizontal tabs, **🌲 Tree view** goes back to the tree; the choice is remembered.
 At the top of the tree the **Filter the entries** box (2.20) keeps only the entries that contain the typed words,
 ignoring case and accents (e.g. «whatsapp», «biome», «whatsapp group»), with the parent entries open; **Esc** clears it.
@@ -180,7 +184,7 @@ ignoring case and accents (e.g. «whatsapp», «biome», «whatsapp group»), wi
 times in UTC or in Italian time (Europe/Rome, with daylight saving time): lists, timeline
 (also the *From/To* filters and the chart per day), previews and date interpretations in the hex view. Case data, the
 log and `report.md` stay in UTC; the PDF and Word report can be saved with times in Italian time (stated at the
-top). The same selector is in the portable report (there the months of the timeline bar stay in UTC).
+top). The same selector is in the portable report (there the months of the timeline bar stay in UTC). (3.0) When the case opens, if the device has a recorded time zone different from the one chosen here, a notice says so and offers **🕒 Use** that zone (with “Don't ask again for this case”).
 
 **Plaso and bulk_extractor.** Plaso events have the **Preview**, **⭐ Favourites**, **Hex**, **Tree** and **Show in file
 manager** (Finder on the Mac) buttons: the file is derived from the event's path (registry, evtx, prefetch, browser
@@ -244,7 +248,7 @@ metadata* again.
 The search runs in the background with progress and can be **stopped**, keeping the results found so far. **The result
 opens in a new 🔎 tab** with one file per line, where it was found (name, content, hash…), the terms, an excerpt of the
 text around the word (or the offset in the file) and the hashes: there you work only on those files with all the
-functions (list or thumbnails, preview and hex, selection, *Export files* with manifest, CSV, finding, *Show in tree*),
+functions (list or thumbnails, preview and hex, selection, *Export files* with manifest, CSV, finding, *Show in File System*),
 with internal filters (found in, term, deleted only). Searches stay in **Saved searches**, also when the case is
 reopened: *Open*, *Reuse* (reloads the parameters), *Delete*. Every search is recorded in the case log.
 
@@ -293,7 +297,7 @@ narrow it, close it with ✕ or Esc, and use the keyboard arrows to move to the 
 - **Hex**: the content byte by byte (see below);
 - **Metadata**: the file's SHA-256, file-system dates and attributes (istat), exiftool metadata.
 
-The pane also offers *Show in tree*, *Export*, *Finding* and *Ask the agent*.
+The pane also offers *Show in File System*, *Export*, *Finding* and *Ask the agent*.
 
 **Hex view.** Offset, bytes in hex and ASCII column, in 4 KB pages (◀ ▶ or *Go to offset*: decimal, `0x…` or relative
 `+16`). You can search for **text**, **UTF-16 text** (Windows strings) or a **byte sequence** (e.g. `FF D8 FF`,
@@ -302,7 +306,7 @@ shows: offset, value and **bits**, 8/16/32/64-bit little- and big-endian integer
 Windows FILETIME, DOS/FAT, HFS+ or Apple **date**; plus ASCII, UTF-8 and UTF-16 text. *Copy hex* and *Copy offset* put
 the values on the clipboard.
 
-**Show in tree, in a separate tab.** In Files, Timeline, Documents and Photos the **path is clickable** (in thumbnails
+**Show in File System, in a separate tab.** In Files, Timeline, Documents and Photos the **path is clickable** (in thumbnails
 the 📁 icon): a **new tab** opens with the tree already open on the folder and the file highlighted. The section you came
 from stays as it was (filters, page, scroll position, selection): go back with the **↩** tab at the top left. Tabs are
 closed with ×; at most eight stay open. The same applies to paths cited by the agent in its answers and to *Show in
@@ -311,7 +315,7 @@ tree* in the preview.
 **Timeline chart.** Each bar is a day (or a month / year if the period is long; you can choose with *Day · Month ·
 Year*). Hovering over a bar shows how many events and of what type; **clicking it, the table below shows only the events
 of that period**. Clicking a month the chart goes down to its days; *← Whole period* returns to the full view. *Most
-active periods* are shortcuts to the peaks. Text, event-type and source filters apply both to the chart and the table.
+active periods* are shortcuts to the peaks. Text, event-type and source filters apply both to the chart and the table. (3.0) The **Bookmarks** source shows dated bookmarks in the chart and table, with the text and period filters: undated ones are only counted, and column filters do not apply. It is also reached from **Bookmark timeline → 📊 View in the Timeline chart**. The date means what the Event column states.
 
 **Selection and export.** Every table has a column of check boxes:
 - click a box for one item; **Shift+click** for a range;
@@ -345,8 +349,11 @@ System: *Preview* and *Export*; findings and questions are made from the selecti
   **double-click** restores the default height; **▾ / ▸** on the left of the divider (and ▾ next to the chart title)
   collapses the pane above into a thin line and reopens it. Sizes and collapsed panes are kept in the browser memory;
   **↔ Reset columns** also restores these.
-- **Compact top bar** (2.20): if it does not fit on one line, the tools found become a single label **«✓ 8 tools»**
-  (or «! 6 of 8 tools» if some are missing) that opens the full list with the usual hints when clicked; then the two
+- **External tools** (3.0): a single label, on every page, with the number of tools ready (**✓**) or missing (**!**),
+  that opens the full list by group when clicked: programs found and libraries actually loaded, including iLEAPP and ALEAPP.
+  **?** next to it explains what each one is for. LibreOffice is optional and is not counted. Versions are in the diagnostic
+  log and the report.
+- **Compact top bar** (2.20): if it does not fit on one line, the two
   most recent searches remain with **«all (N)»**, which opens the Search panel (all searches are also under *🔎 Search*
   in the tree), and the subtitle moves to the hint of the name.
 - **🔎 Search** (2.20), top right below the theme selector, opens the search panel (disk and smartphone cases). After a
@@ -354,9 +361,10 @@ System: *Preview* and *Export*; findings and questions are made from the selecti
   click reopens its results, like the entry in the tree; ✕ removes only the label (the search stays saved). The last four
   searches of the case are shown; opening the panel or a label is a *Back / Forward* step. The *🔎 Search* entry also
   stays in the Results tree.
-- **⚡ Case results: fast search** (2.20), first tab of the search panel (the default in smartphone cases): it searches
-  **as you type** in what the case shows as results — system artifacts, iLEAPP/ALEAPP artifacts, calls, chat messages and
-  conversations, contacts, mail — and answers in a few milliseconds even on a phone with 500,000 iLEAPP rows. The results
+- **⚡ Case search** (2.20, extended in 3.0), first tab of the search panel and the default in all cases: it is the single place
+  to search from. It searches **as you type** through everything the case has already read — system artifacts, iLEAPP/ALEAPP
+  artifacts, calls, chat messages and conversations with attachment names, contacts, mail, file names and paths, document text,
+  metadata, recovered and extracted files, bulk_extractor traces — and answers in a few milliseconds even on a phone with 500,000 iLEAPP rows. The results
   are grouped as in the tree (*Contacts*, *Conversations*, *Chat › WhatsApp*, *Calls*, *iLEAPP/ALEAPP artifacts › category
   › artifact*…) and **collapsed**: the total is at the top, each group shows how many results it holds and opens with a
   click, so you pick the one you need. Every row has date, highlighted text and source; a click opens the item in the
@@ -364,12 +372,11 @@ System: *Preview* and *Export*; findings and questions are made from the selecti
   with name, number, source database (*Source* button to see it in the tree), the other entries with the same number and
   the conversations with that number; *🔎 Search this number* starts a new search only when you ask for it. **Phone numbers in any format**: a
   search made of digits (at least 6, with or without +, spaces, brackets, dashes) compares the last 9 digits, so
-  «+1 (919) 928-2177», «9199282177» and «19199282177@s.whatsapp.net» find each other. Words need at least 3 characters;
-  upper and lower case are the same. **Save as search** keeps all the results as a case search (tab, *🔎 Search* entry,
-  Bookmarks, CSV, log). The index is the file `ricerca_veloce.sqlite` in the case folder: it is built at the first search
+  «+1 (919) 928-2177», «9199282177» and «19199282177@s.whatsapp.net» find each other. **Save as search** keeps all the results as a case search (tab, *🔎 Search* entry,
+  Bookmarks, CSV, log). (3.0) **↗ Open in a tab**, next to each group (Contacts, Conversations, Chats › app, Calls…), saves and opens only that group in the same way. Next to the modes, **📂 Saved searches (N)** opens the list of saved searches with a field to filter them: click or Enter opens one in its tab. The index is the file `ricerca_veloce.sqlite` in the case folder: it is built at the first search
   (only once, with progress: about 1 minute and 1 GB for an iPhone with 500,000 iLEAPP rows), rebuilt by itself when the
   results change, can be deleted without losing anything, and its building goes into the log. Secret keychain values do
-  not enter the index. It does not search the content of files or the timeline: for those use the *Keywords* search.
+  not enter the index. **What it covers.** Each answer states what it did not search: the bytes of the files (unread databases, unindexed files, binaries), free space and the timeline, plus document text if indexing was not run. If it finds nothing it says so explicitly, because that does not mean the data is missing, and **Also search the bytes of the files** starts the advanced search with the same words. File hash search is done in the **Hash (single or list)** tab: a hash typed here is only compared with text already read; if the text looks like a hash, a notice says so and leads to that tab with the value already entered. Upper and lower case, accents, typographic apostrophes, spaces and line breaks do not matter. 2 characters are enough, or just one if it is an emoji or ideogram; under 3 characters parts of words are found too. In document text whole words and word beginnings are found, not inner parts. File names and metadata distinguish accents.
 - **Column filters** (2.20): the value box (▾) never goes outside the window, not even on 13" laptops: it opens below or
   above the button depending on the space, its height depends on the window height, the list of values scrolls inside it
   and sorting, search field and the *OK / Clear column / Cancel* buttons are always visible.
@@ -399,7 +406,7 @@ System: *Preview* and *Export*; findings and questions are made from the selecti
   the edge fits the column to its text. Widths are remembered per section (browser storage) as long as the columns are the
   same; **↔ Reset columns** in the last header goes back to the automatic layout. The frozen header always stays on top,
   also above the «field: value» Details.
-- **← Back / → Forward** (2.20), below the case bar: every opening (section or sub-item, file in the panel, *Show in tree*,
+- **← Back / → Forward** (2.20), below the case bar: every opening (section or sub-item, file in the panel, *Show in File System*,
   search or bookmark tab, path quoted by the agent, *Open in Results* of the Summary, chat, conversation, attachment) is a
   step. Back returns to the previous state: tab, section, filters and search, sort order, page, scroll, row, open panel
   and, for chats, conversation, message and attachment. The browser Back button, **Alt+←** / **Alt+→** and **Cmd+[** /
@@ -423,14 +430,18 @@ System: *Preview* and *Export*; findings and questions are made from the selecti
   `python3 tools/lingua_controlla.py` reports texts without a translation or with mismatched placeholders.
 
 ### Case panel and menu bar
-The **case panel** (on the left) shows the case details, media, hash and last verification, partitions, LLM server
-status and the recorded **Findings**.
+The **case panel** (on the left) shows the case details, media, hash and last verification, partitions and the recorded **Findings**. The LLM server is in the **AI model** menu of the bar, whose dot shows its status even when closed, along with an "external server" notice if the server is outside the local network.
 
 **Menu bar (2.20).** Below the RepertIA name, in the case view, four drop-down menus (they used to be the *Actions* and
 *Additional analyses* boxes of the panel):
 - **Case**: *Edit case details*, **Case folder**, **Exported files**, **Cache and location**;
 - **Report**: **Report** (also as **PDF** and **Word** .docx: `report.pdf` and `report.docx` in the case folder, with
   the SHA-256 in the log) and **Portable report**;
+  The agent's lists state the rows shown out of how many and continue in pages; if it runs out of steps “Analysis NOT complete” appears and “continue” resumes. References cited by the model must be verified.
+  The **🎤** button dictates the prompt: local transcription with whisper.cpp, audio deleted at once, text to check and send by hand.
+  RepertIA works on **one case at a time**: if you open another in a second tab, the first stops with a notice.
+  The **Timeline** can show, with its chart, a single type of evidence or a bookmark group: choose it from the Source menu or the tree, in the portable report too.  **⤢ Full screen** enlarges it, and ✕ Close or Esc return to the normal view.
+  The portable report has the case's sections, with tree and subsections, an entry filter and Size, Modified and Created columns in Documents, Photos/Videos/Audio and Included files (list or thumbnails);
 - **Checks**: **Verify hashes** (or **Compute image hash** if the hash has not been computed yet), **🔗 Verify log**,
   **Cross-check with another tool**, **Hash sets**;
 - **Additional analyses**: each analysis with its status (✓ and the numbers, or "not performed") and **Run** / **Redo**
@@ -465,6 +476,80 @@ description, delete) and each opens in a separate tab, with preview, export, fin
 Categories with **"in the report"** ticked go into the report (table per category with offset, inode, status, dates,
 SHA-256 and note) and into the portable report, with the content and full previews of their files. Favourites are
 stored in the case (`ricerche.sqlite`) and every operation is recorded in `audit_log.jsonl`.
+
+## Database manager (3.0)
+
+In the preview of an SQLite database, **🗄 Open in the database manager** lists tables and views with their row counts and lets you write SQL queries. It works on a
+**working copy** in the case folder, with the `-wal`, `-shm` and `-journal` files next to it if present, deleted on closing: the original is not touched and rows still in the `-wal` are visible.
+
+- **Read-only.** An internal SQLite check refuses writes, `ATTACH`, extensions and modifying `PRAGMA`s, whatever the text of the query. 30-second limit per query.
+- **💬 Ask the agent.** On each row and each deleted record it prepares the question with database, query or position and values, up to 300 characters per field; the manager closes and the question waits to be sent. The values go to the chosen model: a network server receives them.
+- **Back and Forward.** **←** and **→** next to the search step through tables, queries, searches and deleted records: after opening a result you return to the list without repeating the search, and reopening a query adds no log entries. Drag the divider to the right of the tables to widen them; double-click for the default width.
+- **Log.** The case log keeps the opening with the SHA-256 hashes and every query written by the analyst or the AI agent, even when refused. Clicking a table and changing page are not logged.
+- **CSV.** **Export CSV** saves the result in `export/database/` with its SHA-256 (at most 1,000,000 rows). Values stay identical to the original: a text starting with `=` may be read as a formula if the file is opened in a spreadsheet.
+- **★ and 📌.** From each row you can add the database to Bookmarks, with the query and values in the note, or record a finding of «analyst» origin with references to file, hashes, query and row.
+- **Dates and numbers** are shown as they are in the database, unconverted: write the conversion in the query, stating unit and time zone.
+- **Search.** The box at the top searches a value in all columns of all tables, shows tables and columns with the number of rows and opens the rows with one click; on request it also searches deleted records. BLOBs are compared as text. The search stays in the log.
+- **Where to open it.** From the file preview or from the menu **Additional tools → Database manager**, which lists files with a database extension or name (a database without an extension opens from its preview). The list does not read file contents: many `.db` files are not SQLite, such as Windows thumbnail caches or Firefox Berkeley DB files. Opening one shows a notice with the format, when recognised, and the hex view.
+- **AI agent.** The `query_database` tool runs one read-only query and receives the first 200 rows.
+
+Queries show only what SQLite reads; deleted records have a separate view. The manager is not available in the portable report.
+
+### Deleted records (3.0)
+
+In the manager, **🧩 Deleted records** reads the bytes of the database looking for records no longer reachable. They are **always to be verified**, stay separate from the rows of the database and do not enter chats, searches or reports until the analyst records them as findings.
+
+| Level | When | What is known |
+|---|---|---|
+| **Intact cell** | Free page, WAL or complete cell in free space, with the length calculations matching | Values read from the file and ROWID |
+| **Reconstructed head** | First record of a free space: its first 4 bytes are overwritten | ROWID «not available»; lost columns are marked «lost», never filled in |
+| **Ambiguous** | Several possible readings or table not established | All shown, does not count as a recovery |
+
+A row written before an `ALTER TABLE ADD COLUMN` has fewer columns: the missing ones come from `DEFAULT` and are marked. Even an intact cell may be the old copy of an updated or moved row, and many records are internal housekeeping of the apps (counters, queues, caches): «no longer present» does not mean deleted by a person.
+
+**How to check.** **View in hex** shows the bytes of the working copy at that point. The record also says where to look with an optional external tool, for example FQLite. **Cross-check with the FQLite CSV** imports the CSV of one table exported by the analyst: matching is by table, status and position (same offset or up to 5 bytes further). It does not confirm the values, and absence is not contrary evidence. FQLite is neither included nor started by RepertIA. Use it on copies: it may write files next to what it opens, and opening a `-wal` file on its own makes it ask for a password and leaves a `_forensic.db` file.
+
+**I confirm, verified** records the record as an analyst finding, with table, offset, values and hashes. Every analysis, cross-check and export is also written in the case log. The AI agent's `deleted_records` tool receives the records declared as to be verified.
+
+**Limits.** The tests use built databases and public copies with deletions made by us with SQLite, not by an app: on those tests about 55% of the rows were recovered, with no wrong value detected. Recovery is far lower or nil after `VACUUM`, with `secure_delete` (which cannot be read from the file) or with `auto_vacuum`. Old versions of a row after `UPDATE` and long texts with reused overflow often cannot be recovered. `-journal` files are not read by the recovery; if the journal is active, SQLite applies it to the working copy on opening, so the copy read may differ from the acquired file (the original does not change and the hashes are computed first). Zero records does not mean nothing was deleted. Limit of 120 seconds and 20,000 records per database, with a notice.
+
+## Map (3.0)
+
+**Additional tools → 🗺 Map** shows the points of the case. Everything is local: the background is in the program and no network request leaves an open case.
+
+- **Sources.** Coordinates in photo and video metadata, locations in chat attachments, Latitude/Longitude field pairs of iLEAPP/ALEAPP artifacts. The same position may appear from several sources. Each category is switched on separately and **Open the source** leads to the row or file. Nearby points are grouped: a click zooms in.
+- **Sizes.** The left column, the height of map and table and the width of the table columns change with the mouse; double-click returns to the default size. **Reset interface** clears them.
+- **From the photo to the map.** The preview of a photo or video with coordinates has **🗺 View on map**, which opens the map at that position; the same from its row in the metadata list.
+- **What a point means.** It is data from the source, to be verified: the device was not necessarily there. For example iOS «Cache Locations» are positions held by the system, including nearby cells and networks.
+- **Dates.** They are those of the source, with no time zone conversion. The From/To filter compares the written date: points with no readable date drop out when the filter is on.
+- **Excluded.** Points at 0,0 (almost always no position) and invalid coordinates are not drawn and are counted. At most 300,000 points, with a notice.
+- **Controls.** Background, **Add map**, **Import KML**, **Export KML** and **Export GPX** sit in the top bar, always visible; imported layers appear above the categories.
+- **Background.** Natural Earth 1:50m, suited to countries and regions. For roads there is **Add map**: it explains the available maps and leads to the start page, where **🗺 Download maps** downloads a country, or the world at low detail, showing size and address first. **Downloading happens only with the case closed**: the server refuses it with a case open or being prepared. When done, **Reopen the case** goes back to the case. Only areas of the list are requested, never a precise place. Maps are valid for all cases and the case log keeps which background was used, with the data date. They are data © OpenStreetMap contributors (ODbL), from Protomaps, separate from the program. A selected map shows roads by type, buildings, green areas, water and names of places and streets, with fonts included in the program and no external request: names of minor streets need maximum detail and a close zoom. Outside its area the base background remains; if the view is outside it, selecting the map moves there and ⌂ returns to the points. **Download** reads the size by itself if it was not calculated, shows it with the address and starts, with Cancel.
+- **Favourite points.** With ★ in the Positions table you mark the points of interest, also from different apps; **★ Favourite points only** shows only those, from any item, with the From/To filters, the animation and the KML/GPX export. They are the analyst's choice: they stay in the case (`mappa/livelli.json`), each addition or removal goes into the log and the item they come from (photo, message, artifact) enters the Bookmarks, category “GPS positions (map)”, with the date of the position: in the bookmarks Timeline they act as a timeline of movements. Indicative sizes, October 2026: Italy at reduced detail 114 MB, cities and roads 574 MB, maximum 4.5 GB.
+- **Isolated computer.** Download with RepertIA on another computer, copy the `.pmtiles` file and point to it with **I already have a file**, which does not use the network. Alternatively, with the Protomaps `pmtiles` program: `pmtiles extract https://build.protomaps.com/YYYYMMDD.pmtiles italy.pmtiles --bbox=6.6,36.6,18.6,47.1 --maxzoom=12`. The requested area reaches the Protomaps server: never the exact place of an investigation.
+- **Portable report.** It contains the points (up to 100,000) on a Natural Earth 1:110m background, with a simple drawing and no network: no roads, KML layers or link to the source.
+- **AI agent.** The `location_points` tool receives categories and points (the first 200), with the warning that a position does not prove the device was there; from the point's source `read_artifact` and `read_message` read the item. `list_bookmarks` lists the bookmarks.
+- **KML.** **Import KML** adds an analyst layer, separate from the evidence, with name and SHA-256 in the log. KMZ is not supported and files with `DOCTYPE` are refused.
+- **Export.** **Export KML** and **Export GPX** save the chosen points in `export/mappa/`, with SHA-256 and a log entry.
+
+## Drones (3.0)
+
+On the start page, **🚁 Drones** opens a case from a folder, zip or tar with the files of the drone's card or app. Files, photos and videos are indexed as in an extraction, then flight logs are searched for. A forensic image of the card (E01, dd) is opened from **Mass storage**: flight logs are searched for automatically at the end of preparation, including deleted files that are still listed, and appear in the same way (in cases prepared before 3.0, with **Search flights in the case** in the map). On an image, CSV files are considered only if their path mentions a drone, Litchi, Airdata or a flight, so as not to read every CSV on a computer. In the results tree, **🗺 Locations and flights** opens the same map on the chosen item.
+
+| Source | Reader | Notes |
+|---|---|---|
+| `DJIFlightRecord*.txt` logs (DJI apps) | ALEAPP | Versions 1-12. **From 13 the telemetry is encrypted and is not read:** RepertIA does not contact DJI and does not touch the encryption; «encrypted telemetry: not read» remains |
+| `.SRT` subtitles of DJI videos | RepertIA | Position, height and date reported in the subtitle. In `GPS(a, b, height)` the file does not state the order: this is flagged |
+| Litchi and Airdata CSV | RepertIA | Only CSV with `latitude` and `longitude` columns |
+| Autel logs (`AUTEL_FR`, versions 1-3; `autel_*` or `FlightLog` folder) | RepertIA | Written from the public format documentation. **Not yet tested on real logs: each flight says so.** Coordinates are 32-bit floats in the file (precision of about a metre) |
+| PX4 ULog (`.ulg`) | RepertIA | GPS topics, instance 0, fix ≥ 2 |
+| ArduPilot/MAVLink `.tlog` | RepertIA | `GLOBAL_POSITION_INT` or `GPS_RAW_INT`, CRC checked; dates from the telemetry recorder |
+| ArduPilot DataFlash `.BIN` | RepertIA | `GPS` messages, first instance, fix ≥ 2; GPS time converted to UTC with 18 leap seconds, which is an assumption for old logs |
+| Betaflight (`.bbl`, `.bfl`, `.bbs`), DJI `.DAT` | Not read | Listed with SHA-256 and «format recognised: not read» |
+
+Flights appear in the **Map**, in the portable report and in the AI agent's `flights` tool, with format, SHA-256 of the file, dates as in the source, length calculated on the points and, if the log reports them, model and serial number. Below the map, **Positions** lists the positions of the items ticked on the left, in date order, 200 per page (undated last). Clicking a row shows that position alone, with its popup and **Open source**; **Show all** returns to the full view. The ↑ ↓ arrow keys move between rows, or step one position at a time during an animation. **▶** in a row starts the animation from that date onwards, including the selected flights. During an animation the current row is highlighted in the table and pages follow it. Next to it, **Flights** lists flights in a table in date order (undated flights last; click a heading to sort), with **All** and **None**; clicking a row zooms to that flight. **▶ Animate positions** moves through the selected points and flights one position at a time in date order, with pause, speed and a slider; **▶** in a row animates that flight alone, in file order. The animation does not show real speed, and sources with different time zones may be out of order. Undated positions are excluded and counted. Tracks are exported to KML and GPX. In smartphone cases, **Search flights in the case** in the map does the same search. A track says what the file reports, not who was flying.
+
+**Limits.** Parrot and Yuneec native logs are not read. DJI logs are tested on two public DF020 logs (versions 9 and 11, few positions) and on a public encrypted log (version 14). tlog, ULog and DataFlash readers gave the same positions, heights and dates as pymavlink 2.4.50 and pyulog 1.3.0 on public sample files (6,304 tlog positions, 469 ULog positions, only 5 DataFlash positions). No public Autel log was found: that reader is tested only on files built to the documented layout, where version 3 matches autel-logger; versions 1 and 2 follow only the published record sizes. SRT and CSV are tested only on built examples, not on real drone files.
 
 ## Audio transcription (2.20)
 
@@ -731,7 +816,7 @@ dmg. In the list of cases the icon shows the type.
   (Android), with names from the phone's and WhatsApp's address books. Each database is read from a working copy with its
   `-wal`/`-shm` files, so messages not yet written back to the database also appear. The **💬 Open the chats** button in the
   case panel opens the **chat view**: conversations with filters by app, name or number, text and period; messages as
-  bubbles with sender, time, status (delivered, read), attachments with thumbnail (*Preview*, *Show in tree*) and locations;
+  bubbles with sender, time, status (delivered, read), attachments with thumbnail (*Preview*, *Show in File System*) and locations;
   each message shows the source database, table and row (click to copy the reference). Messages also go into the timeline
   and, one per conversation, into the Artifacts: the **Chat messages** entry is split by app in the tree; each row shows
   both parties (📱 *this device*, with the number or account if it is written in the extraction: sms.db, CommCenter,
@@ -756,7 +841,9 @@ dmg. In the list of cases the icon shows the type.
   sub-item per app, and in the chat view («direction not stated» when the source does not say whether a message was sent
   or received). The new **Calls** section has one row per call: date, direction (incoming, outgoing, missed, rejected,
   voicemail), number, address-book name, duration, answered, app (phone, FaceTime, WhatsApp, Duo, Instagram, LINE,
-  Viber…), and all its sources. Equal rows from different sources are merged: same call if same number within 5 seconds
+  Viber…), and all its sources. (3.0) In the table **Direction**, **Contact** (name and number), **App**, **Duration** and
+  **Answered** are separate columns, each with its own filter (e.g. only the missed calls of a number; for the duration
+  “from”/“to” accept 90, 1:30, 2m, 1h). Equal rows from different sources are merged: same call if same number within 5 seconds
   (30 for *interactionC*, which records the start of the interaction a few seconds earlier); same message if same
   identifier, or same conversation, time, direction and text (e.g. database copies in the Magisk mirror). Values that
   differ between sources are flagged. The original rows stay in the *iLEAPP/ALEAPP artifacts*. The mapping between columns
@@ -1185,7 +1272,7 @@ The history of the versions is in [CHANGELOG.en.md](../CHANGELOG.en.md).
 
 ## Mac package (Apple Silicon)
 
-`RepertIA-2.21.0-Mac.zip` contains **RepertIA.app** with Python 3.12, openai, Pillow and **plaso already included** (no
+`RepertIA-3.0.0-Mac.zip` contains **RepertIA.app** with Python 3.12, openai, Pillow and **plaso already included** (no
 Docker). Drag the app into Applications; the first time: right-click → *Open* (or *System Settings → Privacy & Security
 → Open Anyway*), because it is not signed with an Apple certificate. The app opens the Terminal, installs the missing
 tools with Homebrew (Sleuth Kit, libewf, exiftool, poppler, PhotoRec, bulk_extractor, Tesseract) and then the browser.
@@ -1194,7 +1281,7 @@ tools with Homebrew (Sleuth Kit, libewf, exiftool, poppler, PhotoRec, bulk_extra
 
 ## Windows version
 
-`RepertIA-2.21.0-Setup.exe` installs RepertIA for the current user (no administrator rights) in
+`RepertIA-3.0.0-Setup.exe` installs RepertIA for the current user (no administrator rights) in
 `%LOCALAPPDATA%\Programs\RepertIA`, with Python and the tools already included: plaso, The Sleuth Kit (reads E01 files
 directly), ExifTool, Poppler, PhotoRec, bulk_extractor, 7-Zip, Tesseract OCR (Italian and English) and the libraries for
 Outlook mail, shadow copies and encrypted volumes. It is started from the Start menu → **RepertIA**: a black window opens,
@@ -1212,11 +1299,11 @@ to be kept open, and the browser. Cases are in `%USERPROFILE%\CasiForensi`, sett
 
 ## Linux version (experimental)
 
-`RepertIA-2.21.0-Linux.tar.gz` is for **Linux x86_64** with Python 3.12 or later (Ubuntu 24.04 or later, Debian 13).
+`RepertIA-3.0.0-Linux.tar.gz` is for **Linux x86_64** with Python 3.12 or later (Ubuntu 24.04 or later, Debian 13).
 The program is the same as the Mac and Windows versions (same source fingerprint).
 
 ```
-tar -xzf RepertIA-2.21.0-Linux.tar.gz
+tar -xzf RepertIA-3.0.0-Linux.tar.gz
 cd RepertIA
 ./installa.sh          # once, with internet: asks for the administrator password
 ./RepertIA.sh          # or from the applications menu
@@ -1227,7 +1314,7 @@ cd RepertIA
   with **plaso, the libyal libraries, pytsk3, Pillow and openai at the same versions as the Mac and Windows packages**
   (`requirements-linux.txt`; the libyal libraries are compiled, 10-20 minutes) and adds RepertIA to the menu. The log is
   in `installa.log`; the script can be run again.
-- Included in the archive: 7-Zip 26.01 (`strumenti/7zip`) and the Italian/English OCR data (`strumenti/tessdata`).
+- Included in the archive: 7-Zip 26.05 (`strumenti/7zip`) and the Italian/English OCR data (`strumenti/tessdata`).
 - **Differences from Mac and Windows**: the forensic tools are those of the distribution, with its versions (reported as
   always in the report, *Analysis environment* section); bulk_extractor may be missing in some distributions (carving
   then uses PhotoRec); no disk acquisition.
@@ -1309,9 +1396,9 @@ tests are the author's.
 
 ## License
 
-Copyright (C) 2026 silvexe. RepertIA is free software, released under the **GNU General Public License
-version 3 or later** (GPL-3.0-or-later): it can be used, studied, modified and redistributed, modified too, provided it
-is under the same license and with the source code. It is provided without any warranty. The third-party components
+Copyright (C) 2026 silvexe. RepertIA is free software, released under the **GNU Affero General Public License
+version 3 or later** (AGPL-3.0-or-later): it can be used, studied, modified and redistributed, modified too, provided it
+is under the same license and with the source code. It is provided without any warranty. Versions up to 2.21.0 remain under GPL-3.0-or-later. The third-party components
 included in the packages have their own licenses (THIRD_PARTY_LICENSES.en.md in the project repository).
 
 ## Validation

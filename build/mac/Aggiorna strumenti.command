@@ -1,5 +1,5 @@
 #!/bin/bash
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 silvexe
 # RepertIA - Aggiornamento strumenti (Mac Apple Silicon). Serve internet.
 # Aggiorna con Homebrew Sleuth Kit, libewf, exiftool, poppler, PhotoRec, bulk_extractor e Tesseract.

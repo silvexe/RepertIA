@@ -2,8 +2,8 @@
 
 *English: [docs/MANUAL.md](../docs/MANUAL.md).*
 
-**Analisi forense di copie di dischi e pendrive con intelligenza artificiale locale.**
-Versione 2.21.0 · macOS, Windows e Linux (sperimentale) · interfaccia in italiano o in inglese
+**Analisi forense di copie di dischi e pendrive, estrazioni di smartphone e registri di volo dei droni, con intelligenza artificiale locale.**
+Versione 3.0.0 · macOS, Windows e Linux (sperimentale) · interfaccia in italiano o in inglese
 
 RepertIA prende una copia forense (raw, dd, img o E01), la indicizza con strumenti forensi
 riconosciuti e permette di esaminarla in due modi complementari:
@@ -17,6 +17,10 @@ riconosciuti e permette di esaminarla in due modi complementari:
 
 ---
 
+**Ripristina interfaccia.** **↺ Ripristina interfaccia**, nella barra del caso, riporta colonne, riquadri, viste, albero, filtri e ora mostrata come alla prima apertura e riapre il caso. I dati del caso non si toccano: reperti, preferiti, ricerche, registro e analisi restano, come tema, lingua e operatore. Larghezze e viste sono comuni a tutti i casi.
+
+**Guida.** Nella pagina iniziale, **📖 Guida** apre la guida illustrata, un'unica pagina in italiano e in inglese con indice e ricerca, sulla lingua dell'interfaccia. Non usa la rete.
+
 ## Riservatezza: tutto resta sul tuo computer
 
 RepertIA è progettato per lavorare **solo in locale**. I dati del caso **non vengono mai
@@ -24,6 +28,9 @@ comunicati a terzi**.
 
 - **Nessun servizio esterno.** Non ci sono account, cloud, telemetria, statistiche d'uso o
   aggiornamenti automatici. Il programma non contatta nessun sito durante l'analisi.
+- **Scaricamenti solo su richiesta e senza un caso aperto (3.0).** Le mappe di sfondo e i modelli di trascrizione si scaricano
+  solo con un clic dell'analista e con nessun caso aperto (i modelli anche all'avvio di una nuova analisi, prima che il caso esista): con un caso aperto
+  il programma rifiuta. Si chiede solo la mappa o il modello scelto e non si invia alcun dato del caso.
 - **Il modello IA è locale.** L'agente parla solo con il server LLM avviato sul tuo Mac
   (`localhost`: LM Studio porta 1234, llama-server 8080, Ollama 11434). Domande, risposte e
   contenuti letti dalla prova restano sulla macchina.
@@ -46,7 +53,7 @@ Internet serve solo, e solo quando lo chiedi tu, per **installare o aggiornare g
 trasmesso alcun dato dei casi. Nota: Homebrew, per conto suo, può inviare statistiche anonime
 sulle installazioni; si disattivano con `brew analytics off`.
 
-> Unica eccezione voluta: se scegli tu **Server in rete** nel riquadro *Server LLM* (o la
+> Unica eccezione voluta: se scegli tu **Server in rete** nel menu *Modello IA* (o la
 > variabile `FORENSE_URL` / l'opzione `--url`), le domande e i contenuti letti dall'agente
 > andranno a quel server della rete interna; il report lo indica, con il suo indirizzo.
 > La connessione al server LLM è sempre diretta, mai tramite proxy.
@@ -128,10 +135,10 @@ e «Date FAT/exFAT col fuso del dispositivo» in corso già dopo l'elenco dei fi
 - **Nuova conversazione** ne apre una pulita; le precedenti restano in **Conversazioni**, da
   dove puoi riaprirle o eliminarle (restano comunque nel registro `audit_log.jsonl`).
 - Se il server LLM non è attivo, RepertIA apre direttamente i Risultati; quando lo avvii,
-  **Riprova** nel riquadro *Server LLM* ricollega l'agente senza perdere la conversazione.
+  **Riprova** nel menu *Modello IA* ricollega l'agente senza perdere la conversazione.
 
 ### Server LLM su un altro computer
-Nel riquadro *Server LLM* scegli **Questo computer** (predefinito: il server viene cercato da solo
+Nel menu *Modello IA* scegli **Questo computer** (predefinito: il server viene cercato da solo
 sulle porte 8080, 1234 e 11434) oppure **Server in rete**: inserisci l'indirizzo del server
 (es. `192.168.1.20`, oppure con la porta `http://192.168.1.20:8080`), se serve la chiave API, e
 premi **Collega**. Senza porta vengono provate 8080, 1234 e 11434. La scelta resta salvata
@@ -158,7 +165,7 @@ Vedi [AI_ACT.md](../AI_ACT.md).
 | **File** | Elenco completo dei file, anche cancellati, con ricerca nel percorso ed estensione. |
 | **Timeline** | **Grafico a barre dell'attività** e tabella degli eventi (modifica, accesso, metadati, creazione; file system e plaso). |
 | **Documenti** | Ricerca di parole e frasi *dentro* i documenti (Word, Excel, PowerPoint, PDF, OpenDocument, RTF, testo, email). Nella vista ad albero la voce si divide **per estensione** (`.docx · Word`, `.xlsx · Excel`, `.pdf · PDF`…, più *E-mail* e *Senza estensione*, con il numero di documenti): un clic mostra solo quella famiglia; lo stesso filtro è il campo *Estensione* della sezione. |
-| **Foto/Video/Audio** | Dispositivo, data di scatto, GPS e autori letti con exiftool (foto, video e documenti); sottovoci **Foto**, **Video** e **Audio** (gli audio dall'elenco dei file del caso, anche nei casi già preparati). |
+| **Foto/Video/Audio** | Dimensione e date del file (filtrabili e ordinabili, come in Documenti); dispositivo, data di scatto, GPS e autori letti con exiftool (foto, video e documenti); sottovoci **Foto**, **Video** e **Audio** (gli audio dall'elenco dei file del caso, anche nei casi già preparati). |
 | **File recuperati** | File recuperati dallo spazio libero con PhotoRec (se eseguito). |
 | **Evidenze di interesse** | Email, siti, ricerche, telefoni, GPS trovati da bulk_extractor (se eseguito). |
 | **⭐ Preferiti** | Categorie di file create dall'analista (vedi *Preferiti*). |
@@ -169,6 +176,10 @@ Vedi [AI_ACT.md](../AI_ACT.md).
 indentate: file cancellati, timeline del file system e di plaso (con le singole fonti di plaso),
 foto con GPS, tipi di file recuperati, tipi di evidenze di interesse, ricerche salvate, categorie
 di preferiti e schede aperte. Una sottovoce apre la sezione con il filtro già impostato.
+Ogni voce aperta resta come scheda in una barra sopra la tabella: le 6 più recenti sono in vista, tutte
+in **Schede aperte (N)**, dalla più recente, con ✕ per chiuderle; **✕ Chiudi tutte**, accanto, le chiude in un colpo. Restano per quel caso
+in questo browser e ricordano cosa si è già guardato. Il clic su una riga apre l'anteprima, anche per
+chiamate ed eventi senza file diretto; cambiando voce l'anteprima di prima si chiude.
 **☰ Vista a schede** passa alle schede orizzontali, **🌲 Vista ad albero** torna all'albero; la
 scelta viene ricordata. In cima all'albero il campo **Filtra le voci** (2.20) tiene solo le voci che contengono le
 parole scritte, senza badare a maiuscole e accenti (es. «whatsapp», «biome», «whatsapp group»), con le voci madri
@@ -179,7 +190,9 @@ date e orari in UTC oppure in ora italiana (Europe/Rome, con il passaggio all'or
 elenchi, timeline (anche filtri *Dal/Al* e grafico per giorno), anteprime e interpretazioni delle
 date nell'esadecimale. I dati del caso, il registro e `report.md` restano in UTC; il report in PDF
 e Word si può salvare con gli orari in ora italiana (lo indica in testa). Lo stesso selettore c'è
-nel report portatile (lì i mesi della barra della timeline restano in UTC).
+nel report portatile (lì i mesi della barra della timeline restano in UTC). (3.0) All'apertura del caso, se il
+dispositivo ha un fuso registrato diverso da quello scelto qui, un avviso lo dice e propone **🕒 Usa** quel fuso
+(con «Non chiedere più per questo caso»).
 
 **Plaso e bulk_extractor.** Negli eventi di plaso ci sono i pulsanti **Anteprima**, **⭐ Preferiti**,
 **Esadecimale**, **Albero** ed **Esplora file** (Finder sul Mac): il file si ricava dal percorso
@@ -305,7 +318,7 @@ della tastiera si passa al file successivo o precedente. Ha quattro schede:
 - **Esadecimale**: il contenuto byte per byte (vedi sotto);
 - **Metadati**: SHA-256 del file, date e attributi del file system (istat), metadati exiftool.
 
-Dal riquadro ci sono anche *Mostra nell'albero*, *Esporta*, *Reperto* e *Chiedi all'agente*.
+Dal riquadro ci sono anche *Mostra nel File System*, *Esporta*, *Reperto* e *Chiedi all'agente*.
 
 **Vista esadecimale.** Offset, byte in esadecimale e colonna ASCII, a pagine di 4 KB
 (◀ ▶ o *Vai a offset*: decimale, `0x…` o relativo `+16`). Si cerca **testo**, **testo
@@ -315,19 +328,19 @@ spostarsi) l'ispettore mostra: offset, valore e **bit**, interi a 8/16/32/64 bit
 endian, float, e la lettura come **data** Unix, Windows FILETIME, DOS/FAT, HFS+, Apple; più il
 testo ASCII, UTF-8 e UTF-16. *Copia hex* e *Copia offset* portano i valori negli appunti.
 
-**Mostra nell'albero, in una scheda a parte.** In File, Timeline, Documenti e Foto il
+**Mostra nel File System, in una scheda a parte.** In File, Timeline, Documenti e Foto il
 **percorso è cliccabile** (nelle miniature l'icona 📁): si apre una **nuova scheda** con
 l'albero già aperto sulla cartella e il file evidenziato. La sezione da cui sei partito resta
 com'era (filtri, pagina, punto di scorrimento, selezione): ci torni con la scheda **↩** in alto
 a sinistra. Le schede si chiudono con ×; ne restano aperte al massimo otto. Lo stesso vale per i
-percorsi citati dall'agente nelle risposte e per *Mostra nell'albero* nell'anteprima.
+percorsi citati dall'agente nelle risposte e per *Mostra nel File System* nell'anteprima.
 
 **Grafico della timeline.** Ogni barra è un giorno (o un mese / anno se il periodo è lungo;
 puoi scegliere con *Giorno · Mese · Anno*). Passando sopra una barra vedi quanti eventi e di
 che tipo; **cliccandola la tabella sotto mostra solo gli eventi di quel periodo**. Cliccando un
 mese il grafico scende ai suoi giorni; *← Tutto il periodo* torna alla vista completa.
 I *Periodi più attivi* sono scorciatoie ai picchi. Filtri di testo, tipo di evento e fonte
-valgono sia per il grafico sia per la tabella.
+valgono sia per il grafico sia per la tabella. (3.0) La fonte **Preferiti** mostra nel grafico e in tabella i preferiti con una data, con il filtro di testo e di periodo: quelli senza data sono solo contati, e i filtri sulle colonne non si applicano. Si arriva anche da **Cronologia dei preferiti → 📊 Vedi nel grafico della Timeline**. La data ha il significato indicato nella colonna Evento.
 
 **Selezione ed esportazione.** Ogni tabella ha una colonna di caselle:
 - clic su una casella per un elemento; **Maiusc+clic** per un intervallo;
@@ -364,18 +377,21 @@ barra della selezione o dal riquadro di anteprima).
   **doppio clic** rimette l'altezza predefinita; **▾ / ▸** a sinistra del divisore (e ▾ accanto al titolo del grafico)
   comprime il riquadro sopra in una riga sottile e lo riapre. Misure e riquadri compressi restano nella memoria del
   browser; **↔ Ripristina colonne** rimette anche questi.
-- **Barra in alto compatta** (2.20): se non sta su una riga, gli strumenti trovati diventano un'unica etichetta
-  **«✓ 8 strumenti»** (o «! 6 di 8 strumenti» se ne manca qualcuno) che al clic apre l'elenco completo con i soliti
-  suggerimenti; poi restano le due ricerche più recenti con **«tutte (N)»**, che apre il pannello Ricerca (tutte le
+- **Strumenti esterni** (3.0): un'unica etichetta, in tutte le pagine, con il numero degli strumenti pronti (**✓**) o
+  mancanti (**!**), che al clic apre l'elenco completo per gruppo: programmi trovati e librerie caricate davvero, compresi
+  iLEAPP e ALEAPP. **?** accanto spiega a cosa serve ciascuno. LibreOffice è facoltativo e non conta. Le versioni sono nel
+  log diagnostico e nel report.
+- **Barra in alto compatta** (2.20): se non sta su una riga restano le due ricerche più recenti con **«tutte (N)»**, che apre il pannello Ricerca (tutte le
   ricerche sono anche sotto *🔎 Ricerca* nell'albero), e il sottotitolo passa nel suggerimento del nome.
 - **🔎 Ricerca** (2.20), in alto a destra sotto il selettore del tema, apre il pannello di ricerca (casi dei dischi e
   degli smartphone). Dopo una ricerca accanto compare un'**etichetta** con le parole e il numero di file trovati
   (es. «🔎 “bitcoin” · 37»): un clic ne riapre i risultati, come la voce nell'albero; ✕ toglie solo l'etichetta (la
   ricerca resta salvata). Si vedono le ultime quattro ricerche del caso; aprire il pannello o un'etichetta è un passo di
   *Indietro / Avanti*. La voce *🔎 Ricerca* resta anche nell'albero dei Risultati.
-- **⚡ Risultati del caso: ricerca veloce** (2.20), prima scheda del pannello di ricerca (la predefinita nei casi
-  smartphone): cerca **mentre scrivi** in quello che il caso mostra come risultato — artefatti di sistema, artefatti di
-  iLEAPP/ALEAPP, chiamate, messaggi e conversazioni delle chat, rubriche, posta — e risponde in pochi millisecondi anche
+- **⚡ Ricerca nel caso** (2.20, ampliata nella 3.0), prima scheda del pannello di ricerca e predefinita in tutti i casi: è il punto
+  unico da cui cercare. Cerca **mentre scrivi** in tutto quello che il caso ha già letto — artefatti di sistema, artefatti di
+  iLEAPP/ALEAPP, chiamate, messaggi e conversazioni delle chat con i nomi degli allegati, rubriche, posta, nomi e percorsi dei
+  file, testo dei documenti, metadati, file recuperati ed estratti, tracce di bulk_extractor — e risponde in pochi millisecondi anche
   su un telefono con 500.000 righe di iLEAPP. I risultati sono raggruppati come nell'albero (*Rubriche*, *Conversazioni*,
   *Chat › WhatsApp*, *Chiamate*, *Artefatti iLEAPP/ALEAPP › categoria › artefatto*…) e **chiusi**: in cima c'è il totale,
   ogni gruppo mostra quanti risultati contiene e si apre con un clic, così si sceglie quello che serve. Ogni riga ha data,
@@ -384,13 +400,13 @@ barra della selezione o dal riquadro di anteprima).
   *Fonte* per vederlo nell'albero), le altre voci con lo stesso numero e le conversazioni con quel numero; *🔎 Cerca questo
   numero* lancia una nuova ricerca solo se lo si chiede. **Numeri di telefono in qualunque formato**: una ricerca fatta di cifre
   (almeno 6, con o senza +, spazi, parentesi, trattini) confronta le ultime 9 cifre, quindi «+1 (919) 928-2177»,
-  «9199282177» e «19199282177@s.whatsapp.net» si trovano a vicenda. Per le parole servono almeno 3 caratteri; maiuscole e
-  minuscole sono uguali. **Salva come ricerca** conserva tutti i risultati come ricerca del caso (scheda, voce *🔎 Ricerca*,
-  Preferiti, CSV, registro). L'indice è il file `ricerca_veloce.sqlite` nella cartella del caso: si costruisce alla prima
+  «9199282177» e «19199282177@s.whatsapp.net» si trovano a vicenda. **Salva come ricerca** conserva tutti i risultati come ricerca del caso (scheda, voce *🔎 Ricerca*,
+  Preferiti, CSV, registro). (3.0) **↗ Apri in una scheda**, accanto a ogni gruppo (Rubriche, Conversazioni, Chat › app,
+  Chiamate…), salva e apre solo quel gruppo nello stesso modo. Accanto alle modalità, **📂 Ricerche salvate (N)** apre l'elenco delle
+  ricerche salvate con un campo per filtrarle: clic o Invio la aprono nella sua scheda. L'indice è il file `ricerca_veloce.sqlite` nella cartella del caso: si costruisce alla prima
   ricerca (una volta sola, con l'avanzamento: circa 1 minuto e 1 GB per un iPhone con 500.000 righe di iLEAPP), si rifà da
   solo quando cambiano i risultati, si può cancellare senza perdere nulla e la sua costruzione va nel registro. I valori
-  segreti del portachiavi non entrano nell'indice. Non cerca nel contenuto dei file e nella timeline: per quelli resta la
-  ricerca per *Parole chiave*.
+  segreti del portachiavi non entrano nell'indice. **Cosa copre.** Ogni risposta dice cosa non ha cercato: i byte dei file (database non letti, file non indicizzati, binari), lo spazio libero e la timeline, oltre al testo dei documenti se l'indicizzazione non è stata eseguita. Se non trova nulla lo dice in modo esplicito, perché non vuol dire che il dato manchi, e **Cerca anche nei byte dei file** avvia la ricerca avanzata con le stesse parole. La ricerca per hash dei file si fa nella scheda **Hash (singolo o lista)**: un hash scritto qui si confronta solo con il testo già letto; se il testo sembra un hash, un avviso lo dice e porta a quella scheda con il valore già inserito. Maiuscole, accenti, apostrofi tipografici, spazi e a capo non contano. Bastano 2 caratteri, o uno solo se è un'emoji o un ideogramma; sotto i 3 caratteri si trovano anche pezzi di parola. Nel testo dei documenti si trovano parole intere e inizi di parola, non pezzi interni. Nomi dei file e metadati distinguono gli accenti.
 - **Filtri delle colonne** (2.20): il riquadro dei valori (▾) non esce mai dalla finestra, nemmeno sui portatili da 13":
   si apre sotto o sopra il pulsante secondo lo spazio, l'altezza dipende da quella della finestra, l'elenco dei valori
   scorre al suo interno e ordinamento, campo di ricerca e pulsanti *OK / Azzera colonna / Annulla* restano sempre visibili.
@@ -422,7 +438,7 @@ barra della selezione o dal riquadro di anteprima).
   (memoria del browser) finché le colonne sono le stesse; **↔ Ripristina colonne** nell'ultima intestazione torna alla
   disposizione automatica. L'intestazione resta sempre bloccata in alto, anche sopra i Dettagli «campo: valore».
 - **← Indietro / → Avanti** (2.20), sotto la barra del caso: ogni apertura (sezione o sottovoce, file nel riquadro,
-  *Mostra nell'albero*, scheda di ricerca o dei preferiti, percorso citato dall'agente, *Apri nei Risultati* del
+  *Mostra nel File System*, scheda di ricerca o dei preferiti, percorso citato dall'agente, *Apri nei Risultati* del
   Riepilogo, chat, conversazione, allegato) è un passo. Indietro torna allo stato di prima: scheda, sezione, filtri e
   ricerca, ordinamento, pagina, scorrimento, riga, riquadro aperto e, per le chat, conversazione, messaggio e allegato.
   Funzionano anche il tasto Indietro del browser, **Alt+←** / **Alt+→** e **Cmd+[** / **Cmd+]**. Accanto, le **briciole**
@@ -446,14 +462,19 @@ barra della selezione o dal riquadro di anteprima).
   `python3 tools/lingua_controlla.py` segnala testi senza traduzione o con segnaposto diversi.
 
 ### Pannello del caso e barra dei menu
-Il **pannello del caso** (a sinistra) mostra i dati del caso, supporto, hash e ultima verifica, partizioni, stato del
-server LLM e i **Reperti** registrati.
+Il **pannello del caso** (a sinistra) mostra i dati del caso, supporto, hash e ultima verifica, partizioni e i **Reperti**
+registrati. Il server LLM è nel menu **Modello IA** della barra: il pallino ne mostra lo stato anche a menu chiuso, con l'avviso «server esterno» se il server è fuori dalla rete locale.
 
 **Barra dei menu (2.20).** Sotto la scritta RepertIA, nella vista del caso, quattro menu a tendina (prima erano i
 riquadri *Azioni* e *Analisi aggiuntive* del pannello):
 - **Caso**: *Modifica dati del caso*, **Cartella caso**, **File esportati**, **Cache e posizione**;
 - **Report**: **Report** (anche in **PDF** e **Word** .docx: `report.pdf` e `report.docx` nella cartella del caso, con
   lo SHA-256 nel registro) e **Report portatile**;
+  Gli elenchi dell'agente dichiarano le righe mostrate su quante e proseguono a pagine; se finisce i passi compare «Analisi NON completa» e «continua» riprende. I riferimenti citati dal modello vanno verificati.
+  Il pulsante **🎤** detta il prompt: trascrizione locale con whisper.cpp, audio cancellato subito, testo da controllare e inviare a mano.
+  RepertIA lavora su **un caso alla volta**: se ne apri un altro in una seconda scheda, la prima si ferma con un avviso.
+  La **Timeline** può mostrare, con il suo grafico, una sola evidenza o un gruppo di Preferiti: si sceglie dal menu Fonte o dall'albero, anche nel report portatile.  Con **⤢ Schermo intero** si allarga, e ✕ Chiudi o Esc la riportano alla vista normale.
+  Il report portatile ha le sezioni del caso, con albero e sottosezioni, filtro delle voci e colonne Dimensione, Modificato e Creato in Documenti, Foto/Video/Audio e File inclusi (elenco o miniature);
 - **Verifiche**: **Verifica hash** (o **Calcola hash copia** se l'hash non è ancora stato calcolato), **🔗 Verifica
   registro**, **Riscontro con altro strumento**, **Liste di hash**;
 - **Analisi aggiuntive**: ogni analisi con il suo stato (✓ e i numeri, oppure «non eseguito») e **Esegui** / **Rifai**
@@ -490,6 +511,81 @@ elimina) e ognuna si apre in una scheda a parte, con anteprima, esportazione, re
 per categoria con offset, inode, stato, date, SHA-256 e nota) e nel report portatile, con il contenuto
 e le anteprime complete dei loro file. I preferiti stanno nel caso (`ricerche.sqlite`) e ogni
 operazione è registrata in `audit_log.jsonl`.
+
+## Gestore dei database (3.0)
+
+Nell'anteprima di un database SQLite, **🗄 Apri nel gestore database** mostra l'elenco delle tabelle e delle viste con il numero di righe e permette di
+scrivere query SQL. Si lavora su una **copia di lavoro** nella cartella del caso, con i file `-wal`, `-shm` e `-journal` accanto se ci sono, cancellata alla
+chiusura: l'originale non è toccato e le righe ancora nel `-wal` si vedono.
+
+- **Solo lettura.** Un controllo interno di SQLite rifiuta scritture, `ATTACH`, estensioni e `PRAGMA` di modifica, qualunque sia il testo della query. Limite di 30 secondi per query.
+- **Registro.** Restano nel registro del caso l'apertura con le impronte SHA-256 e ogni query scritta dall'analista o dall'agente IA, anche se rifiutata. Non vengono registrati il clic su una tabella e il cambio di pagina.
+- **CSV.** **Esporta CSV** salva il risultato in `export/database/` con il suo SHA-256 (massimo 1.000.000 di righe). I valori restano identici all'originale: un testo che inizia con `=` può essere interpretato come formula se il file si apre in un foglio di calcolo.
+- **★ e 📌.** Da ogni riga si aggiunge il database ai Preferiti, con query e valori nella nota, o si registra un reperto con origine «analista» e i riferimenti di file, impronte, query e riga.
+- **Date e numeri** si vedono come sono nel database, senza conversioni: la conversione va scritta nella query, dichiarando unità e fuso.
+- **Ricerca.** La casella in alto cerca un valore in tutte le colonne di tutte le tabelle, indica tabelle e colonne con il numero di righe e, con un clic, apre le righe; a richiesta cerca anche nei record cancellati. I BLOB sono confrontati come testo. La ricerca resta nel registro.
+- **💬 Chiedi all'agente.** Su ogni riga e su ogni record cancellato prepara la domanda con database, query o posizione e valori, fino a 300 caratteri per campo; il gestore si chiude e la domanda resta da inviare. I valori vanno al modello scelto: un server in rete li riceve.
+- **Indietro e Avanti.** **←** e **→** accanto alla ricerca percorrono tabelle, query, ricerche e record cancellati: dopo aver aperto un risultato si torna all'elenco senza ripetere la ricerca, e riaprire una query non aggiunge voci al registro. Il divisore a destra delle tabelle si trascina per allargarle; doppio clic per la larghezza predefinita.
+- **Da dove si apre.** Dall'anteprima del file o dal menu **Strumenti aggiuntivi → Gestore database**, che elenca i file con estensione o nome da database (un database senza estensione si apre dalla sua anteprima). L'elenco non legge il contenuto dei file: molti `.db` non sono SQLite, come le cache delle miniature di Windows o i Berkeley DB di Firefox. Aprendoli compare un avviso con il formato, quando è riconosciuto, e la vista esadecimale.
+- **Agente IA.** Lo strumento `query_database` esegue una sola query in sola lettura e riceve le prime 200 righe.
+
+Le query mostrano solo quello che SQLite legge; i record cancellati hanno una vista a parte. Il gestore non è disponibile nel report portatile.
+
+### Record cancellati (3.0)
+
+Nel gestore, **🧩 Record cancellati** legge i byte del database in cerca di record non più raggiungibili. Sono **sempre da verificare**, restano separati dalle righe del database e non entrano in chat, ricerche o report finché l'analista non li registra come reperti.
+
+| Livello | Quando | Cosa si sa |
+|---|---|---|
+| **Cella integra** | Pagina libera, WAL o cella completa nello spazio libero, con i conti delle lunghezze che tornano | Valori letti dal file e ROWID |
+| **Testa ricostruita** | Primo record di uno spazio libero: i primi 4 byte sono sovrascritti | ROWID «non disponibile»; le colonne perse sono segnate «perso», mai riempite |
+| **Ambiguo** | Più letture possibili o tabella non stabilita | Mostrate tutte, non vale come recupero |
+
+Una riga scritta prima di un `ALTER TABLE ADD COLUMN` ha meno colonne: quelle mancanti vengono dal `DEFAULT` e sono segnate. Anche una cella integra può essere la vecchia copia di una riga aggiornata o spostata, e molti record sono gestione interna delle app (contatori, code, cache): «non più presente» non vuol dire cancellato da una persona.
+
+**Come si controlla.** **Vedi in esadecimale** mostra i byte della copia di lavoro in quel punto. Il record indica anche dove cercarlo con uno strumento esterno facoltativo, per esempio FQLite. **Riscontro con il CSV di FQLite** importa il CSV di una tabella esportato dall'analista: l'abbinamento è per tabella, stato e posizione (offset uguale o fino a 5 byte più avanti). Non conferma i valori, e l'assenza non è una prova contraria. FQLite non è incluso né avviato da RepertIA. Va usato su copie: può scrivere file accanto a quello che apre, e aprendo da solo un file `-wal` chiede una password e lascia un file `_forensic.db`.
+
+**Confermo, verificato** registra il record come reperto dell'analista, con tabella, offset, valori e impronte. Viene registrato nel registro del caso anche ogni analisi, riscontro ed esportazione. Lo strumento `deleted_records` dell'agente IA riceve i record dichiarati da verificare.
+
+**Limiti.** Le prove usano database costruiti e copie pubbliche con cancellazioni fatte da noi con SQLite, non da un'app: su quelle prove è stato recuperato circa il 55% delle righe, senza valori sbagliati rilevati. Il recupero è molto minore o nullo dopo `VACUUM`, con `secure_delete` (che non si può leggere dal file) o con `auto_vacuum`. Le vecchie versioni di una riga dopo `UPDATE` e i testi lunghi con overflow riusato spesso non si recuperano. I file `-journal` non vengono letti dal recupero; se il journal è attivo, SQLite lo applica alla copia di lavoro all'apertura, quindi la copia letta può differire dal file acquisito (l'originale non cambia e le impronte sono calcolate prima). Zero record non significa che nulla sia stato cancellato. Limite di 120 secondi e di 20.000 record per database, con avviso.
+
+## Mappa (3.0)
+
+**Strumenti aggiuntivi → 🗺 Mappa** mostra i punti del caso. Tutto è locale: lo sfondo è nel programma e, da un caso aperto, non parte nessuna richiesta di rete.
+
+- **Fonti.** Coordinate nei metadati di foto e video, posizioni negli allegati delle chat, coppie di campi Latitude/Longitude degli artefatti iLEAPP/ALEAPP. Una stessa posizione può comparire da più fonti. Ogni categoria si attiva a parte e **Apri la fonte** porta alla riga o al file. I punti vicini si raggruppano: un clic ingrandisce.
+- **Misure.** Colonna a sinistra, altezza di mappa e tabella e larghezza delle colonne delle tabelle si cambiano col mouse; doppio clic per tornare alla misura predefinita. **Ripristina interfaccia** le azzera.
+- **Dalla foto alla mappa.** L'anteprima di una foto o un video con coordinate ha **🗺 Vedi sulla mappa**, che apre la mappa su quella posizione; lo stesso dalla riga nell'elenco dei metadati.
+- **Cosa significa un punto.** È un dato della fonte, da verificare: non è detto che il dispositivo fosse lì. Per esempio le «Cache Locations» di iOS sono posizioni in memoria del sistema, comprese celle e reti vicine.
+- **Date.** Sono quelle della fonte, senza conversione di fuso. Il filtro Dal/Al confronta la data scritta: i punti senza una data leggibile escono quando il filtro è attivo.
+- **Esclusi.** I punti a 0,0 (quasi sempre posizione assente) e le coordinate non valide non si disegnano e vengono contati. Massimo 300.000 punti, con avviso.
+- **Comandi.** Sfondo, **Aggiungi mappa**, **Importa KML**, **Esporta KML** ed **Esporta GPX** stanno nella barra in alto, sempre visibili; i livelli importati compaiono sopra le categorie.
+- **Sfondo.** Natural Earth 1:50m, adatto a stati e regioni. Per le strade c'è **Aggiungi mappa**: spiega le mappe disponibili e porta alla pagina iniziale, dove **🗺 Scarica mappe** scarica una nazione, o il mondo a basso dettaglio, mostrando prima peso e indirizzo. **Lo scaricamento avviene solo a caso chiuso**: il server lo rifiuta con un caso aperto o in preparazione. Finito, **Riapri il caso** riporta al caso. Si chiedono solo zone dell'elenco, mai un luogo preciso. Le mappe valgono per tutti i casi e nel registro del caso resta quale sfondo è stato usato, con la data dei dati. Sono dati © OpenStreetMap contributors (ODbL), da Protomaps, separati dal programma. Una mappa scelta mostra strade per tipo, edifici, verde, acque e nomi di località, vie e luoghi, con font inclusi nel programma e nessuna richiesta esterna: i nomi delle vie minori servono il dettaglio massimo e uno zoom ravvicinato. Fuori dalla sua zona resta lo sfondo di base; se la vista è fuori zona, la scelta porta sulla zona della mappa e ⌂ riporta ai punti. **Scarica** legge da solo il peso se non è stato calcolato, lo mostra con l'indirizzo e parte, con Annulla.
+- **Punti preferiti.** Con ★ nella tabella Posizioni si segnano i punti che interessano, anche di app diverse; **★ Solo i punti preferiti** mostra solo quelli, di qualunque voce, con i filtri Dal/Al, l'animazione e l'esportazione KML/GPX. Sono una scelta dell'analista: restano nel caso (`mappa/livelli.json`), ogni aggiunta o rimozione va nel registro e l'elemento da cui vengono (foto, messaggio, artefatto) entra nei Preferiti, categoria «Posizioni GPS (mappa)», con la data della posizione: nella Timeline dei preferiti fanno da cronologia degli spostamenti. Pesi indicativi, ottobre 2026: Italia a dettaglio ridotto 114 MB, città e strade 574 MB, massimo 4,5 GB.
+- **Computer isolato.** Si scarica con RepertIA su un altro computer, si copia il file `.pmtiles` e lo si indica con **Ho già un file**, che non usa la rete. In alternativa, con il programma `pmtiles` di Protomaps: `pmtiles extract https://build.protomaps.com/AAAAMMGG.pmtiles italia.pmtiles --bbox=6.6,36.6,18.6,47.1 --maxzoom=12`. La zona chiesta arriva al server di Protomaps: mai il luogo esatto di un'indagine.
+- **Report portatile.** Contiene i punti (fino a 100.000) su uno sfondo Natural Earth 1:110m, con un disegno semplice e senza rete: niente strade, livelli KML né collegamento alla fonte.
+- **Agente IA.** Lo strumento `location_points` riceve categorie e punti (i primi 200), con l'avvertenza che una posizione non prova che il dispositivo fosse lì; dalla fonte del punto `read_artifact` e `read_message` leggono l'elemento. `list_bookmarks` elenca i preferiti.
+- **KML.** **Importa KML** aggiunge un livello dell'analista, separato dalle evidenze, con nome e SHA-256 nel registro. KMZ non è supportato e i file con `DOCTYPE` vengono rifiutati.
+- **Esportazione.** **Esporta KML** ed **Esporta GPX** salvano i punti scelti in `export/mappa/`, con SHA-256 e voce nel registro.
+
+## Droni (3.0)
+
+Nella pagina iniziale, **🚁 Droni** apre un caso da una cartella, uno zip o un tar con i file della scheda o dell'app del drone. Si indicizzano file, foto e video come in un'estrazione, poi si cercano i registri di volo. Una copia forense della scheda (E01, dd) si apre da **Memorie di massa**: i registri di volo si cercano da soli alla fine della preparazione, anche fra i file cancellati ancora elencati, e compaiono allo stesso modo (nei casi preparati prima della 3.0, con **Cerca i voli nel caso** nella mappa). In una copia forense i CSV si considerano solo se il percorso nomina un drone, Litchi, Airdata o un volo, per non leggere tutti i CSV di un computer. Nell'albero dei risultati, **🗺 Posizioni e voli** apre la stessa mappa sulla voce scelta.
+
+| Fonte | Lettura | Note |
+|---|---|---|
+| Registri `DJIFlightRecord*.txt` (app DJI) | ALEAPP | Versioni 1-12. **Dalla 13 la telemetria è cifrata e non si legge:** RepertIA non contatta DJI e non tocca la cifratura; resta «telemetria cifrata: non letta» |
+| Sottotitoli `.SRT` dei video DJI | RepertIA | Posizione, quota e data riportate nel sottotitolo. In `GPS(a, b, quota)` il file non dichiara l'ordine: è segnalato |
+| CSV di Litchi e Airdata | RepertIA | Solo i CSV con colonne `latitude` e `longitude` |
+| Registri Autel (`AUTEL_FR`, versioni 1-3; cartella `autel_*` o `FlightLog`) | RepertIA | Scritto dalla documentazione pubblica del formato. **Non ancora provato su registri veri: ogni volo lo dichiara.** Le coordinate sono numeri a 32 bit nel file (precisione di circa un metro) |
+| PX4 ULog (`.ulg`) | RepertIA | Argomenti GPS, istanza 0, fix ≥ 2 |
+| ArduPilot/MAVLink `.tlog` | RepertIA | `GLOBAL_POSITION_INT` o `GPS_RAW_INT`, CRC controllato; date dal registratore della telemetria |
+| ArduPilot DataFlash `.BIN` | RepertIA | Messaggi `GPS`, prima istanza, fix ≥ 2; ora GPS convertita in UTC con 18 secondi intercalari, un'ipotesi per i registri vecchi |
+| Betaflight (`.bbl`, `.bfl`, `.bbs`), DJI `.DAT` | Non letti | Elencati con SHA-256 e «formato riconosciuto: non letto» |
+
+I voli compaiono nella **Mappa**, nel report portatile e nello strumento `flights` dell'agente IA, con formato, SHA-256 del file, date come nella fonte, lunghezza calcolata sui punti e, se il registro li riporta, modello e numero di serie. Sotto la mappa, **Posizioni** elenca le posizioni delle voci spuntate a sinistra, in ordine di data, 200 per pagina (quelle senza data in fondo). Il clic su una riga mostra solo quella posizione, con il suo riquadro e **Apri la fonte**; **Mostra tutte** torna alla vista completa. Le frecce ↑ ↓ si spostano fra le righe o, durante un'animazione, avanzano di una posizione. **▶** su una riga avvia l'animazione da quella data in poi, compresi i voli selezionati. Durante l'animazione la riga corrente è evidenziata e le pagine la seguono. Accanto, **Voli** elenca i voli in una tabella in ordine di data (quelli senza data in fondo; clic sull'intestazione per ordinare), con **Tutti** e **Nessuno**; il clic su una riga inquadra quel volo. **▶ Anima le posizioni** percorre punti e voli selezionati una posizione alla volta in ordine di data, con pausa, velocità e cursore; **▶** su una riga anima solo quel volo, in ordine di file. L'animazione non mostra la velocità reale e fonti con fusi diversi possono risultare fuori ordine. Le posizioni senza data sono escluse e contate. Le tracce si esportano in KML e GPX. Nei casi smartphone, **Cerca i voli nel caso** nella mappa fa la stessa ricerca. Una traccia dice cosa riporta il file, non chi pilotava.
+
+**Limiti.** I registri nativi Parrot e Yuneec non sono letti. I registri DJI sono provati su due log pubblici DF020 (versioni 9 e 11, poche posizioni) e su un log pubblico cifrato (versione 14). I lettori tlog, ULog e DataFlash hanno dato le stesse posizioni, quote e date di pymavlink 2.4.50 e pyulog 1.3.0 su file di esempio pubblici (6.304 posizioni tlog, 469 ULog, solo 5 DataFlash). Non è stato trovato nessun registro Autel pubblico: quel lettore è provato solo su file costruiti secondo il formato documentato, dove la versione 3 coincide con autel-logger; le versioni 1 e 2 seguono solo le dimensioni pubblicate dei record. SRT e CSV sono provati solo su esempi costruiti, non su file di droni veri.
 
 ## Trascrizione degli audio (2.20)
 
@@ -798,7 +894,9 @@ percorso di sempre per E01, dd/raw e dmg. Nell'elenco dei casi l'icona indica il
   una sottovoce per app, e nella vista chat (con «verso non indicato» quando la fonte non dice se il messaggio è inviato
   o ricevuto). La nuova sezione **Chiamate** ha una riga per chiamata: data, direzione (in arrivo, in uscita, persa,
   rifiutata, segreteria), numero, nome in rubrica, durata, risposta, app (telefono, FaceTime, WhatsApp, Duo, Instagram,
-  LINE, Viber…), e tutte le fonti. Le righe uguali di fonti diverse sono unite: stessa chiamata se stesso numero entro 5
+  LINE, Viber…), e tutte le fonti. (3.0) Nella tabella **Verso**, **Contatto** (nome e numero), **App**, **Durata** e
+  **Risposta** sono colonne proprie, ognuna col suo filtro (es. solo le chiamate perse di un numero; per la durata
+  «da»/«a» accetta 90, 1:30, 2m, 1h). Le righe uguali di fonti diverse sono unite: stessa chiamata se stesso numero entro 5
   secondi (30 per *interactionC*, che registra l'inizio dell'interazione qualche secondo prima); stesso messaggio se stesso
   identificativo, o stessa conversazione, ora, verso e testo (es. le copie dei database nel mirror di Magisk). I valori
   discordanti tra le fonti sono segnalati. Le righe originali restano negli *Artefatti iLEAPP/ALEAPP*. La corrispondenza
@@ -1235,6 +1333,8 @@ Nulla si aggiorna da solo, di proposito: ogni caso registra le versioni degli st
 Per aggiornare, tra un caso e l'altro e con internet: Mac `Aggiorna strumenti.command`, Windows *Aggiorna strumenti*
 nel menu Start, Linux `./aggiorna-strumenti.sh`; mostrano le versioni prima e dopo.
 
+**Versione 3.0.0** - **Gestore dei database** con **record cancellati**, **Mappa** locale con tabelle e animazione, voce **Posizioni e voli** nell'albero, **Droni** (DJI, Autel, PX4, ArduPilot), anche dalle copie forensi delle memorie. **Licenza AGPL-3.0-or-later** e pulsante ⓘ con le informazioni legali. Corretto **Collega copia forense** sui casi smartphone.
+
 **Versione 2.21.0** - **Preferiti:** dalla scheda di una chat **Apri chat**, chat intera nell'esportazione con periodo facoltativo e nel report, **Cronologia dei preferiti** anche nel report e in CSV. **Collega copia forense** nel menu Caso, con controllo dello SHA-256. **Esporta log diagnostici** senza dati dei casi. **Limite iLEAPP/ALEAPP** portato a 2.000.000 di righe e, oltre il limite, le tabelle piccole prima di quelle enormi (FSEvents). Script `tools/controlla_versioni.py`.
 
 **Versione 2.20.3** - **Correzioni per WhatsApp Android.** **`msgstore.db` non letto:** con l'errore `'int' object has no attribute 'find'`, un difetto fermava la lettura dell'intero database quando dopo una chiamata nella chat c'era un allegato. Riguarda Mac, Windows e Linux dalla 2.20.0 in poi: se negli avvisi di un caso compare `msgstore.db: non letto`, le chat lette da RepertIA mancano. Basta rileggere il caso: **Analisi aggiuntive → Chat e rubriche**. **Backup crypt15:** ora si decifrano con `com.whatsapp/files/encrypted_backup.key`, se è nell'estrazione, oppure con la chiave di 64 cifre indicata dall'analista, che resta solo in memoria. Nelle versioni precedenti manuale e guida dicevano che la chiave crypt15 non è nel telefono: era sbagliato. *Provato:* collaudo 437/437 in italiano e in inglese sul Mac e 437/437 su Windows 11 con le correzioni; un crypt15 reale pubblico con chiave nel file, scritta a mano, assente o sbagliata e con un byte alterato; sull'immagine pubblica Android 14 stesso risultato di prima, riga per riga. *Non provato:* un crypt15 con messaggi reali, il pacchetto Windows definitivo, il pacchetto Linux. Il difetto è stato riprodotto su dati costruiti: l'immagine Android 14 non lo presenta.
@@ -1517,7 +1617,7 @@ ripreparati per indicizzare i PDF.
 
 ## Pacchetto per Mac Apple Silicon
 
-`RepertIA-2.21.0-Mac.zip` contiene **RepertIA.app** con Python 3.12, openai, Pillow e **plaso
+`RepertIA-3.0.0-Mac.zip` contiene **RepertIA.app** con Python 3.12, openai, Pillow e **plaso
 già inclusi** (niente Docker). Trascina l'app in Applicazioni; la prima volta: tasto destro →
 *Apri* (o *Impostazioni di Sistema → Privacy e sicurezza → Apri comunque*), perché non è firmata
 con un certificato Apple. L'app apre il Terminale, installa con Homebrew gli strumenti che mancano
@@ -1527,7 +1627,7 @@ c'è *Aggiorna strumenti.command* nello zip. Solo per Mac M1 o successivi.
 
 ## Versione Windows
 
-`RepertIA-2.21.0-Setup.exe` installa RepertIA per l'utente corrente (senza diritti di
+`RepertIA-3.0.0-Setup.exe` installa RepertIA per l'utente corrente (senza diritti di
 amministratore) in `%LOCALAPPDATA%\Programs\RepertIA`, con Python e gli strumenti già inclusi:
 plaso, The Sleuth Kit (legge gli E01 direttamente), ExifTool, Poppler, PhotoRec, bulk_extractor, 7-Zip,
 Tesseract OCR (italiano e inglese) e le librerie per posta Outlook, copie shadow e volumi cifrati. Si avvia dal menu
@@ -1548,11 +1648,11 @@ in `%USERPROFILE%\CasiForensi`, le impostazioni in `%APPDATA%\RepertIA`.
 
 ## Versione Linux (sperimentale)
 
-`RepertIA-2.21.0-Linux.tar.gz` è per **Linux x86_64** con Python 3.12 o successivo (Ubuntu 24.04 o
+`RepertIA-3.0.0-Linux.tar.gz` è per **Linux x86_64** con Python 3.12 o successivo (Ubuntu 24.04 o
 successivo, Debian 13). Il programma è lo stesso delle versioni Mac e Windows (stessa impronta dei sorgenti).
 
 ```
-tar -xzf RepertIA-2.21.0-Linux.tar.gz
+tar -xzf RepertIA-3.0.0-Linux.tar.gz
 cd RepertIA
 ./installa.sh          # una volta, con internet: chiede la password di amministratore
 ./RepertIA.sh          # oppure dal menu delle applicazioni
@@ -1563,7 +1663,7 @@ cd RepertIA
   in `python/` un ambiente con **plaso, le librerie libyal, pytsk3, Pillow e openai alle stesse versioni dei
   pacchetti Mac e Windows** (`requirements-linux.txt`; le librerie libyal si compilano, 10-20 minuti) e
   aggiunge RepertIA al menu. Il registro è in `installa.log`; lo script si può rieseguire.
-- Inclusi nell'archivio: 7-Zip 26.01 (`strumenti/7zip`) e i dati OCR italiano/inglese (`strumenti/tessdata`).
+- Inclusi nell'archivio: 7-Zip 26.05 (`strumenti/7zip`) e i dati OCR italiano/inglese (`strumenti/tessdata`).
 - **Differenze rispetto a Mac e Windows**: gli strumenti forensi sono quelli della distribuzione, con le sue
   versioni (riportate come sempre nel report, sezione *Ambiente di analisi*); bulk_extractor può mancare
   in alcune distribuzioni (il carving usa allora PhotoRec); niente acquisizione da disco.
@@ -1645,7 +1745,7 @@ Progetto personale di silvexe, realizzato a titolo privato e non collegato ad al
 
 ## Licenza
 
-Copyright (C) 2026 silvexe. RepertIA è software libero, rilasciato con licenza **GNU General Public License versione 3 o successiva** (GPL-3.0-or-later): si può usare, studiare, modificare e ridistribuire, anche modificato, purché con la stessa licenza e con il codice sorgente. È fornito senza alcuna garanzia. I componenti di terze parti inclusi nei pacchetti hanno le proprie licenze (THIRD_PARTY_LICENSES.md nel repository del progetto).
+Copyright (C) 2026 silvexe. RepertIA è software libero, rilasciato con licenza **GNU Affero General Public License versione 3 o successiva** (AGPL-3.0-or-later): si può usare, studiare, modificare e ridistribuire, anche modificato, purché con la stessa licenza e con il codice sorgente. È fornito senza alcuna garanzia. Le versioni fino alla 2.21.0 restano sotto GPL-3.0-or-later. I componenti di terze parti inclusi nei pacchetti hanno le proprie licenze (THIRD_PARTY_LICENSES.md nel repository del progetto).
 
 ---
 
@@ -1712,6 +1812,7 @@ di un Mac (plist, sqlite con WAL, bookmark); APFS (dfvfs) in chiaro e cifrato co
 | 2.20.3 (correzioni, prima dell'assemblaggio) | Windows 11 dell'autore | 437/437, 77/77 su immagini pubbliche |
 | 2.21.0 | Mac dell'autore (come la 2.20.0) | 448/448 in italiano e 448/448 in inglese, dal pacchetto Mac assemblato, 77/77 su immagini pubbliche; 11 controlli nuovi |
 | 2.21.0 | Windows dell'autore (pacchetto definitivo) | superato (dato riferito dall'autore) |
+| 3.0.0 | Mac dell'autore, dal pacchetto Mac assemblato (568/568 anche dai sorgenti) | 568/568 in italiano e 568/568 in inglese, 77/77 su immagini pubbliche; navigazione 410/410 in italiano e in inglese (Chromium) |
 
 Carving DFTT 11: 2 file su 15 (enterprise.wav, haxor2.jpg) non vengono recuperati da PhotoRec: è un limite di
 PhotoRec, dichiarato come «misura» e non come requisito.

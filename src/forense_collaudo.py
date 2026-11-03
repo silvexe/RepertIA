@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 silvexe
 """RepertIA - collaudo con immagini di riferimento (By silvexe).
 
@@ -22,6 +22,7 @@ import os
 import re
 import shutil
 import subprocess
+import struct
 import sys
 import tempfile
 import time
@@ -432,12 +433,521 @@ def controlli_diagnostica(check):
           ", ".join(x for x in vietati if x in t) or tr("nessun dato sensibile"), interno=True)
 
 
+def controlli_database(check):
+    """(3.0) Gestore dei database: solo letture, originale intatto, query e CSV nel registro, -wal letto dalla copia."""
+    import shutil as _sh
+    import sqlite3 as _sq
+    import forense_database as fdb
+
+    class Caso:
+        def __init__(self, r):
+            self.root, self.export_dir, self.voci = Path(r), Path(r) / "export", []
+
+        def log(self, azione, dati):
+            self.voci.append((azione, dati))
+
+    with tempfile.TemporaryDirectory() as d:
+        orig = Path(d) / "orig" / "prova.db"
+        orig.parent.mkdir()
+        c = _sq.connect(str(orig))
+        c.execute("PRAGMA journal_mode=WAL")
+        c.execute("PRAGMA wal_autocheckpoint=0")
+        c.execute("CREATE TABLE t(id INTEGER PRIMARY KEY, testo TEXT)")
+        c.execute("INSERT INTO t VALUES (1,'uno')")
+        c.commit()
+        c.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        c.execute("INSERT INTO t VALUES (2,'nel wal')")
+        c.commit()
+        lav = Path(d) / "lav"
+        lav.mkdir()
+        for suf in ("", "-wal"):
+            _sh.copy(str(orig) + suf, str(lav / ("prova.db" + suf)))
+        c.close()
+        prima = fdb._sha(orig)
+        caso = Caso(d)
+        (Path(d) / "export").mkdir()
+
+        class G:
+            @staticmethod
+            def file_ident(_case, _b):
+                return {"source": "x", "path": "/prova.db", "name": "prova.db", "part": None, "inode": None, "id": 1}
+
+            @staticmethod
+            def unique(p):
+                return p
+
+            @staticmethod
+            def safe_part(s):
+                return s
+
+            @staticmethod
+            def stamp_now():
+                return "prova"
+
+        orig_copia = fdb._copia_lavoro
+        tmp = Path(d) / (fdb.PREFISSO + "prova")
+
+        def copia(_g, _c, _i):
+            tmp.mkdir()
+            for suf in ("", "-wal"):
+                _sh.copy(lav / ("prova.db" + suf), tmp / ("prova.db" + suf))
+            return tmp, tmp / "prova.db"
+
+        fdb._copia_lavoro = copia
+        try:
+            a = fdb.apri(G, caso, {})
+        finally:
+            fdb._copia_lavoro = orig_copia
+        vietate = ["INSERT INTO t VALUES (3,'x')", "UPDATE t SET testo='x'", "DELETE FROM t", "DROP TABLE t",
+                   "CREATE TABLE z(a)", "ATTACH '" + str(Path(d) / "z.db") + "' AS z", "VACUUM",
+                   "PRAGMA journal_mode=DELETE", "PRAGMA query_only=OFF", "SELECT load_extension('x')",
+                   "SELECT 1; DROP TABLE t", "PRAGMA writable_schema=ON"]
+        rifiutate = 0
+        passate = []
+        for q in vietate:
+            try:
+                fdb.query(caso, {"id": a["id"], "sql": q, "scritta": True})
+                passate.append(q)
+            except ValueError:
+                rifiutate += 1
+        r = fdb.query(caso, {"id": a["id"], "sql": "SELECT id, testo FROM t ORDER BY id", "scritta": True})
+        valori = [x[1][1] for x in r["righe"]]
+        check(tr("Gestore database: scritture, ATTACH, estensioni e PRAGMA di modifica rifiutati; le letture funzionano"),
+              rifiutate == len(vietate) and bool(r["colonne"]), f"{rifiutate}/{len(vietate)} " + "; ".join(passate), interno=True)
+        check(tr("Gestore database: righe del file -wal lette dalla copia di lavoro"),
+              valori == ["uno", "nel wal"] and "prova.db-wal" in a["accanto"], ", ".join(valori), interno=True)
+        e = fdb.esporta_csv(G, caso, {"id": a["id"], "sql": "SELECT * FROM t"})
+        azioni = [v[0] for v in caso.voci]
+        testo_csv = (Path(d) / e["path"]).read_text(encoding="utf-8-sig")
+        fdb.chiudi(caso, {"id": a["id"]})
+        check(tr("Gestore database: l'originale non cambia, la query e il CSV sono nel registro"),
+              fdb._sha(orig) == prima and "db_apri" in azioni and "db_query" in azioni and "db_csv" in azioni
+              and e["righe"] == 2 and "nel wal" in testo_csv and not tmp.exists(), ", ".join(sorted(set(azioni))), interno=True)
+        tn = Path(d) / "_non_sqlite"
+        tn.mkdir()
+        (tn / "thumbcache_idx.db").write_bytes(b"IMMM" + bytes(60))
+        fdb._copia_lavoro = lambda *_: (tn, tn / "thumbcache_idx.db")
+        ns = fdb.apri(G, caso, {})
+        check(tr("Gestore database: un file che non è SQLite dà un avviso con il formato, senza errore né copie rimaste"),
+              ns.get("non_sqlite") is True and "thumbcache" in ns["formato"] and not tn.exists(), str(ns.get("formato")), interno=True)
+        import forense_lingua as lgv
+        with lgv.usa("en"):
+            v_en = lgv.valore("estrazione di uno smartphone iOS 15")
+        with lgv.usa("it"):
+            v_it = lgv.valore("extraction of a smartphone iOS 15")
+        check(tr("Lingua: i testi salvati nel caso si mostrano nella lingua dell'interfaccia, i dati restano invariati"),
+              v_en == "extraction of a smartphone iOS 15" and v_it == "estrazione di uno smartphone iOS 15"
+              and lgv.valore("undefined") == "undefined", f"{v_en} | {v_it}", interno=True)
+        fdb._copia_lavoro = copia
+        try:
+            t_ok = fdb.interroga(G, caso, {}, "SELECT testo FROM t")
+            t_no = fdb.interroga(G, caso, {}, "DELETE FROM t")
+        finally:
+            fdb._copia_lavoro = orig_copia
+        check(tr("Gestore database: l'agente legge in sola lettura, le sue query sono nel registro e la copia viene chiusa"),
+              "nel wal" in t_ok and "SHA-256" in t_no + t_ok and "DELETE" not in t_no and not tmp.exists()
+              and sum(1 for v in caso.voci if v[0] == "db_query" and v[1].get("origine") == "agente") == 2,
+              t_no[:80], interno=True)
+
+
+def controlli_mappa(check):
+    """(3.0) Punti della mappa da una base costruita; KML separato dalle evidenze; esportazioni nel registro."""
+    import sqlite3 as _sq
+    import forense_mappe as fmp
+
+    with tempfile.TemporaryDirectory() as d:
+        d = Path(d)
+
+        class Caso:
+            root, export_dir, voci = d, d / "export", []
+            meta = {"tipo_caso": "smartphone"}
+            db_path = d / "caso.sqlite"
+
+            def log(self, azione, dati):
+                self.voci.append((azione, dati))
+
+        caso = Caso()
+        con = _sq.connect(str(caso.db_path))
+        con.execute("CREATE TABLE meta(source TEXT, part INTEGER, inode TEXT, deleted INTEGER, path TEXT, make TEXT, model TEXT, taken TEXT, lat REAL, lon REAL, author TEXT, data TEXT)")
+        con.executemany("INSERT INTO meta VALUES ('fs',1,?,0,?,'','',?,?,?,'','')", [("5", "a.jpg", "2024:01:02 10:00:00", 41.9, 12.5), ("6", "b.jpg", "x", 0, 0), ("7", "c.jpg", "", 200, 12)])
+        con.execute("CREATE TABLE artifacts(id INTEGER PRIMARY KEY, cat TEXT, ts TEXT, title TEXT, detail TEXT, user TEXT, src_path TEXT, part INTEGER, inode TEXT, data TEXT, grp TEXT, sub TEXT)")
+        con.execute("INSERT INTO artifacts(cat,ts,data,sub) VALUES ('leapp','2024-02-03 09:00:00',?,'Viaggi')", (json.dumps({"campi": {"Origin Latitude": "45.46", "Origin Longitude": "9.19", "Destination Latitude": "40.85", "Destination Longitude": "14.27", "Note": "x"}}),))
+        con.commit()
+        con.close()
+        vecchia = fa.db_ro
+        fa.db_ro = lambda _c: _sq.connect(str(caso.db_path))
+        try:
+            r = fmp.punti(caso)
+            nomi = {x["nome"]: x["punti"] for x in r["categorie"]}
+            check(tr("Mappa: punti da metadati e artefatti, coppie di campi, punti a 0,0 esclusi"),
+                  len(r["punti"]) == 3 and r["esclusi"] == {"zero": 1, "fuori_scala": 1} and nomi.get("Viaggi (Origin)") == 1
+                  and nomi.get("Viaggi (Destination)") == 1 and r["punti"][0][4] == "2024-01-02 10:00:00", str(nomi)[:90], interno=True)
+
+            class G:
+                unique = staticmethod(lambda p: p)
+                stamp_now = staticmethod(lambda: "prova")
+
+            k = d / "traccia.kml"
+            k.write_text('<?xml version="1.0"?><kml xmlns="http://www.opengis.net/kml/2.2"><Placemark><name>A</name><LineString><coordinates>12,41 13,42</coordinates></LineString></Placemark></kml>', encoding="utf-8")
+            liv = fmp.importa_kml(caso, str(k))
+            cattivo = d / "c.kml"
+            cattivo.write_text('<!DOCTYPE x [<!ENTITY a "b">]><kml/>', encoding="utf-8")
+            rif = False
+            try:
+                fmp.importa_kml(caso, str(cattivo))
+            except ValueError:
+                rif = True
+            e1 = fmp.esporta(G, caso, {"formato": "kml", "categorie": list(nomi)})
+            e2 = fmp.esporta(G, caso, {"formato": "gpx", "categorie": ["Viaggi (Origin)"], "da": "2024-02-01"})
+            az = {v[0] for v in caso.voci}
+            kml = (d / "export/mappa/punti_prova.kml").read_text(encoding="utf-8")
+            gpx = (d / "export/mappa/punti_prova.gpx").read_text(encoding="utf-8")
+            check(tr("Mappa: KML importato come livello separato, DOCTYPE rifiutato, esportazione KML e GPX nel registro"),
+                  liv["kml"][0]["elementi"] == 1 and rif and {"mappa_kml", "mappa_esporta"} <= az and kml.count("<Placemark>") == 3
+                  and gpx.count("<wpt ") == 1 and len(fmp.punti(caso)["punti"]) == 3, f"{e1['message'][:24]} {e2['message'][:24]}", interno=True)
+            pt = fmp.punti(caso)["punti"]
+            fmp.preferito(caso, {"k": fmp.chiave(pt[0]), "on": True})
+            fmp.preferito(caso, {"k": fmp.chiave(pt[1]), "on": True})
+            pr = fmp.preferito(caso, {"k": fmp.chiave(pt[1]), "on": False})["preferiti"]
+            G.stamp_now = staticmethod(lambda: "preferiti")        # le esportazioni sono in sola lettura: un nome nuovo
+            fmp.esporta(G, caso, {"formato": "kml", "categorie": list(nomi), "solo_preferiti": True})
+            falso = False
+            try:
+                fmp.preferito(caso, {"k": "a|999|1|2|", "on": True})
+            except ValueError:
+                falso = True
+            kml = (d / "export/mappa/punti_preferiti.kml").read_text(encoding="utf-8")
+            check(tr("Mappa: punti preferiti salvati nel caso e nel registro, esportazione dei soli preferiti, punto inesistente rifiutato"),
+                  pr == [fmp.chiave(pt[0])] and fmp.punti(caso)["preferiti"] == pr and kml.count("<Placemark>") == 1 and falso
+                  and sum(1 for v in caso.voci if v[0] == "mappa_preferito") == 3, str(pr)[:60], interno=True)
+        finally:
+            fa.db_ro = vecchia
+
+
+def controlli_mappa_font(check):
+    """(3.0) Scritte delle mappe: font nel programma, percorso locale, nessun indirizzo esterno nello stile."""
+    d = Path(__file__).resolve().parent
+    n = [len(list((d / "mappa" / "fonts" / f"Noto Sans {x}").glob("*-*.pbf"))) for x in ("Regular", "Medium", "Italic")]
+    h = (d / "forense_gui.html").read_text(encoding="utf-8")
+    check(tr("Mappa: font delle scritte inclusi, con licenza, e letti in locale"),
+          n == [256, 256, 256] and (d / "mappa" / "fonts" / "OFL.txt").is_file() and 'glyphs: "/mappa/fonts/{fontstack}/{range}.pbf"' in h, str(n), interno=True)
+
+
+def controlli_mappe_rete(check):
+    """(3.0) Estrazione da un archivio PMTiles costruito, servito in locale; blocco della rete con un caso aperto."""
+    import gzip
+    import http.server
+    import struct
+    import threading
+    import forense_gui as G
+    import forense_mappe_scarica as fms
+
+    ids_ok = [fms.zxy_id(0, 0, 0), fms.zxy_id(1, 0, 0), fms.zxy_id(1, 0, 1), fms.zxy_id(1, 1, 1), fms.zxy_id(1, 1, 0)] == [0, 1, 2, 3, 4]
+    tess = {fms.zxy_id(2, x, y): bytes([x, y]) * 50 for x in range(4) for y in range(4)}
+    tess[0] = b"zero"
+    corpo, voci = b"", []
+    for t in sorted(tess):
+        voci.append((t, 1, len(corpo), len(tess[t])))
+        corpo += tess[t]
+    rad = fms._dir_scrivi(voci)
+    meta = gzip.compress(b"{}", mtime=0)
+    fonte = (b"PMTiles\x03" + struct.pack("<QQQQQQQQQQQ", 127, len(rad), 127 + len(rad), len(meta), 0, 0, 127 + len(rad) + len(meta), len(corpo), len(voci), len(voci), len(voci))
+             + bytes([1, 2, 2, 1, 0, 2]) + struct.pack("<iiii", 0, 0, 0, 0) + bytes([0]) + struct.pack("<ii", 0, 0) + rad + meta + corpo)
+    guasto = [False]
+
+    class H(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            a, b = self.headers["Range"].split("=")[1].split("-")
+            a, b = int(a), min(int(b), len(fonte) - 1)
+            if guasto[0] and a >= 127 + len(rad) + len(meta):
+                self.send_error(500)
+                return
+            self.send_response(206)
+            self.send_header("Content-Length", str(b - a + 1))
+            self.end_headers()
+            self.wfile.write(fonte[a:b + 1])
+
+        def log_message(self, *_a):
+            pass
+
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    vecchia = fms.BASE
+    fms.BASE = f"http://127.0.0.1:{srv.server_port}/"
+    with tempfile.TemporaryDirectory() as d:
+        dest = Path(d) / "m.pmtiles"
+        try:
+            info = fms.scarica("Prova", [[-170, 1, -1, 80]], 2, "x", dest, lambda _p: None)     # quadrante nord-ovest
+            b = dest.read_bytes()
+            ro, rl = struct.unpack("<QQ", b[8:24])
+            do = struct.unpack("<Q", b[56:64])[0]
+            lette = {}
+            for t, r, o, ln in fms._dir_leggi(gzip.decompress(b[ro:ro + rl])):
+                for k in range(r):
+                    lette[t + k] = b[do + o:do + o + ln]
+            attese = {t: tess[t] for t in fms.tessere([[-170, 1, -1, 80]], 2) if t in tess}
+            guasto[0] = True
+            dest2 = Path(d) / "n.pmtiles"
+            caduta = False
+            attese_get = fms._get
+            fms._get = lambda u, i=None, f=None, tentativi=1, esatto=True: attese_get(u, i, f, 1, esatto)
+            try:
+                fms.scarica("Prova", [[-170, 1, -1, 80]], 2, "x", dest2, lambda _p: None)
+            except OSError:
+                caduta = True
+            finally:
+                fms._get = attese_get
+            nessuno = not dest2.exists() and not Path(str(dest2) + ".parziale").exists()
+        finally:
+            fms.BASE = vecchia
+            srv.shutdown()
+    check(tr("Mappe: estrazione uguale alla sorgente, numeri Hilbert corretti, nessun file a metà se la rete cade"),
+          ids_ok and lette == attese and len(attese) >= 3 and caduta and nessuno and bool(info["sha256"]), f"{len(lette)}/{len(attese)}", interno=True)
+    caso, prep = G.SES.case, G.PREP.running
+    try:
+        G.SES.case = object()
+        a = False
+        try:
+            G.senza_caso()
+        except ValueError:
+            a = True
+        G.SES.case = None
+        G.senza_caso()
+        passa = True
+    finally:
+        G.SES.case = caso
+    check(tr("Rete: con un caso aperto o in preparazione mappe e modelli non si scaricano"), a and passa, f"{a} {passa}", interno=True)
+
+
+def controlli_droni(check):
+    """(3.0) Lettori dei voli su testi costruiti: valori veri, file estranei ignorati, ordine incerto segnalato."""
+    import forense_droni as fdr
+    srt = ("1\n00:00:00,000 --> 00:00:00,033\n2024-05-01 12:00:00.100\n[latitude: 41.890210] [longitude: 12.492310] [rel_alt: 10.0 abs_alt: 60.5]\n\n"
+           "2\n00:00:00,033 --> 00:00:00,066\n2024-05-01 12:00:01.100\n[latitude: 41.890310] [longitude: 12.492410] [rel_alt: 11.0 abs_alt: 61.5]\n")
+    a = fdr.leggi_srt(srt)
+    b = fdr.leggi_srt("1\n00:00:00,000 --> 00:00:01,000\nGPS(41.89,12.49,60)\n")
+    incerto = fdr.INCERTI[0]
+    c1, f1 = fdr.leggi_csv("latitude,longitude,altitude(m),datetime(utc)\n45.4642,9.19,120,2024-06-01 10:00:00\n0,0,1,x\n")
+    c2, f2 = fdr.leggi_csv("datetime(utc),latitude,longitude,altitude(feet),height_above_takeoff(feet)\n2024-06-01 10:00:00,45.4,9.1,100,10\n")
+    no, _f = fdr.leggi_csv("nome,citta\nanna,roma\n")
+    v = fdr._volo("x", "p", "srt", "RepertIA", a)
+    check(tr("Droni: SRT e CSV letti con i valori giusti, CSV estranei ignorati, DJI tramite ALEAPP se presente"),
+          a == [[12.49231, 41.89021, 60.5, "2024-05-01 12:00:00"], [12.49241, 41.89031, 61.5, "2024-05-01 12:00:01"]]
+          and b == [[12.49, 41.89, 60.0, ""]] and incerto and c1 == [[9.19, 45.4642, 120.0, "2024-06-01 10:00:00"]]
+          and f1 == "csv" and f2 == "csv_airdata" and c2[0][2] == 30.48 and no is None and v["lunghezza_m"] == 14 and v["quota_max"] == 61.5,
+          f"{a[:1]} {c1[:1]}"[:90], interno=True)
+    # (3.0) registri binari costruiti secondo i formati pubblici: valori veri, tipo di record ignoto, versione ignota, file estranei
+    testa = b"SN1".ljust(18, b"\0") + b"BAT".ljust(32, b"\0") + b"Roma".ljust(64, b"\0") + bytes([3]) + struct.pack("<fIfI", 1000.0, 60, 50.0, 0) + struct.pack("<Qi", 1700000000000, 60) + struct.pack("<ffHHH", 41.5, 12.5, 0, 0, 2) + b"f\0"
+    rec = b"".join(bytes([0]) + struct.pack("<Ifff", 1000 * i, 41.5 + i / 1000, 12.5, 10.0).ljust(268, b"\0") for i in range(3))
+    au = fdr.leggi_binario("autel_x", b"AUTEL_FR" + struct.pack("<IH", 3, len(testa)) + testa + rec)
+    au_rotto = fdr.leggi_autel(b"AUTEL_FR" + struct.pack("<IH", 3, len(testa)) + testa + rec + b"\x63")
+    au_ign = fdr.leggi_binario("autel_y", b"AUTEL_FR" + struct.pack("<IH", 9, 0) + bytes(200))
+
+    def mav1(msg, pay, extra):
+        c = bytes([len(pay), 0, 1, 1, msg]) + pay
+        return struct.pack(">Q", 1700000000000000) + b"\xfe" + c + struct.pack("<H", fdr._x25(c, extra))
+    gpi = struct.pack("<Iiiii", 0, 419000000, 125000000, 50000, 0).ljust(28, b"\0")
+    tl = fdr.leggi_binario("a.tlog", mav1(33, gpi, 104) + mav1(33, gpi, 1))     # il secondo ha il CRC sbagliato
+    fmt = b"\xa3\x95\x80\x80\x59FMT\0BBnNZ".ljust(25, b"\0") + b"Type,Length,Name,Format,Columns".ljust(64, b"\0")
+    fg = b"\xa3\x95\x80\x82\x1aGPS\0BLLe".ljust(25, b"\0") + b"Status,Lat,Lng,Alt".ljust(64, b"\0")
+    df = fdr.leggi_binario("1.BIN", fmt + fg + b"\xa3\x95\x82" + bytes([3]) + struct.pack("<iii", 419000000, 125000000, 5000) + bytes(10))
+    ul = b"ULog\x01\x12\x35\x01" + bytes(8)
+    def um(t, c):
+        return struct.pack("<HB", len(c), ord(t)) + c
+    ul += um("F", b"vehicle_gps_position:uint64_t timestamp;uint64_t time_utc_usec;int32_t lat;int32_t lon;int32_t alt;uint8_t fix_type;") + um("A", b"\0" + struct.pack("<H", 1) + b"vehicle_gps_position")
+    ul += um("D", struct.pack("<HQQiiiB", 1, 1, 1700000000000000, 419000000, 125000000, 5000, 3)) + um("D", struct.pack("<HQQiiiB", 1, 2, 0, 419000000, 125000000, 5000, 0))
+    ug = fdr.leggi_binario("a.ulg", ul)
+    check(tr("Droni: registri Autel, ULog, tlog e DataFlash letti con i valori giusti; CRC errato, assenza di fix e versione ignota non danno punti"),
+          [au["punti"][0][:3], len(au["punti"]), au["punti"][0][3], au["riepilogo"]["Location"]] == [[12.5, 41.5, 10.0], 3, "2023-11-14 22:13:20", "Roma"]
+          and au_rotto[3] and len(au_rotto[0]) == 3 and au_ign["stato"] == "versione_ignota" and not au_ign["punti"]
+          and tl["punti"] == [[12.5, 41.9, 50.0, "2023-11-14 22:13:20"]] and df["punti"] == [[12.5, 41.9, 50.0, ""]]
+          and ug["punti"] == [[12.5, 41.9, 5.0, "2023-11-14 22:13:20"]] and fdr.leggi_binario("x.bin", b"MZ" + bytes(99)) is None,
+          f"{au['punti'][:1]} {tl['punti']} {df['punti']} {ug['punti']}"[:120], interno=True)
+
+
+def controlli_copia_smartphone(check):
+    """(3.0) Un caso smartphone collegato a una nuova posizione legge i file da lì, anche se collegato con la 2.21."""
+    import forense_mobile as fm
+
+    class Caso:
+        def __init__(self, x, meta):
+            self.root, self.meta = Path(x), meta
+
+        def save(self):
+            pass
+
+        def log(self, *_a, **_k):
+            pass
+
+    with tempfile.TemporaryDirectory() as d:
+        nuovo = Path(d) / "estrazione.zip"
+        nuovo.write_bytes(b"PK")
+        chiave = fm.part_key(0)
+        parti = [{"offset": chiave, "readable": True, "mobile": {"file": "/non/esiste/estrazione.zip", "formato": "zip", "nome": "estrazione.zip"}}]
+        vecchio = Caso(d, {"tipo_caso": "smartphone", "evidence": str(nuovo), "image": str(nuovo), "partitions": parti})
+        letto = fm._sorgente(vecchio, chiave)["file"]
+        c2 = Caso(d, {"tipo_caso": "smartphone", "evidence": "/non/esiste/estrazione.zip", "image": "/non/esiste/estrazione.zip",
+                      "partitions": [dict(parti[0], mobile=dict(parti[0]["mobile"]))]})
+        fa.collega_copia(c2, str(nuovo), conferma=True)
+    check(tr("Collega copia forense: nei casi smartphone i file si leggono dalla nuova posizione"),
+          letto == str(nuovo) and c2.meta["partitions"][0]["mobile"]["file"] == str(nuovo.resolve()), letto[-30:], interno=True)
+
+
+def controlli_recupero(check):
+    """(3.0) Record cancellati su database costruiti con cancellazioni note: valori veri o nessun record, mai valori inventati."""
+    import shutil as _sh
+    import sqlite3 as _sq
+    import forense_database as fdb
+    import forense_recupero as fr
+
+    def crea(f, sec="OFF", wal=False):
+        c = _sq.connect(str(f))
+        c.execute(f"PRAGMA secure_delete={sec}")
+        if wal:
+            c.execute("PRAGMA journal_mode=WAL")
+        c.execute("CREATE TABLE m(id INTEGER PRIMARY KEY, ts INTEGER, chi TEXT, testo TEXT)")
+        c.executemany("INSERT INTO m VALUES (?,?,?,?)", [(i, 1700000000 + i, f"+39000{i:05d}", f"testo numero {i:06d} " + "x" * 30) for i in range(1, 301)])
+        c.commit()
+        return c
+
+    def vero(r):
+        v = [x[1] for x in r["valori"]]
+        i = int(v[3].split()[2])
+        return v[1:] == [str(1700000000 + i), f"+39000{i:05d}", f"testo numero {i:06d} " + "x" * 30], i
+
+    with tempfile.TemporaryDirectory() as d:
+        d = Path(d)
+        f = d / "sparsi.db"
+        c = crea(f)
+        tolte = list(range(10, 300, 10))
+        c.executemany("DELETE FROM m WHERE id=?", [(i,) for i in tolte])
+        c.commit()
+        c.close()
+        r = fr.recupera(str(f))
+        sicuri = [x for x in r["record"] if x["livello"] != "ambiguo"]
+        esiti = [vero(x) for x in sicuri]
+        rid = all((x["rowid"] is None and x["valori"][0][0] == "?") or x["valori"][0][1] == str(x["rowid"]) for x in sicuri)
+        check(tr("Record cancellati: righe sparse lette con i valori veri, nessuna riga viva, ROWID mai inventato"),
+              len(sicuri) >= 10 and all(e[0] and e[1] in tolte for e in esiti) and rid, f"{len(sicuri)}/{len(tolte)}", interno=True)
+        f = d / "wal.db"
+        c = crea(f, wal=True)
+        c.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        c.execute("PRAGMA wal_autocheckpoint=0")
+        c.executemany("DELETE FROM m WHERE id=?", [(i,) for i in tolte])
+        c.commit()
+        lav = d / "wal_lav"
+        lav.mkdir()
+        for suf in ("", "-wal"):
+            _sh.copy(str(f) + suf, str(lav / ("wal.db" + suf)))
+        c.close()
+        rw = fr.recupera(str(lav / "wal.db"))
+        nw = {x["rowid"] for x in rw["record"] if x["fonte"] == "cancellata_nel_wal"}
+        f = d / "secure.db"
+        c = crea(f, sec="ON")
+        c.executemany("DELETE FROM m WHERE id=?", [(i,) for i in tolte])
+        c.commit()
+        c.close()
+        rs = fr.recupera(str(f))
+        check(tr("Record cancellati: le righe cancellate nel WAL risultano tali; con secure_delete nessun record"),
+              nw == set(tolte) and not rs["record"], f"WAL {len(nw)}/{len(tolte)}, secure_delete {len(rs['record'])}", interno=True)
+        f = d / "default.db"
+        c = _sq.connect(str(f))
+        c.execute("PRAGMA secure_delete=OFF")
+        c.execute("CREATE TABLE m(id INTEGER PRIMARY KEY, chi TEXT, n INTEGER)")
+        c.executemany("INSERT INTO m VALUES (?,?,?)", [(i, f"+39000{i:05d}", 200 + i) for i in range(1, 101)])
+        c.commit()
+        c.execute("ALTER TABLE m ADD COLUMN sub INTEGER DEFAULT -1")
+        c.executemany("DELETE FROM m WHERE id=?", [(i,) for i in range(10, 100, 10)])
+        c.commit()
+        c.close()
+        rd = fr.recupera(str(f))
+        sd = [x for x in rd["record"] if x["livello"] != "ambiguo"]
+        check(tr("Record cancellati: colonna aggiunta dopo la riga presa dal DEFAULT e segnata"),
+              bool(sd) and all(x["valori"][3][1] == "-1" and x["dal_default"] == [3] for x in sd),
+              f"{len(sd)}", interno=True)
+
+        class Caso:
+            def __init__(self, x):
+                self.root, self.export_dir, self.voci = Path(x), Path(x) / "export", []
+
+            def log(self, azione, dati):
+                self.voci.append((azione, dati))
+
+        class G:
+            @staticmethod
+            def file_ident(_case, _b):
+                return {"source": "x", "path": "/sparsi.db", "name": "sparsi.db", "part": None, "inode": None, "id": 1}
+
+        base = Path(d) / "caso"
+        base.mkdir()
+        tmp = base / (fdb.PREFISSO + "prova")
+
+        def copia(_g, _c, _i):
+            tmp.mkdir()
+            _sh.copy(d / "sparsi.db", tmp / "sparsi.db")
+            return tmp, tmp / "sparsi.db"
+
+        caso, orig_copia = Caso(base), fdb._copia_lavoro
+        fdb._copia_lavoro = copia
+        try:
+            a = fdb.apri(G, caso, {})
+        finally:
+            fdb._copia_lavoro = orig_copia
+        rc = fdb.recuperati(caso, {"id": a["id"]})
+        x0 = next(x for x in rc["record"] if x["livello"] != "ambiguo")
+        fq = d / "fq.csv"
+        fq.write_bytes(b"_TBLNAME;_PLL;_ROWID;_STATUS;_OFFSET;id\n" + f"m;[9|4];-1;D;{x0['offset'] + 3};testo\nspezzato\n".encode()
+                       + b"m;[9|4];7; ;99999;viva\n")
+        e = fdb.riscontro_csv(caso, {"id": a["id"], "path": str(fq), "strumento": "FQLite 5.0"})
+        rifiuto = False
+        estraneo = d / "altro.csv"
+        estraneo.write_text("a;b;c\n1;2;3\n", encoding="utf-8")
+        try:
+            fdb.riscontro_csv(caso, {"id": a["id"], "path": str(estraneo)})
+        except ValueError:
+            rifiuto = True
+        scelta = next(i for i in tolte if any(y["valori"][3][1].startswith(f"testo numero {i:06d}") for y in rc["record"] if y["livello"] != "ambiguo"))
+        viva = fdb.cerca(caso, {"id": a["id"], "testo": "+3900000001"})
+        solo = fdb.cerca(caso, {"id": a["id"], "testo": f"testo numero {scelta:06d}", "recuperati": True})
+        jolly = fdb.cerca(caso, {"id": a["id"], "testo": "100%_"})
+        check(tr("Gestore database: ricerca di un valore: tabelle e colonne giuste, anche nei record cancellati e con caratteri speciali"),
+              [t["tabella"] for t in viva["tabelle"]] == ["m"] and viva["tabelle"][0]["colonne"][0]["colonna"] == "chi"
+              and not solo["tabelle"] and solo["recuperati"] == {"m": 1} and not jolly["tabelle"]
+              and bool(fdb.query(caso, {"id": a["id"], "sql": viva["tabelle"][0]["sql"]})["righe"]), f"{viva['tabelle']}"[:90], interno=True)
+        hx = fdb.esadecimale(caso, {"id": a["id"], "file": "db", "offset": x0["offset"]})
+        azioni = {v[0] for v in caso.voci}
+        fdb.chiudi(caso, {"id": a["id"]})
+        check(tr("Record cancellati: riscontro col CSV per posizione, formato estraneo rifiutato, voce nel registro"),
+              e["abbinati"] == 1 and rifiuto and bool(hx["testo"]) and {"db_recupero", "db_riscontro_csv"} <= azioni,
+              f"{e['abbinati']}", interno=True)
+
+
 def controlli_reperti_ia(case, check):
     """(2.20.1, AI Act) Un reperto registrato dall'agente (strumento record_finding, con un modello finto) risulta
     «modello IA – da verificare» in findings.json e nel report, che non dice «ogni reperto è stato verificato»; Word e PDF
     dichiarano nei metadati il testo generato da IA; dopo «Confermo, verificato» il reperto è verificato con operatore e
     data, anche nel registro. Più la distinzione fra server LLM locali/privati ed esterni."""
     import forense_gui as G
+    import tempfile as _tf
+
+    class _Finto:
+        log_path = None
+        findings = staticmethod(lambda: [])
+    with _tf.TemporaryDirectory() as td:
+        _Finto.log_path = Path(td) / "audit_log.jsonl"
+        righe = [{"ts": "t0", "event": "sessione", "data": {"model": "m-a", "url": "http://127.0.0.1:1", "backend": "b"}}]
+        _Finto.log_path.write_text("\n".join(json.dumps(r) for r in righe), encoding="utf-8")
+        solo_collegato = fa.modelli_report_md(_Finto)
+        righe += [{"ts": "t1", "event": "user", "data": "d"}, {"ts": "t2", "event": "assistant", "data": {"tool_calls": [1]}},
+                  {"ts": "t3", "event": "assistant", "data": {"tool_calls": None}}]
+        _Finto.log_path.write_text("\n".join(json.dumps(r) for r in righe), encoding="utf-8")
+        usato = fa.modelli_usati(_Finto)
+    check(tr("report: server collegato senza domande = nessun modello; con domande = nome, domande e risposte"),
+          "m-a" not in solo_collegato[0] and len(usato) == 1 and usato[0]["model"] == "m-a"
+          and (usato[0]["domande"], usato[0]["risposte"], usato[0]["al"]) == (1, 1, "t3"), solo_collegato[0][:70], interno=True)
+    md0 = fa.write_report(case).read_text(encoding="utf-8")
+    check(tr("report: riga sul modello IA presente e note metodologiche coerenti con il registro"),
+          any(l.startswith(tr("- Modello IA")) for l in md0.splitlines()) and fa.modello_metodo_md(case).strip() in md0, "", interno=True)
     m0, llm0 = fa.MODEL, case.meta.get("llm")
     fa.MODEL = "modello-collaudo"
     case.meta["llm"] = {"backend": "collaudo", "url": "http://127.0.0.1:1234", "model": fa.MODEL, "remoto": False,
@@ -677,6 +1187,26 @@ def controlli_fase4(case, con, check):
             bad = [f"{p}/{i}" for p, i in rows if not fmg.origine(case, {"part": p, "inode": i})["origine"]]
             check(tr("Foto e metadati «Dalle chat»: {n} file, ognuno con il messaggio di origine").format(n=len(rows)),
                   len(rows) == cm["n"] and not bad, "; ".join(bad[:3]), interno=True)
+    st = G.requirements()["strumenti"]
+    manca = [x["nome"] for x in st if not x["ok"] and not x.get("facoltativo")]
+    check(tr("strumenti: elenco completo con iLEAPP e ALEAPP, stato di ciascuno; mancanti: {m}").format(m=", ".join(manca) or "-"),
+          len(st) >= 25 and {"ileapp", "aleapp", "7zip", "pypff"} <= {x["id"] for x in st} and all(isinstance(x["ok"], bool) for x in st), "", interno=True)
+    # (3.0) Documenti e Foto/Video/Audio: dimensione e date del file, con il filtro per dimensione e l'ordinamento
+    for sez, tab in (("doc", "doc_text"), ("meta", "meta")):
+        if not fa.table_exists(con, tab) or not con.execute(f"SELECT 1 FROM {tab} WHERE source IN ('fs', 'carving') LIMIT 1").fetchone():
+            continue
+        for _ in range(600):        # l'indice di navigazione si prepara in un thread
+            if G.ensure_nav(case)["state"] != "building":
+                break
+            time.sleep(0.5)
+        r = G.results(case, {"kind": sez}, limit=None)["rows"]
+        con_dim = [x["size"] for x in r if x.get("source") in ("fs", "carving") and x.get("size") is not None]
+        soglia = max(con_dim) if con_dim else 0
+        filt = G.results(case, {"kind": sez, "cf": json.dumps({"size": {"min": soglia}})}, limit=None)["rows"]
+        ord_ = G.results(case, {"kind": sez, "sk": "size", "sd": "desc"}, limit=None)["rows"]
+        check(tr("{sez}: dimensione e date dei file, filtro per dimensione e ordinamento ({n} file con dimensione)").format(sez=sez, n=len(con_dim)),
+              bool(con_dim) and (any(x.get("mtime") for x in r) or not any(x.get("source") == "fs" for x in r)) and bool(filt) and all(x["size"] >= soglia for x in filt)
+              and ord_[0]["size"] == soglia, f"{len(filt)}/{len(r)}", interno=True)
     # (2.20) sottovoce «Audio» di Foto/Video/Audio: i file audio dall'elenco dei file, quelli delle chat con il messaggio
     na = con.execute("SELECT COUNT(*) FROM files WHERE type LIKE '%/r' AND " + G.audio_where()).fetchone()[0]
     if na:
@@ -786,8 +1316,103 @@ def controlli_portatile_timeline(case, con, check):
               nf_ == n_lp and nest == 0 and est.get("leapp_n") == n_lp,
               tr("nei file {a}, nel caso {b}, rimaste nel file principale {c}").format(a=nf_, b=n_lp, c=nest), interno=True)
     html = (root / "index.html").read_text(encoding="utf-8")
+    fmap = root / "dati" / "mappa.js"
+    if fmap.exists():
+        tm = fmap.read_text(encoding="ascii")
+        check(tr("report portatile: mappa inclusa con i punti del caso e lo sfondo, senza richieste esterne"),
+              (root / "dati" / "sfondo_mappa.js").exists() and '"punti"' in tm and "initMappa" in html and "maplibre-gl" not in html.lower(),
+              "", interno=True)
+    import forense_gui as Gt
+    if fa.table_exists(con, "chat_messages"):
+        n_m = con.execute("SELECT COUNT(*) FROM chat_messages WHERE ts GLOB '[0-9][0-9][0-9][0-9]-*'").fetchone()[0]
+        h_m = sum(b["n"] for b in Gt.tl_hist(case, {"origin": "msg:"})["bins"])
+        r_m = Gt.tl_evidenze_pagina(case, {"origin": "msg:"}, None, 0, 50)["total"]
+        check(tr("Timeline per evidenza: tabella e grafico contano tutti i {n} messaggi con una data").format(n=n_m), h_m == n_m == r_m, f"{h_m}/{r_m}", interno=True)
+    if fa.table_exists(con, "artifacts"):       # anche sui casi disco, i cui artefatti non hanno gruppo e voce
+        n_a = con.execute("SELECT COUNT(*) FROM artifacts WHERE cat <> 'messaggi' AND ts GLOB '[0-9][0-9][0-9][0-9]-*'").fetchone()[0]
+        r_a = Gt.tl_evidenze_pagina(case, {"origin": "ev:[]"}, None, 0, 50)
+        h_a = sum(b["n"] for b in Gt.tl_hist(case, {"origin": "ev:[]"})["bins"])
+        check(tr("Timeline per evidenza: tabella e grafico contano tutti i {n} artefatti con una data").format(n=n_a), h_a == n_a == r_a["total"] and len(r_a["rows"]) == min(n_a, 50), f"{h_a}/{r_a['total']}", interno=True)
+    # (3.0) filtri di colonna sulle fonti per evidenza: i valori ci sono, sommano al totale e filtrano tabella e grafico
+    fonti = (["msg:"] if fa.table_exists(con, "chat_messages") else []) + (["ev:[]"] if fa.table_exists(con, "artifacts") else [])
+    if [x for x in fa.bookmarks_timeline(case, False) if x["ts"]]:
+        fonti.append("preferiti")
+    for o in fonti:
+        tot, male = Gt.results(case, {"kind": "timeline", "origin": o})["total"], []
+        for col in ("kind", "source", "detail"):
+            vals = Gt.results(case, {"kind": "timeline", "origin": o, "cfv": col})["values"]
+            if (sum(v[1] for v in vals) != tot and col != "detail") or (tot and not vals):
+                male.append(col)
+            if vals:
+                fq = {"kind": "timeline", "origin": o, "cf": json.dumps({col: {"sel": [vals[0][0]]}})}
+                if Gt.results(case, dict(fq))["total"] != vals[0][1] or sum(b["n"] for b in Gt.tl_hist(case, dict(fq))["bins"]) != vals[0][1]:
+                    male.append(col + "=" + str(vals[0][0]))
+        check(tr("Timeline per evidenza: i filtri di colonna elencano i valori e filtrano tabella e grafico ({o}, {n} righe)").format(o=o, n=tot), not male, ",".join(male), interno=True)
+    # (3.0) pagine dell'agente: scorrendole si vede ogni riga una volta e la fine è dichiarata
+    ta = fa.make_tools(case)
+    if "query_artifacts" in ta and fa.table_exists(con, "artifacts"):
+        n_a, off, viste, fine = con.execute("SELECT COUNT(*) FROM artifacts").fetchone()[0], 0, [], False
+        for _ in range(2000):
+            t = ta["query_artifacts"](limit=7, offset=off).split("\n")
+            nota = next((x for x in t if re.match(r"\S+ \d+–\d+", x)), "")
+            righe = t[t.index(nota) + 1:] if nota in t else []
+            if not righe:
+                break
+            viste += righe
+            off += len(righe)
+            if "=" not in nota:
+                fine = True
+                break
+        conti = sum(int(x.rsplit(": ", 1)[1]) for x in ta["count_artifacts"]().split("\n")[1:]) if "count_artifacts" in ta else n_a
+        check(tr("Agente: le pagine di artefatti e messaggi coprono ogni riga una volta sola e i conteggi coincidono ({n} righe)").format(n=n_a),
+              off == n_a and conti == n_a and (fine or not n_a), f"{off}/{conti}", interno=True)
+    html_p = (Path(out["path"]) / "index.html").read_text(encoding="utf-8", errors="replace")
+    n_doc = con.execute("SELECT COUNT(*) FROM doc_text").fetchone()[0] if fa.table_exists(con, "doc_text") else 0
+    docs_p = (Path(out["path"]) / "dati" / "documenti.js").read_text(encoding="ascii")
+    check(tr("report portatile: albero delle sezioni, Documenti ({n}) ed elenco dei file inclusi con dimensione e date").format(n=n_doc),
+          "function navBuild" in html_p and 'id="attList"' in html_p and "datiFile(m[1], m[2])" in html_p
+          and len(json.loads(docs_p[docs_p.index(",") + 1:docs_p.rindex(")")])) == n_doc, str(n_doc), interno=True)
     check(tr("report portatile: ricerca veloce nei risultati del caso presente"),
           'value="fast"' in html and "fastSearchP" in html, "", interno=True)
+
+
+def controlli_lid(check):
+    """(3.0) LID di WhatsApp e numero: solo coppie scritte da WhatsApp, in conversazioni, mittenti e rubrica; ripetibile."""
+    import sqlite3
+    import forense_mobile_chat as fmc
+    db = sqlite3.connect(":memory:")
+    db.executescript("""CREATE TABLE jid(_id INTEGER PRIMARY KEY, raw_string TEXT); CREATE TABLE jid_map(lid_row_id INTEGER, jid_row_id INTEGER);
+        INSERT INTO jid VALUES (1, '205690463334636@lid'), (2, '390000000001@s.whatsapp.net'), (3, '999999999999999@lid');
+        INSERT INTO jid_map VALUES (1, 2);
+        CREATE TABLE ZWAADDRESSBOOKCONTACT(ZFULLNAME TEXT, ZWHATSAPPID TEXT, ZPHONENUMBER TEXT, ZLID TEXT);
+        INSERT INTO ZWAADDRESSBOOKCONTACT VALUES ('Anna', '390000000002@s.whatsapp.net', NULL, '111111111111111@lid'), ('Solo LID', NULL, NULL, '222222222222222@lid');""")
+    coppie = fmc.lid_da_db(db)
+    check(tr("LID di WhatsApp: si leggono solo le coppie registrate (jid_map, ZLID), mai dedotte"),
+          {x[:2] for x in coppie} == {("205690463334636@lid", "390000000001@s.whatsapp.net"), ("111111111111111@lid", "390000000002@s.whatsapp.net")},
+          str(coppie), interno=True)
+    con = sqlite3.connect(":memory:")
+    fmc.ensure_schema(con)
+    con.executemany("INSERT INTO chat_lid VALUES (?,?,?)", [(a, b, "msgstore.db · " + c) for a, b, c in coppie])
+    con.execute("INSERT INTO chat_threads(id, app, key, title, participants) VALUES (1, 'whatsapp', '205690463334636@lid', '205690463334636@lid', '[\"205690463334636@lid\"]')")
+    con.execute("INSERT INTO chat_messages(thread, app, sender) VALUES (1, 'whatsapp', '205690463334636@lid')")
+    con.execute("INSERT INTO chat_contacts(source, name, value, norm) VALUES ('c', 'Anna', '111111111111111@lid', '111111111111111@lid')")
+    fmc.lid_applica(con)
+    primo = [con.execute(q).fetchone() for q in ("SELECT title, participants FROM chat_threads", "SELECT sender, sender_name FROM chat_messages", "SELECT value, norm FROM chat_contacts WHERE name = 'Anna'", "SELECT COUNT(*) FROM chat_contacts")]
+    fmc.lid_applica(con)
+    secondo = [con.execute(q).fetchone() for q in ("SELECT title, participants FROM chat_threads", "SELECT sender, sender_name FROM chat_messages", "SELECT value, norm FROM chat_contacts WHERE name = 'Anna'", "SELECT COUNT(*) FROM chat_contacts")]
+    check(tr("LID di WhatsApp: conversazione, mittente e rubrica mostrano LID e numero, il valore grezzo resta, si può ripetere"),
+          "+390000000001" in primo[0][0] and "205690463334636@lid (+390000000001)" in primo[0][1] and primo[1] == ("205690463334636@lid", "+390000000001")
+          and primo[2] == ("111111111111111@lid (+390000000002)", fmc.norm_number("390000000002")) and primo[3][0] == 2 and primo == secondo, str(primo), interno=True)
+
+
+def controlli_gps_segno(check):
+    """(3.0) Il segno di latitudine e longitudine viene dalla direzione: Ovest e Sud sono negativi."""
+    con_c = {"GPS:GPSLatitude": 35.6, "GPS:GPSLatitudeRef": "S", "GPS:GPSLongitude": 78.8, "GPS:GPSLongitudeRef": "W",
+             "Composite:GPSLatitude": -35.6, "Composite:GPSLongitude": -78.8}
+    senza = {k: v for k, v in con_c.items() if not k.startswith("Composite")}
+    est = {"GPS:GPSLatitude": 35.6, "GPS:GPSLatitudeRef": "N", "GPS:GPSLongitude": 14.5, "GPS:GPSLongitudeRef": "E"}
+    check(tr("coordinate delle foto: Sud e Ovest negativi, Nord ed Est positivi"),
+          fa.gps_da(con_c) == (-35.6, -78.8) and fa.gps_da(senza) == (-35.6, -78.8) and fa.gps_da(est) == (35.6, 14.5), interno=True)
 
 
 def controlli_ricerca_veloce(case, con, check):
@@ -808,6 +1433,34 @@ def controlli_ricerca_veloce(case, con, check):
             ids, tot, _x = rv.cerca_id(case, q, rv.MAX_SALVA)
             check(tr("ricerca veloce: messaggio ritrovato da una parte del testo («{q}», {n} risultati)").format(q=q, n=tot),
                   ("msg", r[0]) in {(f, int(i)) for f, i, _t in ids}, interno=True)
+    # (3.0) confronto, ricerche corte, limite per fonte e fonti senza indice
+    check(tr("ricerca veloce: maiuscole, accenti, apostrofi e spazi non contano nel confronto"),
+          rv._piega(rv._spazi("PERCHÉ  It’s\nok")) == "perche it's ok", interno=True)
+    if fa.table_exists(con, "chat_messages"):
+        r = con.execute("SELECT id, text FROM chat_messages WHERE length(trim(text)) >= 2 ORDER BY id LIMIT 1").fetchone()
+        if r:
+            q = r[1].strip()[:2]
+            ids, tot, _x = rv.cerca_id(case, q, rv.MAX_SALVA)
+            check(tr("ricerca veloce: messaggio ritrovato con due soli caratteri («{q}», {n} risultati)").format(q=q, n=tot),
+                  ("msg", r[0]) in {(f, int(i)) for f, i, _t in ids}, interno=True)
+            ids, tot, _x = rv.cerca_id(case, q, 1)
+            fonti = [f for f, _i, _t in ids]
+            check(tr("ricerca veloce: il limite vale per fonte, una fonte non nasconde le altre"),
+                  "msg" in fonti and len(fonti) == len(set(fonti)), ", ".join(fonti), interno=True)
+    import forense_gui as G0
+    for _ in range(600):        # l'albero si prepara in un thread
+        if G0.ensure_nav(case)["state"] != "building":
+            break
+        time.sleep(0.5)
+    nav = G0.nav_db(case)
+    try:
+        r = nav.execute("SELECT name FROM nav WHERE isdir = 0 AND type NOT LIKE 'v/%' AND length(name) >= 5 ORDER BY id LIMIT 1").fetchone()
+        if r:
+            gr, _non = rv.altri(con, nav, r[0])
+            check(tr("ricerca veloce: file ritrovato dal nome («{q}»)").format(q=r[0]),
+                  any(g["chiave"] == "file" and g["n"] for g in gr), interno=True)
+    finally:
+        nav.close()
     if fa.table_exists(con, "chat_contacts"):
         for cid, value in con.execute("SELECT id, value FROM chat_contacts WHERE value IS NOT NULL ORDER BY id"):
             d = re.sub(r"\D", "", value.split("@")[0])
@@ -1038,6 +1691,8 @@ def controlli_smartphone(t, img, case, con, a, check):
     controlli_chiamate_chat(con, check)
     controlli_fase4(case, con, check)
     controlli_ricerca_veloce(case, con, check)
+    controlli_gps_segno(check)
+    controlli_lid(check)
     controlli_portatile_timeline(case, con, check)
     controlli_preferiti_chat(case, con, check)
     if a.get("posizione"):
@@ -1065,6 +1720,13 @@ def controlli_smartphone(t, img, case, con, a, check):
         controlli_sysdiagnose(case, con, a, check)
         controlli_righe_tsv(check)
         controlli_diagnostica(check)
+        controlli_database(check)
+        controlli_recupero(check)
+        controlli_copia_smartphone(check)
+        controlli_mappa(check)
+        controlli_mappa_font(check)
+        controlli_mappe_rete(check)
+        controlli_droni(check)
     if a.get("leapp_righe_min") or a.get("sysdiagnose"):
         import forense_mobile_leapp as fml
         n = fml.righe_vuote(con)
@@ -1164,6 +1826,13 @@ def controlli_portachiavi(case, con, a, check):
                 txt += str(fn(category="leapp", contains="", limit=300))
             except Exception as e:
                 txt += f"errore: {e}"
+    # (3.0) l'agente arriva agli elementi nuovi: voli, artefatto dalla riga citata nei riferimenti, preferiti
+    if tools:
+        r0 = con.execute("SELECT id, title FROM artifacts ORDER BY id LIMIT 1").fetchone()
+        for nome in ("flights", "location_points", "query_database", "deleted_records", "list_bookmarks", "read_artifact"):
+            check(tr("agente: strumento {n} disponibile").format(n=nome), nome in tools, interno=True)
+        if r0 and "read_artifact" in tools:
+            check(tr("agente: artefatto letto dal numero di riga"), (r0[1] or "") in tools["read_artifact"](r0[0]), interno=True)
     check(tr("valori segreti: non dati all'agente IA (strumento degli artefatti)"),
           bool(txt) and sg["visibile"] in txt and not any(x in txt for x in segreti),
           tr("righe lette dall'agente: {n}").format(n=txt.count("\n")))
@@ -1324,7 +1993,7 @@ def controlli_leapp_chat(case, con, lp, check):
 
 def controlli_pulsanti(case, con, check):
     """(2.20) Pulsanti dell'interfaccia con le stesse richieste della pagina (/api/...): Preferiti, Reperto, Fonte e
-    «Mostra nell'albero» su un file, un artefatto e, nei casi smartphone, un artefatto di iLEAPP/ALEAPP, una chat e una
+    «Mostra nel File System» su un file, un artefatto e, nei casi smartphone, un artefatto di iLEAPP/ALEAPP, una chat e una
     chiamata; apertura delle cartelle dell'albero fino al secondo livello; indice dell'albero cancellato a caso aperto."""
     import time
     import forense_gui as G
@@ -1403,10 +2072,10 @@ def controlli_pulsanti(case, con, check):
             (not mobile or (tr("percorso nell'estrazione") in txt or tr("database {db}").format(db="").strip() in txt)) and \
             any(f.get("references") == txt for f in (r or {}).get("findings", []))
         check(tr("pulsante Reperto: {n}").format(n=nome), ok, err or txt[:300], interno=True)
-        # Fonte / Mostra nell'albero
+        # Fonte / Mostra nel File System
         r, err = call("P", "/api/locate_file", loc)
         got = (r or {}).get("select") or (r or {}).get("dir")
-        check(tr("pulsante {b}: {n}").format(b=tr("Mostra nell'albero") if it["source"] == "fs" else tr("Fonte"), n=nome),
+        check(tr("pulsante {b}: {n}").format(b=tr("Mostra nel File System") if it["source"] == "fs" else tr("Fonte"), n=nome),
               not err and got == want, err or tr("atteso {a}, aperto {b}").format(a=want, b=got), interno=True)
     # cartelle dell'albero fino al secondo livello: ogni cartella si apre e mostra quanti elementi dice il numero accanto
     n = 0
@@ -1457,6 +2126,12 @@ def controlli_trascrizione(case, check):
         and ftr.HF_URL.endswith("/" + ftr.HF_COMMIT + "/") and sum(bool(m.get("consigliato")) for m in ftr.MODELLI) == 1
     check(tr("trascrizione: elenco dei modelli con SHA-256, dimensione e indirizzo a versione fissata"), ok,
           ", ".join(f"{m['file']} {m['sha256'][:12]}…" for m in ftr.MODELLI), interno=True)
+    try:
+        ftr.dettatura(b"", "it")
+        det_ok = False
+    except ValueError:
+        det_ok = True
+    check(tr("Dettatura: una registrazione vuota viene rifiutata e non resta alcun file"), det_ok and not list(Path(tempfile.gettempdir()).glob("repertia_dettatura_*")), "", interno=True)
     prima = set(ftr.models_dir().iterdir())
     try:
         ftr.scarica("base", False, lambda p: None)

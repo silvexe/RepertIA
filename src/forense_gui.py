@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 silvexe
 """
 forense_gui.py - Interfaccia grafica locale per forense_agent.py.
@@ -15,7 +15,7 @@ import webbrowser
 from collections import Counter
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse, parse_qs, unquote
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
@@ -295,6 +295,18 @@ class Session:
         except Exception as e:
             self.llm_error = tr("Errore di connessione al server LLM: {e}").format(e=e)
 
+    def chiudi_caso(self):
+        """(3.0) Torna alla Home senza caso aperto: solo così si può andare in rete per mappe e modelli."""
+        if self.busy:
+            raise ValueError(tr("L'agente sta lavorando: fermalo prima."))
+        if self.case:
+            import forense_database as fdb
+            for sid in [k for k, v in fdb._SESS.items() if v["root"] == str(self.case.root)]:
+                fdb.chiudi(self.case, {"id": sid})
+        self.case = self.llm = self.tools = self.messages = self.conv = self.saved_messages = None
+        self.case_tools = None
+        self.events = []
+
     def open(self, root, resume=True):
         if self.case and self.conv:
             self.save_conv()
@@ -310,6 +322,15 @@ class Session:
                 self.load_conv(convs[0]["id"])
             except (OSError, ValueError):
                 self.new_conv()
+        try:
+            fa.gps_ripara(self.case)               # (3.0) segno delle coordinate delle foto
+        except Exception:
+            pass
+        try:
+            import forense_mobile_chat as fmc
+            fmc.lid_ripara(self.case)              # (3.0) LID di WhatsApp associati al numero
+        except Exception:
+            pass
         try:
             fa.normalize_carved_names(self.case)   # casi preparati con versioni precedenti
         except Exception:
@@ -512,10 +533,53 @@ def reveal(path):
         subprocess.Popen(["xdg-open", str(p if p.is_dir() else p.parent)])
 
 
+MODULI_OK = {}
+
+
+def modulo_ok(mod):
+    """(3.0) True se il modulo si carica davvero (non basta che il file ci sia: può mancare una libreria nativa)."""
+    if mod not in MODULI_OK:
+        try:
+            __import__(mod)
+            MODULI_OK[mod] = True
+        except Exception:
+            MODULI_OK[mod] = False
+    return MODULI_OK[mod]
+
+
+def strumenti_stato(plaso, plaso_msg):
+    """(3.0) Tutti gli strumenti che RepertIA usa, per gruppo: programmi trovati e moduli caricati. id = voce della spiegazione."""
+    import forense_estesa as fe
+    import forense_mobile_leapp as fml
+    import forense_trascrizione as ftr
+    w = lambda b: bool(shutil.which(b))
+    mappa = Path(__file__).resolve().parent / "mappa" / "maplibre-gl.mjs"
+    v = [("copie", "sleuthkit", "Sleuth Kit", all(shutil.which(b) for b in fa.TSK_BINS)),
+         ("copie", "ewf", "libewf (E01)", w("ewfexport") or (IS_WIN and w("img_cat"))),
+         *[("copie", m, n, modulo_ok(m)) for m, n in (("pytsk3", "pytsk3"), ("pyewf", "pyewf"), ("pyfsapfs", "libfsapfs (APFS)"),
+                                                     ("pybde", "libbde (BitLocker)"), ("pyfvde", "libfvde (FileVault)"),
+                                                     ("pyluksde", "libluksde (LUKS)"), ("pyvshadow", "libvshadow"))],
+         ("contenuti", "exiftool", "exiftool", w("exiftool")), ("contenuti", "pdftotext", "Poppler (pdftotext)", w("pdftotext")),
+         ("contenuti", "tesseract", "Tesseract (OCR)", bool(fe.tesseract())), ("contenuti", "7zip", "7-Zip", bool(fe.seven_zip())),
+         ("contenuti", "ffmpeg", "FFmpeg", bool(ftr.ffmpeg())), ("contenuti", "whisper", "whisper.cpp", bool(ftr.exe())),
+         ("contenuti", "PIL", "Pillow", modulo_ok("PIL")),
+         ("analisi", "photorec", "PhotoRec", w("photorec")), ("analisi", "bulk_extractor", "bulk_extractor", fa.bulk_available()),
+         ("analisi", "plaso", "plaso", plaso),
+         *[("artefatti", m, n, modulo_ok(m)) for m, n in (("pypff", "libpff"), ("pyregf", "libregf"), ("pyscca", "libscca"), ("pylnk", "liblnk"),
+                                                         ("pyolecf", "libolecf"), ("pyevtx", "libevtx"), ("pyesedb", "libesedb"))],
+         ("smartphone", "ileapp", "iLEAPP", bool(fml.tool_dir("ios"))), ("smartphone", "aleapp", "ALEAPP", bool(fml.tool_dir("android"))),
+         ("altri", "maplibre", "MapLibre", mappa.is_file()), ("altri", "openai", "client openai", fa.OpenAI is not None)]
+    out = [{"gruppo": g_, "id": i, "nome": n, "ok": bool(ok)} for g_, i, n, ok in v]
+    out[[x["id"] for x in out].index("plaso")]["msg"] = plaso_msg
+    out.append({"gruppo": "altri", "id": "soffice", "nome": "LibreOffice", "ok": bool(tool("soffice")), "facoltativo": True})
+    return out
+
+
 def requirements():
     plaso, _, plaso_msg = fa.plaso_status()
     w = lambda b: bool(shutil.which(b))
     return {
+        "strumenti": strumenti_stato(plaso, plaso_msg),
         "plaso_msg": plaso_msg,
         "sleuthkit": all(shutil.which(b) for b in fa.TSK_BINS),
         "ewf": w("ewfexport") or (IS_WIN and w("img_cat")), "exiftool": w("exiftool"),
@@ -547,21 +611,22 @@ def case_summary(c):
     return {
         "root": str(c.root), "name": c.root.name, "created": m.get("created"),
         "info": m.get("info_caso") or {}, "lingua": lg.lingua_caso(c),
-        "fuso_dispositivo": m.get("fuso_dispositivo") or None,
+        "fuso_dispositivo": {**m["fuso_dispositivo"], "origine": lg.valore(m["fuso_dispositivo"].get("origine"))} if m.get("fuso_dispositivo") else None,
         "fuso_stato": fa.fuso_stato_testo(m) if m.get("fuso_dispositivo") else "",
         "evidence": ev, "evidence_ok": Path(ev).exists() and Path(m.get("image", ev)).exists(),
         "converted": bool(m.get("converted_from_e01")),
-        "disk_type": m.get("disk_type"), "partitions": m.get("partitions", []),
+        "disk_type": m.get("disk_type"), "disk_type_vis": lg.valore(m.get("disk_type")),
+        "partitions": [{**p, "fs": lg.valore(p.get("fs"))} for p in m.get("partitions", [])],
         "sha256": m.get("sha256"), "sha256_ts": m.get("sha256_ts"),
         "sha256_differito": bool(m.get("sha256_differito")), "timeline": m.get("timeline"),
         "verifiche": m.get("verifiche", []), "findings": len(c.findings()),
         "riscontri": m.get("riscontri") or [],
         "hash_dati": m.get("hash_dati"), "hash_dati_testo": fa.hash_dati_testo(m.get("hash_dati")) if m.get("hash_dati") else "",
-        "indice": m.get("indice"), "carving": m.get("carving"), "hash_file": m.get("hash_file"),
+        "indice": m.get("indice"), "carving": m.get("carving"), "hash_file": m.get("hash_file"), "gps_corretto": m.get("gps_corretto"),
         "complete": "timeline" in m, "estese": m.get("estese") or {}, "volumi_cifrati": m.get("volumi_cifrati") or [],
         "decifrate": m.get("decifrate") or [], "derivata": m.get("derivata"), "liste_hash": m.get("liste_hash"),
         "apfs_bloccati": apfs_bloccati(c),
-        "tipo_caso": m.get("tipo_caso") or "disco",
+        "tipo_caso": m.get("tipo_caso") or "disco", "drone": bool(m.get("drone")),
         **(_mobile_summary(c) if fa.is_mobile(c) else {}),
     }
 
@@ -714,6 +779,9 @@ class CfValues(Exception):
         self.rows = rows
 
 
+CALL_VERSI = {"in": N_("in arrivo"), "out": N_("in uscita"), "persa": N_("persa"), "rifiutata": N_("rifiutata"), "segreteria": N_("segreteria")}
+
+
 def cf_apply(q, spec, w, a):
     """Aggiunge a w/a le condizioni dei filtri di colonna attivi. Ricorda le colonne dell'elenco
     (per l'ordinamento e per l'elenco dei valori). Con q["cfv"] il filtro di quella colonna è
@@ -727,7 +795,7 @@ def cf_apply(q, spec, w, a):
         if typ == "t":
             sel = v.get("sel")
             if isinstance(sel, list) and sel:
-                w.append(f"IFNULL({expr}, '') IN (SELECT value FROM json_each(?))")
+                w.append(f"IFNULL({q.get('_cfsel', {}).get(key, expr)}, '') IN (SELECT value FROM json_each(?))")
                 a.append(json.dumps([str(x) for x in sel[:500]]))
             for neg, term in cf_terms(str(v.get("v") or "")[:300]):
                 w.append(f"IFNULL({expr}, '') {'NOT ' if neg else ''}LIKE ? ESCAPE '\\'")
@@ -771,7 +839,7 @@ def cf_values(con, q, sql_from, w, a):
     k = q.get("cfv")
     if k not in spec or spec[k][1] != "t":
         raise CfValues([])
-    expr = spec[k][0]
+    expr = q.get("_cfsel", {}).get(k, spec[k][0])
     cond = " WHERE " + " AND ".join(list(w) + [f"length(IFNULL({expr}, '')) <= 200"])
     raise CfValues(con.execute(
         f"SELECT IFNULL({expr}, '') v, COUNT(*) c FROM {sql_from}{cond} GROUP BY v "
@@ -793,6 +861,27 @@ CF_META = {"path": ("path", "t"), "device": ("(IFNULL(make,'') || ' ' || IFNULL(
 CF_CARVED = {"name": ("name", "t"), "type": ("type", "t"), "size": ("size", "n"),
              "img_offset": ("img_offset", "n"), "sha256": ("sha256", "t")}
 CF_DOC = {"path": ("path", "t")}
+
+
+def file_dati(con, nv, tab):
+    """(3.0) Dimensione e date di Documenti e Foto/Video/Audio: dall'indice di navigazione per i file del file system,
+    dall'elenco degli estratti (archivi, allegati, copie shadow) e dei recuperati per gli altri; NULL se non si conoscono."""
+    fonti = {"size": [], "mtime": [], "crtime": []}
+    if nv:
+        for c in fonti:
+            fonti[c].append(f"(SELECT n.{c} FROM nv.nav n WHERE n.part = {tab}.part AND n.inode = {tab}.inode LIMIT 1)")
+    if fa.table_exists(con, "xitems"):
+        for c in ("size", "mtime"):
+            fonti[c].append(f"CASE WHEN {tab}.source = 'x' THEN (SELECT x.{c} FROM xitems x "
+                            f"WHERE x.id = CAST({tab}.inode AS INTEGER)) END")
+    if fa.table_exists(con, "carved"):
+        fonti["size"].append(f"CASE WHEN {tab}.source = 'carving' THEN (SELECT c.size FROM carved c "
+                             f"WHERE c.name = {tab}.inode LIMIT 1) END")
+    return {c: "COALESCE(" + ", ".join(v + ["NULL", "NULL"]) + ")" for c, v in fonti.items()}
+
+
+def cf_file_dati(dati):
+    return {"size": (dati["size"], "n"), "mtime": (dati["mtime"], "d"), "crtime": (dati["crtime"], "d")}
 
 
 def cf_hits(bm=False):
@@ -845,6 +934,22 @@ def _results(case, q, ids=None, limit=PAGE, full=False):
         return bm_list(case, q, ids, limit) if q.get("cid") else hits_list(case, q, ids, limit)
     if kind in EXT_KINDS:
         return ext_results(case, q, ids, limit)
+    if kind == "timeline" and str(q.get("origin") or "")[:3] in ("ev:", "msg"):
+        return tl_evidenze_pagina(case, q, ids, off, limit)
+    if kind == "timeline" and tl_e_preferiti(q):
+        righe, _s = tl_preferiti(case, q)
+        if q.get("cfv"):
+            tl_preferiti_valori(righe, q["cfv"])
+        if ids is not None:
+            vuoi = {str(x) for x in ids}
+            righe = [x for x in righe if str(x["id"]) in vuoi]
+        k = q.get("sk") if q.get("sk") in ("kind", "source", "detail") else ""
+        righe = sorted(righe, key=lambda x: (tl_preferito_campi(x)[k] if k else str(x["ts"] or "")).lower(), reverse=q.get("sd") == "desc")
+        pag = righe[off:off + limit] if limit else righe
+        return {"kind": kind, "total": len(righe), "offset": off, "page": PAGE,
+                "rows": [{"id": x["id"], "ts": x["ts"], "kind": x["evento"], "source": ", ".join(x["categorie"]), "path": x["path"],
+                          "message": x["note"] or x["name"] or "", "origin": "preferiti", "part": x["part"], "inode": None,
+                          "bm": x} for x in pag]}
     con = fa.db_ro(case)
     w, a = [], []
     L = fa.like
@@ -901,7 +1006,9 @@ def _results(case, q, ids=None, limit=PAGE, full=False):
         elif kind == "doc":
             fts = "fts5" in (con.execute("SELECT sql FROM sqlite_master WHERE name='doc_text'")
                              .fetchone() or [""])[0].lower()
-            cf_apply(q, CF_DOC, w, a)
+            fd = file_dati(con, nav_attach(con, case), "doc_text")
+            fdc = f"{fd['size']}, {fd['mtime']}, {fd['crtime']}"
+            cf_apply(q, {**CF_DOC, **cf_file_dati(fd)}, w, a)
             dx = (q.get("dext") or "").strip().lower().lstrip(".")
             if dx == "~posta":
                 w.append("source = 'posta'")
@@ -921,16 +1028,16 @@ def _results(case, q, ids=None, limit=PAGE, full=False):
                 cond = " WHERE " + " AND ".join(w)
                 total = con.execute(f"SELECT COUNT(*) FROM doc_text{cond}", a).fetchone()[0]
                 rows = con.execute("SELECT rowid, path, kind, source, part, inode, deleted, "
-                                   "snippet(doc_text, 1, '«', '»', ' … ', 18) FROM doc_text"
+                                   f"snippet(doc_text, 1, '«', '»', ' … ', 18), {fdc} FROM doc_text"
                                    f"{cond} ORDER BY {cf_order(q, 'rank')}{lim}", a).fetchall()
             else:
                 if text:
                     w.append("(body LIKE ? ESCAPE '\\' OR path LIKE ? ESCAPE '\\')"); a += [L(text)] * 2
                 total, rows = page("doc_text", "path, kind, source, part, inode, deleted, "
-                                   "substr(body, 1, 240)", "path")
-            data = [{"id": r, "path": p, "kind": k, "source": s, "part": pt, "inode": i,
-                     "deleted": d, "snippet": " ".join((sn or "").split())}
-                    for r, p, k, s, pt, i, d, sn in rows]
+                                   f"substr(body, 1, 240), {fdc}", "path")
+            data = [{"id": r, "path": p, "kind": lg.valore(k), "source": s, "part": pt, "inode": i,
+                     "deleted": d, "snippet": " ".join((sn or "").split()), "size": sz, "mtime": mt, "crtime": ct}
+                    for r, p, k, s, pt, i, d, sn, sz, mt, ct in rows]
         elif kind == "meta":
             aud = yes(q.get("aud"))             # (2.20) solo gli audio (dall'elenco dei file)
             if text:
@@ -944,11 +1051,13 @@ def _results(case, q, ids=None, limit=PAGE, full=False):
             if q.get("orig") and fa.is_mobile(case):    # (2.20) telefoni: solo i file allegati alle chat
                 import forense_mobile_gui as fmg
                 fmg.meta_filter(con, q, w, a)
-            cf_apply(q, CF_META, w, a)
-            total, rows = page(audio_from() if aud else "meta", "path, make, model, taken, lat, lon, author, source, "
-                               "part, inode, deleted", "path" if aud else "taken IS NULL, taken")
+            fd = file_dati(con, nav_attach(con, case), "meta")
+            cf_apply(q, {**CF_META, **cf_file_dati(fd)}, w, a)
+            total, rows = page(audio_from() + " AS meta" if aud else "meta", "path, make, model, taken, lat, lon, author, source, "
+                               f"part, inode, deleted, {fd['size']}, {fd['mtime']}, {fd['crtime']}",
+                               "path" if aud else "taken IS NULL, taken")
             data = [dict(zip(("id", "path", "make", "model", "taken", "lat", "lon", "author",
-                              "source", "part", "inode", "deleted"), r)) for r in rows]
+                              "source", "part", "inode", "deleted", "size", "mtime", "crtime"), r)) for r in rows]
             for d in data:
                 d["taken_tz"] = taken_tz_text(d.get("taken"))
             if fa.is_mobile(case):           # (2.20) app delle chat in cui il file è allegato
@@ -989,7 +1098,10 @@ def _results(case, q, ids=None, limit=PAGE, full=False):
             raise ValueError(tr("Sezione sconosciuta."))
     finally:
         con.close()
-    return {"kind": kind, "total": total, "offset": off, "page": PAGE, "rows": data}
+    out = {"kind": kind, "total": total, "offset": off, "page": PAGE, "rows": data}
+    if kind in ("doc", "meta") and ensure_nav(case)["state"] == "building":
+        out["nav_attesa"] = True     # (3.0) dimensioni e date in arrivo: l'elenco non va ricordato e la pagina si aggiorna da sola
+    return out
 
 
 # ------------------------------------------------- fuso orario (UTC -> ora italiana / fuso rilevato)
@@ -1337,8 +1449,194 @@ def taken_tz_text(s):
     return "UTC" if m.group(1) == "Z" else m.group(1)
 
 
+def tl_e_preferiti(q):
+    o = str(q.get("origin") or "")
+    return o == "preferiti" or o.startswith("bm:")
+
+
+def tl_evidenze_sql(q, con):
+    """(3.0) Evidenze come fonte della Timeline: «ev:[categoria, gruppo, voce]» dagli artefatti (chiamate, iLEAPP/ALEAPP...),
+    «msg:app» dai messaggi delle chat. Solo le righe con una data; il filtro non legge né cambia altro."""
+    import forense_mobile_chat as fmc
+    o, w, a = str(q.get("origin") or ""), [], []
+    if o.startswith("msg:"):
+        chi = "COALESCE(NULLIF(m.sender_name, ''), m.sender, '')"
+        etichette = " ".join(f"WHEN {_sql_lit(k)} THEN {_sql_lit(tr(v))}" for k, v in fmc.APP_LBL.items())
+        spec = {"ts": ("m.ts", "d"),
+                "kind": (f"CASE WHEN m.direction = 'out' THEN {_sql_lit(tr('messaggio inviato'))} ELSE {_sql_lit(tr('messaggio'))} END", "t"),
+                "source": (f"CASE m.app {etichette} ELSE m.app END", "t"),
+                "detail": (f"rtrim(COALESCE(NULLIF(t.title, '') || ' · ', '') || COALESCE(NULLIF({chi}, '') || ' · ', '') || substr(COALESCE(m.text, ''), 1, 400), ' ·')", "t")}
+        sql = ("SELECT m.id, m.ts, COALESCE(NULLIF(m.sender_name, ''), m.sender, ''), COALESCE(m.text, ''), t.src_path, m.part, m.inode, m.direction, m.app, t.title, m.thread "
+               "FROM chat_messages m LEFT JOIN chat_threads t ON t.id = m.thread")
+        tc, cols = "m.ts", "m.text"
+        if o[4:]:
+            w.append("m.app = ?"); a.append(o[4:])
+        testo = "(m.text LIKE ? ESCAPE '\\' OR m.sender_name LIKE ? ESCAPE '\\' OR t.title LIKE ? ESCAPE '\\')"
+    else:
+        # gruppo e voce esistono solo negli artefatti degli smartphone
+        grp, sub = ("grp", "sub") if "grp" in {r[1] for r in con.execute("PRAGMA table_info(artifacts)")} else ("NULL", "NULL")
+        sql = f"SELECT id, ts, title, COALESCE(detail, ''), src_path, part, inode, cat, {grp}, {sub} FROM artifacts"
+        spec = {"ts": ("ts", "d"), "kind": (f"COALESCE(NULLIF({sub}, ''), NULLIF({grp}, ''), cat)", "t"),
+                "source": (f"COALESCE(NULLIF({grp}, ''), cat)", "t"),
+                "detail": ("rtrim(COALESCE(NULLIF(title, '') || ' · ', '') || substr(COALESCE(detail, ''), 1, 400), ' ·')", "t")}
+        tc = "ts"
+        try:
+            sc = json.loads(o[3:] or "[]")
+        except ValueError:
+            sc = []
+        for col, v in zip(("cat", "grp", "sub"), sc):
+            if v not in (None, ""):
+                w.append(f"{col} = ?"); a.append(v)
+        if not sc:
+            w.append("cat <> 'messaggi'")
+        testo = "(title LIKE ? ESCAPE '\\' OR detail LIKE ? ESCAPE '\\' OR src_path LIKE ? ESCAPE '\\')"
+    w.append(f"{tc} GLOB '[0-9][0-9][0-9][0-9]-*'")
+    # testi lunghi: l'elenco e la scelta usano i primi 200 caratteri (oltre, cf_values li toglierebbe); la ricerca legge tutto
+    q["_cfsel"] = {"detail": f"substr({spec['detail'][0]}, 1, 200)"}
+    cf_apply(q, spec, w, a)
+    t = (q.get("q") or "").strip()
+    if t:
+        w.append(testo); a += [fa.like(t)] * 3
+    if q.get("start"):
+        w.append(f"{tc} >= ?"); a.append(q["start"])
+    if q.get("end"):
+        e = q["end"]
+        if "T" not in e:
+            e += {4: "-12-31T23:59:59", 7: "-31T23:59:59"}.get(len(e), "T23:59:59")
+        w.append(f"{tc} <= ?"); a.append(e)
+    return sql, " WHERE " + " AND ".join(w), a, tc
+
+
+def tl_evidenze_pagina(case, q, ids, off, limit):
+    import forense_mobile_chat as fmc
+    msg = str(q.get("origin") or "").startswith("msg:")
+    idc = "m.id" if msg else "id"
+    con = fa.db_ro(case)
+    try:
+        sql, cond, a, tc = tl_evidenze_sql(q, con)
+        if q.get("cfv"):
+            cf_values(con, q, sql.split(" FROM ", 1)[1], [cond[len(" WHERE "):]], a)
+        if ids is not None:
+            vuoi = [int(x) for x in ids if str(x).lstrip("-").isdigit()]
+            cond += f" AND {idc} IN ({','.join('?' * len(vuoi)) or 'NULL'})"
+            a = a + vuoi
+        tab = sql.split(" FROM ", 1)[1]
+        total = con.execute(f"SELECT COUNT(*) FROM {tab}{cond}", a).fetchone()[0]
+        ordine = "DESC" if q.get("sd") == "desc" else "ASC"
+        lim = f" LIMIT {int(limit)} OFFSET {int(off)}" if limit else ""
+        righe = con.execute(f"{sql}{cond} ORDER BY {cf_order(q, f'{tc} {ordine}')}{lim}", a).fetchall()
+    finally:
+        con.close()
+    out = []
+    for r in righe:
+        if msg:
+            rid, ts, chi, testo, src, part, inode, verso, app, titolo, thread = r
+            out.append({"id": rid, "ts": ts, "kind": tr("messaggio inviato") if verso == "out" else tr("messaggio"), "source": tr(fmc.APP_LBL.get(app, app)), "path": src, "chat": thread,
+                        "message": " · ".join(x for x in (titolo, chi, (testo or "")[:400]) if x), "origin": "evidenze", "part": part, "inode": None})
+        else:
+            rid, ts, titolo, det, src, part, inode, cat, grp, sub = r
+            out.append({"id": rid, "ts": ts, "kind": sub or grp or cat, "source": grp or cat, "path": src,
+                        "message": " · ".join(x for x in (titolo, (det or "")[:400]) if x), "origin": "evidenze", "part": part, "inode": None})
+    return {"kind": "timeline", "total": total, "offset": off, "page": PAGE, "rows": out}
+
+
+def tl_hist_da(ks, gran, **extra):
+    """Grafico da un elenco di date già nel fuso scelto."""
+    if gran == "auto":
+        import datetime as _dt
+        giorni = sorted(k[:10] for k in ks)
+        try:
+            span = (_dt.date.fromisoformat(giorni[-1]) - _dt.date.fromisoformat(giorni[0])).days if giorni else 0
+        except ValueError:
+            span = 10 ** 6
+        gran = "day" if span <= 400 else "month" if len({k[:7] for k in ks}) <= 400 else "year"
+    n = {"day": 10, "month": 7, "year": 4}[gran]
+    tot = {}
+    for k in ks:
+        tot[k[:n]] = tot.get(k[:n], 0) + 1
+    return {"gran": gran, **extra, "bins": [{"k": k, "n": v, "M": 0, "A": 0, "C": 0, "B": 0, "plaso": 0} for k, v in sorted(tot.items())]}
+
+
+def tl_hist_evidenze(case, q):
+    con = fa.db_ro(case)
+    try:
+        sql, cond, a, tc = tl_evidenze_sql(q, con)
+        ts = [r[0] for r in con.execute(f"SELECT {tc} FROM {sql.split(' FROM ', 1)[1]}{cond}", a)]
+    finally:
+        con.close()
+    zone = tz_zone(case, q.get("tz"))
+    return tl_hist_da([(to_zone(x, zone) if zone != "UTC" else x) or x for x in ts], q.get("gran") or "auto", evidenze=True)
+
+
+def tl_preferito_campi(x):
+    """Il testo delle colonne di un preferito nella Timeline, uguale a quello mostrato."""
+    return {"kind": x["evento"] or "", "source": ", ".join(x["categorie"]), "detail": x["note"] or x["name"] or ""}
+
+
+def tl_preferiti_cf(righe, q):
+    """Filtri di colonna sui preferiti, con le regole di cf_apply; il filtro della colonna di q["cfv"] è escluso."""
+    for key, v in list(cf_parse(q).items())[:16]:
+        if not isinstance(v, dict) or key == q.get("cfv"):
+            continue
+        if key == "ts":
+            lo, hi = str(v.get("from") or "")[:19], str(v.get("to") or "")[:19]
+            hi += "T23:59:59" if len(hi) == 10 else ""
+            righe = [x for x in righe if (not lo or x["ts"] >= lo) and (not hi or x["ts"] <= hi)]
+        elif key in ("kind", "source", "detail"):
+            sel = v.get("sel")
+            if isinstance(sel, list) and sel:
+                vuoi = {str(y) for y in sel[:500]}
+                righe = [x for x in righe if tl_preferito_campi(x)[key][:200] in vuoi]
+            for neg, term in cf_terms(str(v.get("v") or "")[:300]):
+                righe = [x for x in righe if (term.lower() in tl_preferito_campi(x)[key].lower()) != neg]
+    return righe
+
+
+def tl_preferiti_valori(righe, k):
+    if k not in ("kind", "source", "detail"):
+        raise CfValues([])
+    tot = {}
+    for x in righe:
+        v = tl_preferito_campi(x)[k][:200]
+        tot[v] = tot.get(v, 0) + 1
+    raise CfValues(sorted(tot.items(), key=lambda r: (-r[1], r[0].lower()))[:301])
+
+
+def tl_preferiti(case, q):
+    """(3.0) I preferiti con una data come fonte della Timeline, con i filtri di testo e periodo: (righe, senza data)."""
+    righe = fa.bookmarks_timeline(case, False)
+    o = str(q.get("origin") or "")
+    if o.startswith("bm:"):          # un solo gruppo di preferiti
+        righe = [x for x in righe if o[3:] in x["categorie"]]
+    con_data = [x for x in righe if x["ts"]]
+    t = (q.get("q") or "").strip().lower()
+    if t:
+        con_data = [x for x in con_data if t in " ".join(str(x.get(k) or "") for k in ("path", "name", "note")).lower()
+                    or any(t in c.lower() for c in x["categorie"])]
+    if q.get("start"):
+        con_data = [x for x in con_data if x["ts"] >= q["start"]]
+    if q.get("end"):
+        e = q["end"]
+        if "T" not in e:
+            e += {4: "-12-31T23:59:59", 7: "-31T23:59:59"}.get(len(e), "T23:59:59")
+        con_data = [x for x in con_data if x["ts"] <= e]
+    con_data = tl_preferiti_cf(con_data, q)
+    return con_data, len(righe) - sum(1 for x in righe if x["ts"])
+
+
+def tl_hist_preferiti(case, q):
+    righe, senza = tl_preferiti(case, q)
+    zone = tz_zone(case, q.get("tz"))
+    ks = [(to_zone(x["ts"], zone) if zone != "UTC" else x["ts"]) or x["ts"] for x in righe]
+    return tl_hist_da(ks, q.get("gran") or "auto", preferiti=True, senza_data=senza)
+
+
 def tl_hist(case, q):
     """Eventi per giorno (o mese/anno) con gli stessi filtri della tabella."""
+    if str(q.get("origin") or "")[:3] in ("ev:", "msg"):
+        return tl_hist_evidenze(case, q)
+    if tl_e_preferiti(q):
+        return tl_hist_preferiti(case, q)
     gran = q.get("gran") or "auto"
     w, a = [], []
     tl_where(q, w, a)
@@ -1590,7 +1888,7 @@ def nav_tree(case, q):
                             "name": (tr("Volume APFS «{v1}»").format(v1=p['apfs'].get('name')) if p.get("apfs")
                                      else tr("Estrazione «{v1}»").format(v1=p.get('desc')) if p.get("mobile")
                                      else tr("Partizione {offset}").format(offset=p['offset'])),
-                            "fs": p.get("fs"), "os": p.get("os"), "nitems": r[0], "ndirs": r[1],
+                            "fs": lg.valore(p.get("fs")), "os": p.get("os"), "nitems": r[0], "ndirs": r[1],
                             "enc": enc.get(p["offset"])})
             lay = None
             try:
@@ -1801,10 +2099,12 @@ CSV_COLS = {
                  ("path", "percorso"), ("message", "dettaglio"), ("part", "partizione_offset"),
                  ("inode", "inode")],
     "doc": [("path", "documento"), ("kind", "tipo"), ("deleted", "cancellato"), ("source", "origine"),
-            ("part", "partizione_offset"), ("inode", "inode"), ("snippet", "testo")],
+            ("part", "partizione_offset"), ("inode", "inode"), ("size", "byte"), ("mtime", "modifica_utc"), ("crtime", "creazione_utc"),
+            ("snippet", "testo")],
     "meta": [("path", "file"), ("make", "marca"), ("model", "modello"), ("taken", "data_metadati"), ("taken_tz", "fuso_della_data"),
              ("lat", "lat"), ("lon", "lon"), ("author", "autore"), ("deleted", "cancellato"),
-             ("source", "origine"), ("part", "partizione_offset"), ("inode", "inode")],
+             ("source", "origine"), ("part", "partizione_offset"), ("inode", "inode"), ("size", "byte"), ("mtime", "modifica_utc"),
+             ("crtime", "creazione_utc")],
     "carved": [("name", "file"), ("type", "tipo"), ("size", "byte"), ("img_offset", "offset_immagine"),
                ("sha256", "sha256"), ("relpath", "percorso_nel_caso")],
     "trace": [("tkind", "tipo"), ("feature", "valore"), ("count", "occorrenze"),
@@ -3055,11 +3355,11 @@ def view_info(case, b):
             import forense_mobile_gui as fmg
             try:
                 html, nota = fmg.sqlite_preview(sys.modules[__name__], case, it)
-                return {**base, "type": "html", "html": html, "note": tr("Database SQLite: tabelle e prime righe (sola lettura).") + " " + nota}
+                return {**base, "type": "html", "sqlite": True, "html": html, "note": tr("Database SQLite: tabelle e prime righe (sola lettura).") + " " + nota}
             except (sqlite3.Error, OSError):
                 pass
         try:
-            return {**base, "type": "html", "html": sqlite_view(f), "note": tr("Database SQLite: tabelle e prime righe (sola lettura).")}
+            return {**base, "type": "html", "sqlite": True, "html": sqlite_view(f), "note": tr("Database SQLite: tabelle e prime righe (sola lettura).")}
         except sqlite3.Error:
             pass
     mime = sniff_mime(head)
@@ -3919,6 +4219,12 @@ def res_tree(case):
         con.close()
     out["searches"] = [{"sid": s["sid"], "title": s["title"], "total": s["total"]} for s in search_list(case)]
     out.update(ext_tree(case))
+    try:
+        import forense_mappe as fmp
+        out["geo"], out["voli_n"] = fmp.riepilogo(case)
+    except Exception as e:
+        out["geo"], out["voli_n"] = [], 0
+        case.log("posizioni_albero", {"errore": str(e)})
     out["bm"] = bm_categories(case) if (case.root / "ricerche.sqlite").exists() else []
     return out
 
@@ -4398,8 +4704,17 @@ def ext_results(case, q, ids=None, limit=PAGE):
                 w.append("ts >= ?"); a.append(q["start"])
             if q.get("end"):
                 w.append("ts <= ?"); a.append(q["end"] + ("T23:59:59" if "T" not in q["end"] else ""))
+            # (3.0) chiamate: verso, contatto (nome e numero) e app come colonne proprie, filtrabili
+            versi = " ".join(f"WHEN {_sql_lit(k)} THEN {_sql_lit(tr(v))}" for k, v in CALL_VERSI.items())
             cf_apply(q, {"ts": ("ts", "d"), "cat": ("cat", "t"), "title": ("(title || ' ' || IFNULL(user,''))", "t"),
-                         "detail": ("detail", "t"), "src_path": ("src_path", "t")}, w, a)
+                         "detail": ("detail", "t"), "src_path": ("src_path", "t"),
+                         "verso": (f"CASE json_extract(CASE WHEN json_valid(data) THEN data END, '$.verso') {versi} ELSE {_sql_lit(tr('verso non indicato'))} END", "t"),
+                         "contatto": ("TRIM(COALESCE(json_extract(CASE WHEN json_valid(data) THEN data END, '$.nome_rubrica'), json_extract(CASE WHEN json_valid(data) THEN data END, '$.nome_app'), '') || ' ' || "
+                                      "COALESCE(json_extract(CASE WHEN json_valid(data) THEN data END, '$.numero'), ''))", "t"),
+                         "app": ("json_extract(CASE WHEN json_valid(data) THEN data END, '$.app_lbl')", "t"),
+                         "durata": ("json_extract(CASE WHEN json_valid(data) THEN data END, '$.durata_s')", "n"),
+                         "risposta": ("CASE json_extract(CASE WHEN json_valid(data) THEN data END, '$.risposta') WHEN 1 THEN "
+                                      f"{_sql_lit(tr('sì'))} WHEN 0 THEN {_sql_lit(tr('no'))} ELSE {_sql_lit(tr('non indicata'))} END", "t")}, w, a)
             cols = ("id", "cat", "ts", "title", "detail", "user", "src_path", "part", "inode", "data")
             table, order = "artifacts", "ts IS NULL, ts DESC, id"
         elif kind == "mail":
@@ -4553,6 +4868,14 @@ def ext_tree(case):
             if fa.is_mobile(case):              # smartphone (2.20): categorie e artefatti di iLEAPP/ALEAPP, app delle chat
                 import forense_mobile_gui as fmg
                 out["artsub"] = fmg.art_tree(con)
+            # (3.0) fonti della Timeline: solo ciò che ha una data
+            ev = "cat, grp, sub" if "grp" in {r[1] for r in con.execute("PRAGMA table_info(artifacts)")} else "cat, NULL, NULL"
+            out["tl_ev"] = con.execute(f"SELECT {ev}, COUNT(*) FROM artifacts WHERE cat <> 'messaggi' AND ts GLOB '[0-9][0-9][0-9][0-9]-*' "
+                                       "GROUP BY 1, 2, 3 ORDER BY 1, 2 COLLATE NOCASE, 3 COLLATE NOCASE").fetchall()
+        if fa.table_exists(con, "chat_messages"):
+            import forense_mobile_chat as fmc
+            out["tl_msg"] = [[app, tr(fmc.APP_LBL.get(app, app)), n] for app, n in con.execute(
+                "SELECT app, COUNT(*) FROM chat_messages WHERE ts GLOB '[0-9][0-9][0-9][0-9]-*' GROUP BY app ORDER BY 1")]
         if fa.table_exists(con, "anomalies"):
             out["anom"] = con.execute("SELECT kind, COUNT(*) FROM anomalies GROUP BY kind ORDER BY MAX(sev) DESC").fetchall()
         if fa.table_exists(con, "xitems"):
@@ -5426,6 +5749,22 @@ def fast_search(case, q):
             lbl = {k: tr(v) for k, v in fmc.APP_LBL.items()}
         t0 = time.time()
         r = rv.risultati(case, con, testo, lbl)
+        nav = None
+        try:
+            nav = nav_db(case)
+        except ValueError:
+            pass
+        try:
+            gr, non = rv.altri(con, nav, testo)
+        finally:
+            if nav:
+                nav.close()
+        r["gruppi"] += gr                       # (3.0) un solo punto di ricerca: file, documenti, metadati, recuperati, tracce
+        r["totale"] += sum(g["n"] for g in gr)
+        r["mostrati"] += sum(len(g["righe"]) for g in gr)
+        r["non_cercato"] = [tr(x) for x in non]
+        if not fa.table_exists(con, "doc_text") or not con.execute("SELECT 1 FROM doc_text LIMIT 1").fetchone():
+            r["non_cercato"].append(tr("testo dei documenti (indicizzazione non eseguita o nessun documento)"))
         rub = [x for g in r["gruppi"] if g["chiave"] == "rub" for x in g["righe"]]
         if rub and fa.is_mobile(case):          # database della rubrica nell'estrazione (per «Fonte» nell'anteprima)
             import forense_mobile as fm
@@ -5444,16 +5783,70 @@ def fast_search(case, q):
         con.close()
 
 
+def fast_search_gruppo(case, con, testo, chiave):
+    """(3.0) Le righe di un gruppo della ricerca veloce, nel formato dei risultati salvati: (righe, totale, titolo del gruppo)."""
+    import forense_ricerca_veloce as rv
+    lbl = {}
+    if fa.is_mobile(case):
+        import forense_mobile_chat as fmc
+        lbl = {k: tr(v) for k, v in fmc.APP_LBL.items()}
+    gruppi = rv.risultati(case, con, testo, lbl, rv.MAX_SALVA)["gruppi"]
+    if not any(g["chiave"] == chiave for g in gruppi):
+        nav = None
+        try:
+            nav = nav_db(case)
+        except ValueError:
+            pass
+        try:
+            gruppi += rv.altri(con, nav, testo, rv.MAX_SALVA)[0]
+        finally:
+            if nav:
+                nav.close()
+    g = next((x for x in gruppi if x["chiave"] == chiave), None)
+    if not g:
+        raise ValueError(tr("Gruppo non trovato: ripeti la ricerca."))
+    rows = []
+    for x in g["righe"]:
+        f, ts = x["fonte"], x.get("ts")
+        if f == "art":
+            rows.append(("art", None, str(x["id"]), f"[{x.get('cat') or ''}] {x['titolo']}", x["titolo"], 0, None, ts))
+        elif f == "msg" and fa.is_mobile(case):
+            import forense_mobile_gui as fmg
+            r = fmg.msg_item(con, int(x["id"]))
+            if r:
+                rows.append(("chat", None, str(x["id"]), r[0], r[1], 0, None, r[2]))
+        elif f == "mail":
+            rows.append(("mail", None, str(x["id"]), f"✉ {x['titolo']} — {x.get('estratto') or ''}", x["titolo"], 0, None, ts))
+        elif f == "rub":
+            rows.append(("rub", None, str(x["id"]), " · ".join(v for v in (x["titolo"], x.get("estratto")) if v), x["titolo"], 0, None, None))
+        elif f == "thr":
+            rows.append(("thr", None, str(x["id"]), x["titolo"], x["titolo"], 0, None, ts))
+        elif f in ("fs", "doc") and (x.get("source") or "fs") == "fs":
+            p = x.get("estratto") if f == "fs" else x["titolo"]
+            rows.append(("fs", x["part"], str(x["inode"]), p, (p or "").rsplit("/", 1)[-1], x.get("deleted") or 0, None, ts))
+        elif f == "x":
+            rows.append(("x", None, str(x["id"]), x.get("estratto") or x.get("name"), x.get("name"), 0, None, ts))
+        elif f == "carving":
+            rows.append(("carving", None, x["name"], f"[recuperato] {x['name']}", x["name"], 0, None, None))
+    return rows, len(rows), g["titolo"]
+
+
 def fast_search_save(case, b):
     """(2.20) Salva una ricerca veloce come ricerca del caso (scheda e voce «🔎 Ricerca», Preferiti, CSV)."""
     import forense_ricerca_veloce as rv
     testo = (b.get("q") or "").strip()
+    gruppo = str(b.get("gruppo") or "")
     con = fa.db_ro(case)
     try:
         if not rv.aggiornato(case, con):
             raise ValueError(tr("L'indice della ricerca veloce non è pronto."))
-        ids, tot, extra = rv.cerca_id(case, testo, rv.MAX_SALVA)
-        rows = []
+        if gruppo:          # (3.0) un solo gruppo dei risultati (es. Rubriche) in una scheda propria
+            rows, tot, titolo_g = fast_search_gruppo(case, con, testo, gruppo)
+            b = {**b, "title": (b.get("title") or "").strip() or f"{titolo_g}: {testo}"}
+            ids = []
+        else:
+            ids, tot, extra = rv.cerca_id(case, testo, rv.MAX_SALVA)
+            rows = []
         for fonte, rid, _tx in ids:
             rid = int(rid)
             if fonte == "art":
@@ -5469,10 +5862,28 @@ def fast_search_save(case, b):
                 r = con.execute("SELECT subject, sender, date FROM mail WHERE id=?", (rid,)).fetchone()
                 if r:
                     rows.append(("mail", None, str(rid), f"✉ {r[0]} — {r[1]}", r[0], 0, None, r[2]))
+        nav = None
+        try:
+            nav = nav_db(case) if not gruppo else None
+        except ValueError:
+            pass
+        try:
+            gr, _non = rv.altri(con, nav, testo, rv.MAX_SALVA) if not gruppo else ([], [])   # (3.0) i file e i documenti trovati, una volta sola
+        finally:
+            if nav:
+                nav.close()
+        visti = set()
+        for g in gr:
+            tot += g["n"]
+            for x in g["righe"]:
+                if x["fonte"] in ("fs", "doc") and (x.get("source") or "fs") == "fs" and (x["part"], x["inode"]) not in visti:
+                    visti.add((x["part"], x["inode"]))
+                    p = x.get("estratto") if x["fonte"] == "fs" else x["titolo"]
+                    rows.append(("fs", x["part"], str(x["inode"]), p, (p or "").rsplit("/", 1)[-1], x.get("deleted") or 0, None, x.get("ts")))
     finally:
         con.close()
     title = (b.get("title") or "").strip() or tr("Risultati: ") + testo
-    params = {"mode": "veloce", "terms": testo, "where": ["veloce"]}
+    params = {"mode": "veloce", "terms": testo, "where": ["veloce"], **({"gruppo": gruppo} if gruppo else {})}
     note = {"non_salvati": tot - len(rows)} if tot > len(rows) else {}
     sc = search_db(case)
     try:
@@ -5517,7 +5928,7 @@ def search_delete(case, sid):
 def summary_cached(case, what):
     """Riepilogo del caso all'apertura: fa.summary_md legge tutto il database (sul caso iOS 17 grande 3–7 s a ogni
     apertura); si tiene nella cache del caso finché case.json, i database e le impostazioni non cambiano."""
-    sig = [what, lg.lingua()]
+    sig = [what, lg.lingua(), 3]
     for f in [case.root / "case.json", fa.SETTINGS_PATH, *sorted(case.root.glob("*.sqlite*"))]:
         try:
             st = os.stat(lp(f))
@@ -5551,6 +5962,12 @@ def diag_testo():
     return fd.testo(fa.APP_VERSION, st)
 
 
+def senza_caso():
+    """(3.0) Ogni scaricamento passa da qui: nessun accesso alla rete con un caso aperto o in preparazione."""
+    if SES.case or PREP.running:
+        raise ValueError(tr("Con un caso aperto non si va in rete: chiudi il caso e riprova dalla pagina iniziale."))
+
+
 def run_task(name, fn, with_progress=False):
     """Operazione lunga in background; lo stato si legge con /api/task?name=..."""
     if SES.tasks.get(name, {}).get("done") is False:
@@ -5574,7 +5991,9 @@ def run_task(name, fn, with_progress=False):
 
 # ----------------------------------------------------------- HTTP
 
-BIN_PATHS = {"/api/thumb", "/api/page", "/api/conv", "/api/raw", "/api/mobile/leapp_media", "/api/mobile/att_thumb"}
+BIN_PATHS = {"/api/thumb", "/api/page", "/api/conv", "/api/raw", "/api/mobile/leapp_media", "/api/mobile/att_thumb", "/api/mappa_pm"}
+MAPPA_FILE = {"maplibre-gl.mjs": "text/javascript", "maplibre-gl-worker.mjs": "text/javascript", "maplibre-gl-shared.mjs": "text/javascript",
+              "maplibre-gl.css": "text/css", "pmtiles.js": "text/javascript", "ne_50m.geojson": "application/json"}
 
 
 # Richieste che producono testi del caso (report, esportazioni, riscontri, verifiche): nella lingua del caso,
@@ -5616,6 +6035,15 @@ class Handler(BaseHTTPRequestHandler):
     def _json(self, obj, code=200):
         self._send(code, json.dumps(obj, ensure_ascii=False, default=str))
 
+    def _caso_cambiato(self, path):
+        """(3.0) Il server tiene un solo caso: una scheda rimasta su un altro caso non deve ricevere né scrivere i dati di questo.
+        La scheda dichiara il suo caso in X-Caso; si risponde 409 e la pagina si blocca con un avviso."""
+        dichiarato = unquote(self.headers.get("X-Caso") or "")
+        if not dichiarato or not SES.case or path == "/api/open" or dichiarato == str(SES.case.root):
+            return False
+        self._json({"caso_cambiato": True, "aperto": SES.case.root.name, "error": tr("Questa scheda è rimasta su un altro caso.")}, 409)
+        return True
+
     def _allowed(self):
         host = (self.headers.get("Host") or "").split(":")[0]
         return host in ("127.0.0.1", "localhost")
@@ -5631,6 +6059,24 @@ class Handler(BaseHTTPRequestHandler):
                 html = html.replace("<!--REPERTIA_MOBILE-->", fmg.fragment())
             return self._send(200, html.replace("__TOKEN__", TOKEN).replace("__LINGUA__", lingua_js()), "text/html")
         q = {k: v[0] for k, v in parse_qs(u.query).items()}
+        if u.path == "/guida/guida.html":       # (3.0) guida in italiano e inglese, nessun dato del caso
+            f = HERE / "guida" / "guida.html"
+            if not f.is_file():
+                return self._send(404, tr("Guida non inclusa in questo pacchetto."), "text/plain")
+            return self._send(200, f.read_bytes(), "text/html")
+        if u.path.startswith("/mappa/"):        # (3.0) componenti della mappa, solo l'elenco chiuso: nessun dato del caso
+            nome = unquote(u.path[7:])
+            font = re.fullmatch(r"fonts/Noto Sans (Regular|Medium|Italic)/\d+-\d+\.pbf", nome)     # scritte della mappa
+            if (not font and nome not in MAPPA_FILE) or not (HERE / "mappa" / nome).is_file():
+                return self._send(404, "", "text/plain")
+            dati = (HERE / "mappa" / nome).read_bytes()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/x-protobuf" if font else MAPPA_FILE[nome])
+            self.send_header("Content-Length", str(len(dati)))
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.end_headers()
+            self.wfile.write(dati)
+            return
         if u.path in BIN_PATHS:
             # immagini e media: <img>/<video> non possono mandare intestazioni, il codice
             # arriva nell'indirizzo (resta comunque solo su 127.0.0.1)
@@ -5644,6 +6090,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(404, str(e), "text/plain")
         if self.headers.get("X-Token") != TOKEN:
             return self._send(403, tr("token mancante"), "text/plain")
+        if self._caso_cambiato(u.path):
+            return
         try:
             self._json(self.get(u.path, q))
         except Exception as e:
@@ -5665,6 +6113,25 @@ class Handler(BaseHTTPRequestHandler):
     def binary(self, path, q):
         if not SES.case:
             raise ValueError(tr("Nessun caso aperto."))
+        if path == "/api/mappa_pm":          # (3.0) estratto PMTiles locale, a richieste Range
+            import forense_mappe as fmp
+            f = fmp.percorso_mappa(q.get("n"))
+            size = f.stat().st_size
+            m = re.match(r"bytes=(\d+)-(\d*)", self.headers.get("Range") or "")
+            start = int(m.group(1)) if m else 0
+            end = min(int(m.group(2)) if m and m.group(2) else size - 1, size - 1)
+            self.send_response(206 if m else 200)
+            self.send_header("Content-Type", "application/octet-stream")
+            self.send_header("Accept-Ranges", "bytes")
+            self.send_header("Content-Length", str(max(0, end - start + 1)))
+            if m:
+                self.send_header("Content-Range", f"bytes {start}-{end}/{size}")
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.end_headers()
+            with open(f, "rb") as fh:
+                fh.seek(start)
+                self.wfile.write(fh.read(max(0, end - start + 1)))
+            return
         if path == "/api/thumb":
             r = thumb_bytes(SES.case, q)
             if not r:
@@ -5730,6 +6197,21 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(403, "vietato", "text/plain")
         n = int(self.headers.get("Content-Length") or 0)
         u = urlparse(self.path)
+        if self._caso_cambiato(u.path):
+            self.rfile.read(n)
+            return
+        if u.path == "/api/dettatura":          # (3.0) corpo audio, non JSON: non viene salvato né entra nel caso
+            try:
+                import forense_trascrizione as ftr
+                if n <= 0 or n > ftr.DETTATURA_MAX:
+                    raise ValueError(tr("Registrazione vuota o troppo lunga."))
+                testo, mid, durata = ftr.dettatura(self.rfile.read(n), lg.lingua())
+                if SES.case:
+                    SES.case.log("dettatura", {"modello": mid, "durata_s": durata})
+                return self._json({"testo": testo})
+            except Exception as e:
+                fd.errore("POST /api/dettatura", e)
+                return self._json({"error": str(e)}, 400)
         if u.path == "/api/thumb_put":          # (2.20) corpo JPEG, non JSON
             try:
                 if not SES.case:
@@ -5788,6 +6270,8 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/counts":
             return memo(SES.case, ("counts",), lambda: counts(SES.case))
         if path == "/api/tl_hist":
+            if q.get("origin") == "preferiti":      # (3.0) cambiano senza cambiare i risultati del caso: niente memoria
+                return tl_hist(SES.case, q)
             return memo(SES.case, ("tl_hist",) + tuple(sorted((k, str(v)) for k, v in q.items())), lambda: tl_hist(SES.case, q))
         if path == "/api/tree":
             return nav_tree(SES.case, q)
@@ -5797,6 +6281,14 @@ class Handler(BaseHTTPRequestHandler):
             if not SES.case:
                 raise ValueError(tr("Nessun caso aperto."))
             return fast_search(SES.case, q)
+        if path == "/api/foto_gps":                 # (3.0) coordinate di un file, per «Vedi sulla mappa»
+            con = fa.db_ro(SES.case)
+            try:
+                r = con.execute("SELECT lat, lon FROM meta WHERE part=? AND inode=? AND lat IS NOT NULL LIMIT 1", (q.get("part"), q.get("inode"))).fetchone() \
+                    if fa.table_exists(con, "meta") else None
+            finally:
+                con.close()
+            return {"lat": r[0], "lon": r[1]} if r else {}
         if path == "/api/bm_timeline":
             return {"rows": fa.bookmarks_timeline(SES.case, False, q.get("cid"))}
         if path == "/api/diag_preview":
@@ -5845,6 +6337,7 @@ class Handler(BaseHTTPRequestHandler):
             import forense_trascrizione as ftr
             if b.get("accetto") is not True:
                 raise ValueError(tr("Il download del modello richiede il consenso dell'analista."))
+            senza_caso()
             mid, case = b.get("modello"), SES.case
             run_task("trascr_modello", lambda progress: ftr.scarica(mid, True, progress, case), True)
             return {"ok": True}
@@ -6154,6 +6647,95 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/diag_js":
             fd.evento("errore_pagina", messaggio=b.get("messaggio"), riga=int(b.get("riga") or 0), colonna=int(b.get("colonna") or 0))
             return {"ok": True}
+        if path == "/api/caso_chiudi":          # (3.0)
+            SES.chiudi_caso()
+            return {"ok": True}
+        if path.startswith("/api/mappa_"):      # (3.0)
+            import forense_mappe as fmp
+            import forense_mappe_scarica as fms
+            if path == "/api/mappa_punti":
+                return fmp.punti(SES.case)
+            if path == "/api/mappa_esporta":
+                return fmp.esporta(sys.modules[__name__], SES.case, b)
+            if path == "/api/mappa_preferito":
+                return fmp.preferito(SES.case, b, sys.modules[__name__])
+            if path == "/api/mappa_voli_cerca":     # sui file del caso: nessuna rete
+                import forense_droni as fdr
+                case = SES.case
+                run_task("voli", lambda progress: fdr.run(case, lambda m: progress({"msg": m})), True)
+                return {"ok": True}
+            if path == "/api/mappa_kml_dati":
+                return fmp.livello_kml(SES.case, b.get("n") or 0)
+            if path == "/api/mappa_usa":
+                return fmp.usa_mappa(SES.case, b.get("id"))
+            if path == "/api/mappa_kml":
+                scelto = b.get("path") or choose_file(tr("Scegli il file KML"), kind="any")
+                return fmp.importa_kml(SES.case, scelto) if scelto else {"annullato": True}
+            if path == "/api/mappa_file":        # «Ho già un file»: nessuna rete
+                scelto = b.get("path") or choose_file(tr("Scegli l'estratto PMTiles"), kind="any")
+                return {"mappe": fmp.aggiungi_file(scelto)} if scelto else {"annullato": True}
+            if path == "/api/mappa_cartella":
+                reveal(fms.cartella())
+                return {"ok": True}
+            if path == "/api/mappa_elenco":
+                return {"mappe": fmp.mappe(), "cartella": str(fms.cartella()), "zone": [{k: z[k] for k in ("id", "it", "en", "continente")} for z in fms.elenco_zone()]}
+            if path == "/api/mappa_rimuovi":
+                return {"mappe": fmp.rimuovi_mappa(b.get("id"))}
+            senza_caso()
+            zona = next((z for z in fms.elenco_zone() if z["id"] == b.get("zona")), None) if b.get("zona") != "mondo" else {"id": "mondo", "it": tr("Mondo"), "en": "World", "parti": []}
+            zm = fms.LIVELLI.get(b.get("livello"))
+            if not zona or zm is None:
+                raise ValueError(tr("Zona o livello non validi."))
+            if zona["id"] == "mondo":
+                zm = 6
+            if path == "/api/mappa_stima":
+                run_task("mappa_stima", lambda progress: {**fms.stima(fms.ultima_data().replace(".pmtiles", ""), zona["parti"], zm, progress), "url": fms.BASE}, True)
+                return {"ok": True}
+            if path == "/api/mappa_annulla":
+                fms.ANNULLA.set()
+                return {"ok": True}
+            if path == "/api/mappa_scarica":
+                if b.get("accetto") is not True:
+                    raise ValueError(tr("Lo scaricamento richiede il consenso dell'analista."))
+                nome = zona["it"] if lg.lingua() == "it" else zona["en"]
+
+                def lavoro(progress):
+                    data = fms.ultima_data().replace(".pmtiles", "")
+                    return fms.scarica(nome, zona["parti"], zm, data, fms.cartella() / f"{zona['id']}_z{zm}_{data}.pmtiles", progress)
+                run_task("mappa_scarica", lavoro, True)
+                return {"ok": True}
+            raise ValueError(tr("percorso sconosciuto"))
+        if path in ("/api/db_apri", "/api/db_query", "/api/db_csv", "/api/db_preferito", "/api/db_reperto", "/api/db_chiudi",
+                    "/api/db_recuperati", "/api/db_riscontro", "/api/db_hex", "/api/db_rec_csv", "/api/db_rec_reperto", "/api/db_scegli_csv", "/api/db_cerca", "/api/db_elenco"):   # (3.0)
+            import forense_database as fdb
+            g = sys.modules[__name__]
+            if path == "/api/db_apri":
+                return fdb.apri(g, SES.case, b)
+            if path == "/api/db_query":
+                return fdb.query(SES.case, b)
+            if path == "/api/db_csv":
+                return fdb.esporta_csv(g, SES.case, b)
+            if path == "/api/db_preferito":
+                return fdb.preferito(g, SES.case, b)
+            if path == "/api/db_cerca":
+                return fdb.cerca(SES.case, b)
+            if path == "/api/db_elenco":
+                return fdb.elenco(g, SES.case)
+            if path == "/api/db_recuperati":
+                return fdb.recuperati(SES.case, b)
+            if path == "/api/db_riscontro":
+                return fdb.riscontro_csv(SES.case, b)
+            if path == "/api/db_hex":
+                return fdb.esadecimale(SES.case, b)
+            if path == "/api/db_rec_csv":
+                return fdb.esporta_recuperati(g, SES.case, b)
+            if path == "/api/db_rec_reperto":
+                return fdb.reperto_recuperato(g, SES.case, b)
+            if path == "/api/db_scegli_csv":
+                return {"path": choose_file(tr("Scegli il CSV esportato da FQLite"), kind="list")}
+            if path == "/api/db_reperto":
+                return fdb.reperto(g, SES.case, b)
+            return fdb.chiudi(SES.case, b)
         if path == "/api/bm_add":
             return bm_add(SES.case, b)
         if path == "/api/bm_remove":
@@ -6298,7 +6880,23 @@ class Handler(BaseHTTPRequestHandler):
             if not SES.case.meta.get("sha256"):
                 raise ValueError(tr("Lo SHA-256 della copia non è ancora stato calcolato "
                                  "(analisi speditiva): usa “Calcola hash copia”."))
-            run_task("verify", lambda: fa.verify_hash(SES.case))
+            def verifica(progress):
+                # (3.0) avanzamento leggibile: prima lettura = file della copia, seconda = dati acquisiti (avanz("hash"))
+                st = {"passo": 1}
+
+                def hook(fase, fatti, totale):
+                    if fase == "hash" and fatti is None:
+                        st["passo"] = 2
+                    if fatti is not None and totale:
+                        cosa = tr("SHA-256 della copia") if st["passo"] == 1 else tr("dati acquisiti")
+                        progress({"passo": st["passo"], "msg": tr("{p}/2 {cosa}: {pct}% ({a:.1f} di {b:.1f} GB)").format(
+                            p=st["passo"], cosa=cosa, pct=int(fatti * 100 / totale), a=fatti / 1e9, b=totale / 1e9)})
+                fa.AVANZ_HOOK[0] = hook
+                try:
+                    return fa.verify_hash(SES.case)
+                finally:
+                    fa.AVANZ_HOOK[0] = None
+            run_task("verify", verifica, True)
             return {"ok": True}
         if path == "/api/reveal":
             what = b.get("what")

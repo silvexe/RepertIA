@@ -1,5 +1,5 @@
-RepertIA 2.21.0 - By silvexe (Linux x86_64)
-Analisi forense di copie di dischi ed estrazioni di smartphone con un modello linguistico (LLM) locale.
+RepertIA 3.0.0 - By silvexe (Linux x86_64)
+Analisi forense di copie di dischi, estrazioni di smartphone e registri di volo dei droni con un modello linguistico (LLM) locale.
 
 VERSIONE LINUX (SPERIMENTALE)
 Stesso programma delle versioni Mac e Windows (stessa impronta dei sorgenti). Il collaudo è stato
@@ -21,7 +21,7 @@ Su Linux le loro librerie le installa installa.sh.
 
 INSTALLAZIONE
 1. Estrai l'archivio dove preferisci (ad esempio nella cartella personale):
-     tar -xzf RepertIA-2.21.0-Linux.tar.gz
+     tar -xzf RepertIA-3.0.0-Linux.tar.gz
 2. Apri un terminale nella cartella RepertIA ed esegui:
      ./installa.sh
    Serve internet e la password di amministratore. Lo script:
@@ -34,7 +34,7 @@ INSTALLAZIONE
    Il registro dell'installazione è in installa.log. Lo script si può rieseguire.
 3. Avvia RepertIA dal menu delle applicazioni oppure con ./RepertIA.sh: si apre il browser.
 
-Inclusi nell'archivio: 7-Zip 26.01 (strumenti/7zip) e i dati OCR italiano/inglese (strumenti/tessdata).
+Inclusi nell'archivio: 7-Zip 26.05 (strumenti/7zip) e i dati OCR italiano/inglese (strumenti/tessdata).
 Gli strumenti di sistema si aggiornano con ./aggiorna-strumenti.sh; le versioni effettivamente usate
 sono sempre riportate nel report del caso (sezione Ambiente di analisi).
 

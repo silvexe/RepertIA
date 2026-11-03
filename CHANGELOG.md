@@ -4,6 +4,80 @@
 
 Estratto dalla sezione «Aggiornamenti» del manuale (src/README.md). Per ogni versione: cosa cambia, come è stata provata, cosa non è stato provato.
 
+## 3.0.0
+
+**Chiamate in colonne.** Negli Artefatti › Chiamate verso, contatto (nome e numero), app, durata e risposta sono colonne separate, ognuna col suo filtro. Il menu Fonte della Timeline ha la ricerca dentro e i Preferiti come terza voce. Le conferme sono riquadri del programma, non più finestre del browser. La guida si apre anche dal menu Caso, sopra il programma. Se la pagina si ricarica o si torna indietro da un'altra pagina, il caso aperto in quella scheda si riapre da solo. All'apertura l'albero è chiuso e, se il fuso del dispositivo è diverso da quello in cui sono mostrati gli orari, un avviso propone di usarlo. Nella ricerca, ogni gruppo di risultati si apre in una scheda propria (↗ Apri in una scheda) e le ricerche salvate si trovano dal menu «📂 Ricerche salvate» accanto alle modalità. Verifica hash chiede conferma e mostra l'avanzamento; «Dalle chat» compare una volta sola, sotto Foto/Video/Audio per tipo.
+
+**Punti preferiti sulla mappa.** ★ nella tabella Posizioni e «Solo i punti preferiti»: si vedono, si animano per periodo e si esportano solo i punti scelti, anche da app diverse. Ogni scelta va nel registro e nei Preferiti («Posizioni GPS (mappa)», con la data della posizione per la Timeline). Cambiando voce dell'albero l'anteprima si chiude; il clic su una riga apre l'anteprima anche per chiamate ed eventi senza file diretto. **Schede aperte:** ogni voce dell'albero aperta resta in una barra sopra la tabella (le 6 più recenti, le altre in «Schede aperte»), per tornarci e ricordare cosa si è già guardato. Il gestore database separa le tabelle con una linea; Scarica mappe parte anche senza Calcola il peso.
+
+**Mappe con strade e nomi.** Gli estratti scaricati ora mostrano strade per tipo, edifici, verde, acque e i nomi di vie, località e luoghi. I font sono inclusi (Noto Sans, OFL): nessuna richiesta esterna. Scegliendo una mappa con la vista fuori zona, ci si sposta sulla zona coperta.
+
+**Apri chat in alto.** Nella Timeline dei messaggi e negli artefatti «Messaggi delle chat» il pulsante 💬 Apri chat sta anche nella barra in alto: apre la chat della riga selezionata, senza selezione tutte le conversazioni della sezione.
+
+**LID di WhatsApp e numero.** Dove WhatsApp registra il collegamento (`jid_map` di msgstore.db su Android, `ZLID` di ContactsV2.sqlite su iPhone), conversazioni, mittenti, rubrica, ricerca rapida, report e agente mostrano LID e numero; cercando l'uno si trova l'altro. Il collegamento non è mai dedotto: senza una riga nel database resta il solo LID, e la fonte è indicata nella conversazione. I casi già preparati si aggiornano all'apertura; riepiloghi per conversazione e timeline delle chat preparando di nuovo il caso. Provato su dati di prova costruiti: le immagini pubbliche disponibili non contengono queste associazioni, e `ZLID` non è stato visto su un database reale.
+
+**Chat aperta da un'evidenza.** Nel programma e nel report portatile l'elenco mostra solo quella conversazione, con «Mostra tutte»; una ricerca o un filtro tornano a tutto l'elenco. Nel programma i quattro lati della finestra delle chat si trascinano, la misura resta alla riapertura e il doppio clic la ripristina; il divisore tra elenco e messaggi è più visibile.
+
+**Filtri di colonna nelle sottosezioni della Timeline.** Su messaggi, chiamate, artefatti e preferiti il menu delle colonne restava su «Nessun valore» e i filtri non avevano effetto: ora elenca i valori e filtra tabella, grafico ed esportazione; funziona anche l'ordinamento.
+
+**Pagine e conteggi dell'agente.** L'agente non si ferma più alle prime righe: ogni elenco dice quali righe mostra su quante e prosegue con `offset`; nuovi strumenti `count_artifacts` e `count_messages`. Alla fine dei passi risponde con ciò che ha visto e compare l'avviso «Analisi NON completa»; «continua» riprende. Alle domande generali parte da conteggi e ricerche invece di sfogliare le cartelle, e i reperti automatici sono riservati agli elementi di interesse investigativo. Una conversazione inesistente ora dà un errore chiaro; la risposta scritta insieme a un reperto si mostra come risposta. Provato con Qwen 3.8 27B in LM Studio su copie di prova: elenco completo 92 su 92, conteggi, chiamate WhatsApp. Non provato con altri modelli. Il modello può ancora sbagliare i riferimenti (in una prova ha citato inode errati): vanno verificati.
+
+**Dettatura del prompt.** Il pulsante 🎤 accanto a Invia detta il prompt: il browser registra, whisper.cpp trascrive in locale, l'audio viene cancellato subito e il testo si controlla e si invia a mano. Un avviso lo spiega alla prima attivazione. Serve un modello di trascrizione: se manca, come per le mappe, si chiude il caso e si scarica dalla pagina iniziale.
+
+**Timeline a schermo intero.** Il pulsante ⤢ Schermo intero, nel programma dopo Anno e nel report accanto ai filtri, allarga la Timeline con grafico, filtri e tabella; ✕ Chiudi o Esc tornano alla vista normale.
+
+**Nomi dei pulsanti e chat dalla Timeline.** Sulle righe di Timeline ed Evidenze «Finder» diventa Esporta, che è ciò che fa, e «Albero» diventa Fonte; negli altri elenchi Mostra nel File System e Mostra in Finder dicono cosa succede. I messaggi nella Timeline hanno 💬 Apri chat, anche nell'anteprima.
+
+**Una scheda per caso.** RepertIA lavora su un caso alla volta. Una scheda rimasta su un caso dopo l'apertura di un altro poteva ricevere e scrivere i dati del nuovo caso sotto il nome del vecchio: ora si ferma con un avviso e chiede di ricaricare la pagina. Chi ha lavorato con più schede ricontrolli reperti, preferiti e note aggiunti da una scheda rimasta sul caso precedente.
+
+**Timeline per evidenza.** Nel programma e nel report portatile la Timeline, con il suo grafico, può mostrare una sola evidenza: i messaggi di un'app, le chiamate di un'app, una voce degli artefatti o di iLEAPP/ALEAPP, oppure un gruppo di Preferiti. Si sceglie dal menu Fonte o dall'albero. Contano solo gli elementi con una data.
+
+**Preferiti nella Timeline del report portatile.** La Timeline del report ha la fonte Preferiti, con le categorie anche nell'albero e il pulsante 🕘 Vedi nella Timeline nei Preferiti.
+
+**Anteprima a schermo intero.** Il pulsante ⤢ allarga il riquadro dell'anteprima, con le stesse schede; ✕ Riduci o Esc lo riportano a destra. Anche nel report portatile.
+
+**Report portatile come il caso.** Le sezioni hanno i nomi e l'ordine del caso e un albero con le sottosezioni di appartenenza, con filtro delle voci: artefatti per categoria, gruppo e voce, documenti per estensione, foto, video e audio, posta, archivi, file recuperati, evidenze, anomalie, file inclusi e preferiti. Nuova sezione Documenti. File inclusi si apre come elenco, con le miniature a scelta. Documenti, Foto/Video/Audio e File inclusi hanno le colonne Dimensione, Modificato e Creato, con filtri, ordinamento e CSV.
+
+**Comandi della mappa.** Sfondo, aggiunta di mappe, importazione ed esportazione stanno nella barra in alto, sempre visibili anche con molte categorie.
+
+**Lingua del riepilogo e avviso del gestore database.** I testi salvati nel caso (tipo di supporto, file system, origine del fuso, tipo di documento) restavano nella lingua di creazione del caso: ora si mostrano in quella dell'interfaccia, senza cambiare i dati salvati; anche i separatori delle migliaia seguono la lingua. Il report resta nella lingua del caso. Nel riepilogo i conteggi usano il singolare quando il numero è 1, e la nota «su FAT spesso ora locale» compare solo se il caso ha una partizione FAT. Aprire un `.db` che non è SQLite non dà più un errore rosso, ma un avviso con il formato e la vista esadecimale.
+
+**Ricerche eliminate.** Una ricerca eliminata dal pannello restava nell'albero finché non si riapriva il caso: ora sparisce subito.
+
+**File System senza volumi leggibili.** Nelle copie senza alcun file system leggibile, per esempio con il settore di avvio danneggiato, la sezione restava per sempre su «Carico…»: ora dice che non c'è un file system leggibile e rimanda al carving e alle altre sezioni.
+
+**Licenza.** Dalla 3.0.0 RepertIA è rilasciato con **AGPL-3.0-or-later** (le versioni fino alla 2.21.0 restano GPL-3.0-or-later): chi lo inserisce in un software che distribuisce o offre in rete deve pubblicarne il codice sorgente con la stessa licenza. Permesso aggiuntivo per `pytsk3` e The Sleuth Kit, descritto nel README. Nuovo pulsante **ⓘ** con copyright, licenza, assenza di garanzia, indirizzo del sorgente e attribuzione delle mappe. Tolto dal report portatile il collegamento a openstreetmap.org, che mandava le coordinate in rete: restano le coordinate.
+
+**Gestore dei database.** Apertura di un database SQLite del caso su una copia di lavoro, in sola lettura, con WAL; interrogazioni SQL solo di lettura, ricerca, CSV con SHA-256, Preferiti e reperti, voci nel registro; strumento `query_database` per l'agente. **Record cancellati:** vista separata «da verificare», con pagina e offset, tre livelli di lettura, esadecimale, riscontro col CSV di FQLite e strumento `deleted_records`.
+
+**Mappa.** Punti del caso su sfondo locale (MapLibre, Natural Earth); mappe stradali OpenStreetMap solo scaricate o indicate a caso chiuso, nessuna richiesta di rete da un caso aperto. Voce **🗺 Posizioni e voli** nell'albero, tabelle **Posizioni** e **Voli** per data, animazione con riga evidenziata e **Anima da qui**, frecce ↑ ↓, KML e GPX, scheda Mappa nel report portatile, strumento `location_points`.
+
+**Droni.** Terza scheda nella pagina iniziale, con pagina di inserimento dedicata. Registri DJI versioni 1-12 (dalla 13 «telemetria cifrata: non letta», senza contattare DJI), SRT, CSV Litchi e Airdata, Autel, PX4 ULog, tlog, DataFlash; Betaflight e DJI `.DAT` solo segnalati. Ricerca automatica dei voli nelle copie forensi delle memorie, anche fra i file cancellati. Strumento `flights`.
+
+**Documenti e Foto/Video/Audio.** Nuove colonne **Dimensione**, **Modificato** e **Creato**, con filtri (per esempio da 500KB a 2MB), ordinamento ed esportazione. I valori vengono dal file system o dall'elenco dei file estratti e recuperati; dove non sono noti la cella resta vuota.
+
+**Modello IA nel report.** Il report dichiara il modello usato davvero nel caso, ricavandolo dal registro: nome, server, numero di domande e risposte, periodo. Se non risultano domande scrive «nessuno». Prima riportava l'ultimo modello collegato, o un trattino, anche senza alcuna domanda, e le note metodologiche dichiaravano sempre il «supporto di un modello linguistico»: ora lo fanno solo se risulta usato. Sugli smartphone quelle note dicevano anche sempre che ogni reperto era verificato dall'analista: ora riportano lo stato reale. **I report già prodotti con le versioni precedenti possono contenere queste frasi anche se nessun modello è stato usato.**
+
+**Strumenti esterni.** L'elenco è sempre un menu a tendina, anche nella pagina iniziale, ora completo e per gruppi: programmi, librerie caricate davvero, iLEAPP e ALEAPP; **?** spiega a cosa serve ciascuno strumento; la guida ha una sezione dedicata.
+
+**Ricerca unica.** **⚡ Ricerca nel caso** è ora la predefinita ovunque e cerca anche in nomi dei file, testo dei documenti, metadati, allegati delle chat, file recuperati ed estratti, tracce. Ogni risposta dichiara cosa non ha coperto e ricorda che la ricerca per hash dei file si fa nella sua scheda; senza risultati avvisa che il dato può esserci e porta alla ricerca nei byte. Correzioni: sopra i 2.000 risultati gli artefatti nascondevano i messaggi; a capo e doppi spazi spezzavano le frasi; apostrofi tipografici e accenti impedivano il confronto; sotto i 3 caratteri non si cercava nulla (emoji, 你好, «si»).
+
+**Menu Modello IA.** Il riquadro del server LLM passa dal pannello laterale a un menu a tendina accanto a Strumenti aggiuntivi; sul menu restano visibili il pallino di stato e l'avviso «server esterno».
+
+**Gestore dei database:** colonna delle tabelle ridimensionabile, pulsanti Indietro e Avanti, Chiedi all'agente su righe e record cancellati. **Timeline:** fonte Preferiti nel grafico e in tabella. **Agente:** corretto «Chiedi» dalle righe aperte dalla mappa o dalla ricerca, che mostrava {0}; nuovi strumenti `read_artifact`, `read_message`, `list_bookmarks`; voli disponibili anche nei casi di dischi; `query_artifacts` cerca anche nei campi di iLEAPP/ALEAPP. Provati anche con un modello vero (Qwen 3.8 27B).
+
+**Coordinate delle foto: difetto corretto, presente almeno dalla 2.19.** I metadati GPS di foto e video perdevano il segno: Sud e Ovest risultavano positivi, quindi latitudine e longitudine erano sbagliate per le Americhe, gran parte dell'Africa occidentale, Australia e Sud America. Riguarda elenchi, report, report portatile, strumenti dell'agente e mappa. All'apertura di un caso le coordinate si ricalcolano dai metadati salvati, una volta sola e con una voce nel registro; i report già prodotti non cambiano e vanno rifatti.
+
+**Mappa:** cambiando lo sfondo non spariscono più punti e voli; **🗺 Vedi sulla mappa** dalle foto con coordinate; pulsante del riquadro leggibile col tema scuro; pulsanti di pagina sempre visibili; colonna, altezza e colonne delle tabelle ridimensionabili col mouse.
+
+**Ripristina interfaccia.** Nuovo pulsante nella barra del caso: colonne, riquadri, viste, albero, filtri e ora mostrata tornano come alla prima apertura; i dati del caso non si toccano.
+
+**Correzioni.** **Collega copia forense** sui casi smartphone non aggiornava il percorso dei contenuti: dopo il collegamento i file non si leggevano (difetto della 2.21.0). Una copia non raggiungibile non lascia più cartelle vuote; i file `._` di macOS su exFAT non fermano più la copia di lavoro di un database.
+
+**Come è stata provata.** Collaudo in italiano e inglese e riscontri indicati in VALIDAZIONE.md. tlog, ULog e DataFlash confrontati con pymavlink e pyulog, risultati uguali. Record cancellati su database costruiti e cancellati da noi, confrontati con FQLite, e su copie pubbliche Android 14 e iOS 17.
+
+**Cosa non è stato provato.** Nessun registro Autel reale (lettore provato su file costruiti, ogni volo lo dichiara). Record cancellati: recupero parziale, circa 55% delle righe cancellate nella prova indipendente; nessuna verità nota sui telefoni pubblici; i `-journal` non sono letti dal recupero. SRT e CSV solo su esempi costruiti. Agente provato con un modello vero (Qwen 3.8 27B) su un caso di prova; con una domanda generica in inglese si è fermato al limite di passi. L'animazione non è nel report portatile.
+
 ## 2.21.0
 
 **Preferiti:** dalla scheda di una chat il pulsante **Apri chat**; chat intera nell'esportazione dei preferiti (HTML, CSV, allegati, con periodo facoltativo) e nel report; **Cronologia dei preferiti** in ordine di data dell'evento, anche nel report e in CSV. **Collega copia forense** nel menu Caso: un caso spostato su un altro computer ritrova la sua copia, accettata solo con lo stesso SHA-256, con voce nel registro. **Esporta log diagnostici** (nuovo log tecnico, senza dati dei casi, con anteprima obbligatoria). **iLEAPP/ALEAPP:** limite da 500.000 a 2.000.000 di righe e, oltre il limite, le tabelle piccole prima di quelle enormi: su un iPhone iOS 17 di prova 20 dei 21 milioni di righe sono FSEvents, che toglievano posto alle altre. Nuovo script `tools/controlla_versioni.py`. **Prove:** collaudo 448/448 in italiano e in inglese dal pacchetto Mac, 77/77 su immagini pubbliche (11 controlli nuovi: chat nei Preferiti, cronologia, report, esportazione con periodo, Collega copia forense, log diagnostici); prova nel browser su casi di prova. Collaudo su Windows con il pacchetto definitivo superato (dato riferito dall'autore). **Non provato:** Linux; limite delle righe su un rapporto reale oltre 2 milioni con i tempi della nuova importazione.

@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 silvexe
 """forense_lingua.py - RepertIA by silvexe. Lingua dei testi (italiano o inglese).
 
@@ -12,6 +12,7 @@ l'interfaccia usa la lingua scelta dall'utente, la preparazione del caso, gli ar
 scelta alla creazione e salvata in case.json («lingua»). I casi senza lingua sono in italiano."""
 import json
 import os
+import re
 import threading
 from contextlib import contextmanager
 from pathlib import Path
@@ -94,6 +95,34 @@ def tr(testo):
             _mancanti.add(testo)
         return testo
     return t
+
+
+# Testi che finiscono salvati nel caso (case.json, doc_text) nella lingua in cui il caso è stato creato. Non si riscrivono:
+# `valore` li porta nella lingua attiva solo quando vengono mostrati. I testi esatti prima di quelli con segnaposto.
+VALORI = ("estrazione di uno smartphone (sistema non riconosciuto)", "estrazione di uno smartphone {os}", "Estrazione ({fmt})",
+          "disco di sistema: {v1}", "supporto dati (nessun sistema operativo rilevato, es. pendrive)",
+          "nessun file system leggibile (supporto danneggiato o sconosciuto): solo carving e ricerca nei byte",
+          "APFS (contenitore)", "rilevato nel telefono", "rilevato dal sistema del disco", "corretto dall'operatore",
+          "scelto dall'operatore", "predefinito (Italia)", "testo UTF-8", "testo UTF-16", "testo (Windows-1252)",
+          "PDF senza testo (forse una scansione)", "PDF (pdftotext non installato: stringhe)")
+
+
+def valore(testo):
+    """Testo salvato nel caso, nella lingua attiva; invariato se non è fra i VALORI (dati della prova, nomi di strumenti)."""
+    if not testo or not isinstance(testo, str):
+        return testo
+    forme = [(c, dizionario(c)) for c in LINGUE if c != PREDEFINITA]
+    for m in VALORI:
+        for f in [m] + [d.get(m) for _, d in forme if d.get(m)]:
+            r = re.fullmatch(re.sub(r"\\\{(\w+)\\\}", r"(?P<\1>.+)", re.escape(f)), testo)
+            if r:
+                return tr(m).format(**r.groupdict())
+    return testo
+
+
+def conta(n, uno, molti):
+    """Numero con il nome al singolare o al plurale: `uno` e `molti` sono testi con {n}."""
+    return tr(uno if n == 1 else molti).format(n=n)
 
 
 def N_(testo):

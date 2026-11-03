@@ -1,5 +1,5 @@
-RepertIA 2.21.0 - By silvexe (Linux x86_64)
-Forensic analysis of disk images and smartphone extractions with a local language model (LLM).
+RepertIA 3.0.0 - By silvexe (Linux x86_64)
+Forensic analysis of disk images, smartphone extractions and drone flight logs with a local language model (LLM).
 
 LINUX VERSION (EXPERIMENTAL)
 Same program as the Mac and Windows versions (same source fingerprint). The acceptance test was
@@ -21,7 +21,7 @@ On Linux their libraries are installed by installa.sh.
 
 INSTALLATION
 1. Extract the archive wherever you prefer (for example in your home folder):
-     tar -xzf RepertIA-2.21.0-Linux.tar.gz
+     tar -xzf RepertIA-3.0.0-Linux.tar.gz
 2. Open a terminal in the RepertIA folder and run:
      ./installa.sh
    Internet access and the administrator password are required. The script:
@@ -34,7 +34,7 @@ INSTALLATION
    The installation log is in installa.log. The script can be run again.
 3. Start RepertIA from the applications menu or with ./RepertIA.sh: the browser opens.
 
-Included in the archive: 7-Zip 26.01 (strumenti/7zip) and the Italian/English OCR data
+Included in the archive: 7-Zip 26.05 (strumenti/7zip) and the Italian/English OCR data
 (strumenti/tessdata). The system tools are updated with ./aggiorna-strumenti.sh; the versions
 actually used are always listed in the case report (Analysis environment section).
 

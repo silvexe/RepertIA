@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 <!-- Copyright (C) 2026 silvexe -->
 <html lang="it">
 <head>
@@ -48,11 +48,17 @@ header{display:flex;align-items:center;gap:14px;padding:10px 18px;border-bottom:
 .btn:disabled{opacity:.5;cursor:default}
 .themebtn{border:1px solid var(--line);background:var(--panel2);border-radius:99px;width:34px;height:30px;cursor:pointer}
 .app{flex:1;display:flex;min-height:0}
-nav{width:190px;flex:none;border-right:1px solid var(--line);background:var(--panel);padding:10px 8px;overflow:auto}
+nav{width:260px;flex:none;border-right:1px solid var(--line);background:var(--panel);padding:10px 8px;overflow:auto}
 nav button{display:flex;width:100%;align-items:center;gap:8px;text-align:left;border:0;background:none;padding:8px 10px;border-radius:8px;cursor:pointer;color:var(--ink)}
 nav button:hover{background:var(--panel2)}
 nav button.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
 nav button .n{margin-left:auto;font-size:11.5px;color:var(--muted)}
+#navQ{width:100%;margin-bottom:6px;font-size:12.5px}
+nav button.ns{padding:5px 8px;font-size:13px;gap:4px}
+nav button .l{min-width:0;overflow-wrap:anywhere}
+nav .nsub{margin-left:10px;border-left:1px solid var(--line);padding-left:4px}
+nav .nsub.closed,nav .nv-hide{display:none}
+nav .car{flex:none;width:12px;font-size:10px;color:var(--muted);text-align:center;cursor:pointer}
 nav .sep{height:1px;background:var(--line);margin:8px 4px}
 nav .foot{font-size:11.5px;color:var(--muted);padding:8px 10px;line-height:1.4}
 main{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden}
@@ -153,6 +159,10 @@ body.colresizing,body.colresizing *{cursor:col-resize!important;user-select:none
 .tag.note{border-color:var(--warn);color:var(--warn)}
 .empty{padding:30px;color:var(--muted);text-align:center}
 /* anteprima */
+#v-tl.tlfull{position:fixed;inset:16px;z-index:8;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 0 0 100vmax rgba(0,0,0,.45);overflow:hidden}
+body.tlfullon .pv{position:fixed;top:17px;right:17px;bottom:17px;z-index:9}
+.pv.pvfull{position:fixed;inset:16px;width:auto!important;z-index:9;border:1px solid var(--line);border-radius:12px;box-shadow:0 0 0 100vmax rgba(0,0,0,.45)}
+.pv.pvfull #pvClose,.pv.pvfull #pvSplit{display:none}
 .pv{width:min(42vw,700px);flex:none;position:relative;border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-height:0}
 .pvh{padding:10px 14px;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:flex-start}
 .pvh .nm{font-weight:600;overflow-wrap:anywhere}
@@ -237,7 +247,7 @@ mark{background:var(--warn-soft);color:inherit;border-radius:3px}
   #printArea .mono{font-family:Menlo,Consolas,monospace;font-size:8pt}
   #printArea .meta{color:#444;font-size:9.5pt}
 }
-@media (max-width:1000px){nav{width:58px}nav button span.l,nav .n,nav .foot{display:none}.tree,.tree+.psplit,.pv>.psplit{display:none}.pv{position:fixed;inset:56px 0 0 0;width:auto;z-index:20}}
+@media (max-width:1000px){nav{width:58px}nav button span.l,nav .n,nav .foot,nav .nsub,nav .car,#navQ{display:none}.tree,.tree+.psplit,.pv>.psplit{display:none}.pv{position:fixed;inset:56px 0 0 0;width:auto;z-index:20}}
 .fqres{flex:1;min-height:0;overflow:auto;padding:0 14px 10px}.fqg{margin:6px 0;border:1px solid var(--line);border-radius:8px;padding:4px 8px}.fqg summary{cursor:pointer;padding:3px 0}.fqr{display:grid;grid-template-columns:150px 1fr;gap:10px;padding:5px 4px;border-top:1px solid var(--line);cursor:pointer;font-size:12.5px}.fqr:hover{background:rgba(127,127,127,.08)}.fqt{white-space:nowrap;opacity:.75}.fqe{display:block;opacity:.75;overflow-wrap:anywhere}.fqr mark{background:#fde68a;color:#111;border-radius:2px}
 </style>
 </head>
@@ -256,18 +266,21 @@ mark{background:var(--warn-soft);color:inherit;border-radius:3px}
 </header>
 <div class="app">
   <nav id="nav">
+    <input type="search" id="navQ" placeholder="Filtra le voci…">
     <button data-v="sum" class="on">📋 <span class="l">Riepilogo</span></button>
     <button data-v="exp">🗂 <span class="l">File System</span><span class="n" id="nFiles"></span></button>
     <button data-v="src">🔎 <span class="l">Ricerca</span></button>
     <button data-v="tl">📈 <span class="l">Timeline</span><span class="n" id="nEv"></span></button>
-    <button data-v="meta">📷 <span class="l">Metadati</span><span class="n" id="nMeta"></span></button>
-    <button data-v="att">📎 <span class="l">File inclusi</span><span class="n" id="nAtt"></span></button>
-    <button data-v="carv" id="navCarv">♻️ <span class="l">Recuperati</span><span class="n" id="nCarv"></span></button>
-    <button data-v="trc" id="navTrc">🧩 <span class="l">Evidenze di interesse</span><span class="n" id="nTrc"></span></button>
     <button data-v="art" id="navArt" class="hidden">🪟 <span class="l">Artefatti di sistema</span><span class="n" id="nArt"></span></button>
+    <button data-v="mappa" id="navMappa" class="hidden">🗺 <span class="l">Posizioni e voli</span><span class="n" id="nMappa"></span></button>
+    <button data-v="doc" id="navDoc" class="hidden">📝 <span class="l">Documenti</span><span class="n" id="nDoc"></span></button>
+    <button data-v="meta">📷 <span class="l">Foto/Video/Audio</span><span class="n" id="nMeta"></span></button>
     <button data-v="mail" id="navMail" class="hidden">✉️ <span class="l">Posta</span><span class="n" id="nMail"></span></button>
     <button data-v="xarch" id="navX" class="hidden">📦 <span class="l">Archivi e allegati</span><span class="n" id="nX"></span></button>
+    <button data-v="carv" id="navCarv">♻️ <span class="l">File recuperati</span><span class="n" id="nCarv"></span></button>
+    <button data-v="trc" id="navTrc">🧩 <span class="l">Evidenze di interesse</span><span class="n" id="nTrc"></span></button>
     <button data-v="anom" id="navAnom" class="hidden">⚠️ <span class="l">Anomalie</span><span class="n" id="nAnom"></span></button>
+    <button data-v="att">📎 <span class="l">File inclusi</span><span class="n" id="nAtt"></span></button>
     <div class="sep"></div>
     <button data-v="bm">⭐ <span class="l">Preferiti</span><span class="n" id="nBm"></span></button>
     <button data-v="notes">📝 <span class="l">Note</span><span class="n" id="nNotes"></span></button>
@@ -304,19 +317,24 @@ mark{background:var(--warn-soft);color:inherit;border-radius:3px}
       <div class="hsplit" id="tlSplit" title="Trascina in su o in giù per cambiare l'altezza del grafico; doppio clic: altezza predefinita; ▾/▸ comprime o riapre"></div>
       <div class="bar"><span class="hint grow" id="tlInfo">Scegli un mese</span>
         <select id="tlOrig"><option value="">Tutte le origini</option><option value="tsk">File system</option><option value="plaso">plaso</option></select>
-        <input type="search" id="tlQ" placeholder="Filtra eventi…" style="max-width:260px"><button class="btn small" data-csv="tl">Esporta CSV</button></div>
+        <input type="search" id="tlQ" placeholder="Filtra eventi…" style="max-width:260px"><button class="btn small" data-csv="tl">Esporta CSV</button><button class="btn small" id="tlFullB" title="Apri la Timeline a schermo intero">⤢ Schermo intero</button></div>
       <div class="vl" id="tlList"></div>
     </section>
     <section class="view hidden" id="v-meta">
-      <div class="bar"><input type="search" id="metaQ" placeholder="Filtra per file, dispositivo, autore…"><label class="hint"><input type="checkbox" id="metaGps"> solo con GPS</label><label class="hint"><input type="checkbox" id="metaVid"> solo video</label><label class="hint"><input type="checkbox" id="metaFoto"> solo foto</label><select id="metaOrig" class="hidden"></select><span class="hint grow" id="metaInfo"></span><button class="btn small" data-csv="meta">Esporta CSV</button></div>
+      <div class="bar"><input type="search" id="metaQ" placeholder="Filtra per file, dispositivo, autore…"><label class="hint"><input type="checkbox" id="metaGps"> solo con GPS</label><label class="hint"><input type="checkbox" id="metaVid"> solo video</label><label class="hint"><input type="checkbox" id="metaFoto"> solo foto</label><label class="hint"><input type="checkbox" id="metaAud"> solo audio</label><select id="metaOrig" class="hidden"></select><span class="hint grow" id="metaInfo"></span><button class="btn small" data-csv="meta">Esporta CSV</button></div>
       <div class="vl" id="metaList"></div>
     </section>
+    <section class="view hidden" id="v-doc">
+      <div class="bar"><input type="search" id="docQ" placeholder="Filtra per nome o percorso…"><select id="docExt"><option value="">Tutte le estensioni</option></select><span class="hint grow" id="docInfo"></span><button class="btn small" data-csv="doc">Esporta CSV</button></div>
+      <div class="vl" id="docList"></div>
+    </section>
     <section class="view hidden" id="v-att">
-      <div class="bar"><input type="search" id="attQ" placeholder="Filtra per nome o percorso…"><select id="attKind"><option value="">Tutti i tipi</option><option value="image">Immagini</option><option value="pdf">PDF</option><option value="office">Documenti Office</option><option value="text">Testo</option><option value="video">Video</option><option value="audio">Audio</option><option value="other">Altro</option></select>
+      <div class="bar"><input type="search" id="attQ" placeholder="Filtra per nome o percorso…"><select id="attKind"><option value="">Tutti i tipi</option><option value="image">Immagini</option><option value="pdf">PDF</option><option value="office">Documenti Office</option><option value="text">Testo</option><option value="video">Video</option><option value="audio">Audio</option><option value="other">Altro</option></select><select id="attView"><option value="list">Elenco</option><option value="grid">Miniature</option></select>
         <label class="hint"><input type="checkbox" id="attFull"> solo reperti e selezioni</label><label class="hint"><input type="checkbox" id="attDel"> solo cancellati</label><span class="hint grow" id="attInfo"></span><button class="btn small" data-csv="att">Esporta CSV</button></div>
+      <div class="vl" id="attList"></div>
       <div class="scroll" id="attScroll"><div class="grid" id="attGrid"></div><div style="text-align:center;padding:0 0 18px"><button class="btn hidden" id="attMore">Mostra altri</button></div></div></section>
     <section class="view hidden" id="v-carv">
-      <div class="bar"><input type="search" id="carvQ" placeholder="Filtra per nome o tipo…"><span class="hint grow" id="carvInfo"></span><button class="btn small" data-csv="carv">Esporta CSV</button></div>
+      <div class="bar"><input type="search" id="carvQ" placeholder="Filtra per nome o tipo…"><select id="carvKind"><option value="">Tutti i tipi</option></select><span class="hint grow" id="carvInfo"></span><button class="btn small" data-csv="carv">Esporta CSV</button></div>
       <div class="vl" id="carvList"></div>
     </section>
     <section class="view hidden" id="v-trc">
@@ -328,7 +346,7 @@ mark{background:var(--warn-soft);color:inherit;border-radius:3px}
       <div class="vl" id="artList"></div>
     </section>
     <section class="view hidden" id="v-mail">
-      <div class="bar"><input type="search" id="mailQ" placeholder="Cerca in oggetto, mittente, destinatari, testo…"><label class="hint"><input type="checkbox" id="mailAtt"> solo con allegati</label><span class="hint grow" id="mailInfo"></span><button class="btn small" data-csv="mail">Esporta CSV</button></div>
+      <div class="bar"><select id="mailFmt"><option value="">Tutti i formati</option></select><input type="search" id="mailQ" placeholder="Cerca in oggetto, mittente, destinatari, testo…"><label class="hint"><input type="checkbox" id="mailAtt"> solo con allegati</label><span class="hint grow" id="mailInfo"></span><button class="btn small" data-csv="mail">Esporta CSV</button></div>
       <div class="vl" id="mailList"></div>
     </section>
     <section class="view hidden" id="v-xarch">
@@ -341,9 +359,10 @@ mark{background:var(--warn-soft);color:inherit;border-radius:3px}
     </section>
     <section class="view hidden" id="v-bm">
       <div class="bar"><span class="hint grow" id="bmInfo">Seleziona dei file in qualsiasi elenco (caselle a sinistra) e premi «⭐ Preferiti», oppure usa ⭐ nell'anteprima di un file.</span>
-        <button class="btn small" id="bmNew">Nuova categoria</button><button class="btn small" id="bmRen">Rinomina</button><button class="btn small" id="bmDel">Elimina categoria</button><button class="btn small" id="bmCsv">Esporta CSV</button><button class="btn small" id="bmJson" title="Salva i preferiti creati qui in un file da passare a un altro analista">Esporta preferiti</button><label class="btn small" title="Aggiunge i preferiti da un file esportato da questo report">Importa<input type="file" id="bmImp" accept=".json,application/json" hidden></label></div>
+        <button class="btn small" id="bmNew">Nuova categoria</button><button class="btn small" id="bmRen">Rinomina</button><button class="btn small" id="bmDel">Elimina categoria</button><button class="btn small" id="bmTl">🕘 Vedi nella Timeline</button><button class="btn small" id="bmCsv">Esporta CSV</button><button class="btn small" id="bmJson" title="Salva i preferiti creati qui in un file da passare a un altro analista">Esporta preferiti</button><label class="btn small" title="Aggiunge i preferiti da un file esportato da questo report">Importa<input type="file" id="bmImp" accept=".json,application/json" hidden></label></div>
       <div class="split"><div class="bmcats" id="bmCats"></div><div class="psplit" id="bmSplit" title="Trascina per allargare o stringere l'elenco delle categorie; doppio clic: larghezza predefinita"></div><div class="vl" id="bmList"></div></div>
     </section>
+    <section class="view hidden" id="v-mappa"></section>
     <section class="view hidden" id="v-notes"><div class="scroll"><div class="pad">
       <div class="card"><h2>Note</h2>
         <p class="hint">Le note restano solo in questo browser, su questo computer. Per consegnarle o spostarle, esportale; il file si può reimportare qui o su un altro computer con lo stesso report.</p>
@@ -355,7 +374,7 @@ mark{background:var(--warn-soft);color:inherit;border-radius:3px}
       <div id="notesBody"></div></div></div></section>
   </main>
   <aside class="pv hidden" id="pv"><div class="psplit" id="pvSplit" title="Trascina per allargare o stringere l'anteprima; doppio clic: larghezza predefinita"></div>
-    <div class="pvh"><div class="grow"><div class="nm" id="pvName"></div><div class="pt" id="pvPath"></div></div><button class="btn small" id="pvBm" title="Aggiungi questo file ai preferiti">⭐ Preferiti</button> <button class="btn small" id="pvClose">✕</button></div>
+    <div class="pvh"><div class="grow"><div class="nm" id="pvName"></div><div class="pt" id="pvPath"></div></div><button class="btn small" id="pvBm" title="Aggiungi questo file ai preferiti">⭐ Preferiti</button> <button class="btn small" id="pvFull" title="Apri a schermo intero">⤢</button> <button class="btn small" id="pvClose">✕</button></div>
     <div class="pvt" id="pvTabs"><button data-t="view" class="on">Anteprima</button><button data-t="text">Testo</button><button data-t="hex">Esadecimale</button><button data-t="info">Dettagli</button><button data-t="note">Nota</button></div>
     <div class="pvb" id="pvBody"></div>
   </aside>
@@ -393,13 +412,17 @@ trDom(document.body);
 "use strict";
 /* RepertIA - report portatile. I dati arrivano dai file dati/*.js tramite FD.push. Nessun
    contenuto delle prove viene interpretato come HTML: tutto passa da esc() o textContent. */
-const FD = {case: null, files: [], atts: [], texts: [], meta: [], traces: [], carved: [], ev: {}, evd: {}, lp: {}, det: {}, _wait: {},
+const FD = {case: null, files: [], docs: [], atts: [], texts: [], meta: [], traces: [], carved: [], ev: {}, evd: {}, lp: {}, det: {}, _wait: {},
   push(name, obj){
     if (name === "case") this.case = obj;
     else if (name === "files") for (const r of obj) this.files.push(r);
     else if (name === "texts") for (const r of obj) this.texts.push(r);
     else if (name === "atts") for (const r of obj) this.atts.push(r);
     else if (name === "meta") this.meta = obj;
+    else if (name === "docs") this.docs = obj;
+    else if (name === "chat") this.chat = obj;
+    else if (name === "mappa") this.mappa = obj;
+    else if (name === "sfondo") this.sfondo = obj;
     else if (name === "traces") this.traces = obj;
     else if (name === "carved") this.carved = obj;
     else if (name === "events"){ if (obj.d) (this.evd[obj.d] = this.evd[obj.d] || {})[obj.p] = obj.rows; else this.ev[obj.m] = obj.rows; }
@@ -569,7 +592,7 @@ async function boot(){
   catch(e){ $("loadMsg").textContent = T("Dati del report non trovati: apri index.html dalla cartella completa del report (con la cartella «dati»)."); return; }
   const c = FD.case;
   const ttl = (c.info_caso || {}).nome || c.case; $("hTitle").textContent = ttl; document.title = ttl + T(" · Report portatile RepertIA");
-  const list = [...c.file_chunks.map(f => "dati/" + f), ...(c.att_chunks || []).map(f => "dati/" + f), "dati/meta.js", "dati/carving.js", "dati/tracce.js", ...(c.ext ? ["dati/estese.js"] : [])];
+  const list = [...c.file_chunks.map(f => "dati/" + f), ...(c.att_chunks || []).map(f => "dati/" + f), "dati/meta.js", "dati/documenti.js", "dati/carving.js", "dati/tracce.js", ...(c.ext ? ["dati/estese.js"] : [])];
   // tutti i blocchi richiesti insieme (eseguiti nell'ordine): prima uno alla volta, scaricamento e lettura in fila
   let nDone = 0;
   const step = () => { nDone++; $("loadMsg").textContent = TF("Carico il catalogo… {0} di {1}", nDone, list.length);
@@ -598,36 +621,200 @@ async function boot(){
   for (const m of FD.meta) META_BY_KEY.set(keyOf(m[1], m[2]), m);
   $("nFiles").textContent = nf(F.filter(r => !r[C.isdir]).length);
   $("nEv").textContent = nf(c.counts.eventi); $("nMeta").textContent = nf(FD.meta.length);
+  if (FD.docs.length){ $("navDoc").classList.remove("hidden"); $("nDoc").textContent = nf(FD.docs.length); }
   $("nAtt").textContent = nf(ATT.size); $("nCarv").textContent = nf(FD.carved.length); $("nTrc").textContent = nf(FD.traces.length);
   if (!FD.carved.length) $("navCarv").classList.add("hidden");
   if (!FD.traces.length) $("navTrc").classList.add("hidden");
   const X = FD.ext || {};
+  if (FD.case && FD.case.mappa){ $("navMappa").classList.remove("hidden"); $("nMappa").textContent = FD.case.mappa.toLocaleString(LOC); }
   [["art", "navArt", "nArt"], ["mail", "navMail", "nMail"], ["x", "navX", "nX"], ["anom", "navAnom", "nAnom"]].forEach(([k, nav, n]) => {
     const L = (X[k] || []).length + (k === "art" ? X.leapp_n || 0 : 0); $(nav).classList.toggle("hidden", !L); $(n).textContent = L ? nf(L) : ""; });
   $("navFoot").innerHTML = TF("Generato il {0}<br>{1}<br>Solo consultazione, senza IA.", esc(ftsRaw(c.generated, true)), esc(c.app));
-  tzSelRefresh(); initNotes(); initBmStore(); renderSummary(); $("loading").remove();
+  tzSelRefresh(); initNotes(); initBmStore(); renderSummary(); navBuild(); $("loading").remove();
   PNAV.replace();
 }
 
+/* ---------- (3.0) mappa: disegno nostro su canvas, perché da file:// MapLibre non parte. Sfondo Natural Earth 1:110m ---------- */
+async function initMappa(){
+  const box = $("v-mappa");
+  try { if (!FD.mappa) await loadScript("dati/mappa.js"); if (!FD.sfondo) await loadScript("dati/sfondo_mappa.js"); } catch (e) { box.textContent = e.message; return; }
+  const d = FD.mappa, attive = new Set(d.categorie.map((_, i) => i)), attiviV = new Set((d.voli || []).filter(f => f.punti.length).map(f => f.id));
+  const stV = {cifrato: T("telemetria cifrata: non letta"), non_letto: T("non letto"), senza_posizioni: T("nessuna posizione nel registro")};
+  box.innerHTML = `<div style="display:flex;gap:10px;height:calc(100vh - 150px);min-height:400px"><div style="width:270px;flex:none;overflow:auto;font-size:13px">
+      <div class="hint" style="margin-bottom:6px"><b id="mpN"></b><br>${T("Date come nella fonte, senza conversione di fuso. Ogni punto è un dato della fonte: va verificato.")}${d.esclusi.zero ? "<br>" + TF("Esclusi {0} punti a 0,0 (posizione assente).", d.esclusi.zero) : ""}${d.esclusi.fuori_scala ? "<br>" + TF("Esclusi {0} punti con coordinate non valide.", d.esclusi.fuori_scala) : ""}${d.troncato ? "<br>⚠️ " + T("Troppi punti: elenco parziale.") : ""}</div>
+      ${d.categorie.map((c, i) => `<label style="display:flex;gap:6px;padding:2px 0"><input type="checkbox" class="mpC" data-i="${i}" checked><span style="word-break:break-word">${esc(c.nome)} <span class="hint">${c.punti}</span></span></label>`).join("")}
+      ${(d.voli || []).length ? `<div style="margin-top:8px"><b>🚁 ${T("Voli")}</b>${d.voli.map(f => `<label style="display:flex;gap:6px;padding:2px 0"><input type="checkbox" class="mpV" data-i="${f.id}" ${attiviV.has(f.id) ? "checked" : ""} ${f.punti.length ? "" : "disabled"}><span style="word-break:break-word">${esc(f.nome)} <span class="hint">${esc(f.inizio || "")} · ${TF("{0} posizioni", f.punti_tot)}${stV[f.stato] ? " · " + stV[f.stato] : ""}</span></span></label>`).join("")}<div class="hint">${T("Una traccia è un dato del registro: dice cosa riporta il file, non chi pilotava.")}</div></div>` : ""}
+      <div id="mpInfo" style="margin-top:10px;border-top:1px solid #8884;padding-top:8px;word-break:break-word"></div></div>
+    <div style="flex:1;min-width:0;position:relative"><canvas id="mpC" style="position:absolute;inset:0;width:100%;height:100%;cursor:grab;border-radius:8px"></canvas>
+      <div style="position:absolute;top:8px;right:8px;display:flex;flex-direction:column;gap:4px"><button class="btn" id="mpP">+</button><button class="btn" id="mpM">−</button><button class="btn" id="mpH" title="${esc(T("Vista iniziale: tutti i punti visibili"))}">⌂</button></div>
+      <div style="position:absolute;right:6px;bottom:6px;background:rgba(255,255,255,.85);color:#222;font-size:11px;padding:1px 6px;border-radius:4px">Natural Earth</div></div></div>`;
+  const cv = $("mpC"), g = cv.getContext("2d");
+  const X = lo => (lo + 180) / 360, Y = la => { const r = Math.max(-85, Math.min(85, la)) * Math.PI / 180; return (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2; };
+  let sc = 800, ox = 0, oy = 0;       // punto mondo [0..1] → pixel: x*sc + ox
+  const vis = () => d.punti.filter(p => attive.has(p[2]));
+  const scuro = matchMedia("(prefers-color-scheme: dark)").matches;
+  const disegna = () => {
+    const dp = devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight;
+    if (cv.width !== W * dp){ cv.width = W * dp; cv.height = H * dp; }
+    g.setTransform(dp, 0, 0, dp, 0, 0);
+    g.fillStyle = scuro ? "#1c2b36" : "#d6e2ec"; g.fillRect(0, 0, W, H);
+    g.fillStyle = scuro ? "#2a2d30" : "#eeebe2"; g.strokeStyle = scuro ? "#555" : "#aaa"; g.lineWidth = .6;
+    for (const f of FD.sfondo.features){ for (const pol of f.geometry.coordinates){ g.beginPath(); for (const ring of pol){ ring.forEach((q, i) => { const x = X(q[0]) * sc + ox, y = Y(q[1]) * sc + oy; i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.closePath(); } g.fill(); g.stroke(); } }
+    g.fillStyle = "rgba(192,57,43,.8)"; g.strokeStyle = "#fff";
+    g.strokeStyle = "#8e44ad"; g.lineWidth = 2;
+    for (const f of d.voli || []){ if (!attiviV.has(f.id) || f.punti.length < 2) continue; g.beginPath(); f.punti.forEach((q, i) => { const x = X(q[0]) * sc + ox, y = Y(q[1]) * sc + oy; i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.stroke(); }
+    g.fillStyle = "#8e44ad";
+    for (const f of d.voli || []){ if (!attiviV.has(f.id) || !f.punti.length) continue; g.beginPath(); g.arc(X(f.punti[0][0]) * sc + ox, Y(f.punti[0][1]) * sc + oy, 5, 0, 7); g.fill(); }
+    g.fillStyle = "rgba(192,57,43,.8)"; g.strokeStyle = "#fff"; g.lineWidth = .6;
+    const v = vis();
+    for (const p of v){ const x = X(p[0]) * sc + ox, y = Y(p[1]) * sc + oy; if (x < -5 || y < -5 || x > W + 5 || y > H + 5) continue; g.beginPath(); g.arc(x, y, 4, 0, 7); g.fill(); if (v.length < 3000) g.stroke(); }
+    $("mpN").textContent = TF("{0} punti visibili", v.length.toLocaleString(LOC));
+  };
+  const casa = () => {
+    const W = cv.clientWidth, H = cv.clientHeight, v = vis().concat((d.voli || []).filter(f => attiviV.has(f.id)).flatMap(f => f.punti));
+    if (!v.length){ sc = Math.min(W, H); ox = (W - sc) / 2; oy = (H - sc) / 2; return disegna(); }
+    let a = 1, b = 0, c = 1, e = 0; for (const p of v){ const x = X(p[0]), y = Y(p[1]); a = Math.min(a, x); b = Math.max(b, x); c = Math.min(c, y); e = Math.max(e, y); }
+    sc = Math.min(1 << 18, Math.max(200, Math.min((W - 80) / Math.max(b - a, 1e-4), (H - 80) / Math.max(e - c, 1e-4))));
+    ox = W / 2 - (a + b) / 2 * sc; oy = H / 2 - (c + e) / 2 * sc; disegna();
+  };
+  const zoom = (f, cx, cy) => { const n = Math.max(150, Math.min(1 << 24, sc * f)); ox = cx - (cx - ox) * n / sc; oy = cy - (cy - oy) * n / sc; sc = n; disegna(); };
+  $("mpP").onclick = () => zoom(1.6, cv.clientWidth / 2, cv.clientHeight / 2); $("mpM").onclick = () => zoom(1 / 1.6, cv.clientWidth / 2, cv.clientHeight / 2); $("mpH").onclick = casa;
+  cv.addEventListener("wheel", e => { e.preventDefault(); const r = cv.getBoundingClientRect(); zoom(e.deltaY < 0 ? 1.25 : .8, e.clientX - r.left, e.clientY - r.top); }, {passive: false});
+  let tr0 = null, mosso = false;
+  cv.onmousedown = e => { tr0 = [e.clientX, e.clientY, ox, oy]; mosso = false; };
+  window.addEventListener("mousemove", e => { if (!tr0) return; if (Math.abs(e.clientX - tr0[0]) + Math.abs(e.clientY - tr0[1]) > 3) mosso = true; ox = tr0[2] + e.clientX - tr0[0]; oy = tr0[3] + e.clientY - tr0[1]; disegna(); });
+  window.addEventListener("mouseup", () => { tr0 = null; });
+  cv.onclick = e => {
+    if (mosso) return;
+    const r = cv.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
+    const near = vis().filter(p => Math.hypot(X(p[0]) * sc + ox - mx, Y(p[1]) * sc + oy - my) <= 7);
+    $("mpInfo").innerHTML = near.length ? `<b>${TF("{0} punti qui", near.length)}</b>` + near.slice(0, 50).map(p => `<div style="margin-top:6px"><b>${esc(d.categorie[p[2]].nome)}</b><br>${esc(p[5] || T("Data non disponibile"))}<br><span class="mono">${p[1]}, ${p[0]}</span></div>`).join("") : "";
+  };
+  box.querySelectorAll(".mpV").forEach(c => c.onchange = () => { c.checked ? attiviV.add(+c.dataset.i) : attiviV.delete(+c.dataset.i); disegna(); });
+  box.querySelectorAll(".mpC").forEach(c => c.onchange = () => { c.checked ? attive.add(+c.dataset.i) : attive.delete(+c.dataset.i); disegna(); });
+  addEventListener("resize", disegna);
+  casa();
+}
 /* ---------- navigazione tra le viste ---------- */
 let VIEW = "sum";
 const inited = {};
-document.querySelectorAll("nav button[data-v]").forEach(b => b.onclick = () => show(b.dataset.v));
+document.querySelectorAll("nav button[data-v]").forEach(b => b.onclick = () => navGo(b.dataset.v));
 function show(v){
+  if (v !== "tl" && $("v-tl").classList.contains("tlfull")) tlFull(false);
   if (typeof PNAV !== "undefined" && VIEW && VIEW !== v) PNAV.replace();        // stato della vista che si lascia
   VIEW = v;
   document.querySelectorAll("nav button[data-v]").forEach(b => b.classList.toggle("on", b.dataset.v === v));
   document.querySelectorAll("main .view").forEach(s => s.classList.toggle("hidden", s.id !== "v-" + v));
-  if (!inited[v]){ inited[v] = true; ({exp: initExplore, src: initSearch, tl: initTimeline, meta: initMeta, att: renderAtt, carv: initCarved, trc: initTraces, bm: initBm, art: initArt, mail: initMail, xarch: initX, anom: initAnom}[v] || (() => {}))(); }
+  if (!inited[v]){ inited[v] = true; ({mappa: initMappa, exp: initExplore, src: initSearch, tl: initTimeline, meta: initMeta, doc: initDoc, att: renderAtt, carv: initCarved, trc: initTraces, bm: initBm, art: initArt, mail: initMail, xarch: initX, anom: initAnom}[v] || (() => {}))(); }
   if (v === "notes") renderNotes();
   if (v === "bm") renderBmCats();
   renderSelBar();
+  navSync();
   PNAV.push();
 }
+/* ---------- (3.0) albero delle sezioni come nel caso: ogni sottovoce imposta i filtri della sua vista, che restano utilizzabili ---------- */
+const NAV_RESET = {art: [["artCat", ""], ["artSub", ""]], doc: [["docExt", ""]], meta: [["metaGps", false], ["metaFoto", false], ["metaVid", false], ["metaAud", false]],
+  mail: [["mailFmt", ""]], xarch: [["xKind", ""]], carv: [["carvKind", ""]], trc: [["trcKind", ""]], anom: [["anKind", ""]], att: [["attKind", ""]], tl: [["tlOrig", ""]]};
+let NAVN = [], NAV_OPEN = new Set();
+const navVal = id => { const e = $(id); return !e ? null : e.type === "checkbox" ? e.checked : e.value; };
+function navSet(id, v){
+  const e = $(id); if (!e || navVal(id) === v) return;
+  if (e.type === "checkbox") e.checked = v; else e.value = v;
+  e.dispatchEvent(new Event("change", {bubbles: true}));
+}
+function navGo(v, set){
+  show(v);
+  const voluti = new Map([...(NAV_RESET[v] || []), ...(set || [])]);
+  // prima la categoria e poi la voce: le voci degli artefatti dipendono dalla categoria
+  for (const [id, x] of voluti) navSet(id, x);
+  navSync();
+  PNAV.push();
+}
+const extOf = p => { const m = /\.([^./\\]{1,12})$/.exec(p || ""); return m ? m[1].toLowerCase() : ""; };
+const contaPer = (rows, k) => { const m = new Map(); for (const r of rows){ const v = k(r); if (v != null && v !== "") m.set(v, (m.get(v) || 0) + 1); } return [...m.entries()].sort((a, b) => String(a[0]).localeCompare(String(b[0]))); };
+function navKids(){
+  const X = FD.ext || {}, voce = (v, id, val, label, n, kids) => ({v, set: [[id, val]], label, n, kids: kids || []}), K = {};
+  const c = FD.case;
+  K.tl = [];
+  // artefatti: categoria › gruppo › voce, come nel caso
+  const cat = new Map(), add = (k, g, s, n) => { const e = cat.get(k) || {n: 0, g: new Map()}; cat.set(k, e); e.n += n;
+    if (g != null){ const h = e.g.get(g) || {n: 0, s: new Map()}; e.g.set(g, h); h.n += n; if (s) h.s.set(s, (h.s.get(s) || 0) + n); } };
+  for (const r of X.art || []) add(r[0], r[8], r[9], 1);
+  for (const [g, s, n] of X.leapp_idx || []) add("leapp", g, s, n);
+  K.art = [...cat.entries()].sort((a, b) => String((X.art_cats || {})[a[0]] || a[0]).localeCompare(String((X.art_cats || {})[b[0]] || b[0]))).map(([k, e]) => ({v: "art", set: [["artCat", k]], label: (X.art_cats || {})[k] || k, n: e.n,
+    kids: [...e.g.entries()].sort((a, b) => String(a[0]).localeCompare(String(b[0]))).map(([g, h]) => ({v: "art", set: [["artCat", k], ["artSub", JSON.stringify([g])]], label: k === "messaggi" ? APP_LBL[g] || g : g, n: h.n,
+      kids: [...h.s.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([s, n]) => ({v: "art", set: [["artCat", k], ["artSub", JSON.stringify([g, s])]], label: s, n, kids: []}))}))}));
+  // (3.0) Timeline per fonte: come nel caso, qualsiasi evidenza o un gruppo di Preferiti
+  const tlo = (o, label, n, kids) => voce("tl", "tlOrig", o, label, n, kids);
+  const evs = (...x) => "ev:" + JSON.stringify(x);
+  const bmc = bmCats();
+  K.tl = [tlo("tsk", T("File system")), ...(c.plaso_eventi ? [tlo("plaso", "Plaso", c.plaso_eventi)] : []),
+    ...(cat.has("messaggi") ? [tlo("msg:", T("Messaggi delle chat"), null, [...cat.get("messaggi").g.keys()].map(g => tlo("msg:" + g, APP_LBL[g] || g)))] : []),
+    ...[...cat.entries()].filter(([k]) => k !== "messaggi").map(([k, e]) => tlo(evs(k), (X.art_cats || {})[k] || k, e.n,
+      [...e.g.entries()].map(([g, h]) => tlo(evs(k, g), g, h.n, [...h.s.entries()].map(([s, n]) => tlo(evs(k, g, s), s, n)))))),
+    ...(bmc.length ? [tlo("preferiti", T("Preferiti"), bmTlRows("").rows.length, bmc.map(x => tlo("bm:" + x.name, x.name, bmTlRows(x.name).rows.length)))] : [])];
+  const piatta = (l, d) => l.flatMap(n => [[n.set[0][1], "\u00a0\u00a0".repeat(d) + n.label + (n.n != null ? ` (${nf(n.n)})` : "")], ...piatta(n.kids, d + 1)]);
+  const os = $("tlOrig"), ov = os.value;
+  os.innerHTML = [["", T("Tutte le origini")], ...piatta(K.tl, 0)].map(([v, l]) => `<option value="${esc(v)}">${esc(l)}</option>`).join(""); os.value = ov;
+  K.doc = contaPer(FD.docs, r => extOf(r[0]) || "~").map(([e, n]) => voce("doc", "docExt", e, e === "~" ? T("Senza estensione") : "." + e, n));
+  const mt = (id, label, re) => { const n = re ? FD.meta.filter(m => re(m)).length : audioRows().length; return n ? [voce("meta", id, true, label, n)] : []; };
+  K.meta = [...mt("metaGps", T("Con GPS"), m => m[8] != null), ...mt("metaFoto", T("Foto"), m => RE_FOTO.test(m[4] || "")), ...mt("metaVid", T("Video"), m => RE_VID.test(m[4] || "")), ...mt("metaAud", T("Audio"))];
+  K.mail = contaPer(X.mail || [], r => r[7]).map(([k, n]) => voce("mail", "mailFmt", k, k, n));
+  const XL = {archivio: T("Contenuto di archivi"), allegato: T("Allegati di posta"), vss: T("Copie shadow"), miniatura: T("Miniature (thumbcache)")};
+  K.xarch = contaPer(X.x || [], r => r[1]).map(([k, n]) => voce("xarch", "xKind", k, XL[k] || k, n));
+  K.carv = contaPer(FD.carved, r => r[2]).map(([k, n]) => voce("carv", "carvKind", k, k, n));
+  K.trc = contaPer(FD.traces, r => r[0]).map(([k, n]) => voce("trc", "trcKind", k, k, n));
+  K.anom = contaPer(X.anom || [], r => r[0]).map(([k, n]) => voce("anom", "anKind", k, (X.anom_kinds || {})[k] || k, n));
+  const AL = {image: T("Immagini"), pdf: "PDF", office: T("Documenti Office"), text: T("Testo"), video: T("Video"), audio: T("Audio"), other: T("Altro")};
+  K.att = contaPer([...ATT.values()], a => a.kind === "image_conv" ? "image" : a.kind).map(([k, n]) => voce("att", "attKind", k, AL[k] || k, n));
+  K.bm = bmCats().map(x => ({v: "bm", label: x.name, n: x.n, kids: [], go: () => { show("bm"); BMV.cat = x.name; renderBmCats(); navSync(); }, on: () => VIEW === "bm" && BMV.cat === x.name}));
+  return K;
+}
+function navBuild(){
+  document.querySelectorAll("nav .nsub, nav button[data-v] > .car").forEach(e => e.remove());
+  NAVN = [];
+  const riga = n => { const i = NAVN.push(n) - 1;
+    return `<button class="ns" data-nn="${i}"><span class="car">${n.kids.length ? "▸" : ""}</span><span class="l">${esc(n.label)}</span>${n.n != null ? `<span class="n">${nf(n.n)}</span>` : ""}</button>` + (n.kids.length ? `<div class="nsub closed">${n.kids.map(riga).join("")}</div>` : ""); };
+  const K = navKids();
+  for (const [v, kids] of Object.entries(K)){
+    const b = document.querySelector(`nav button[data-v="${v}"]`); if (!b || !kids.length) continue;
+    b.insertAdjacentHTML("afterbegin", `<span class="car">▸</span>`);
+    b.insertAdjacentHTML("afterend", `<div class="nsub closed" data-for="${v}">${kids.map(riga).join("")}</div>`);
+  }
+  navSync(true);
+}
+function navOn(n){
+  if (n.on) return n.on();
+  if (VIEW !== n.v) return false;
+  const voluti = new Map([...(NAV_RESET[n.v] || []), ...n.set]);
+  return [...voluti].every(([id, x]) => navVal(id) === x || navVal(id) == null);
+}
+function navSync(apriAttivo){
+  const nav = $("nav"); if (!nav) return;
+  nav.querySelectorAll("button.ns").forEach(b => { const on = VIEW != null && navOn(NAVN[+b.dataset.nn]); b.classList.toggle("on", on);
+    if (on) for (let p = b.parentElement; p && p !== nav; p = p.parentElement) if (p.classList.contains("nsub")) navApri(p, true); });
+  const sub = VIEW && nav.querySelector(`.nsub[data-for="${VIEW}"]`); if (sub && !apriAttivo) navApri(sub, true);
+}
+function navApri(sub, si){ sub.classList.toggle("closed", !si); const prev = sub.previousElementSibling, c = prev && prev.querySelector(".car"); if (c) c.textContent = si ? "▾" : "▸"; }
+$("nav").addEventListener("click", e => {
+  const car = e.target.closest(".car"), b = e.target.closest("button");
+  if (!b) return;
+  const sub = b.nextElementSibling && b.nextElementSibling.classList.contains("nsub") ? b.nextElementSibling : null;
+  if (car && car.textContent && sub){ e.stopPropagation(); e.preventDefault(); navApri(sub, sub.classList.contains("closed")); return; }
+  if (b.classList.contains("ns")){ const n = NAVN[+b.dataset.nn]; if (n.go) n.go(); else navGo(n.v, n.set); if (sub) navApri(sub, true); }
+}, true);
+document.addEventListener("change", e => { if (e.target.closest && e.target.closest("main")) navSync(); });
+$("navQ").oninput = () => {
+  const q = $("navQ").value.trim().toLowerCase(), nav = $("nav");
+  nav.querySelectorAll("button.ns").forEach(b => { const hit = !q || b.querySelector(".l").textContent.toLowerCase().includes(q); b.classList.toggle("nv-hide", !hit); if (hit && q) for (let p = b.parentElement; p && p !== nav; p = p.parentElement) if (p.classList.contains("nsub")) navApri(p, true); });
+  if (q) nav.querySelectorAll(".nsub").forEach(x => { if (!x.querySelector("button.ns:not(.nv-hide)")) navApri(x, false); });
+  // una voce madre resta visibile se una sua sottovoce corrisponde
+  if (q) nav.querySelectorAll("button.ns.nv-hide").forEach(b => { const n = b.nextElementSibling; if (n && n.classList.contains("nsub") && n.querySelector("button.ns:not(.nv-hide)")) b.classList.remove("nv-hide"); });
+};
 /* ---------- Indietro del browser e briciole (2.20): ogni vista, categoria degli artefatti e conversazione aperta è un
    passo della cronologia del browser; le briciole in alto dicono dove si è e ogni voce è cliccabile ---------- */
 const PNAV = {restoring: false,
-  state(){ return {v: VIEW, art: VIEW === "art" && EXV.art.getState ? EXV.art.getState() : null, chat: VIEW === "chat" && window.PCHAT && PCHAT.state ? PCHAT.state() : null}; },
+  state(){ return {v: VIEW, filt: (NAV_RESET[VIEW] || []).map(([id]) => [id, navVal(id)]).filter(x => x[1] != null), art: VIEW === "art" && EXV.art.getState ? EXV.art.getState() : null, chat: VIEW === "chat" && window.PCHAT && PCHAT.state ? PCHAT.state() : null}; },
   push(){
     if (!this.restoring){ const s = this.state(); try{ if (JSON.stringify(history.state) !== JSON.stringify(s)) history.pushState(s, ""); }catch(e){} }
     pcrumbs();
@@ -638,6 +825,7 @@ window.addEventListener("popstate", async e => {
   PNAV.restoring = true;
   try{
     show(st.v);
+    for (const [id, x] of st.filt || []) navSet(id, x);
     if (st.v === "art" && st.art && EXV.art.setState) EXV.art.setState(st.art);
     if (st.v === "chat" && window.PCHAT) await PCHAT.restore(st.chat);
   }finally{ PNAV.restoring = false; pcrumbs(); }
@@ -1284,11 +1472,12 @@ let TL = {month: null, day: null, rows: [], list: null};
 function initTimeline(){
   const ms = Object.entries(FD.case.months).sort(), mx = Math.max(1, ...ms.map(m => m[1]));
   $("months").innerHTML = ms.length ? ms.map(([m, n]) => `<div class="mb" data-m="${m}" title="${m}: ${TF("{0} eventi", nf(n))}"><i style="height:${Math.max(2, 66 * n / mx)}px"></i><span>${MESI[+m.slice(5, 7) - 1]}<br>${m.slice(0, 4)}</span></div>`).join("") : T("<div class=\"hint\">Nessun evento</div>");
-  $("months").onclick = e => { const b = e.target.closest(".mb"); if (b) pickMonth(b.dataset.m); };
+  TL.mesiHtml = $("months").innerHTML;
+  $("months").onclick = e => { const b = e.target.closest(".mb"); if (!b) return; if (TL.fonte){ TL.fm = TL.fm === b.dataset.m ? null : b.dataset.m; TL.fd = null; filterTl(); } else pickMonth(b.dataset.m); };
   TL.list = VList($("tlList"), [[T("Data e ora (<span class=\"tzl\"></span>)"), "196px"], [T("Evento"), "140px", "", 560], [T("Origine"), "110px", "", 720], [T("File o messaggio"), "minmax(200px,1fr)"]],
     i => { const e = TL.rows[i]; const what = e[4] ? esc(e[4]) + (e[5] ? ` <span class="hint">${esc(e[5])}</span>` : "") : `<span class="hint">${esc(e[5] || "")}</span>`;
       return [`<span>${fts(e[0])}</span>`, `<span>${esc(KIND[e[1]] || e[1])}</span>`, `<span class="hint">${e[2] === "tsk" ? T("file system") : esc(e[3] || e[2])}</span>`, `<span>${what}</span>`]; },
-    i => { const e = TL.rows[i]; if (e[7] != null){ const fi = KEY.get(keyOf(e[6], e[7])); if (fi != null) openFile(fi); } },
+    i => { const e = TL.rows[i]; if (e[8] != null && window.PCHAT) return PCHAT.openMsg(e[8]); if (e[7] != null){ const fi = KEY.get(keyOf(e[6], e[7])); if (fi != null) openFile(fi); } },
     {view: "tl", itemOf: i => { const e = TL.rows[i]; return e[7] != null ? fsItem(KEY.get(keyOf(e[6], e[7]))) : null; }},
     {cols: [{t: "d", get: e => e[0]}, {t: "t", get: e => KIND[e[1]] || e[1]}, {t: "t", get: e => e[2] === "tsk" ? T("file system") : (e[3] || e[2])}, {t: "t", get: e => (e[4] || "") + " " + (e[5] || "")}], onChange: () => filterTl()});
   $("tlQ").oninput = filterTl; $("tlOrig").onchange = filterTl;
@@ -1363,8 +1552,83 @@ async function pickMonth(m){
   $("tlInfo").textContent = T("Carico gli eventi di ") + m + "…";
   try{ await loadMonth(m, seq); }catch(e){ toast(e.message); }
 }
+/* (3.0) preferiti come fonte della Timeline, come nel caso: un elemento una volta sola con le sue categorie. La data è quella
+   salvata col preferito; per quelli aggiunti nel report è la modifica del file nel catalogo */
+function bmTlRows(cat){
+  const m = new Map(); let senza = 0;
+  for (const c of bmCats()){
+    if (cat && c.name !== cat) continue;
+    const rc = bmReportCats().find(x => x.name === c.name);
+    const salvati = new Map(rc ? rc.items.map(x => [x[0], x]) : []);
+    for (const [key, v] of bmItems(c.name)){
+      const e = m.get(key); if (e){ e.cats.push(c.name); continue; }
+      const sv = salvati.get(key), it = itemByKey(key), r = it && it.fi != null ? F[it.fi] : null;
+      m.set(key, {key, cats: [c.name], note: v.note, path: (it && it.path) || v.path || key, it, ts: (sv && sv[3]) || (r && r[C.mtime]) || "", ev: (sv && sv[4]) || (r ? KIND.M : ""), fine: (sv && sv[5]) || ""});
+    }
+  }
+  const rows = [];
+  for (const x of m.values()){
+    if (!x.ts){ senza++; continue; }
+    rows.push([x.ts, x.ev, "preferiti", x.cats.join(", "), x.path, [x.fine ? TF("fino a {0}", x.fine.replace("T", " ")) : "", x.note].filter(Boolean).join(" · "), x.it && x.it.src === "fs" ? x.it.part : null, x.it && x.it.src === "fs" ? x.it.inode : null]);
+  }
+  rows.sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+  return {rows, senza};
+}
+const tlFonteE = o => o === "preferiti" || /^(bm|ev|msg):/.test(o);
+async function tlFonteDati(o){
+  const X = FD.ext || {}, data = s => /^\d{4}-/.test(s || "");
+  if (o === "preferiti") return bmTlRows("");
+  if (o.startsWith("bm:")) return bmTlRows(o.slice(3));
+  if (o.startsWith("msg:")){
+    if (!FD.chat) await loadScript("dati/chat.js");
+    const app = o.slice(4), th = new Map(FD.chat.threads.map(t => [t[0], t]));
+    const rows = FD.chat.msgs.filter(m => data(m[1]) && (!app || (th.get(m[0]) || [])[1] === app)).map(m => { const t = th.get(m[0]) || [];
+      return [m[1], m[2] === "out" ? T("messaggio inviato") : T("messaggio"), "evidenze", APP_LBL[t[1]] || t[1], [t[2], m[4]].filter(Boolean).join(" · "), (m[5] || "").slice(0, 400), null, null, m[13]]; });
+    return {rows, senza: 0};
+  }
+  const [c, g, s] = JSON.parse(o.slice(3));
+  let base = X.art || [];
+  if (c === "leapp"){ const fl = g ? leappFiles(s ? [g, s] : [g]) : (X.leapp_idx || []).flatMap(x => x[3]); await leappLoad(fl); base = fl.flatMap(f => FD.lp[f] || []); }
+  else base = base.filter(r => r[0] === c);
+  if (g) base = base.filter(r => r[8] === g && (!s || r[9] === s));
+  const rows = base.filter(r => data(r[1])).map(r => [r[1], r[9] || r[8] || (X.art_cats || {})[r[0]] || r[0], "evidenze", r[8] || (X.art_cats || {})[r[0]] || r[0], r[2], String(r[3] || "").startsWith("{") ? "" : String(r[3] || "").slice(0, 400), null, null]);
+  rows.sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+  return {rows, senza: base.length - rows.length};
+}
+// grafico per mese e per giorno delle righe di una fonte; le date sono quelle registrate, come nelle tabelle
+function tlFonteGrafico(){
+  const F0 = TL.fonteD, per = (rows, n) => { const m = new Map(); for (const e of rows){ const k = String(e[0]).slice(0, n); m.set(k, (m.get(k) || 0) + 1); } return [...m.entries()].sort(); };
+  const ms = per(F0.rows, 7), mx = Math.max(1, ...ms.map(x => x[1]));
+  $("months").innerHTML = ms.map(([m, n]) => `<div class="mb${TL.fm === m ? " on" : ""}" data-m="${m}" title="${m}: ${esc(nf(n))}"><i style="height:${Math.max(2, 66 * n / mx)}px"></i><span>${m.slice(5)}<br>${m.slice(2, 4)}</span></div>`).join("") || `<span class="hint">${esc(T("Nessun elemento con una data."))}</span>`;
+  const ds = TL.fm ? per(F0.rows.filter(e => String(e[0]).startsWith(TL.fm)), 10) : [], dx = Math.max(1, ...ds.map(x => x[1]));
+  $("days").classList.toggle("hidden", !TL.fm);
+  $("days").innerHTML = ds.map(([d, n]) => `<div class="db${TL.fd === d ? " on" : ""}" data-d="${d}" title="${d}: ${esc(nf(n))}"><i style="height:${Math.max(1, 50 * n / dx)}px"></i><b>${d.slice(8)}</b></div>`).join("");
+  $("days").onclick = e => { const b = e.target.closest(".db"); if (!b) return; TL.fd = TL.fd === b.dataset.d ? null : b.dataset.d; filterTl(); };
+}
+function tlFull(si){
+  $("v-tl").classList.toggle("tlfull", si); document.body.classList.toggle("tlfullon", si);
+  const b = $("tlFullB"); b.textContent = si ? T("✕ Chiudi") : "⤢ " + T("Schermo intero"); b.title = T(si ? "Torna alla vista normale (Esc)" : "Apri la Timeline a schermo intero");
+  window.dispatchEvent(new Event("resize"));
+}
+$("tlFullB").onclick = () => tlFull(!$("v-tl").classList.contains("tlfull"));
+document.addEventListener("keydown", e => { if (e.key === "Escape" && $("v-tl").classList.contains("tlfull") && !$("pv").classList.contains("pvfull") && $("pv").classList.contains("hidden") && !document.querySelector(".mod")) tlFull(false); });
 function filterTl(){
   const q = $("tlQ").value.trim().toLowerCase(), o = $("tlOrig").value;
+  if (tlFonteE(o)){
+    if (TL.fonte !== o){
+      TL.fonte = o; TL.fonteD = null; TL.fm = TL.fd = null; const seq = TL.fseq = (TL.fseq || 0) + 1;
+      $("tlInfo").textContent = T("Carico gli elementi…");
+      tlFonteDati(o).then(d => { if (seq !== TL.fseq) return; TL.fonteD = d; filterTl(); }, e => toast(e.message));
+      return;
+    }
+    if (!TL.fonteD) return;
+    tlFonteGrafico();
+    const pre = TL.fd || TL.fm, base = pre ? TL.fonteD.rows.filter(e => String(e[0]).startsWith(pre)) : TL.fonteD.rows;
+    TL.rows = TL.list.filterRows(q ? base.filter(e => (e[4] + " " + e[5] + " " + e[3]).toLowerCase().includes(q)) : base); TL.list.sel = -1; TL.list.set(TL.rows.length);
+    $("tlInfo").textContent = (TL.rows.length === 1 ? T("1 elemento con una data") : TF("{0} elementi con una data", nf(TL.rows.length))) + (TL.fonteD.senza ? " · " + TF("{0} senza data", nf(TL.fonteD.senza)) : "") + (pre ? " · " + T("clic sulla stessa barra per togliere il periodo") : "");
+    return;
+  }
+  if (TL.fonte){ TL.fonte = null; TL.fseq = (TL.fseq || 0) + 1; $("months").innerHTML = TL.mesiHtml; if (TL.month) { pickMonth(TL.month); return; } }
   let rows = TL.day ? (FD.ev[TL.month] ? FD.ev[TL.month].filter(e => e[0].startsWith(TL.day)) : dayRows(TL.day))
     : (FD.ev[TL.month] || (FD.case.ev_parts ? monthDays(TL.month).filter(([d]) => dayLoaded(d)).flatMap(([d]) => dayRows(d)) : []));
   if (o) rows = rows.filter(e => e[2] === o);
@@ -1379,20 +1643,47 @@ function filterTl(){
 
 /* ---------- metadati ---------- */
 let MT = {rows: [], list: null};
+const RE_VID = /\.(mp4|m4v|mov|webm|3gp|avi|mkv|wmv|mpg|mpeg|flv|mts|m2ts)$/i, RE_FOTO = /\.(jpe?g|jpe|jfif|png|gif|webp|bmp|ico|avif|heic|heif|tiff?|dng|cr2|cr3|nef|arw|orf|raf|psd|tga)$/i;
+const RE_AUD = /\.(mp3|m4a|aac|wav|flac|ogg|oga|opus|amr|wma|aiff?|caf|3ga)$/i;
+// dimensione e date dal catalogo del file system: [byte, modifica, creazione]
+function datiFile(part, inode){ const fi = KEY.get(keyOf(part, inode)), r = fi != null ? F[fi] : null; return r ? [r[C.size], r[C.mtime], r[C.crtime]] : [null, null, null]; }
+let AUDIO_R = null;
+function audioRows(){
+  if (AUDIO_R) return AUDIO_R;
+  AUDIO_R = [];
+  for (let i = 0; i < F.length; i++){ const r = F[i]; if (!r[C.isdir] && r[C.inode] != null && RE_AUD.test(r[C.name] || "")) AUDIO_R.push(META_BY_KEY.get(keyOf(r[C.part], r[C.inode])) || ["fs", r[C.part], r[C.inode], r[C.deleted], PATH(i)]); }
+  return AUDIO_R;
+}
+/* ---------- (3.0) documenti: stessi file della sezione del caso, con dimensione e date ---------- */
+let DV = {rows: [], list: null};
+function docDati(r){ if (r[2] === "x"){ const x = ((FD.ext || {}).x || []).find(y => String(y[0]) === String(r[4])); return x ? [x[4], x[5], null] : [null, null, null]; } return datiFile(r[3], r[4]); }
+function initDoc(){
+  DV.list = VList($("docList"), [[T("Documento"), "minmax(220px,1fr)"], [T("Dimensione"), "84px", "r", 420], [T("Modificato (<span class=\"tzl\"></span>)"), "196px", "", 560], [T("Creato (<span class=\"tzl\"></span>)"), "196px", "", 760], [T("Tipo"), "150px", "", 960]],
+    i => { const r = DV.rows[i], d = docDati(r); return [`<span class="${r[5] ? "del" : ""}">${esc(r[0])}</span>`, `<span class="r">${d[0] != null ? fsize(d[0]) : ""}</span>`, `<span>${fts(d[1])}</span>`, `<span>${fts(d[2])}</span>`, `<span class="hint">${esc(r[1] || "")}</span>`]; },
+    i => { const r = DV.rows[i]; if (r[2] === "x"){ const x = ((FD.ext || {}).x || []).find(y => String(y[0]) === String(r[4])); return x && xOpen(x); } if (r[2] === "carving"){ const a = ATT_BY_KEY.get("c:" + r[4]); return a && openAtt(a); } const fi = KEY.get(keyOf(r[3], r[4])); if (fi != null) openFile(fi); },
+    {view: "doc", itemOf: i => { const r = DV.rows[i]; if (r[2] === "fs") return fsItem(KEY.get(keyOf(r[3], r[4]))); const a = ATT_BY_KEY.get("c:" + r[4]); return a ? attItem(a) : null; }},
+    {cols: [{t: "t", get: r => r[0]}, {t: "n", get: r => docDati(r)[0]}, {t: "d", get: r => docDati(r)[1]}, {t: "d", get: r => docDati(r)[2]}, {t: "t", get: r => r[1]}], onChange: () => f()});
+  $("docExt").innerHTML += contaPer(FD.docs, r => extOf(r[0]) || "~").map(([e, n]) => `<option value="${esc(e)}">${esc(e === "~" ? T("Senza estensione") : "." + e)} (${nf(n)})</option>`).join("");
+  const f = () => { const q = $("docQ").value.trim().toLowerCase(), e = $("docExt").value;
+    DV.rows = DV.list.filterRows(FD.docs.filter(r => (!e || (extOf(r[0]) || "~") === e) && (!q || (r[0] || "").toLowerCase().includes(q))));
+    DV.list.set(DV.rows.length); $("docInfo").textContent = DV.rows.length === 1 ? T("1 documento") : TF("{0} documenti", nf(DV.rows.length)); };
+  $("docQ").oninput = f; $("docExt").onchange = f; f();
+}
+
 function initMeta(){
-  MT.list = VList($("metaList"), [[T("File"), "minmax(180px,1fr)"], [T("Dispositivo"), "160px", "", 520], [T("Data (dai metadati)"), "220px", "", 680], ["GPS", "180px", "", 860], [T("Autore"), "130px", "", 1000]],
-    i => { const m = MT.rows[i]; return [`<span class="${m[3] ? "del" : ""}">${esc(m[4])}</span>` + (m[11] ? ` <a href="#" class="hint" data-mchat="${m[12]}" title="${esc(T("Apri nella chat"))}">💬 ${esc(m[11])}</a>` : ""), `<span>${esc([m[5], m[6]].filter(Boolean).join(" "))}</span>`, `<span>${fmtTaken(m[7])}</span>`, `<span class="mono">${m[8] != null ? m[8].toFixed(6) + ", " + m[9].toFixed(6) : ""}</span>`, `<span>${esc(m[10] || "")}</span>`]; },
+  MT.list = VList($("metaList"), [[T("File"), "minmax(180px,1fr)"], [T("Dimensione"), "84px", "r", 420], [T("Modificato (<span class=\"tzl\"></span>)"), "196px", "", 560], [T("Creato (<span class=\"tzl\"></span>)"), "196px", "", 760], [T("Dispositivo"), "160px", "", 960], [T("Data (dai metadati)"), "220px", "", 1140], ["GPS", "180px", "", 1320], [T("Autore"), "130px", "", 1460]],
+    i => { const m = MT.rows[i], d = datiFile(m[1], m[2]); return [`<span class="${m[3] ? "del" : ""}">${esc(m[4])}</span>` + (m[11] ? ` <a href="#" class="hint" data-mchat="${m[12]}" title="${esc(T("Apri nella chat"))}">💬 ${esc(m[11])}</a>` : ""), `<span class="r">${d[0] != null ? fsize(d[0]) : ""}</span>`, `<span>${fts(d[1])}</span>`, `<span>${fts(d[2])}</span>`, `<span>${esc([m[5], m[6]].filter(Boolean).join(" "))}</span>`, `<span>${fmtTaken(m[7])}</span>`, `<span class="mono">${m[8] != null ? m[8].toFixed(6) + ", " + m[9].toFixed(6) : ""}</span>`, `<span>${esc(m[10] || "")}</span>`]; },
     i => { const m = MT.rows[i]; const fi = KEY.get(keyOf(m[1], m[2])); if (fi != null) openFile(fi); else { const a = ATT_BY_KEY.get("c:" + m[2]); if (a) openAtt(a); } },
     {view: "meta", itemOf: i => { const m = MT.rows[i]; const fi = KEY.get(keyOf(m[1], m[2])); return fi != null ? fsItem(fi) : ATT_BY_KEY.get("c:" + m[2]) ? attItem(ATT_BY_KEY.get("c:" + m[2])) : null; }},
-    {cols: [{t: "t", get: m => m[4]}, {t: "t", get: m => [m[5], m[6]].filter(Boolean).join(" ")}, {t: "d", get: m => m[7]}, null, {t: "t", get: m => m[10]}], onChange: () => f()});
+    {cols: [{t: "t", get: m => m[4]}, {t: "n", get: m => datiFile(m[1], m[2])[0]}, {t: "d", get: m => datiFile(m[1], m[2])[1]}, {t: "d", get: m => datiFile(m[1], m[2])[2]}, {t: "t", get: m => [m[5], m[6]].filter(Boolean).join(" ")}, {t: "d", get: m => m[7]}, null, {t: "t", get: m => m[10]}], onChange: () => f()});
   // (2.20) solo video (per estensione); telefoni: origine = app delle chat in cui il file è allegato (m[11])
-  const VID = /\.(mp4|m4v|mov|webm|3gp|avi|mkv|wmv|mpg|mpeg|flv|mts|m2ts)$/i, FOTO = /\.(jpe?g|jpe|jfif|png|gif|webp|bmp|ico|avif|heic|heif|tiff?|dng|cr2|cr3|nef|arw|orf|raf|psd|tga)$/i;
+  const VID = RE_VID, FOTO = RE_FOTO;
   const apps = [...new Set(FD.meta.flatMap(m => m[11] ? m[11].split(", ") : []))].sort();
   if (apps.length){ $("metaOrig").innerHTML = [["", T("Origine: tutte")], ["*", T("Allegati delle chat")], ...apps.map(a => [a, a])].map(([v, l]) => `<option value="${esc(v)}">${esc(l)}</option>`).join(""); $("metaOrig").classList.remove("hidden"); }
-  const f = () => { const q = $("metaQ").value.trim().toLowerCase(), gps = $("metaGps").checked, vid = $("metaVid").checked, foto = $("metaFoto").checked, og = $("metaOrig").value;
-    MT.rows = MT.list.filterRows(FD.meta.filter(m => (!gps || m[8] != null) && (!vid || VID.test(m[4] || "")) && (!foto || FOTO.test(m[4] || "")) && (!og || (m[11] && (og === "*" || m[11].split(", ").includes(og)))) && (!q || [m[4], m[5], m[6], m[7], m[10]].join(" ").toLowerCase().includes(q))));
+  const f = () => { const q = $("metaQ").value.trim().toLowerCase(), gps = $("metaGps").checked, vid = $("metaVid").checked, foto = $("metaFoto").checked, aud = $("metaAud").checked, og = $("metaOrig").value;
+    MT.rows = MT.list.filterRows((aud ? audioRows() : FD.meta).filter(m => (!gps || m[8] != null) && (!vid || VID.test(m[4] || "")) && (!foto || FOTO.test(m[4] || "")) && (!og || (m[11] && (og === "*" || m[11].split(", ").includes(og)))) && (!q || [m[4], m[5], m[6], m[7], m[10]].join(" ").toLowerCase().includes(q))));
     MT.list.set(MT.rows.length); $("metaInfo").textContent = nf(MT.rows.length) + " file"; };
-  $("metaQ").oninput = f; $("metaGps").onchange = f; $("metaVid").onchange = f; $("metaFoto").onchange = f; $("metaOrig").onchange = f; f();
+  $("metaQ").oninput = f; $("metaGps").onchange = f; $("metaVid").onchange = f; $("metaFoto").onchange = f; $("metaAud").onchange = f; $("metaOrig").onchange = f; f();
   $("metaList").addEventListener("click", e => { const a = e.target.closest("[data-mchat]"); if (!a) return; e.preventDefault(); e.stopPropagation(); if (window.PCHAT) window.PCHAT.openMsg(+a.dataset.mchat); }, true);
 }
 
@@ -1405,7 +1696,9 @@ function renderAtt(){
     const q = $("attQ").value.trim().toLowerCase(), k = $("attKind").value, full = $("attFull").checked, del = $("attDel").checked;
     if (!ATTV.sorted){ ATTV.sorted = [...ATT.values()].sort((x, y) => (y.full - x.full) || x.path.localeCompare(y.path)); }
     ATTV.rows = ATTV.sorted.filter(a => (!k || a.kind === k || (k === "image" && a.kind === "image_conv")) && (!full || a.full) && (!del || a.deleted) && (!q || a.path.toLowerCase().includes(q)));
+    if (ATTV.list) ATTV.rows = ATTV.list.filterRows(ATTV.rows);
     ATTV.shown = 0; $("attGrid").innerHTML = ""; more();
+    if (ATTV.list) ATTV.list.set(ATTV.rows.length);
     $("attInfo").textContent = ATT.size ? TF("{0} di {1} file inclusi con il contenuto", nf(ATTV.rows.length), nf(ATT.size)) : T("Nessun file incluso con il contenuto.");
   };
   const more = () => {
@@ -1417,7 +1710,14 @@ function renderAtt(){
   };
   $("attMore").onclick = more;
   $("attGrid").onclick = e => { const t = e.target.closest(".tile"); if (t) openAtt(ATT.get(+t.dataset.a)); };
-  $("attQ").oninput = f; $("attKind").onchange = f; $("attFull").onchange = f; $("attDel").onchange = f; f();
+  const AL = {image: T("Immagini"), image_conv: T("Immagini"), pdf: "PDF", office: T("Documenti Office"), text: T("Testo"), video: T("Video"), audio: T("Audio"), other: T("Altro")};
+  ATTV.list = VList($("attList"), [[T("File"), "minmax(220px,1fr)"], [T("Dimensione"), "84px", "r", 420], [T("Modificato (<span class=\"tzl\"></span>)"), "196px", "", 560], [T("Creato (<span class=\"tzl\"></span>)"), "196px", "", 760], [T("Tipo"), "130px", "", 960]],
+    i => { const a = ATTV.rows[i], d = datiFile(a.part, a.inode); return [`<span>${a.full ? "★ " : ""}<span class="${a.deleted ? "del" : ""}">${esc(a.path)}</span></span>`, `<span class="r">${fsize(a.size)}</span>`, `<span>${fts(d[1])}</span>`, `<span>${fts(d[2])}</span>`, `<span class="hint">${esc(AL[a.kind] || a.kind)}</span>`]; },
+    i => openAtt(ATTV.rows[i]), {view: "att", itemOf: i => attItem(ATTV.rows[i])},
+    {cols: [{t: "t", get: a => a.path}, {t: "n", get: a => a.size}, {t: "d", get: a => datiFile(a.part, a.inode)[1]}, {t: "d", get: a => datiFile(a.part, a.inode)[2]}, {t: "t", get: a => AL[a.kind] || a.kind}], onChange: () => f()});
+  const vista = () => { const v = $("attView").value; $("attList").classList.toggle("hidden", v !== "list"); $("attScroll").classList.toggle("hidden", v === "list"); store.set("repertia_att_vista", v); if (v === "list") ATTV.list.draw(true); };
+  $("attView").value = store.get("repertia_att_vista", "list") === "grid" ? "grid" : "list"; $("attView").onchange = vista;
+  $("attQ").oninput = f; $("attKind").onchange = f; $("attFull").onchange = f; $("attDel").onchange = f; f(); vista();
 }
 
 /* ---------- recuperati e tracce ---------- */
@@ -1427,7 +1727,9 @@ function initCarved(){
     i => { const r = CV.rows[i]; return [`<span>${r[5] ? "📎 " : ""}${esc(r[0])}</span>`, `<span>${esc(r[2])}</span>`, `<span class="r">${fsize(r[1])}</span>`, `<span class="r mono">${nf(r[3])}</span>`, `<span class="mono" title="${esc(r[4])}">${esc((r[4] || "").slice(0, 20))}…</span>`]; },
     i => openCarved(CV.rows[i]), {view: "carv", itemOf: i => carvedItem(CV.rows[i])},
     {cols: [{t: "t", get: r => r[0]}, {t: "t", get: r => r[2]}, {t: "n", get: r => r[1]}, {t: "n", get: r => r[3]}, {t: "t", get: r => r[4]}], onChange: () => f()});
-  const f = () => { const q = $("carvQ").value.trim().toLowerCase(); CV.rows = CV.list.filterRows(FD.carved.filter(r => !q || (r[0] + " " + r[2]).toLowerCase().includes(q))); CV.list.set(CV.rows.length); $("carvInfo").textContent = nf(CV.rows.length) + T(" file recuperati (spazio non allocato)"); };
+  $("carvKind").innerHTML += contaPer(FD.carved, r => r[2]).map(([k]) => `<option value="${esc(k)}">${esc(k)}</option>`).join("");
+  $("carvKind").onchange = () => f();
+  const f = () => { const q = $("carvQ").value.trim().toLowerCase(), ck = $("carvKind").value; CV.rows = CV.list.filterRows(FD.carved.filter(r => (!ck || r[2] === ck) && (!q || (r[0] + " " + r[2]).toLowerCase().includes(q)))); CV.list.set(CV.rows.length); $("carvInfo").textContent = nf(CV.rows.length) + T(" file recuperati (spazio non allocato)"); };
   $("carvQ").oninput = f; f();
 }
 function initTraces(){
@@ -1572,7 +1874,7 @@ function initArt(){
       base = files.flatMap(fl => FD.lp[fl]);
     } else if (!c && X.leapp_n) nota = " · " + TF("le {0} righe di iLEAPP/ALEAPP si vedono scegliendo quella categoria", nf(X.leapp_n));
     EXV.art.rows = EXV.art.list.filterRows(base.filter(r => (!c || r[0] === c) && (!gs || (r[8] === gs[0] && (gs.length < 2 || r[9] === gs[1]))) && (!q || (r[2] + " " + r[3] + " " + r[4]).toLowerCase().includes(q))));
-    EXV.art.list.set(EXV.art.rows.length); $("artInfo").textContent = nf(EXV.art.rows.length) + " artefatti" + nota; };
+    EXV.art.list.set(EXV.art.rows.length); $("artInfo").textContent = (EXV.art.rows.length === 1 ? T("1 artefatto") : TF("{0} artefatti", nf(EXV.art.rows.length))) + nota; };
   $("artCat").onchange = () => { subOpts(); f(); PNAV.push(); }; $("artSub").onchange = () => { f(); PNAV.push(); };
   $("artQ").oninput = () => { f(); clearTimeout(tq); tq = setTimeout(() => PNAV.replace(), 400); }; f();
 }
@@ -1590,7 +1892,9 @@ function initMail(){
         <pre style="white-space:pre-wrap;max-height:50vh;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:10px;margin-top:10px">${esc(r[10] || T("(testo non incluso)"))}</pre>`, []);
       m.querySelectorAll("[data-xa]").forEach(b => b.onclick = () => xOpen(XB.get(+b.dataset.xa))); }, null,
     {cols: [{t: "d", get: r => r[1]}, {t: "t", get: r => r[2] + " " + (r[3] || "")}, {t: "t", get: r => r[5]}, {t: "t", get: r => (r[7] || "") + " " + (r[8] || "")}], onChange: () => f()});
-  const f = () => { const q = $("mailQ").value.trim().toLowerCase(), a = $("mailAtt").checked; EXV.mail.rows = EXV.mail.list.filterRows(X.mail.filter(r => (!a || r[6]) && (!q || [r[2], r[3], r[5], r[10]].join(" ").toLowerCase().includes(q)))); EXV.mail.list.set(EXV.mail.rows.length); $("mailInfo").textContent = nf(EXV.mail.rows.length) + " messaggi"; };
+  $("mailFmt").innerHTML += contaPer(X.mail, r => r[7]).map(([k]) => `<option value="${esc(k)}">${esc(k)}</option>`).join("");
+  $("mailFmt").onchange = () => f();
+  const f = () => { const q = $("mailQ").value.trim().toLowerCase(), a = $("mailAtt").checked, mf = $("mailFmt").value; EXV.mail.rows = EXV.mail.list.filterRows(X.mail.filter(r => (!a || r[6]) && (!mf || r[7] === mf) && (!q || [r[2], r[3], r[5], r[10]].join(" ").toLowerCase().includes(q)))); EXV.mail.list.set(EXV.mail.rows.length); $("mailInfo").textContent = nf(EXV.mail.rows.length) + " messaggi"; };
   $("mailQ").oninput = f; $("mailAtt").onchange = f; f();
 }
 function initX(){
@@ -1599,6 +1903,7 @@ function initX(){
     i => { const r = EXV.x.rows[i]; return [`<span>${r[10] ? "📎 " : ""}${esc(r[2])}${r[6] ? T(' <span class="tag del">protetto</span>') : ""}</span>`, `<span class="r">${fsize(r[4])}</span>`, `<span>${fts(r[5])}</span>`, `<span class="hint mono">${r[7] ? esc(r[7].slice(0, 20)) + "…" : esc(r[8] || "")}</span>`]; },
     i => xOpen(EXV.x.rows[i]), null,
     {cols: [{t: "t", get: r => r[2]}, {t: "n", get: r => r[4]}, {t: "d", get: r => r[5]}, {t: "t", get: r => (r[7] || "") + " " + (r[8] || "")}], onChange: () => f()});
+  if (X.x.some(r => r[1] === "miniatura")) $("xKind").innerHTML += `<option value="miniatura">${esc(T("Miniature (thumbcache)"))}</option>`;
   const f = () => { const k = $("xKind").value, q = $("xQ").value.trim().toLowerCase(); EXV.x.rows = EXV.x.list.filterRows(X.x.filter(r => (!k || r[1] === k) && (!q || r[2].toLowerCase().includes(q)))); EXV.x.list.set(EXV.x.rows.length); $("xInfo").textContent = nf(EXV.x.rows.length) + T(" file (📎 = contenuto incluso nel report)"); };
   $("xKind").onchange = f; $("xQ").oninput = f; f();
 }
@@ -1633,7 +1938,14 @@ function showPv(){
   $("pvName").textContent = PV.name; $("pvPath").textContent = PV.path + (PV.row ? `  ·  offset ${PV.row[C.part]}, inode ${PV.row[C.inode]}` : "");
   pvTab(PV.att ? PVT : (PVT === "view" || PVT === "hex" ? "info" : PVT));
 }
-$("pvClose").onclick = () => { $("pv").classList.add("hidden"); PV = null; };
+function pvFull(si){
+  const b = $("pvFull"); $("pv").classList.toggle("pvfull", si);
+  b.textContent = si ? T("✕ Riduci") : "⤢"; b.title = si ? T("Torna al pannello a destra (Esc)") : T("Apri a schermo intero");
+  window.dispatchEvent(new Event("resize"));
+}
+$("pvFull").onclick = () => pvFull(!$("pv").classList.contains("pvfull"));
+document.addEventListener("keydown", e => { if (e.key === "Escape" && $("pv").classList.contains("pvfull") && !document.querySelector(".mod")) pvFull(false); });
+$("pvClose").onclick = () => { pvFull(false); $("pv").classList.add("hidden"); PV = null; };
 $("pvBm").onclick = () => { if (!PV) return; const it = PV.type === "fs" ? fsItem(PV.i) : PV.att ? attItem(PV.att) : PV.carved ? carvedItem(PV.carved) : null; if (it) bmDialog([it]); };
 $("pvTabs").onclick = e => { const b = e.target.closest("button"); if (b && PV) pvTab(b.dataset.t); };
 async function detail(a){
@@ -1705,7 +2017,7 @@ async function pvTab(t){
     if (a){ add(T("Incluso nel report"), esc(a.why.join(", "))); add(T("File nel report"), `<code>${esc(a.file)}</code>`); add(T("SHA-256 del file incluso"), `<span class="mono">${esc(a.sha256)}</span>`); add(T("MD5 del file incluso"), `<span class="mono">${esc(a.md5)}</span>`); }
     const m = META_BY_KEY.get(PV.key);
     if (m){ add(T("Dispositivo"), esc([m[5], m[6]].filter(Boolean).join(" "))); add(T("Data (metadati)"), fmtTaken(m[7])); add(T("Autore"), esc(m[10]));
-      if (m[8] != null) add("GPS", `<span class="mono">${m[8].toFixed(6)}, ${m[9].toFixed(6)}</span> · <a href="https://www.openstreetmap.org/?mlat=${m[8]}&mlon=${m[9]}#map=16/${m[8]}/${m[9]}" target="_blank" rel="noopener noreferrer">mappa (serve internet)</a>`); }
+      if (m[8] != null) add("GPS", `<span class="mono">${m[8].toFixed(6)}, ${m[9].toFixed(6)}</span>`); }
     body.innerHTML = `<table class="dt">${rows.join("")}</table>`;
     if (a){ const d = await detail(a); if (PV !== cur || !d) return;
       if (d.exif){ body.innerHTML += `<h4 style="margin:14px 14px 4px">${T("Metadati (exiftool)")}</h4><table class="dt">${Object.entries(d.exif).map(([k, v]) => `<tr><td>${esc(k)}</td><td>${typeof v === "object" ? esc(JSON.stringify(v)) : exifTz(k, v, d.exif)}</td></tr>`).join("")}</table>`; }
@@ -1829,6 +2141,7 @@ function initBm(){
       const c = BML[n]; c.note = m.querySelector("#mRenN").value; delete BML[n]; BML[nn] = c; BMV.cat = nn; bmSave(); renderBmCats(); }, true]]); };
   $("bmDel").onclick = () => { const n = BMV.cat; if (!n) return; if (!bmIsLocalCat(n)) return toast(T("Le categorie arrivate con il report non si eliminano"));
     modal(T("Elimina categoria"), TF("<p>Eliminare la categoria «{0}» e i suoi preferiti? I file non vengono toccati.</p>", esc(n)), [[T("Elimina"), () => { delete BML[n]; BMV.cat = null; bmSave(); renderBmCats(); }, true]]); };
+  $("bmTl").onclick = () => navGo("tl", [["tlOrig", BMV.cat ? "bm:" + BMV.cat : "preferiti"]]);
   $("bmCsv").onclick = () => { if (!BMV.cat) return toast(T("Scegli una categoria")); csvItems(BMV.rows.map(x => x.it).filter(Boolean), "preferiti_" + BMV.cat, x => bmItems(BMV.cat).get(x.key)); };
 }
 function renderBmCats(){
@@ -1842,6 +2155,7 @@ function renderBmCats(){
   BMV.rows = BMV.list.filterRows(BMV.rows);
   BMV.list.set(BMV.rows.length);
   const c = cats.find(x => x.name === BMV.cat);
+  navBuild();
   $("bmInfo").textContent = c ? TF("«{0}»: {1} file{2}{3}", c.name, nf(c.n), c.note ? " · " + c.note : "", c.report ? T(" · categoria arrivata con il report (si possono aggiungere file, non togliere quelli originali)") : "") : T("Seleziona dei file in qualsiasi elenco (caselle a sinistra) e premi «⭐ Preferiti», oppure usa ⭐ nell'anteprima di un file.");
 }
 
@@ -1872,8 +2186,9 @@ document.addEventListener("click", e => {
   if (v === "exp") csvItems(EXP.rows.map(fsItem).filter(Boolean), `cartella_${EXP.dir || "radice"}`);
   else if (v === "src") csvDownload(`ricerca_${$("srcQ").value}`, ["percorso", "stato", "trovato", "byte"], SRC.rows.map(x => [x.path, x.del ? "cancellato" : "allocato", x.snip.replace(/<[^>]+>/g, "").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;/g, "'"), x.i != null ? F[x.i][C.size] : ""]));
   else if (v === "tl") csvDownload(`timeline_${TL.day || TL.month}`, ["data_ora_" + zsuf(), "evento", "origine", "fonte", "percorso", "messaggio", "partizione_offset", "inode"], TL.rows.map(e => [cvt(e[0]), KIND[e[1]] || e[1], e[2] === "tsk" ? T("file system") : e[2], e[3], e[4], e[5], e[6], e[7]]));
-  else if (v === "meta") csvDownload("metadati", ["percorso", "stato", "marca", "modello", "data_metadati", "fuso_della_data", "latitudine", "longitudine", "autore", "partizione_offset", "inode"].concat(FD.meta.some(m => m[11]) ? ["origine_chat"] : []), MT.rows.map(m => [m[4], m[3] ? "cancellato" : "allocato", m[5], m[6], m[7], takenTz(m[7]), m[8], m[9], m[10], m[1], m[2]].concat(FD.meta.some(x => x[11]) ? [m[11] || ""] : [])));
+  else if (v === "meta") csvDownload("metadati", ["percorso", "stato", "marca", "modello", "data_metadati", "fuso_della_data", "latitudine", "longitudine", "autore", "partizione_offset", "inode", "byte", "modifica_" + zsuf(), "creazione_" + zsuf()].concat(FD.meta.some(m => m[11]) ? ["origine_chat"] : []), MT.rows.map(m => [m[4], m[3] ? "cancellato" : "allocato", m[5], m[6], m[7], takenTz(m[7]), m[8], m[9], m[10], m[1], m[2], datiFile(m[1], m[2])[0] ?? "", fts(datiFile(m[1], m[2])[1]), fts(datiFile(m[1], m[2])[2])].concat(FD.meta.some(x => x[11]) ? [m[11] || ""] : [])));
   else if (v === "att") csvItems(ATTV.rows.map(attItem), "file_inclusi");
+  else if (v === "doc") csvDownload("documenti", ["percorso", "stato", "byte", "modifica_" + zsuf(), "creazione_" + zsuf(), "tipo"], DV.rows.map(r => { const d = docDati(r); return [r[0], r[5] ? "cancellato" : "allocato", d[0] ?? "", fts(d[1]), fts(d[2]), r[1] || ""]; }));
   else if (v === "carv") csvDownload("file_recuperati", ["file", "tipo", "byte", "offset_immagine", "sha256", "file_nel_report"], CV.rows.map(r => [r[0], r[2], r[1], r[3], r[4], r[5] ? ATT.get(r[5]).file : ""]));
   else if (v === "trc") csvDownload("evidenze_di_interesse", ["tipo", "valore", "offset", "contesto"], TR.rows.map(t => [t[0], t[2], t[1], t[3]]));
   else if (v === "art") csvDownload("artefatti", ["categoria", "data_" + zsuf(), "elemento", "dettagli", "utente", "fonte", "partizione_offset", "inode", "file_citati"], EXV.art.rows.map(r => [FD.ext.art_cats[r[0]] || r[0], cvt(r[1]), ...r.slice(2, 8), (r[11] || []).map(c => c[1]).join("; ")]));

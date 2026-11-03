@@ -10,7 +10,7 @@ Struttura installata (cartella app\ dell'installer):
        lingua_en.json (dizionario inglese), README.md (gli stessi del Mac)
   python\      Python 3.12 per Windows (python-build-standalone, install_only_stripped)
                + in Lib\site-packages i pacchetti openai e pillow (pip download --platform win_amd64)
-               + plaso==20260720 e dipendenze: wheel win_amd64 scaricati uno per uno con --no-deps
+               + plaso==20261027 e dipendenze: wheel win_amd64 scaricati uno per uno con --no-deps
                  (escluso xattr, solo Mac/Linux); acstore, artifacts, dfwinreg, dtfabric come wheel
                  costruiti dai sorgenti (puro Python). Si avvia con python -m plaso.scripts.log2timeline
                + tzdata (wheel py3-none-any, estratto in Lib\site-packages): senza, zoneinfo non trova
@@ -22,7 +22,7 @@ Struttura installata (cartella app\ dell'installer):
   strumenti\exiftool           exiftool-xx_64.zip, con "exiftool(-k).exe" rinominato exiftool.exe
   strumenti\poppler            Release-xx.zip di poppler-windows (Library\bin)
   strumenti\testdisk           testdisk-x.win64.zip, con photorec_win.exe copiato come photorec.exe
-  strumenti\7zip               7z.exe e 7z.dll da 7z2601-x64.exe (estratto con 7z x)
+  strumenti\7zip               7z.exe e 7z.dll da 7z2605-x64.exe (estratto con 7z x)
   strumenti\tesseract          tesseract.exe e solo le DLL che usa (dall'installer UB Mannheim
                                tesseract-ocr-w64-setup-5.4.0, estratto con 7z x; elenco ricavato con
                                objdump -p); libtesseract-5.dll ridotta con strip --strip-debug

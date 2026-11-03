@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 silvexe
 """Prova automatica della navigazione dell'interfaccia di RepertIA (2.20): Ricerca, Indietro/Avanti, briciole.
 
@@ -97,7 +97,8 @@ class Prova:
         if ":" in nodo:
             self.albero_apri(nodo.rsplit(":", 1)[0])
         el = self.p.locator(f"#rTree .rtn[data-n='{nodo}']")
-        if el.count() and not self.p.locator(f"#rTree .rtn[data-n='{nodo}'] + .rtsub").count():
+        # una voce senza sottovoci ha la freccia vuota, quindi invisibile: non c'è nulla da aprire
+        if el.count() and el.first.locator(".car").is_visible() and not self.p.locator(f"#rTree .rtn[data-n='{nodo}'] + .rtsub").count():
             self.clic(f"#rTree .rtn[data-n='{nodo}'] .car")
             self.p.wait_for_timeout(300)
 
@@ -125,8 +126,12 @@ ETICHETTE_EN = {"timeline": r"^Timeline$", "art": r"^System artifacts$", "doc": 
 
 def prova_caso(P, url, termine, lab):
     page, caso = P.p, P.caso
+    if page.url.startswith(url):          # (3.0) la scheda riaprirebbe da sola il caso di prima: si parte dalla Home
+        page.evaluate("() => sessionStorage.removeItem('repertia_caso_aperto')")
     page.goto(url)
     page.wait_for_selector(f".case[data-root$='{caso}']", timeout=30000)
+    # (3.0) l'avviso del fuso del dispositivo all'apertura non serve a questa prova: «non chiedere più» per il caso
+    page.evaluate(f"() => localStorage.setItem('repertia_fuso_ok:' + document.querySelector(\".case[data-root$='{caso}']\").dataset.root, '1')")
     page.click(f".case[data-root$='{caso}']")
     page.wait_for_selector("#vCase:not(.hidden)", timeout=60000)
     page.wait_for_timeout(800)
@@ -214,6 +219,20 @@ def prova_caso(P, url, termine, lab):
         st = P.attendi()
         page.wait_for_timeout(3000)       # una risposta lenta della prima voce non deve sostituire la seconda
         P.controlla(f"D «{altra}» e subito «{figli[-1][1]}»", altra, [lab[altra], "^" + re.escape(figli[-1][1]) + "$"], st)
+
+    # ---- F: una ricerca eliminata dal pannello sparisce subito dall'albero, senza riaprire il caso ----
+    P.clic("#btnSrch"); P.attendi("resSec === 'search'")
+    P.clic(f"#sSaved [data-del='{sid[1:]}']")
+    P.clic("#chiediOk")                   # (3.0) conferma dentro la pagina, non più la finestra del browser
+    voce = f"#rTree .rtn[data-n='{sid}']"
+    try:
+        page.wait_for_function(f"() => !document.querySelector({json.dumps(voce)})", timeout=10000)
+        P.controlla("F ricerca eliminata: voce tolta dall'albero", "search", [lab["search"]])
+    except Exception:
+        P.ko += 1
+        riga = f"| {caso} | F ricerca eliminata | | | NON SUPERATO: la voce resta nell'albero |"
+        print(riga, flush=True)
+        P.r.append(riga)
 
 
 def main():

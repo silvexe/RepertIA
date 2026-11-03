@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 silvexe
 """Estrae un installer NSIS 3 Unicode con compressione LZMA solida (SetCompressor /SOLID lzma), senza 7-Zip.
 Uso: python3 nsis_x.py Setup.exe cartella_uscita

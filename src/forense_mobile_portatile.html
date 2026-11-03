@@ -1,4 +1,4 @@
-<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 <!-- Copyright (C) 2026 silvexe -->
 <!-- RepertIA 2.20 - chat nel report portatile dei casi smartphone: inserito da forense_portatile.py al posto del
      segnaposto REPERTIA_MOBILE; i dati sono in dati/chat.js (caricato alla prima apertura della vista). -->
@@ -27,6 +27,7 @@
 .pchat mark{background:var(--warn-soft, #fbefd9);color:inherit}
 .pchat .bub.del{border:1px dashed #d97706;background:var(--warn-soft, #fbefd9)}
 .pchat .bub.focus{outline:2px solid var(--accent);outline-offset:2px}
+.chsolo{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:8px 12px;font-size:12px;color:var(--muted);background:var(--accent-soft, var(--panel2));border-bottom:1px solid var(--line)}
 .pchat .meta a{cursor:pointer;text-decoration:none;margin-left:6px}
 .pchat .info .crow{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.pchat .info .crow .btn{padding:2px 8px;font-size:12px}
 @media (max-width:760px){.pchat{grid-template-columns:1fr;grid-template-rows:38% 1fr}.pchat>.psplit{display:none}}
@@ -76,7 +77,7 @@
     D.msgs.forEach((m, i) => { const a = BY.get(m[0]) || []; a.push(i); BY.set(m[0], a); });
     $("nChat").textContent = nf(D.msgs.length);
     $("pcApp").innerHTML += Object.entries(D.apps).map(([k, n]) => `<option value="${esc(k)}">${esc(APP[k] || k)} (${nf(n)})</option>`).join("");
-    $("pcApp").onchange = list; $("pcQ").oninput = () => { list(); if (cur != null) open(cur); };
+    $("pcApp").onchange = () => { solo = null; list(); }; $("pcQ").oninput = () => { solo = null; list(); if (cur != null) open(cur); };
     let tS; $("pcMsgs").onscroll = () => { clearTimeout(tS); tS = setTimeout(() => { if (typeof PNAV !== "undefined") PNAV.replace(); }, 300); };
     $("pcInfo").textContent = TF("{0} messaggi in {1} conversazioni · orari: {2}", nf(D.msgs.length), nf(D.threads.length), tzLbl());
     list();
@@ -84,8 +85,11 @@
   function hit(i){ const q = $("pcQ").value.trim().toLowerCase(); if (!q) return true; const m = D.msgs[i]; return (m[5] || "").toLowerCase().includes(q) || (m[4] || "").toLowerCase().includes(q) || (m[3] || "").includes(q); }
   function list(){
     const app = $("pcApp").value, q = $("pcQ").value.trim().toLowerCase();
-    const rows = D.threads.filter(t => (!app || t[1] === app) && (!q || (t[2] + " " + t[3]).toLowerCase().includes(q) || (BY.get(t[0]) || []).some(hit)));
-    $("pcList").innerHTML = rows.map(t => `<div class="th ${cur === t[0] ? "on" : ""}" data-id="${t[0]}"><b>${esc(t[2])}</b><span>${esc(APP[t[1]] || t[1])} · ${nf(t[5])} · ${esc(fts(t[7]))}</span></div>`).join("") || `<div class="pad hint">${T("Nessuna conversazione.")}</div>`;
+    let rows = D.threads.filter(t => (!app || t[1] === app) && (!q || (t[2] + " " + t[3]).toLowerCase().includes(q) || (BY.get(t[0]) || []).some(hit)));
+    const uno = rows.filter(t => t[0] === solo), tot = rows.length;
+    if (uno.length) rows = uno;
+    $("pcList").innerHTML = (uno.length ? `<div class="chsolo"><span class="grow">${TF("Solo questa conversazione, su {0}", nf(tot))}</span><button class="btn small" id="pcTutte">${T("Mostra tutte")}</button></div>` : "") + rows.map(t => `<div class="th ${cur === t[0] ? "on" : ""}" data-id="${t[0]}"><b>${esc(t[2])}</b><span>${esc(APP[t[1]] || t[1])} · ${nf(t[5])} · ${esc(fts(t[7]))}</span></div>`).join("") || `<div class="pad hint">${T("Nessuna conversazione.")}</div>`;
+    if ($("pcTutte")) $("pcTutte").onclick = () => { solo = null; list(); };
     $("pcList").querySelectorAll(".th").forEach(el => el.onclick = () => open(+el.dataset.id));
   }
   function attHtml(a){
@@ -174,18 +178,22 @@
     modal(T("Chat esportata"), `<p>${T("Scaricati due file nella cartella dei download del browser. Annota gli SHA-256: il report portatile non scrive nel registro del caso.")}</p><pre style="white-space:pre-wrap">${esc(stem)}.html\nSHA-256 ${h1}\n\n${esc(stem)}.csv\nSHA-256 ${h2}</pre><p class="hint">${T("Gli allegati restano nel report (cartella dei file inclusi): nell'esportazione sono indicati per nome e percorso.")}</p>`, []);
   }
   // stato per Indietro del browser e briciole
+  // (3.0) aperta da un'evidenza: in elenco solo quella conversazione, finché non si chiede di vederle tutte o si cerca
+  let solo = null;
+  b.addEventListener("click", () => { solo = null; if (D) list(); });
   function pushNav(){ if (typeof PNAV !== "undefined") PNAV.push(); }
   // aperta dagli Artefatti («Apri chat») o da un messaggio dei preferiti (chiave «chat:<id>»)
   window.PCHAT = {
-    open: async (thread, focus) => { show("chat"); await initChat(); if (!D) return; $("pcApp").value = ""; $("pcQ").value = ""; list(); if (D.threads.some(t => t[0] === thread)) open(thread, focus); },
+    open: async (thread, focus) => { show("chat"); await initChat(); if (!D) return; $("pcApp").value = ""; $("pcQ").value = ""; solo = thread; list(); if (D.threads.some(t => t[0] === thread)) open(thread, focus); },
     openMsg: async id => { await initChat(); const m = D && D.msgs.find(x => x[13] === id); if (m) return window.PCHAT.open(m[0], id); toast(T("Messaggio non incluso nel report")); },
-    state: () => VIEW === "chat" && cur != null ? {thread: cur, scroll: $("pcMsgs").scrollTop} : null,
+    state: () => VIEW === "chat" && cur != null ? {thread: cur, scroll: $("pcMsgs").scrollTop, solo} : null,
     restore: async st => {
       await initChat(); if (!D) return;
+      solo = st ? st.solo || null : null; list();
       if (st && D.threads.some(t => t[0] === st.thread)){ open(st.thread); $("pcMsgs").scrollTop = st.scroll || 0; }
       else if (!st){ cur = null; list(); $("pcHead").textContent = T("Scegli una conversazione a sinistra."); $("pcMsgs").innerHTML = ""; }
     },
-    crumbs: () => { const t = D && cur != null && D.threads.find(x => x[0] === cur); return t ? [{label: appLbl(t[1]), go: () => { $("pcApp").value = t[1]; list(); }}, {label: t[2]}] : []; },
+    crumbs: () => { const t = D && cur != null && D.threads.find(x => x[0] === cur); return t ? [{label: appLbl(t[1]), go: () => { solo = null; $("pcApp").value = t[1]; list(); }}, {label: t[2]}] : []; },
   };
   const openItemDisk = openItem;
   openItem = it => it && typeof it.key === "string" && it.key.startsWith("chatt:") ? window.PCHAT.open(+it.key.slice(6))

@@ -1,5 +1,5 @@
 #!/bin/bash
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 silvexe
 # RepertIA - By silvexe (Mac Apple Silicon)
 # Python, openai, Pillow e plaso sono inclusi nell'app; Sleuth Kit, libewf, exiftool,

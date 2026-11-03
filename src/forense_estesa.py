@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 silvexe
 """
 forense_estesa.py - Analisi estese di RepertIA (By silvexe).
@@ -5818,7 +5818,7 @@ def agent_tools(case):
     def _db():
         return fa.db_ro(case)
 
-    def query_artifacts(category: str = "", contains: str = "", limit: int = 100) -> str:
+    def query_artifacts(category: str = "", contains: str = "", limit: int = 100, offset: int = 0, group: str = "", item: str = "") -> str:
         """Artefatti di sistema già estratti (registro di Windows, prefetch, Amcache, collegamenti,
         jump list, cestino, cronologia web, account, dispositivi USB, reti...). Orari UTC salvo
         indicazione contraria.
@@ -5827,29 +5827,75 @@ def agent_tools(case):
             category: sistema, utenti, usb, programmi, esecuzioni, recenti, cartelle (ShellBags), journal (file creati/cancellati/rinominati dal journal NTFS), eventi (registri eventi: servizi, accensioni, Desktop remoto, Defender), uso (Cronologia attività, SRUM), reti, cestino, web, download, ricerche, comandi; vuoto per tutte
             contains: testo da cercare in elemento, dettagli o utente
             limit: righe massime (max 300)
+            offset: righe da saltare, per proseguire dopo una risposta incompleta
+            group: gruppo della categoria (app delle chiamate, categoria di iLEAPP/ALEAPP); solo smartphone
+            item: voce del gruppo (artefatto di iLEAPP/ALEAPP); solo smartphone
         """
         con = _db()
         w, a = ["1=1"], []
+        if group or item:
+            if "grp" not in {r[1] for r in con.execute("PRAGMA table_info(artifacts)")}:
+                con.close()
+                return tr("Gruppo e voce esistono solo negli artefatti degli smartphone.")
+            if group:
+                w.append("grp = ?"); a.append(group)
+            if item:
+                w.append("sub = ?"); a.append(item)
         if category:
             w.append("cat = ?"); a.append(category.strip().lower())
         if contains:
-            w.append("(title LIKE ? ESCAPE '\\' OR detail LIKE ? ESCAPE '\\' OR user LIKE ? ESCAPE '\\')")
-            a += [fa.like(contains)] * 3
+            w.append("(title LIKE ? ESCAPE '\\' OR detail LIKE ? ESCAPE '\\' OR user LIKE ? ESCAPE '\\' OR data LIKE ? ESCAPE '\\')")
+            a += [fa.like(contains)] * 4
         lim = max(1, min(int(limit), 300))
         try:
             tot = con.execute(f"SELECT COUNT(*) FROM artifacts WHERE {' AND '.join(w)}", a).fetchone()[0]
             rows = con.execute(f"SELECT cat, ts, title, detail, user, src_path, part, inode, data FROM artifacts WHERE "
-                               f"{' AND '.join(w)} ORDER BY ts IS NULL, ts DESC LIMIT {lim}", a).fetchall()
+                               f"{' AND '.join(w)} ORDER BY ts IS NULL, ts DESC, id LIMIT {lim} OFFSET {max(0, int(offset))}", a).fetchall()
             cnt = con.execute("SELECT cat, COUNT(*) FROM artifacts GROUP BY cat").fetchall()
         finally:
             con.close()
         cited = _agent_cited(case, rows)
-        out = [tr("{tot} artefatti (mostrati {v1}). Per categoria: ").format(tot=tot, v1=len(rows)) + ", ".join(f"{k} {v}" for k, v in cnt)]
-        out += [tr("- [{c}] {v1} | {ti} | {d} | utente {v2} | fonte {s}").format(c=c, v1=(t or '').replace('T', ' '), ti=ti, d=d, v2=u or '-', s=s)
+        testa = tr("Per categoria: ")+ ", ".join(f"{k} {v}" for k, v in cnt)
+        out = [tr("- [{c}] {v1} | {ti} | {d} | utente {v2} | fonte {s}").format(c=c, v1=(t or '').replace('T', ' '), ti=ti, d=d, v2=u or '-', s=s)
                 + cited[i] for i, (c, t, ti, d, u, s, *_r) in enumerate(rows)]
-        return fa.clip("\n".join(out))
+        return fa.pagina(out, tot, offset, testa)
 
-    def search_emails(contains: str = "", sender: str = "", limit: int = 50) -> str:
+    def count_artifacts(by: str = "categoria", category: str = "", group: str = "", contains: str = "") -> str:
+        """Conta gli artefatti senza leggerli: da usare per primo quando i dati sono molti. Es. le chiamate per numero
+        (category 'chiamate', by 'numero'), o le voci di iLEAPP/ALEAPP (category 'leapp', by 'voce').
+
+        Args:
+            by: categoria, gruppo, voce, titolo, numero (solo chiamate), giorno o mese
+            category: categoria da contare; vuoto per tutte
+            group: gruppo da contare; solo smartphone
+            contains: testo da cercare in elemento, dettagli o dati
+        """
+        con = _db()
+        try:
+            ha_grp = "grp" in {r[1] for r in con.execute("PRAGMA table_info(artifacts)")}
+            exprs = {"categoria": "cat", "titolo": "title", "giorno": "substr(ts, 1, 10)", "mese": "substr(ts, 1, 7)",
+                     "numero": "json_extract(data, '$.numero')"}
+            if ha_grp:
+                exprs.update({"gruppo": "grp", "voce": "sub"})
+            e = exprs.get(str(by).strip().lower())
+            if not e:
+                return tr("Valori possibili per by: {v}").format(v=", ".join(exprs))
+            w, a = ["1=1"], []
+            if category:
+                w.append("cat = ?"); a.append(category.strip().lower())
+            if group and ha_grp:
+                w.append("grp = ?"); a.append(group)
+            if contains:
+                w.append("(title LIKE ? ESCAPE '\\' OR detail LIKE ? ESCAPE '\\' OR data LIKE ? ESCAPE '\\')"); a += [fa.like(contains)] * 3
+            cond = " AND ".join(w)
+            tot = con.execute(f"SELECT COUNT(*) FROM artifacts WHERE {cond}", a).fetchone()[0]
+            rows = con.execute(f"SELECT {e}, COUNT(*) FROM artifacts WHERE {cond} GROUP BY 1 ORDER BY 2 DESC, 1 LIMIT 200", a).fetchall()
+        finally:
+            con.close()
+        return fa.clip("\n".join([tr("{tot} artefatti in {n} valori (ne sono elencati al massimo 200):").format(tot=tot, n=len(rows))]
+                                  + [f"{v if v not in (None, '') else '-'}: {n}" for v, n in rows]))
+
+    def search_emails(contains: str = "", sender: str = "", limit: int = 50, offset: int = 0) -> str:
         """Messaggi di posta estratti da PST/OST, mbox, EML e MSG (anche dentro archivi):
         data, mittente, destinatari, oggetto, numero di allegati.
 
@@ -5857,6 +5903,7 @@ def agent_tools(case):
             contains: testo da cercare in oggetto, corpo, destinatari
             sender: testo da cercare nel mittente
             limit: righe massime (max 200)
+            offset: righe da saltare, per proseguire dopo una risposta incompleta
         """
         con = _db()
         w, a = ["1=1"], []
@@ -5868,13 +5915,12 @@ def agent_tools(case):
         try:
             tot = con.execute(f"SELECT COUNT(*) FROM mail WHERE {' AND '.join(w)}", a).fetchone()[0]
             rows = con.execute(f"SELECT id, date, sender, recipients, subject, n_att, src_path, folder FROM mail "
-                               f"WHERE {' AND '.join(w)} ORDER BY date DESC LIMIT {max(1, min(int(limit), 200))}", a).fetchall()
+                               f"WHERE {' AND '.join(w)} ORDER BY date DESC, id LIMIT {max(1, min(int(limit), 200))} OFFSET {max(0, int(offset))}", a).fetchall()
         finally:
             con.close()
-        out = [tr("{tot} messaggi (mostrati {v1}); leggi il testo con read_email(email_id)").format(tot=tot, v1=len(rows))]
-        out += [tr("- id {i} | {v1} | da {s} | a {r} | «{o}» | allegati {n} | {p} › {fo}").format(i=i, v1=(d or '').replace('T', ' '), s=s, r=r, o=o, n=n, p=p, fo=fo)
+        out = [tr("- id {i} | {v1} | da {s} | a {r} | «{o}» | allegati {n} | {p} › {fo}").format(i=i, v1=(d or '').replace('T', ' '), s=s, r=r, o=o, n=n, p=p, fo=fo)
                 for i, d, s, r, o, n, p, fo in rows]
-        return fa.clip("\n".join(out))
+        return fa.pagina(out, tot, offset, tr("Leggi il testo con read_email(email_id)."))
 
     def read_email(email_id: int, max_chars: int = 8000) -> str:
         """Testo completo di un messaggio di posta (intestazioni, corpo, elenco allegati).
@@ -5898,7 +5944,7 @@ def agent_tools(case):
                + f"\n\n{(body or '')[:max(500, min(int(max_chars), 60000))]}")
         return fa.clip(txt)
 
-    def list_extracted(contains: str = "", kind: str = "", limit: int = 100) -> str:
+    def list_extracted(contains: str = "", kind: str = "", limit: int = 100, offset: int = 0) -> str:
         """File estratti da archivi (ZIP, RAR, 7z...), allegati di posta e copie shadow:
         percorso, dimensione, data, cifratura, hash. Leggili con read_extracted.
 
@@ -5906,6 +5952,7 @@ def agent_tools(case):
             contains: testo da cercare nel percorso
             kind: archivio, allegato o vss; vuoto per tutti
             limit: righe massime (max 300)
+            offset: righe da saltare, per proseguire dopo una risposta incompleta
         """
         con = _db()
         w, a = ["1=1"], []
@@ -5916,13 +5963,12 @@ def agent_tools(case):
         try:
             tot = con.execute(f"SELECT COUNT(*) FROM xitems WHERE {' AND '.join(w)}", a).fetchone()[0]
             rows = con.execute(f"SELECT id, kind, path, size, mtime, encrypted, sha256, note FROM xitems WHERE "
-                               f"{' AND '.join(w)} ORDER BY path LIMIT {max(1, min(int(limit), 300))}", a).fetchall()
+                               f"{' AND '.join(w)} ORDER BY path, id LIMIT {max(1, min(int(limit), 300))} OFFSET {max(0, int(offset))}", a).fetchall()
         finally:
             con.close()
-        out = [tr("{tot} file estratti (mostrati {v1})").format(tot=tot, v1=len(rows))]
-        out += [tr("- id {i} [{k}] {p} | {z} B | {v1}{v2} | SHA-256 {v3}").format(i=i, k=k, p=p, z=z, v1=(m or '').replace('T', ' '), v2=tr(' | CIFRATO') if e else '', v3=h or '-')
+        out = [tr("- id {i} [{k}] {p} | {z} B | {v1}{v2} | SHA-256 {v3}").format(i=i, k=k, p=p, z=z, v1=(m or '').replace('T', ' '), v2=tr(' | CIFRATO') if e else '', v3=h or '-')
                 + (f" | {n}" if n else "") for i, k, p, z, m, e, h, n in rows]
-        return fa.clip("\n".join(out))
+        return fa.pagina(out, tot, offset)
 
     def read_extracted(item_id: int, max_chars: int = 8000) -> str:
         """Testo di un file estratto (da archivio, allegato o copia shadow).
@@ -5950,28 +5996,30 @@ def agent_tools(case):
         txt = t[1] if t else fa.binary_strings(data)
         return fa.clip(tr("{v1} ({v2} byte; {v3})\n").format(v1=r[0], v2=len(data), v3=t[0] if t else tr('stringhe')) + txt[:max(500, min(int(max_chars), 60000))])
 
-    def list_anomalies(kind: str = "", limit: int = 100) -> str:
+    def list_anomalies(kind: str = "", limit: int = 100, offset: int = 0) -> str:
         """Anomalie: estensioni che non corrispondono al contenuto (anche eseguibili mascherati),
         file protetti da password, possibili contenitori cifrati, volumi cifrati, hash segnalati.
 
         Args:
             kind: estensione, cifrato, contenitore, volume, segnalato; vuoto per tutte
             limit: righe massime (max 300)
+            offset: righe da saltare, per proseguire dopo una risposta incompleta
         """
         con = _db()
         w, a = ["1=1"], []
         if kind:
             w.append("kind = ?"); a.append(kind)
         try:
+            tot = con.execute(f"SELECT COUNT(*) FROM anomalies WHERE {' AND '.join(w)}", a).fetchone()[0]
             rows = con.execute(f"SELECT kind, path, detail, part, inode, sev FROM anomalies WHERE {' AND '.join(w)} "
-                               f"ORDER BY sev DESC, path LIMIT {max(1, min(int(limit), 300))}", a).fetchall()
+                               f"ORDER BY sev DESC, path, rowid LIMIT {max(1, min(int(limit), 300))} OFFSET {max(0, int(offset))}", a).fetchall()
         finally:
             con.close()
-        return fa.clip("\n".join([f"{len(rows)} anomalie"] + [tr("- [{k}] {p} | {d} | offset {pt} inode {i} | gravità {s}").format(k=k, p=p, d=d, pt=pt, i=i, s=s)
-                                                               for k, p, d, pt, i, s in rows]))
+        return fa.pagina([tr("- [{k}] {p} | {d} | offset {pt} inode {i} | gravità {s}").format(k=k, p=p, d=d, pt=pt, i=i, s=s)
+                          for k, p, d, pt, i, s in rows], tot, offset)
 
     if "artefatti" in est:
-        tools.append(query_artifacts)
+        tools += [query_artifacts, count_artifacts]
     if "archivi" in est:
         tools += [search_emails, read_email]
     if "archivi" in est or "vss" in est:

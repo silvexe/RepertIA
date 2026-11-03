@@ -2,20 +2,33 @@
 
 *Translation of [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md); the Italian text prevails.*
 
-**RepertIA's code** (folders `src/`, `build/`, `tools/`) is released under GPL-3.0-or-later.
+**RepertIA's code** (folders `src/`, `build/`, `tools/`) is released under AGPL-3.0-or-later.
 The **Release packages** (Mac zip, Windows installer and zip, Linux archive) also contain the components listed below,
 each under its own license. The components are distributed unmodified and run as separate programs or libraries; the
 license texts are in the component folders inside the packages (`strumenti/…`, `python/…/*.dist-info/`).
 
-Versions refer to the **2.18.0 – 2.21.0** packages (the disk components did not change; 2.20 adds iLEAPP, ALEAPP, FFmpeg and the whisper.cpp transcription engine).
+Versions refer to the **3.0.0** packages. Tesseract stays at 5.4.0 on Windows because UB Mannheim publishes no newer build; Python stays at 3.12.15.
+
+## Map components (all packages)
+
+| Component | Version | License | Sources / website |
+|---|---|---|---|
+| MapLibre GL JS | 6.16.0 (`src/mappa`, unmodified) | BSD-3-Clause (`mappa/LICENSE-maplibre.txt`) | https://github.com/maplibre/maplibre-gl-js |
+| pmtiles (JavaScript) | 4.5.0 (`src/mappa`, unmodified) | BSD-3-Clause (`mappa/LICENSE-pmtiles.txt`) | https://github.com/protomaps/PMTiles |
+| Noto Sans (Regular, Medium, Italic), PBF glyphs | protomaps/basemaps-assets, commit `028c18f` of 31/10/2025 (`src/mappa/fonts`, unmodified) | SIL OFL 1.1 (`mappa/fonts/OFL.txt`) | https://github.com/protomaps/basemaps-assets |
+| Natural Earth, 1:50m and 1:110m boundaries | geometries in `src/mappa/ne_50m.geojson` and `ne_110m.geojson` (portable report), rounded coordinates | public domain | https://www.naturalearthdata.com/about/terms-of-use/ |
+
+**Map data (not included).** Extracts are downloaded only at the analyst's request from Protomaps: © OpenStreetMap contributors, [ODbL](https://opendatacommons.org/licenses/odbl/1-0/) license, https://www.openstreetmap.org/copyright. Anyone publishing a map made from this data, including in a report, must credit OpenStreetMap and the address above; anyone publishing the extract or a modified version does so under the same license.
+
+**Demo video and `docs/media/repertia-demo.gif`.** They show test data and a simulated flight over Malta; background © OpenStreetMap contributors, ODbL license (openstreetmap.org/copyright).
 
 ## Source code of GPL and LGPL components
 
 For the GPL- or LGPL-licensed components distributed in executable form, the corresponding source code can be obtained
 from the original projects at the addresses given, for the version given, and it is **attached to every Release**:
-`RepertIA-<version>-sorgenti-terze-parti.tar` (Sleuth Kit with libewf/libvhdi/libvmdk, TestDisk/PhotoRec, bulk_extractor
+`RepertIA-2.19.0-sorgenti-terze-parti.tar` (Sleuth Kit with libewf/libvhdi/libvmdk, TestDisk/PhotoRec, bulk_extractor
 with the linked libewf and its build recipe, 7-Zip, libyal libraries; list in the `LEGGIMI.txt` inside) and
-`poppler-<version>.tar.xz`; from 2.20 also `ffmpeg-n9.0.2-36-g6882969ce9-sorgenti.tar.gz` (FFmpeg at commit
+`poppler-<version>.tar.xz`; from 3.0.0 also `7z2605-src.tar.xz` and `Image-ExifTool-13.60.tar.gz`, for the included 7-Zip and ExifTool versions; from 2.20 also `ffmpeg-n9.0.2-36-g6882969ce9-sorgenti.tar.gz` (FFmpeg at commit
 6882969ce9, from which BtbN's executable is built). For the system libraries included in the original Windows distributions of TestDisk and
 Poppler (Cygwin, Qt, GLib, cairo, libiconv, gettext) and for any other corresponding source not attached, the author
 provides it on request, for at least three years from the publication of the package, through the repository's Issues.
@@ -28,9 +41,9 @@ provides it on request, for at least three years from the publication of the pac
 | libewf (in Sleuth Kit and libewf-python) | see below | LGPL-3.0-or-later | https://github.com/libyal/libewf |
 | TestDisk / PhotoRec | 7.2 | GPL-2.0-or-later | https://www.cgsecurity.org/wiki/TestDisk_Download — https://github.com/cgsecurity/testdisk |
 | Poppler (pdftotext, pdftoppm) | 26.09.0 (Windows build) | GPL-2.0-or-later / GPL-3.0 | https://poppler.freedesktop.org — https://github.com/oschwartz10612/poppler-windows |
-| ExifTool | 13.59 (64-bit, with Strawberry Perl) | Artistic-1.0-Perl OR GPL-1.0-or-later (Strawberry Perl licenses in `exiftool_files/`) | https://exiftool.org |
+| ExifTool | 13.60 (64-bit, with Strawberry Perl) | Artistic-1.0-Perl OR GPL-1.0-or-later (Strawberry Perl licenses in `exiftool_files/`) | https://exiftool.org |
 | bulk_extractor | 2.2.0, built by the author with MinGW-w64 (recipe in `build/windows/COME_RICOSTRUIRE.txt`) | public domain code + LGPL-2.1, LGPL-3.0, GPL-3.0, CPL-1.0, OpenSSL (see `strumenti/bulk_extractor/licenses/`) | https://github.com/simsong/bulk_extractor (tag v2.2.0) |
-| 7-Zip (7z.exe, 7z.dll) | 26.01 | LGPL-2.1-or-later + BSD-3-Clause; **unRAR restriction**: the RAR decompression code may not be used to recreate the RAR compression algorithm (see `License.txt`) | https://www.7-zip.org |
+| 7-Zip (7z.exe, 7z.dll) | 26.05 | LGPL-2.1-or-later + BSD-3-Clause; **unRAR restriction**: the RAR decompression code may not be used to recreate the RAR compression algorithm (see `License.txt`) | https://www.7-zip.org |
 | Tesseract OCR | 5.4.0 (UB Mannheim build) with the DLLs it uses (Leptonica, libtiff, libpng, libjpeg, libwebp, OpenJPEG, zlib, zstd, libarchive…) | Apache-2.0; libraries under their own licenses (BSD, MIT, libtiff, zlib, IJG, OpenSSL/Apache-2.0) | https://github.com/tesseract-ocr/tesseract — https://github.com/UB-Mannheim/tesseract |
 | tessdata_fast (eng, ita, osd) | — | Apache-2.0 | https://github.com/tesseract-ocr/tessdata_fast |
 | FFmpeg (`ffmpeg.exe` only, video previews) | 9.0.2-36-g6882969ce9 (BtbN LGPL build, autobuild-2026-10-27-18-38) | LGPL-3.0-or-later (`strumenti/ffmpeg/LICENSE.txt`); exact source attached to the Release: `ffmpeg-n9.0.2-36-g6882969ce9-sorgenti.tar.gz` | https://ffmpeg.org — https://github.com/BtbN/FFmpeg-Builds |
@@ -45,7 +58,7 @@ projects, under their own licenses.
 
 ## Linux package
 
-The archive contains RepertIA's files, 7-Zip 26.01 for Linux x64 (`strumenti/7zip/7zz`, licenses as above, with
+The archive contains RepertIA's files, 7-Zip 26.05 for Linux x64 (`strumenti/7zip/7zz`, licenses as above, with
 `License.txt`), the Tesseract data (`strumenti/tessdata`, Apache-2.0, license in `LICENSE.txt`) and FFmpeg (from 2.20,
 only `strumenti/ffmpeg/bin/ffmpeg`, BtbN LGPL build as for Windows, LGPL-3.0-or-later, license in
 `strumenti/ffmpeg/LICENSE.txt`, exact source attached to the Release). **Python and the
@@ -57,25 +70,25 @@ and bulk_extractor come from the Linux distribution (apt), under their own licen
 
 | Module | Version | License |
 |---|---|---|
-| plaso | 20260720 | Apache-2.0 |
+| plaso | 20261027 | Apache-2.0 |
 | dfvfs, dfdatetime, dfwinreg, dtfabric, artifacts, acstore | 20260924, 20260730, 20260411, 20260506, 20260421, 20260411 | Apache-2.0 |
 | pytsk3 | 20260715 | Apache-2.0 (includes The Sleuth Kit: CPL/IPL) |
 | libyal (libbde, libcaes, libcreg, libesedb, libevt, libevtx, libewf, libfcrypto, libfsapfs, libfsext, libfsfat, libfshfs, libfsntfs, libfsxfs, libfvde, libfwnt, libfwsi, liblnk, libluksde, libmodi, libmsiecf, libolecf, libpff, libphdi, libqcow, libregf, libscca, libsigscan, libsmdev, libsmraw, libvhdi, libvmdk, libvsapm, libvsgpt, libvshadow, libvslvm) -python | 2026xxxx (version in the name of the `*.dist-info` folder) | LGPL-3.0-or-later — https://github.com/libyal |
 | yara-python | 4.5.4 | Apache-2.0 |
 | pefile | 2024.8.26 | MIT |
-| Pillow | 12.3.0 | MIT-CMU |
-| openai (client) | 3.28.0 | Apache-2.0 |
+| Pillow | 13.0.0 | MIT-CMU |
+| openai (client) | 3.42.0 | Apache-2.0 |
 | grpcio, protobuf, opensearch-py, opensearch-protobufs | 1.84.0, 7.36.2, 3.2.0, 1.2.0 | Apache-2.0 / BSD-3-Clause |
 | pydantic, pydantic_core, annotated-types, typing-inspection, jiter, anyio, h11, sniffio | — | MIT (sniffio: MIT OR Apache-2.0) |
 | httpx2, httpcore2, idna, psutil, pycparser, pyzmq | — | BSD-3-Clause |
 | requests, tzdata | 2.34.2, 2026.5 | Apache-2.0 |
 | urllib3, charset-normalizer, six, pytz, PyYAML, pyparsing, redis, truststore, pip | — | MIT |
-| certifi | 2026.7.22 | MPL-2.0 |
+| certifi | 2026.10.23 | MPL-2.0 |
 | cffi | 2.1.1 | MIT-0 |
 | defusedxml, typing_extensions | 0.7.1, 4.16.0 | PSF-2.0 |
 | python-dateutil | 2.9.0.post0 | Apache-2.0 OR BSD-3-Clause |
 | lz4, zstd, Events, Flor | 4.4.5, 1.5.7.2, 0.5, 1.1.3 | BSD |
-| XlsxWriter | 3.2.9 | BSD-2-Clause |
+| XlsxWriter | 3.3.1 | BSD-2-Clause |
 | bencode.py | 4.1.0 | BitTorrent Open Source License |
 
 ## iLEAPP and ALEAPP (smartphone cases, from 2.20)
@@ -152,7 +165,7 @@ Python libraries of iLEAPP/ALEAPP (versions of the Mac and Windows packages; lic
 | xmltodict | 1.0.4 | MIT |
 | zstd | 1.5.7.2 | BSD |
 
-`pytypedstream` and `simplekml` (LGPL-3.0-or-later) are pure Python: the source code is in the distributed files.
+`pytypedstream` and `simplekml` (LGPL-3.0-or-later) are pure Python: the source code is in the distributed files. `bencoding` and `bs4` declare the MIT license without including its text: the packages contain `LICENSE-NOTA.txt` with the standard text and the name given by the project.
 
 ## Audio transcription (from 2.20)
 
@@ -177,9 +190,13 @@ Origin and licenses are also stated in the archive's `LEGGIMI.txt`, with the lic
 |---|---|---|
 | DFTT (Digital Forensics Tool Testing) images 5, 6, 7, 8, 11 | GPL (as stated by the DFTT project) | https://dftt.sourceforge.net — https://sourceforge.net/projects/dftt/ |
 | dfvfs test images (APFS, encrypted APFS, BitLocker To Go) | Apache-2.0 | https://github.com/log2timeline/dfvfs/tree/main/test_data |
-| Images built for the test (ext4 in E01, altered E01, FAT USB drive, Mac Data volume) | GPL-3.0-or-later, like RepertIA | this repository |
+| Images built for the test (ext4 in E01, altered E01, FAT USB drive, Mac Data volume) | AGPL-3.0-or-later, like RepertIA | this repository |
 
 ## Tools used to build the packages (not included)
 
 NSIS (zlib/libpng), python-build-standalone, Homebrew, MinGW-w64. The scripts `build/windows/nsis_x.py` and
-`build/windows/nsis_patch.py` (GPL-3.0-or-later) rebuild the installer without NSIS.
+`build/windows/nsis_patch.py` (AGPL-3.0-or-later) rebuild the installer without NSIS.
+
+## Flight log formats (from 3.0)
+
+The Autel, PX4 ULog, ArduPilot tlog and DataFlash log readers are written in RepertIA: no third-party code is included. For the Autel format the documentation and parser of [autel-logger](https://github.com/MansfieldTX-MattR/autel-logger) (MIT, Copyright (c) 2024 Matt Reid) were used, but are not included in the program. autel-logger, pyulog (BSD-3) and pymavlink (LGPL-3) were run only to compare results during testing, outside the packages.

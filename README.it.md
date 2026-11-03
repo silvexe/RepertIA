@@ -1,12 +1,30 @@
-# RepertIA
+<p align="center">
+  <img src="docs/media/repertia-icon.png" alt="Icona di RepertIA" width="128" height="128">
+</p>
 
-**Analisi forense di copie di dischi e pendrive ed estrazioni di smartphone, con intelligenza artificiale locale e offline.**
+<h1 align="center">RepertIA</h1>
+
+<p align="center"><b>Analisi forense di copie di dischi e pendrive, estrazioni di smartphone e registri di volo dei droni, con intelligenza artificiale locale e offline.</b></p>
+
+<p align="center">
+  <a href="https://github.com/silvexe/RepertIA/releases/latest"><img src="https://img.shields.io/github/v/release/silvexe/RepertIA?label=download&color=0e6b6b" alt="download"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0--or--later-blue" alt="license: AGPL-3.0-or-later"></a>
+  <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey" alt="platform: Windows, macOS, Linux">
+  <img src="https://img.shields.io/badge/AI-local%20%26%20offline-0e6b6b" alt="AI">
+</p>
+
 🇬🇧 **English version: [README.md](README.md)**
 
-📘 **Guida illustrata (PDF):** [Italiano](https://github.com/silvexe/RepertIA/releases/download/v2.21.0/RepertIA-guida-illustrata-2.20.3-IT.pdf) · [English](https://github.com/silvexe/RepertIA/releases/download/v2.21.0/RepertIA-illustrated-guide-2.20.3-EN.pdf)
+![RepertIA: un volo dimostrativo simulato animato sulla mappa locale](docs/media/repertia-demo.gif)
 
-RepertIA analizza copie forensi (E01, raw/dd, dmg) e, dalla 2.20, estrazioni del file system completo di iPhone e telefoni
-Android da un'unica interfaccia web locale, su Mac Apple Silicon, Windows o
+🎬 **Guarda la demo** (dati di prova da un'immagine pubblica di Josh Hickman e un volo simulato, dichiarati nel video). Da scaricare: [italiano](https://github.com/silvexe/RepertIA/releases/download/v3.0.0/RepertIA-demo-3.0.0-it.mp4) · [inglese](https://github.com/silvexe/RepertIA/releases/download/v3.0.0/RepertIA-demo-3.0.0-en.mp4)
+
+https://github.com/user-attachments/assets/418fd5ee-8716-49e1-b9b5-f84456ad5c44
+
+📘 **Guida illustrata:** [italiano e inglese, un'unica pagina](https://github.com/silvexe/RepertIA/releases/download/v3.0.0/RepertIA-guida-3.0.0.html)
+
+RepertIA analizza copie forensi (E01, raw/dd, dmg), dalla 2.20 estrazioni del file system completo di iPhone e telefoni
+Android e, dalla 3.0, registri di volo dei droni da un'unica interfaccia web locale, su Mac Apple Silicon, Windows o
 Linux (sperimentale).
 Usa strumenti forensi riconosciuti (The Sleuth Kit, libewf, plaso, PhotoRec, bulk_extractor, ExifTool, libyal) e ne
 raccoglie i risultati in un caso consultabile con filtri, timeline e anteprime. Un modello linguistico che gira sul
@@ -65,13 +83,13 @@ modello tutte le analisi, le ricerche e i report funzionano lo stesso.
 
 | Sistema | File |
 |---|---|
-| Windows (installazione) | [RepertIA-2.21.0-Setup.exe](https://github.com/silvexe/RepertIA/releases/download/v2.21.0/RepertIA-2.21.0-Setup.exe) |
-| Windows (portatile) | [RepertIA-2.21.0-Windows.zip](https://github.com/silvexe/RepertIA/releases/download/v2.21.0/RepertIA-2.21.0-Windows.zip) |
-| Mac (Apple Silicon) | [RepertIA-2.21.0-Mac.zip](https://github.com/silvexe/RepertIA/releases/download/v2.21.0/RepertIA-2.21.0-Mac.zip) |
-| Linux x86_64 (sperimentale) | [RepertIA-2.21.0-Linux.tar.gz](https://github.com/silvexe/RepertIA/releases/download/v2.21.0/RepertIA-2.21.0-Linux.tar.gz) |
-| Collaudo | [RepertIA-collaudo.zip](https://github.com/silvexe/RepertIA/releases/download/v2.21.0/RepertIA-collaudo.zip) |
-| Impronte SHA-256 | [SHA256SUMS.txt](https://github.com/silvexe/RepertIA/releases/download/v2.21.0/SHA256SUMS.txt) |
-| Guida illustrata (PDF) | [Italiano](https://github.com/silvexe/RepertIA/releases/download/v2.21.0/RepertIA-guida-illustrata-2.20.3-IT.pdf) · [English](https://github.com/silvexe/RepertIA/releases/download/v2.21.0/RepertIA-illustrated-guide-2.20.3-EN.pdf) |
+| Windows (installazione) | [RepertIA-3.0.0-Setup.exe](https://github.com/silvexe/RepertIA/releases/download/v3.0.0/RepertIA-3.0.0-Setup.exe) |
+| Windows (portatile) | [RepertIA-3.0.0-Windows.zip](https://github.com/silvexe/RepertIA/releases/download/v3.0.0/RepertIA-3.0.0-Windows.zip) |
+| Mac (Apple Silicon) | [RepertIA-3.0.0-Mac.zip](https://github.com/silvexe/RepertIA/releases/download/v3.0.0/RepertIA-3.0.0-Mac.zip) |
+| Linux x86_64 (sperimentale) | [RepertIA-3.0.0-Linux.tar.gz](https://github.com/silvexe/RepertIA/releases/download/v3.0.0/RepertIA-3.0.0-Linux.tar.gz) |
+| Collaudo | [RepertIA-collaudo.zip](https://github.com/silvexe/RepertIA/releases/download/v3.0.0/RepertIA-collaudo.zip) |
+| Impronte SHA-256 | [SHA256SUMS.txt](https://github.com/silvexe/RepertIA/releases/download/v3.0.0/SHA256SUMS.txt) |
+| Guida illustrata (HTML) | [italiano e inglese](https://github.com/silvexe/RepertIA/releases/download/v3.0.0/RepertIA-guida-3.0.0.html) |
 
 Tutte le versioni: <https://github.com/silvexe/RepertIA/releases>
 
@@ -195,10 +213,21 @@ collaudo. Le immagini sono nell'archivio `RepertIA-collaudo.zip` tra le Releases
 
 Copyright (C) 2026 silvexe.
 
-RepertIA è software libero: puoi ridistribuirlo e/o modificarlo secondo i termini della **GNU General Public License**
+RepertIA è software libero: puoi ridistribuirlo e/o modificarlo secondo i termini della **GNU Affero General Public License**
 pubblicata dalla Free Software Foundation, **versione 3 o (a tua scelta) qualsiasi versione successiva**
-(SPDX: `GPL-3.0-or-later`). È distribuito nella speranza che sia utile, ma SENZA ALCUNA GARANZIA. Testo completo in
+(SPDX: `AGPL-3.0-or-later`). È distribuito nella speranza che sia utile, ma SENZA ALCUNA GARANZIA. Testo completo in
 [LICENSE](LICENSE).
+
+Dalla 3.0.0 si applica questa licenza; le versioni fino alla 2.21.0 restano sotto GPL-3.0-or-later.
+
+**In pratica.** Chiunque può usare RepertIA gratis, anche per il proprio lavoro professionale a pagamento. Chi lo
+inserisce in un software che distribuisce o offre in rete deve pubblicarne il codice sorgente con la stessa licenza: non
+può diventare un prodotto chiuso.
+
+**Permesso aggiuntivo (AGPL, sezione 7).** RepertIA carica `pytsk3`, che contiene The Sleuth Kit, le cui parti sotto CPL-1.0 e
+IPL-1.0 non sono compatibili con la GPL. L'autore permette in aggiunta di combinare RepertIA con `pytsk3` e The Sleuth Kit e di
+distribuire il risultato, rispettando per quei componenti le loro licenze. Chi modifica RepertIA può togliere questo permesso
+dalla propria versione. Non permette altro: tutto il resto del programma resta sotto AGPL.
 
 I pacchetti delle Releases includono componenti di terze parti con le loro licenze: elenco, versioni e fonti in
 [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).

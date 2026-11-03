@@ -42,3 +42,6 @@ __pycache__/
 *.pyc
 .DS_Store
 Thumbs.db
+
+# Guida unita (15 MB): va nei pacchetti, non nel repository
+src/guida/

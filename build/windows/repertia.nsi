@@ -1,10 +1,10 @@
-; SPDX-License-Identifier: GPL-3.0-or-later
+; SPDX-License-Identifier: AGPL-3.0-or-later
 ; Copyright (C) 2026 silvexe
 Unicode true
 !include "MUI2.nsh"
 !define APP "RepertIA"
 !ifndef VER
-  !define VER "2.21.0"
+  !define VER "3.0.0"
 !endif
 Name "${APP} ${VER}"
 OutFile "RepertIA-${VER}-Setup.exe"

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 silvexe
 """Controllo prima della pubblicazione: cerca nei file del repository dati che non devono uscire
 (dati di casi reali, percorsi personali, indirizzi, identificativi).

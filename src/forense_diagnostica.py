@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 silvexe
 """RepertIA (2.21): log tecnico per capire i malfunzionamenti, separato dal registro del caso (audit_log.jsonl).
 Non è una prova del lavoro svolto e non deve contenere dati del caso: si scrivono solo eventi tecnici (versioni,

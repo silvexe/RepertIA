@@ -10,7 +10,7 @@ RepertIA/
   repertia.png             icona (da build/mac/repertia.icns)
   LEGGIMI.txt, README_EN.txt, LICENSE, THIRD_PARTY_LICENSES.md, VALIDAZIONE.md
   RepertIA/                i file di src/ (forense_*.py, forense_*.html, forense_*.json, lingua_en.json, README.md)
-  strumenti/7zip/7zz       7-Zip 26.01 per Linux x64 (7z2601-linux-x64.tar.xz) + License.txt
+  strumenti/7zip/7zz       7-Zip 26.05 per Linux x64 (7z2605-linux-x64.tar.xz) + License.txt
   strumenti/tessdata/      eng, ita, osd .traineddata (tessdata_fast, gli stessi del pacchetto Mac)
   strumenti/ffmpeg/        (dalla 2.20) solo bin/ffmpeg + LICENSE.txt + VERSIONE.txt dalla build LGPL linux64 di BtbN
                            (ffmpeg-n<ver>-linux64-lgpl-<ramo>.tar.xz, SHA-256 da checksums.sha256; sorgente nella Release)

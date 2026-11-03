@@ -1,5 +1,5 @@
-RepertIA 2.21.0 - By silvexe (Mac Apple Silicon)
-Analisi forense di copie di dischi ed estrazioni di smartphone con un modello linguistico (LLM) locale.
+RepertIA 3.0.0 - By silvexe (Mac Apple Silicon)
+Analisi forense di copie di dischi, estrazioni di smartphone e registri di volo dei droni con un modello linguistico (LLM) locale.
 
 LINGUA
 L'interfaccia è in italiano o in inglese: si sceglie con il selettore in alto a destra.

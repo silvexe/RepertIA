@@ -1,5 +1,5 @@
-# SPDX-License-Identifier: GPL-3.0-or-later
-# RepertIA 2.21.0 - moduli Python per Linux: stesse versioni dei pacchetti Mac e Windows.
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# RepertIA 3.0.0 - moduli Python per Linux: stesse versioni dei pacchetti Mac e Windows.
 # Usato da installa.sh: python/bin/pip install --prefer-binary -r requirements-linux.txt
 
 acstore==20260411
@@ -7,7 +7,7 @@ annotated_types==0.8.0
 anyio==4.15.1
 artifacts==20260421
 bencode.py==4.1.0
-certifi==2026.7.22
+certifi==2026.10.23
 cffi==2.1.1
 charset_normalizer==3.5.2
 defusedxml==0.7.1
@@ -60,12 +60,12 @@ libvsgpt-python==20260911
 libvshadow-python==20260714
 libvslvm-python==20260901
 lz4==4.4.5
-openai==3.28.0
+openai==3.42.0
 opensearch_protobufs==1.2.0
 opensearch_py==3.2.0
 pefile==2024.8.26
-pillow==12.3.0
-plaso==20260720
+pillow==13.0.0
+plaso==20261027
 protobuf==7.36.2
 psutil==7.2.2
 pycparser==3.11
@@ -86,7 +86,7 @@ typing_extensions==4.16.0
 typing_inspection==0.4.4
 tzdata==2026.5
 urllib3==2.8.0
-xlsxwriter==3.2.9
+xlsxwriter==3.3.1
 yara-python==4.5.4
 zstd==1.5.7.2
 xattr  # richiesto da plaso su Linux e Mac (non nei pacchetti Windows)

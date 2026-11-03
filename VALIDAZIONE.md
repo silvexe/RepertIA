@@ -2,7 +2,7 @@
 
 *English: [VALIDATION.md](VALIDATION.md).*
 
-Versione del programma: 2.21.0 · Documento aggiornato al 31/10/2026
+Versione del programma: 3.0.0 · Documento aggiornato al 01/11/2026
 
 Questo documento descrive **come è stato verificato RepertIA, con quali dati, con quali risultati e con quali
 limiti noti**. Serve a chi usa il programma in una consulenza per dichiarare l'affidabilità del metodo
@@ -63,6 +63,8 @@ di un Mac (plist, sqlite con WAL, bookmark); APFS (dfvfs) in chiaro e cifrato co
 | 2.20.3 (correzioni, prima dell'assemblaggio) | Windows 11 dell'autore | 437/437, 77/77 su immagini pubbliche |
 | 2.21.0 | Mac dell'autore (come la 2.20.0) | 448/448 in italiano e 448/448 in inglese, dal pacchetto Mac assemblato, 77/77 su immagini pubbliche; 11 controlli nuovi |
 | 2.21.0 | Windows dell'autore (pacchetto definitivo) | superato (dato riferito dall'autore) |
+| 3.0.0 | Mac dell'autore, dal pacchetto Mac assemblato (568/568 anche dai sorgenti) | 568/568 in italiano e 568/568 in inglese, 77/77 su immagini pubbliche; navigazione 410/410 in italiano e in inglese (Chromium) |
+| 3.0.0 | Windows dell'autore (pacchetto definitivo) | superato (dato riferito dall'autore) |
 
 Carving DFTT 11: 2 file su 15 (enterprise.wav, haxor2.jpg) non vengono recuperati da PhotoRec: è un limite di
 PhotoRec, dichiarato come «misura» e non come requisito.
@@ -173,6 +175,10 @@ strumento (Registry Explorer, Autopsy, X-Ways, AXIOM…) o direttamente sul dato
   verbale) un registro riscritto per intero con una catena ricalcolata risulta integro e le righe tolte alla fine non si
   vedono; il contenuto originale di una riga alterata non si ricostruisce; i file esportati fuori dalla cartella del caso o
   cancellati non si ricontrollano.
+- **Coordinate GPS delle foto**: fino alla 2.21.0 il segno di Sud e Ovest andava perso; corretto nella 3.0 anche nei casi esistenti. I report prodotti prima con coordinate di quelle zone vanno rifatti.
+- **Record cancellati (3.0)**: recupero parziale, da verificare sui byte indicati. Nella prova su schemi non usati per la messa a punto, circa il 55% delle righe cancellate è stato recuperato esatto, nessun valore sbagliato rilevato; i record che non somigliano a una riga cancellata nota non sono verificabili. Le cancellazioni della prova sono fatte con SQLite, non dalle app. I file `-journal` non sono letti dal recupero; limite di 20.000 record per database.
+- **Droni (3.0)**: nessun registro Autel reale disponibile, lettore provato su file costruiti (v3 uguale ad autel-logger, v1 e v2 solo dalle dimensioni pubblicate); DJI dalla versione 13 non letto perché cifrato; `.DAT` e Betaflight non letti; SRT e CSV solo su esempi costruiti. tlog, ULog e DataFlash uguali a pymavlink e pyulog su pochi file pubblici (DataFlash: 5 posizioni). Una traccia dice cosa riporta il file, non chi pilotava.
+- **Mappa (3.0)**: un punto è un dato della fonte, non la prova che il dispositivo fosse lì; date senza conversione di fuso, quindi fonti diverse possono risultare fuori ordine nelle tabelle e nell'animazione, che non mostra la velocità reale.
 - **Modello linguistico**: le risposte non sono riproducibili alla lettera e non sono un risultato: ogni affermazione va
   verificata sul dato indicato.
 

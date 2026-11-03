@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 silvexe
 """RepertIA - chat degli smartphone (dalla 2.20): lettori propri, indipendenti da iLEAPP/ALEAPP.
 
@@ -28,7 +28,7 @@ import sqlite3
 import tempfile
 from pathlib import Path
 
-from forense_lingua import tr, N_  # noqa: E402
+from forense_lingua import tr, N_, valore, conta  # noqa: E402
 import forense_mobile_wa as fmw  # noqa: E402
 import forense_mobile_ricevute as fmr  # noqa: E402
 import forense_mobile_chiamate as fmca  # noqa: E402
@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS chat_attachments(id INTEGER PRIMARY KEY, msg INTEGER,
 CREATE INDEX IF NOT EXISTS idx_ca_msg ON chat_attachments(msg);
 CREATE TABLE IF NOT EXISTS chat_contacts(id INTEGER PRIMARY KEY, source TEXT, name TEXT, value TEXT, norm TEXT);
 CREATE INDEX IF NOT EXISTS idx_cc_norm ON chat_contacts(norm);
+CREATE TABLE IF NOT EXISTS chat_lid(lid TEXT, numero TEXT, fonte TEXT, UNIQUE(lid, numero));
 """
 
 DB_PATTERNS = {
@@ -108,6 +109,8 @@ def norm_number(v):
     """Chiave di confronto per numeri di telefono e identificativi: ultime 9 cifre (prefissi internazionali e zeri
     iniziali diversi tra rubrica e app), altrimenti l'indirizzo in minuscolo (email, id WhatsApp senza numero)."""
     v = (v or "").strip().lower()
+    if v.endswith("@lid"):       # identificativo casuale di WhatsApp: le sue cifre non sono un numero di telefono
+        return v
     if "@" in v and re.match(r"^\+?\d+@", v):
         v = v.split("@", 1)[0]
     d = re.sub(r"\D", "", v)
@@ -167,9 +170,13 @@ class WorkDB:
         self.tmp = Path(tempfile.mkdtemp(prefix="chat_", dir=str(case.root)))
         name = Path(path).name
         self.file = self.tmp / name
-        with open(self.file, "wb") as fo:
-            for b in fm.stream(case, part, inode):
-                fo.write(b)
+        try:
+            with open(self.file, "wb") as fo:
+                for b in fm.stream(case, part, inode):
+                    fo.write(b)
+        except Exception:                       # (3.0) copia forense non raggiungibile: nessuna cartella temporanea resta nel caso
+            shutil.rmtree(self.tmp, ignore_errors=True)
+            raise
         self.wal = False
         for suf in ("-wal", "-shm", "-journal"):
             m = fm.mx(case)
@@ -419,6 +426,130 @@ def name_map(con):
         if name not in out[key]:
             out[key].append(name)
     return {k: " / ".join(v[:3]) for k, v in out.items()}
+
+
+# ------------------------------------------------------------------- LID di WhatsApp e numero di telefono
+
+def lid_da_db(db):
+    """(3.0) Coppie (LID, numero, tabella) scritte da WhatsApp in un suo database. Mai dedotte: le cifre del LID sono casuali.
+    Android: jid_map di msgstore.db (lid_row_id → jid_row_id), schema non documentato, come lo legge anche ALEAPP; wa_contacts
+    con LID e numero sulla stessa riga. iOS: ZLID di ContactsV2.sqlite sulla stessa riga del numero."""
+    t = {r[0].lower() for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    cols = lambda x: {r[1].lower() for r in db.execute(f"PRAGMA table_info({x})")}
+    out = []
+    if {"jid_map", "jid"} <= t and {"lid_row_id", "jid_row_id"} <= cols("jid_map"):
+        out += [(a, b, "jid_map") for a, b in db.execute("SELECT l.raw_string, n.raw_string FROM jid_map m JOIN jid l ON l._id = m.lid_row_id "
+                                                         "JOIN jid n ON n._id = m.jid_row_id")]
+    if "wa_contacts" in t and {"jid", "number"} <= cols("wa_contacts"):
+        out += [(a, b, "wa_contacts") for a, b in db.execute("SELECT jid, number FROM wa_contacts WHERE jid LIKE '%@lid'")]
+    if "zwaaddressbookcontact" in t and "zlid" in cols("ZWAADDRESSBOOKCONTACT"):
+        c = cols("ZWAADDRESSBOOKCONTACT")
+        num = "COALESCE(" + ", ".join([x for x in ("ZWHATSAPPID", "ZPHONENUMBER") if x.lower() in c] + ["NULL", "NULL"]) + ")"
+        out += [(a, b, "ZWAADDRESSBOOKCONTACT") for a, b in db.execute(f"SELECT ZLID, {num} FROM ZWAADDRESSBOOKCONTACT")]
+    pulite = []
+    for lid, num, tab in out:
+        m = re.fullmatch(r"(\d+)(@lid)?", str(lid or "").strip())
+        if m and num and not str(num).endswith("@lid") and re.sub(r"\D", "", str(num).split("@")[0]):
+            pulite.append((m.group(1) + "@lid", str(num).strip(), tab))
+    return pulite
+
+
+def lid_leggi(case, con, part, found):
+    """Scrive in chat_lid le associazioni dei database di WhatsApp di questa sorgente."""
+    n = 0
+    for kind, (inode, path) in found:
+        if kind not in ("whatsapp_android", "wa_contacts_android", "wa_contacts_ios"):
+            continue
+        w = None
+        try:
+            w = WorkDB(case, part, inode, path, con)
+            for lid, num, tab in lid_da_db(w.db):
+                n += con.execute("INSERT OR IGNORE INTO chat_lid(lid, numero, fonte) VALUES (?,?,?)", (lid, num, f"{path} · {tab}")).rowcount
+        except Exception as e:
+            print(tr("  Associazione LID {path}: non letta ({e})").format(path=path, e=e), flush=True)
+        finally:
+            if w:
+                w.close()
+    return n
+
+
+def lid_applica(con):
+    """Mostra insieme LID e numero in conversazioni, mittenti e rubrica. La colonna sender resta il valore grezzo del database.
+    Si può ripetere: non riscrive ciò che ha già il numero."""
+    per_lid, per_num = {}, {}
+    for lid, num in con.execute("SELECT lid, numero FROM chat_lid ORDER BY lid, numero"):
+        per_lid.setdefault(lid, []).append(show_id(num))
+        per_num.setdefault(norm_number(num), []).append(lid)
+    if not per_lid:
+        return 0
+    n = 0
+    nome = lambda nums, nm: next((nm[norm_number(x)] for x in nums if nm.get(norm_number(x))), "")
+    nm = name_map(con)
+    for i, key, title, parts in con.execute("SELECT id, key, title, participants FROM chat_threads WHERE app = 'whatsapp'").fetchall():
+        try:
+            pl = json.loads(parts or "[]")
+        except ValueError:
+            continue
+        nuovi = []
+        for p in pl:
+            base = str(p).split(" (", 1)[0]
+            altri = per_lid.get(base) or (per_num.get(norm_number(base)) if base.endswith("@s.whatsapp.net") else None)
+            nuovi.append(f"{base} ({', '.join(altri)})" if altri else p)
+        lid = (key or "").rsplit("|", 1)[-1]
+        nums = per_lid.get(lid)
+        nt = title
+        if nums and not any(x in (title or "") for x in nums):
+            testa = nome(nums, nm) if title in (None, "", key, lid) else title
+            nt = " · ".join(x for x in (testa, ", ".join(nums)) if x)
+        if nuovi != pl or nt != title:
+            con.execute("UPDATE chat_threads SET participants = ?, title = ? WHERE id = ?", (json.dumps(nuovi, ensure_ascii=False), nt, i))
+            n += 1
+    for snd, sname in con.execute("SELECT DISTINCT sender, sender_name FROM chat_messages WHERE sender LIKE '%@lid'").fetchall():
+        nums = per_lid.get(snd)
+        if nums and not any(x in (sname or "") for x in nums):
+            testa = sname or nome(nums, nm)
+            con.execute("UPDATE chat_messages SET sender_name = ? WHERE sender = ? AND sender_name IS ?",
+                        (f"{testa} ({', '.join(nums)})" if testa else ", ".join(nums), snd, sname))
+            n += 1
+    # rubrica: chi cerca il LID trova il numero, chi cerca il numero trova il LID
+    for lid, nums in per_lid.items():
+        val = f"{lid} ({', '.join(nums)})"
+        righe = con.execute("SELECT id FROM chat_contacts WHERE value IN (?, ?)", (lid, lid.split("@")[0])).fetchall()
+        for (cid,) in righe:
+            con.execute("UPDATE chat_contacts SET value = ?, norm = ? WHERE id = ?", (val, norm_number(nums[0]), cid))
+        if not righe and not con.execute("SELECT 1 FROM chat_contacts WHERE value = ?", (val,)).fetchone():
+            fonte = con.execute("SELECT fonte FROM chat_lid WHERE lid = ? LIMIT 1", (lid,)).fetchone()[0].split(" · ")[0]
+            con.execute("INSERT INTO chat_contacts(source, name, value, norm) VALUES (?,?,?,?)", (fonte, nome(nums, nm), val, norm_number(nums[0])))
+            n += 1
+    return n
+
+
+def lid_ripara(case):
+    """Casi preparati prima di questa funzione: una volta sola all'apertura. Cambia solo le tabelle dei risultati del caso;
+    riepiloghi per conversazione e timeline delle chat si aggiornano preparando di nuovo il caso."""
+    import forense_mobile as fm
+    if case.meta.get("lid_assoc_3") or not case.db_path.exists():
+        return 0
+    con = sqlite3.connect(case.db_path)
+    n = 0
+    try:
+        if con.execute("SELECT 1 FROM sqlite_master WHERE name = 'chat_threads'").fetchone():
+            ensure_schema(con)
+            for p in fm.sorgenti(case):
+                part = int(p["offset"])
+                m = fm.mx(case)
+                found, _c = trova_db(m, part)
+                m.close()
+                lid_leggi(case, con, part, [(k, x) for k, xs in found.items() for x in xs])
+            n = lid_applica(con)
+            con.commit()
+    finally:
+        con.close()
+    case.meta["lid_assoc_3"] = True
+    if n:
+        case.log("lid_associati", {"righe": n, "motivo": tr("LID di WhatsApp associati al numero registrato dall'app")})
+    case.save()
+    return n
 
 
 # ------------------------------------------------------------------- proprietario del telefono
@@ -1003,8 +1134,9 @@ def run(case, con, chiamate=True):
     import forense_mobile as fm
     import forense_estesa as fe
     ensure_schema(con)
-    for tb in ("chat_threads", "chat_messages", "chat_attachments", "chat_contacts"):
+    for tb in ("chat_threads", "chat_messages", "chat_attachments", "chat_contacts", "chat_lid"):
         con.execute(f"DELETE FROM {tb}")
+    case.meta["lid_assoc_3"] = True
     fmr.svuota(con)
     con.execute("DELETE FROM events WHERE origin='chat'")
     fe.ensure_schema(con)
@@ -1025,6 +1157,7 @@ def run(case, con, chiamate=True):
         out["cifrati"] += encrypted
         print(tr("Rubriche e contatti…"), flush=True)
         out["rubriche"] += read_contacts(case, con, part, [(k, x) for k, xs in found.items() for x in xs])
+        lid_leggi(case, con, part, [(k, x) for k, xs in found.items() for x in xs])
         names = name_map(con)
         done_sms, letti = set(), {}
         readers = (("imessage", read_imessage), ("whatsapp_ios", read_whatsapp_ios),
@@ -1067,6 +1200,8 @@ def run(case, con, chiamate=True):
         out["app"].update(lapps)
     except Exception as e:
         out["avvisi"].append(tr("Chat da iLEAPP/ALEAPP non ricavate ({vname}: {e})").format(vname=type(e).__name__, e=e))
+    lid_applica(con)
+    names = name_map(con)
     # riepilogo per conversazione, timeline e artefatti
     thread_stats(con)
     chat_events(con)
@@ -1096,7 +1231,7 @@ def run(case, con, chiamate=True):
     case.save()
     for app, a in out["app"].items():
         print(tr("  {app}: {c} conversazioni, {m} messaggi, {a} allegati").format(
-            app=APP_LBL.get(app, app), c=a["conversazioni"], m=a["messaggi"], a=a["allegati"]), flush=True)
+            app=tr(APP_LBL.get(app, app)), c=a["conversazioni"], m=a["messaggi"], a=a["allegati"]), flush=True)
     if not out["app"]:
         print(tr("  Nessun database di chat riconosciuto nell'estrazione."), flush=True)
     return out
@@ -1206,8 +1341,8 @@ def chat_events(con, ids=None):
             "SELECT m.ts, m.app, m.direction, m.sender, m.sender_name, m.text, t.title, t.src_path, m.kind, m.extra FROM chat_messages m "
             "JOIN chat_threads t ON t.id = m.thread" + (w + " AND" if w else " WHERE") + " m.ts IS NOT NULL", a):
         who = tr("inviato") if d == "out" else (sname or sender or tr("ricevuto"))
-        evs.append((ts, "MSG", APP_LBL.get(app, app), src,
-                    f"{APP_LBL.get(app, app)} | {title} | {who}: {(text or '[' + fmw.etichetta(kind, extra) + ']')[:300]}", "chat", None))
+        evs.append((ts, "MSG", tr(APP_LBL.get(app, app)), src,
+                    f"{tr(APP_LBL.get(app, app))} | {title} | {who}: {(text or '[' + fmw.etichetta(kind, extra) + ']')[:300]}", "chat", None))
         if len(evs) >= 50000:
             con.executemany(fa.INSERT_EV, evs)
             evs.clear()
@@ -1260,7 +1395,7 @@ def thread_artifacts(con, names, ids=None):
                       t=prev[:120]) if lm else ""))
         rows.append(("messaggi", b, (tr("{app}: {loc} ↔ {other} · {n} messaggio") if n == 1 else
                                      tr("{app}: {loc} ↔ {other} · {n} messaggi")).format(
-            app=APP_LBL.get(app, app), loc=lbl_loc, other=other, n=n), detail, "", src, part, inode,
+            app=tr(APP_LBL.get(app, app)), loc=lbl_loc, other=other, n=n), detail, "", src, part, inode,
             json.dumps({"chat_thread": tid, "app": app, "locale": loc, "altro": altro, "gruppo": gruppo,
                         "partecipanti": [show_id(x) for x in plist][:50], "n": n, "inviati": out_n, "ricevuti": in_n,
                         "eventi": sys_n, "allegati": att_n, "eliminati": del_n, "primo": a, "ultimo": b,
@@ -1296,15 +1431,17 @@ def summary_md(case, what="all"):
     if what == "all":
         L.append(tr("#### Smartphone"))
         si = mob.get("sistema") or {}
-        L.append("- " + (m.get("disk_type") or "") + (f" ({si.get('modello')})" if si.get("modello") else "")
+        L.append("- " + (valore(m.get("disk_type")) or "") + (f" ({si.get('modello')})" if si.get("modello") else "")
                  + (tr(", estrazione prodotta da {p}").format(p=mob["produttore"]) if mob.get("produttore") else ""))
     c = m.get("chat") or {}
     if what in ("all", "mobile_chat"):
         L.append(tr("#### Chat"))
         if c.get("app"):
             for app, a in c["app"].items():
-                L.append(tr("- {app}: {c} conversazioni, {n} messaggi, {a} allegati").format(
-                    app=APP_LBL.get(app, app), c=a["conversazioni"], n=a["messaggi"], a=a["allegati"]))
+                L.append(f"- {tr(APP_LBL.get(app, app))}: " + ", ".join((
+                    conta(a["conversazioni"], "{n} conversazione", "{n} conversazioni"),
+                    conta(a["messaggi"], "{n} messaggio", "{n} messaggi"),
+                    conta(a["allegati"], "{n} allegato", "{n} allegati"))))
             L.append(tr("- Le conversazioni si leggono con il pulsante «Apri le chat» nel pannello del caso."))
             Q += [tr("Elenca le conversazioni con più messaggi e i loro partecipanti"),
                   tr("Ci sono messaggi che parlano di appuntamenti, soldi o spostamenti?")]
@@ -1343,7 +1480,7 @@ def preferiti_chat_md(case):
             if not t:
                 continue
             app, title, n, first, last, src = t
-            L += [f"#### {APP_LBL.get(app, app)} · {title}", "",
+            L += [f"#### {tr(APP_LBL.get(app, app))} · {title}", "",
                   tr("{n} messaggi, dal {a} al {b} UTC. Fonte: {s}. Categorie: {c}.").format(
                       n=n, a=(first or "?").replace("T", " "), b=(last or "?").replace("T", " "), s=src or "?", c=", ".join(x["categorie"])), ""]
             rows = con.execute("SELECT ts, direction, sender, sender_name, text, kind, extra, src_table, src_row FROM chat_messages "
@@ -1478,7 +1615,7 @@ def report_md(case):
                     "lavoro con i suoi file -wal/-shm. Orari in UTC."))
         L += ["", tr("| App | Conversazioni | Messaggi | Allegati | Database |"), "|---|---|---|---|---|"]
         for app, a in c["app"].items():
-            L.append(f"| {APP_LBL.get(app, app)} | {a['conversazioni']} | {a['messaggi']} | {a['allegati']} | "
+            L.append(f"| {tr(APP_LBL.get(app, app))} | {a['conversazioni']} | {a['messaggi']} | {a['allegati']} | "
                      f"{cell(', '.join(a.get('fonti') or []))} |")
         prop = c.get("proprietario") or {}
         L.append("")
@@ -1624,19 +1761,17 @@ def strumenti_dict(case):
     return out
 
 
-def metodo_md(case, llm_m):
+def metodo_md(case):
     """(2.20) Note metodologiche dei casi smartphone: estrazione del file system, non immagine disco."""
+    import forense_agent as _fa
     m = case.meta
     nomi = [k for k, _v in strumenti_usati(case) if k not in ("RepertIA", "Python")]
     return (tr("L'analisi è stata condotta sull'estrazione del file system del telefono (non su un'immagine disco: niente "
                "partizioni, spazio non allocato né file cancellati del file system), aperta in sola lettura e letta voce per "
                "voce senza estrarla; i database sono letti da copie di lavoro con i loro file -wal/-shm.")
             + " " + (tr("Strumenti usati: {s}.").format(s=", ".join(nomi)) if nomi else "")
-            + tr(" Con il supporto di un modello linguistico ")
-            + (tr("eseguito su un server della rete interna, senza servizi esterni. ") if llm_m.get("remoto")
-               else tr("eseguito localmente. "))
-            + tr("Ogni reperto è stato verificato dall'analista sugli strumenti forensi. "
-                 "La traccia completa di comandi e risposte è in `audit_log.jsonl`."))
+            + " " + _fa.modello_metodo_md(case) + _fa.verifica_reperti_md(case.findings())
+            + tr("La traccia completa di comandi e risposte è in `audit_log.jsonl`."))
 
 
 # --------------------------------------------------------------------------- per l'agente
@@ -1648,7 +1783,7 @@ def prompt_extra(case):
             "nell'estrazione.").format(os=m.get("disk_type"), off=(m.get("partitions") or [{}])[0].get("offset"))]
     c = m.get("chat") or {}
     if c.get("app"):
-        L.append(tr("- Chat lette ({app}): list_chats elenca le conversazioni, read_chat legge una conversazione "
+        L.append(tr("- Chat lette ({app}): count_messages conta i messaggi, list_chats elenca le conversazioni, read_chat legge una conversazione "
                     "(anche per periodo), search_messages cerca nel testo dei messaggi, find_contact trova un contatto "
                     "nelle rubriche. Ogni messaggio cita database, tabella e riga di origine: citali.").format(
             app=", ".join(f"{APP_LBL.get(k, k)} {v['messaggi']}" for k, v in c["app"].items())))
@@ -1673,14 +1808,15 @@ def agent_tools(case):
         return f"[{(ts or '?').replace('T', ' ')} UTC] {who} {text or '[' + fmw.etichetta(kind, extra) + ']'}" + (
             f" (+{n_att} " + tr("allegati") + ")" if n_att else "") + f"  ⟨msg {mid}; {src} {table}#{row}⟩"
 
-    def list_chats(app: str = "", contains: str = "", limit: int = 100) -> str:
-        """Elenca le conversazioni delle chat del telefono (WhatsApp, iMessage/SMS, SMS/MMS) con partecipanti, numero
-        di messaggi e periodo.
+    def list_chats(app: str = "", contains: str = "", limit: int = 100, offset: int = 0) -> str:
+        """Elenca le conversazioni delle chat del telefono con partecipanti, numero di messaggi e periodo. Le app presenti
+        si vedono con count_messages(by='app').
 
         Args:
-            app: 'whatsapp', 'imessage' o 'sms'; vuoto per tutte
+            app: nome dell'app, es. 'whatsapp', 'imessage', 'sms', 'telegram'; vuoto per tutte
             contains: testo nel titolo o nei partecipanti (nome o numero)
             limit: numero massimo di conversazioni (max 500)
+            offset: righe da saltare, per proseguire dopo una risposta incompleta
         """
         con = _db()
         w, a = [], []
@@ -1690,13 +1826,13 @@ def agent_tools(case):
         if contains:
             w.append("(title LIKE ? ESCAPE '\\' OR participants LIKE ? ESCAPE '\\')")
             a += [fa.like(contains)] * 2
+        tot = con.execute("SELECT COUNT(*) FROM chat_threads" + (" WHERE " + " AND ".join(w) if w else ""), a).fetchone()[0]
         rows = con.execute("SELECT id, app, title, participants, is_group, n_msg, first_ts, last_ts FROM chat_threads"
-                           + (" WHERE " + " AND ".join(w) if w else "") + " ORDER BY last_ts DESC LIMIT ?",
-                           a + [max(1, min(int(limit), 500))]).fetchall()
+                           + (" WHERE " + " AND ".join(w) if w else "") + " ORDER BY last_ts DESC, id LIMIT ? OFFSET ?",
+                           a + [max(1, min(int(limit), 500)), max(0, int(offset))]).fetchall()
         con.close()
-        return fa.clip("\n".join(f"#{i} {APP_LBL.get(ap, ap)} | {t} | {'gruppo' if g else 'singola'} | {n} msg | "
-                                 f"{(f or '?')[:16]} → {(l or '?')[:16]} | {p}" for i, ap, t, p, g, n, f, l in rows)
-                       or tr("Nessuna conversazione."))
+        return fa.pagina([f"#{i} {APP_LBL.get(ap, ap)} | {t} | {'gruppo' if g else 'singola'} | {n} msg | "
+                          f"{(f or '?')[:16]} → {(l or '?')[:16]} | {p}" for i, ap, t, p, g, n, f, l in rows], tot, offset)
 
     def read_chat(chat_id: int, start: str = "", end: str = "", offset: int = 0, limit: int = 200) -> str:
         """Legge i messaggi di una conversazione in ordine di tempo (UTC), con mittente, testo, allegati e
@@ -1710,6 +1846,8 @@ def agent_tools(case):
             limit: messaggi da mostrare (max 500)
         """
         con = _db()
+        if not con.execute("SELECT 1 FROM chat_threads WHERE id = ?", (int(chat_id),)).fetchone():
+            return tr("La conversazione {v1} non esiste: i numeri validi sono quelli di list_chats.").format(v1=chat_id)
         w, a = ["m.thread = ?"], [int(chat_id)]
         if start:
             w.append("m.ts >= ?")
@@ -1732,26 +1870,35 @@ def agent_tools(case):
                                                                                                 "nell'estrazione]"))
                                                + (f" GPS {lat},{lon}" if lat else ""))
         con.close()
-        out = [tr("{tot} messaggi; mostrati {a}-{b}").format(tot=tot, a=int(offset) + 1, b=int(offset) + len(rows))]
-        for r in rows:
-            out.append(_fmt(r))
-            for x in att.get(r[7], []):
-                out.append("    📎 " + x)
-        if int(offset) + len(rows) < tot:
-            out.append(tr("[... altri messaggi: richiama con offset={o}]").format(o=int(offset) + len(rows)))
-        return fa.clip("\n".join(out))
+        return fa.pagina(["\n".join([_fmt(r)] + ["    📎 " + x for x in att.get(r[7], [])]) for r in rows], tot, offset)
+
+    def read_message(message_id: int) -> str:
+        """Un messaggio dal suo numero (quello che location_points indica come «c|N»), con la conversazione.
+
+        Args:
+            message_id: numero del messaggio
+        """
+        con = _db()
+        try:
+            r = con.execute("SELECT m.ts, m.direction, m.sender, m.sender_name, m.text, m.kind, m.n_att, m.id, m.src_table, m.src_row, "
+                            "t.src_path, m.extra, t.title FROM chat_messages m JOIN chat_threads t ON t.id = m.thread WHERE m.id=?",
+                            (int(message_id),)).fetchone()
+        finally:
+            con.close()
+        return f"{r[12]}: {_fmt(r[:12])}" if r else tr("Messaggio {id} non trovato.").format(id=message_id)
 
     def search_messages(text: str, app: str = "", contact: str = "", start: str = "", end: str = "",
-                        limit: int = 100) -> str:
+                        limit: int = 100, offset: int = 0) -> str:
         """Cerca parole nel testo dei messaggi di tutte le chat (senza distinzione maiuscole/minuscole).
 
         Args:
             text: parola o frase da cercare
-            app: 'whatsapp', 'imessage' o 'sms'; vuoto per tutte
+            app: nome dell'app, es. 'whatsapp', 'imessage', 'sms', 'telegram'; vuoto per tutte
             contact: nome o numero del mittente o della conversazione, facoltativo
             start: data iniziale ISO, facoltativa
             end: data finale ISO, facoltativa
             limit: risultati massimi (max 500)
+            offset: righe da saltare, per proseguire dopo una risposta incompleta
         """
         con = _db()
         w, a = ["m.text LIKE ? ESCAPE '\\'"], [fa.like(text)]
@@ -1768,12 +1915,46 @@ def agent_tools(case):
         if end:
             w.append("m.ts <= ?")
             a.append(end if "T" in end else end + "T23:59:59")
+        tot = con.execute("SELECT COUNT(*) FROM chat_messages m JOIN chat_threads t ON t.id=m.thread WHERE " + " AND ".join(w), a).fetchone()[0]
         rows = con.execute("SELECT m.ts, m.direction, m.sender, m.sender_name, m.text, m.kind, m.n_att, m.id, m.src_table, "
                            "m.src_row, t.src_path, t.id, t.title, m.extra FROM chat_messages m JOIN chat_threads t ON t.id=m.thread "
-                           "WHERE " + " AND ".join(w) + " ORDER BY m.ts LIMIT ?",
-                           a + [max(1, min(int(limit), 500))]).fetchall()
+                           "WHERE " + " AND ".join(w) + " ORDER BY m.ts, m.id LIMIT ? OFFSET ?",
+                           a + [max(1, min(int(limit), 500)), max(0, int(offset))]).fetchall()
         con.close()
-        return fa.clip("\n".join(f"chat #{r[11]} «{r[12]}»: " + _fmt(r[:11] + (r[13],)) for r in rows) or tr("Nessun messaggio."))
+        return fa.pagina([f"chat #{r[11]} «{r[12]}»: " + _fmt(r[:11] + (r[13],)) for r in rows], tot, offset)
+
+    def count_messages(by: str = "app", app: str = "", contains: str = "", start: str = "", end: str = "") -> str:
+        """Conta i messaggi delle chat senza leggerli: da usare per primo quando sono molti.
+
+        Args:
+            by: app, chat, mittente, giorno o mese
+            app: nome dell'app; vuoto per tutte
+            contains: testo da cercare nel messaggio
+            start: data iniziale ISO, facoltativa
+            end: data finale ISO, facoltativa
+        """
+        exprs = {"app": "m.app", "chat": "t.id || ' ' || COALESCE(t.title, '')", "mittente": "COALESCE(NULLIF(m.sender_name, ''), m.sender)",
+                 "giorno": "substr(m.ts, 1, 10)", "mese": "substr(m.ts, 1, 7)"}
+        e = exprs.get(str(by).strip().lower())
+        if not e:
+            return tr("Valori possibili per by: {v}").format(v=", ".join(exprs))
+        w, a = ["1=1"], []
+        if app:
+            w.append("m.app = ?"); a.append(app.lower())
+        if contains:
+            w.append("m.text LIKE ? ESCAPE '\\'"); a.append(fa.like(contains))
+        if start:
+            w.append("m.ts >= ?"); a.append(start)
+        if end:
+            w.append("m.ts <= ?"); a.append(end if "T" in end else end + "T23:59:59")
+        con = _db()
+        cond = " AND ".join(w)
+        tab = "chat_messages m JOIN chat_threads t ON t.id=m.thread"
+        tot = con.execute(f"SELECT COUNT(*) FROM {tab} WHERE {cond}", a).fetchone()[0]
+        rows = con.execute(f"SELECT {e}, COUNT(*) FROM {tab} WHERE {cond} GROUP BY 1 ORDER BY 2 DESC, 1 LIMIT 200", a).fetchall()
+        con.close()
+        return fa.clip("\n".join([tr("{tot} messaggi in {n} valori (ne sono elencati al massimo 200):").format(tot=tot, n=len(rows))]
+                                  + [f"{v if v not in (None, '') else '-'}: {n}" for v, n in rows]))
 
     def find_contact(text: str) -> str:
         """Cerca un contatto nelle rubriche del telefono e di WhatsApp (nome, numero o indirizzo).
@@ -1795,5 +1976,5 @@ def agent_tools(case):
     except sqlite3.Error:
         has = None
     if has:
-        tools += [list_chats, read_chat, search_messages, find_contact]
+        tools += [list_chats, read_chat, search_messages, count_messages, find_contact, read_message]
     return tools

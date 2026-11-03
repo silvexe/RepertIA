@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 silvexe
 """RepertIA - chat e chiamate ricavate dagli artefatti di iLEAPP/ALEAPP (dalla 2.20).
 
@@ -656,6 +656,7 @@ def run(case, con, say=print):
     remove_leapp_chats(con)
     names = fmc.name_map(con) if con.execute("SELECT name FROM sqlite_master WHERE name='chat_contacts'").fetchone() else {}
     apps, usate, auto = chat_from_leapp(case, con, names)
+    fmc.lid_applica(con)
     ids = _leapp_thread_ids(con)
     if ids:
         fmc.thread_stats(con, ids)

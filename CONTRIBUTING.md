@@ -23,7 +23,7 @@ integrity of the images or the confidentiality of the data at risk.
 
 ## License of contributions (DCO)
 
-Contributions are accepted under the project's license (GPL-3.0-or-later). Every commit must be signed off with
+Contributions are accepted under the project's license (AGPL-3.0-or-later). Every commit must be signed off with
 `git commit -s`, which adds the line `Signed-off-by: Name Surname <email>` and means you agree to the
 [Developer Certificate of Origin 1.1](https://developercertificate.org/): you state that you have the right to submit
 the code under this license.
@@ -59,7 +59,7 @@ mettere a rischio l'integrità delle copie o la riservatezza dei dati.
 
 ## Licenza dei contributi (DCO)
 
-I contributi sono accettati con la stessa licenza del progetto (GPL-3.0-or-later). Ogni commit va firmato con
+I contributi sono accettati con la stessa licenza del progetto (AGPL-3.0-or-later). Ogni commit va firmato con
 `git commit -s`, che aggiunge la riga `Signed-off-by: Nome Cognome <email>` e vale come adesione al
 [Developer Certificate of Origin 1.1](https://developercertificate.org/): dichiari di avere il diritto di proporre il
 codice con questa licenza.

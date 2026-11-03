@@ -46,6 +46,8 @@ Struttura e componenti in [build/mac/COME_RICOSTRUIRE.txt](../build/mac/COME_RIC
 zip -qry -X RepertIA-<versione>-Mac.zip RepertIA      # -y conserva i link simbolici di Python
 ```
 
+Dopo lo zip si controlla il permesso di esecuzione di `MacOS/RepertIA`, `Resources/avvia.command` e dei due `.command` accanto all'app, poi si avvia il programma dall'app estratta: il collaudo da riga di comando non passa da questi file.
+
 Per una nuova versione basta estrarre lo zip precedente, sostituire i file di `Resources/RepertIA/`, aggiornare
 `Info.plist` e `LEGGIMI.txt` e ricomprimere.
 
@@ -54,7 +56,7 @@ Per una nuova versione basta estrarre lo zip precedente, sostituire i file di `R
 Struttura in [build/linux/COME_RICOSTRUIRE.txt](../build/linux/COME_RICOSTRUIRE.txt): cartella `RepertIA/` con gli script
 di `build/linux/` (`installa.sh`, `RepertIA.sh`, `collaudo.sh`, `aggiorna-strumenti.sh`, `requirements-linux.txt`,
 `repertia.png`, `LEGGIMI.txt`, `README_EN.txt`), `LICENSE`, `THIRD_PARTY_LICENSES.md`, `VALIDAZIONE.md`, `RepertIA/`
-(i file di `src/`), `strumenti/7zip/7zz` (7z2601-linux-x64.tar.xz) e `strumenti/tessdata` (come nel pacchetto Mac, con `LICENSE.txt`).
+(i file di `src/`), `strumenti/7zip/7zz` (7z2605-linux-x64.tar.xz) e `strumenti/tessdata` (come nel pacchetto Mac, con `LICENSE.txt`).
 Python, plaso e le librerie si installano sul computer di destinazione con `installa.sh`.
 
 ```
@@ -69,7 +71,7 @@ Struttura dell'installazione e ricette dei componenti (Python, plaso, Sleuth Kit
 contiene `RepertIA.bat`, `Aggiorna strumenti.bat`, `Collaudo.bat`, `LEGGIMI.txt`, `README_EN.txt`, `repertia.ico`, `RepertIA\`
 (i file di `src/`, compresi `forense_lingua.py` e `lingua_en.json`), `python\`, `strumenti\`. Mettere in `app\` anche `LICENSE`, `THIRD_PARTY_LICENSES.md` e `VALIDAZIONE.md`: `File /r app\*.*` li
 include nell'installer. L'installer è bilingue: accanto a `repertia.nsi` servono `LEGGIMI.txt` e `README_EN.txt`
-(pagina «Licenza» in italiano o in inglese). Il `LEGGIMI.txt` di Windows contiene in fondo il testo completo della GPL (pagina «Licenza»
+(pagina «Licenza» in italiano o in inglese). Il `LEGGIMI.txt` di Windows contiene in fondo il testo completo dell'AGPL (pagina «Licenza»
 dell'installer).
 
 **Installer** (con NSIS):
@@ -99,6 +101,7 @@ risultato: `python3 nsis_x.py <nuovo>.exe prova/` e confronto con la cartella at
 
 ## Pubblicare una versione
 
+0. Controllo dei pacchetti finali: `python3 tools/controlla_pacchetti.py <cartella dei pacchetti>` (permessi, link, versione, file necessari, sorgenti uguali a `src/`, Setup uguale allo zip, impronte, avvio dallo zip Mac). Poi a mano: doppio clic sull'app dallo zip **scaricato**, Setup su Windows.
 1. Collaudo su Mac, Windows e Linux e controllo dei dati: `python3 tools/controlla_pubblicazione.py .` (con `--parole` e un
    elenco privato, mai nel repository) deve dire «nessun dato sensibile».
 2. `git commit -s`, `git tag v<versione>`, `git push origin main v<versione>`.

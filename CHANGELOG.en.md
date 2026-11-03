@@ -5,6 +5,80 @@ full; earlier versions are summarised (details in the Italian change log).*
 
 For every version: what changes, how it was tested, what was not tested.
 
+## 3.0.0
+
+**Calls in columns.** In Artifacts › Calls direction, contact (name and number), app, duration and answered are separate columns, each with its own filter. The Timeline Source menu has the search inside and Bookmarks as third item. Confirmations are program boxes, no longer browser windows. The guide also opens from the Case menu, over the program. If the page is reloaded or you come back from another page, the case open in that tab reopens by itself. On opening the tree is collapsed and, if the device time zone differs from the one times are shown in, a notice offers to use it. In the search, each group of results opens in its own tab (↗ Open in a tab) and saved searches are found from the “📂 Saved searches” menu next to the modes. Verify hash asks for confirmation and shows progress; “From chats” appears only once, under Photos/Videos/Audio by type.
+
+**Favourite points on the map.** ★ in the Positions table and “Favourite points only”: only the chosen points, also from different apps, are shown, animated by period and exported. Each choice goes into the log and into the Bookmarks (“GPS positions (map)”, with the date of the position for the Timeline). Changing tree item closes the preview; clicking a row opens the preview also for calls and events without a direct file. **Open tabs:** each tree item opened stays in a bar above the table (the 6 most recent, the others under “Open tabs”), to go back to it and remember what has already been looked at. The database manager separates tables with a line; Download maps also starts without Calculate size.
+
+**Maps with roads and names.** Downloaded extracts now show roads by type, buildings, green areas, water and names of streets, places and points of interest. Fonts are included (Noto Sans, OFL): no external request. Selecting a map while the view is outside it moves to the covered area.
+
+**Open chat at the top.** In the messages Timeline and in the “Chat messages” artifacts the 💬 Open chat button is also in the top bar: it opens the chat of the selected row, with no selection all the conversations of the section.
+
+**WhatsApp LID and number.** Where WhatsApp records the link (`jid_map` in msgstore.db on Android, `ZLID` in ContactsV2.sqlite on iPhone), conversations, senders, contacts, quick search, reports and the agent show LID and number; searching one finds the other. The link is never inferred: without a database row only the LID remains, and the source is stated in the conversation. Cases already prepared update on opening; per-conversation summaries and the chat timeline update by preparing the case again. Tested on built test data: the available public images do not contain these associations, and `ZLID` has not been seen on a real database.
+
+**Chat opened from an item.** In the program and the portable report the list shows only that conversation, with “Show all”; a search or filter returns to the full list. In the program the four sides of the chat window can be dragged, the size is kept on reopening and a double-click restores it; the divider between list and messages is more visible.
+
+**Column filters in the Timeline subsections.** On messages, calls, artifacts and favourites the column menu stayed on “No values” and filters had no effect: it now lists the values and filters table, chart and export; sorting works too.
+
+**Agent paging and counts.** The agent no longer stops at the first rows: each list states which rows it shows out of how many and continues with `offset`; new tools `count_artifacts` and `count_messages`. When it runs out of steps it answers with what it saw and the “Analysis NOT complete” notice appears; “continue” resumes. General questions start from counts and searches instead of browsing folders, and automatic findings are reserved for items of investigative interest. A non-existent conversation now returns a clear error; an answer written together with a finding is shown as an answer. Tested with Qwen 3.8 27B in LM Studio on test copies: full list 92 of 92, counts, WhatsApp calls. Not tested with other models. The model can still get references wrong (in one test it cited wrong inodes): they must be verified.
+
+**Prompt dictation.** The 🎤 button next to Send dictates the prompt: the browser records, whisper.cpp transcribes locally, the audio is deleted at once and the text is checked and sent by hand. A notice explains this on first use. A transcription model is required: if missing, as with maps, the case is closed and it is downloaded from the home page.
+
+**Full-screen Timeline.** The ⤢ Full screen button, in the program after Year and in the report next to the filters, enlarges the Timeline with chart, filters and table; ✕ Close or Esc return to the normal view.
+
+**Button names and chat from the Timeline.** On Timeline and Items of interest rows “Finder” becomes Export, which is what it does, and “Tree” becomes Source; in other lists Show in File System and Show in Finder say what happens. Messages in the Timeline have 💬 Open chat, in the preview too.
+
+**One tab per case.** RepertIA works on one case at a time. A tab left on a case after another was opened could receive and write the new case's data under the old name: it now stops with a notice and asks to reload the page. If you worked with several tabs, recheck findings, bookmarks and notes added from a tab left on the previous case.
+
+**Timeline by evidence.** In the program and in the portable report the Timeline, with its chart, can show a single type of evidence: one app's messages, one app's calls, an artifact or iLEAPP/ALEAPP item, or a bookmark group. Choose it from the Source menu or the tree. Only items with a date count.
+
+**Bookmarks in the portable report Timeline.** The report Timeline has a Bookmarks source, with categories in the tree too and a 🕘 View in Timeline button in Bookmarks.
+
+**Full-screen preview.** The ⤢ button enlarges the preview pane, with the same tabs; ✕ Reduce or Esc puts it back on the right. Also in the portable report.
+
+**Portable report like the case.** Sections have the case's names and order and a tree with their subsections, with an entry filter: artifacts by category, group and item, documents by extension, photos, videos and audio, mail, archives, recovered files, items of interest, anomalies, included files and bookmarks. New Documents section. Included files opens as a list, with thumbnails as an option. Documents, Photos/Videos/Audio and Included files have Size, Modified and Created columns, with filters, sorting and CSV.
+
+**Map controls.** Background, adding maps, import and export sit in the top bar, always visible even with many categories.
+
+**Summary language and database manager notice.** Texts saved in the case (media type, file system, time zone origin, document type) stayed in the language the case was created in: they now appear in the interface language, without changing the saved data; thousands separators follow the language too. The report stays in the case language. In the summary, counts use the singular when the number is 1, and the note “on FAT often local time” appears only if the case has a FAT partition. Opening a `.db` file that is not SQLite no longer gives a red error, but a notice with the format and the hex view.
+
+**Deleted searches.** A search deleted from the panel stayed in the tree until the case was reopened: it now disappears at once.
+
+**File System with no readable volume.** In copies with no readable file system, for example with a damaged boot sector, the section stayed on “Loading…” forever: it now says that no readable file system exists and points to carving and the other sections.
+
+**License.** From 3.0.0 RepertIA is released under **AGPL-3.0-or-later** (versions up to 2.21.0 remain GPL-3.0-or-later): anyone who builds it into software they distribute or offer over a network must release that software's source code under the same license. Additional permission for `pytsk3` and The Sleuth Kit, described in the README. New **ⓘ** button with copyright, license, no warranty, source address and map attribution. Removed from the portable report the link to openstreetmap.org, which sent coordinates over the network: the coordinates remain.
+
+**Database manager.** Opens a case's SQLite database on a working copy, read-only, with WAL; read-only SQL queries, search, CSV with SHA-256, bookmarks and findings, log entries; `query_database` tool for the agent. **Deleted records:** separate "to be verified" view, with page and offset, three reading levels, hex, check against FQLite's CSV and `deleted_records` tool.
+
+**Map.** Case points on a local background (MapLibre, Natural Earth); OpenStreetMap road maps only downloaded or selected with no case open, no network request from an open case. **🗺 Locations and flights** item in the tree, **Positions** and **Flights** tables by date, animation with highlighted row and animate-from-here, ↑ ↓ keys, KML and GPX, Map tab in the portable report, `location_points` tool.
+
+**Drones.** Third card on the start page, with its own input page. DJI logs versions 1-12 (from 13 "encrypted telemetry: not read", without contacting DJI), SRT, Litchi and Airdata CSV, Autel, PX4 ULog, tlog, DataFlash; Betaflight and DJI `.DAT` only flagged. Automatic flight search in forensic images of memory cards and disks, including deleted files. `flights` tool.
+
+**Documents and Photos/Videos/Audio.** New **Size**, **Modified** and **Created** columns, with filters (for example from 500KB to 2MB), sorting and export. The values come from the file system or from the list of extracted and recovered files; where they are unknown the cell stays empty.
+
+**AI model in the report.** The report states the model actually used in the case, taken from the case log: name, server, number of questions and answers, period. If no questions are recorded it says «none». It used to show the last connected model, or a dash, even with no questions at all, and the methodological notes always declared the «support of a language model»: now they do so only if one is recorded as used. On smartphones those notes also always said every finding was verified by the analyst: they now report the real status. **Reports already produced with earlier versions may contain these sentences even if no model was used.**
+
+**External tools.** The list is always a drop-down menu, on the home page too, now complete and grouped: programs, libraries actually loaded, iLEAPP and ALEAPP; **?** explains what each tool is for; the guide has a dedicated section.
+
+**Single search.** **⚡ Case search** is now the default everywhere and also searches file names, document text, metadata, chat attachments, recovered and extracted files, traces. Each answer states what it did not cover and reminds that file hash search is done in its own tab; with no results it warns that the data may still be there and leads to the byte search. Fixes: above 2,000 results artifacts hid messages; line breaks and double spaces broke phrases; typographic apostrophes and accents prevented matching; under 3 characters nothing was searched (emoji, 你好, "si").
+
+**AI model menu.** The LLM server panel moves from the side panel to a drop-down menu next to Additional tools; the status dot and the "external server" notice stay visible on the menu.
+
+**Database manager:** resizable tables column, Back and Forward buttons, Ask the agent on rows and deleted records. **Timeline:** Bookmarks source in chart and table. **Agent:** fixed «Ask» from rows opened from the map or search, which showed {0}; new tools `read_artifact`, `read_message`, `list_bookmarks`; flights also available in disk cases; `query_artifacts` also searches iLEAPP/ALEAPP fields. Also tested with a real model (Qwen 3.8 27B).
+
+**Photo coordinates: defect fixed, present at least since 2.19.** GPS metadata of photos and videos lost its sign: South and West came out positive, so latitude and longitude were wrong for the Americas, much of western Africa, Australia and South America. It affects lists, reports, the portable report, agent tools and the map. When a case is opened the coordinates are recalculated from the saved metadata, once and with a log entry; reports already produced do not change and must be redone.
+
+**Map:** changing the background no longer removes points and flights; **🗺 View on map** from photos with coordinates; popup button readable in the dark theme; page buttons always visible; column, height and table columns resizable with the mouse.
+
+**Reset interface.** New button in the case bar: columns, panes, views, tree, filters and displayed time return to how they were at first opening; case data is not touched.
+
+**Fixes.** **Link forensic copy** on smartphone cases did not update the content path: after linking, files could not be read (defect in 2.21.0). An unreachable copy no longer leaves empty folders; macOS `._` files on exFAT no longer stop a database's working copy.
+
+**How it was tested.** Acceptance test in Italian and English and the checks listed in VALIDATION.md. tlog, ULog and DataFlash compared with pymavlink and pyulog, same results. Deleted records on databases built and deleted by us, compared with FQLite, and on public Android 14 and iOS 17 copies.
+
+**What was not tested.** No real Autel log (reader tested on built files, each flight says so). Deleted records: partial recovery, about 55% of deleted rows in the independent test; no known truth on the public phones; `-journal` files are not read by the recovery. SRT and CSV only on built examples. Agent tested with a real model (Qwen 3.8 27B) on a test case; with a generic question in English it stopped at the step limit. The animation is not in the portable report.
+
 ## 2.21.0
 
 **Bookmarks:** an **Open chat** button on a chat's record; the whole chat in the bookmark export (HTML, CSV, attachments, optional period) and in the report; **Bookmark timeline** in order of event date, also in the report and as CSV. **Link forensic copy** in the Case menu: a case moved to another computer finds its copy again, accepted only with the same SHA-256, with a log entry. **Export diagnostic logs** (new technical log, no case data, mandatory preview). **iLEAPP/ALEAPP:** limit raised from 500,000 to 2,000,000 rows and, beyond it, small tables before huge ones: on a test iOS 17 iPhone 20 of 21 million rows are FSEvents, which took the room of the others. New script `tools/controlla_versioni.py`. **Tested:** acceptance test 448/448 in Italian and English from the Mac package, 77/77 on public images (11 new checks: bookmarked chats, timeline, report, export with period, Link forensic copy, diagnostic logs); browser test on test cases. Acceptance test on Windows with the final package passed (reported by the author). **Not tested:** Linux; the row limit on a real report above 2 million with the timing of the new import.

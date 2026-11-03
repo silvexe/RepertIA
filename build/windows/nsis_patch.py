@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 silvexe
 """Ricostruisce un installer NSIS 3 (Unicode, LZMA solido) sostituendo alcuni file, senza makensis.
 Uso: python3 nsis_patch.py vecchio.exe nuovo.exe VER_VECCHIA VER_NUOVA percorso_rel=file_nuovo ...

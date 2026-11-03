@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 silvexe
 """File citati per sezione (RepertIA 2.20): quante righe citano un file e quanti di questi file si trovano nella copia
 o nell'estrazione, con la stessa ricerca dell'interfaccia (src/forense_percorsi.py).

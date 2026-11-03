@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 silvexe
 """RepertIA - estrazioni di smartphone (iOS e Android), dalla 2.20.
 
@@ -400,7 +400,12 @@ def sorgenti(case):
 def _sorgente(case, part):
     for p in sorgenti(case):
         if int(p["offset"]) == int(part):
-            return p["mobile"]
+            mob = p["mobile"]
+            # (3.0) casi collegati con la 2.21: «Collega copia forense» non aggiornava questo percorso
+            img = case.meta.get("image")
+            if not os.path.exists(mob.get("file") or "") and img and os.path.exists(img) and len(sorgenti(case)) == 1:
+                return {**mob, "file": img}
+            return mob
     raise ValueError(tr("estrazione {part} non presente nel caso").format(part=part))
 
 
@@ -772,6 +777,8 @@ def cmd_prepara(args):
     lingua = lg.imposta(getattr(args, "lingua", None) or lg.lingua())
     case.meta = {"created": fa.now(), "tipo_caso": TIPO_CASO, "image": str(img), "evidence": str(img),
                  "tool_versions": {}, "lingua": lingua}
+    if getattr(args, "drone", False):       # (3.0) si legge come un'estrazione; le chat e iLEAPP/ALEAPP sull'insieme non servono
+        case.meta["drone"] = True
     try:
         case.meta["ambiente"] = fa.ambiente()
     except Exception as e:
@@ -844,7 +851,8 @@ def cmd_prepara(args):
                                    osinfo.get("versione") or "") if x) or None
     p["mobile"].update({"piattaforma": plat, "produttore": prod, "sistema": osinfo, "statistiche": stats})
     case.meta["mobile"] = {"piattaforma": plat, "produttore": prod, "sistema": osinfo, "formato": kind}
-    case.meta["disk_type"] = (tr("estrazione di uno smartphone {os}").format(os=p["os"]) if p["os"] else
+    case.meta["disk_type"] = (tr("scheda o cartella di un drone") if case.meta.get("drone") else
+                              tr("estrazione di uno smartphone {os}").format(os=p["os"]) if p["os"] else
                               tr("estrazione di uno smartphone (sistema non riconosciuto)"))
     fd = case.meta["fuso_dispositivo"]
     det = rileva_fuso(case, part, con)
@@ -892,7 +900,10 @@ def cmd_prepara(args):
         case.meta["wa_backup_attivo"] = True
         case.log("wa_backup_attivato", {"da": "prepara"})
         case.save()
-    if getattr(args, "chat", True):
+    if case.meta.get("drone"):
+        import forense_droni as fdr
+        fdr.run(case, lambda x: print(x, flush=True))
+    if getattr(args, "chat", True) and not case.meta.get("drone"):
         try:
             import forense_mobile_chat as fmc
             # con iLEAPP/ALEAPP dopo, le chiamate si scrivono una volta sola alla fine (numeri di riga invariati)
@@ -937,6 +948,7 @@ def main(argv=None):
     p.add_argument("--hash-file", action="store_true", help=tr("calcola MD5, SHA-1 e SHA-256 di tutti i file"))
     p.add_argument("--no-chat", dest="chat", action="store_false", help=tr("non legge le chat (WhatsApp, SMS, iMessage)"))
     p.add_argument("--leapp", action="store_true", help=tr("artefatti con iLEAPP (iOS) o ALEAPP (Android)"))
+    p.add_argument("--drone", action="store_true", help=tr("scheda o cartella di un drone: cerca i registri di volo"))
     p.add_argument("--decomprimi", action="store_true",
                    help=tr("per un .tar.gz: crea nella cartella del caso la copia derivata decompressa"))
     p.add_argument("--info", help=tr("dati del caso in JSON: nome, operatore, reperto, note"))

@@ -1,4 +1,4 @@
-<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 <!-- Copyright (C) 2026 silvexe -->
 <!-- RepertIA 2.20 - parte smartphone dell'interfaccia: inserita da forense_gui.py al posto del segnaposto REPERTIA_MOBILE.
      Usa le funzioni della pagina principale (api, T, TF, esc, fts, toast, show, startPrepView, pollPrep, openCase, pvOpen,
@@ -19,7 +19,13 @@
 .porig .crow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .chatov{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.35);display:flex;align-items:stretch;justify-content:center;padding:18px}
 .chatwin{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:0 10px 40px rgba(0,0,0,.25);width:min(1400px,100%);display:grid;grid-template-columns:var(--chlw,300px) 6px minmax(0,1fr);grid-template-rows:auto 1fr;overflow:hidden}
-.chatwin>.psplit{width:6px;opacity:.35}
+.chatwin>.psplit{width:6px;opacity:.8}
+.chatwin{position:relative;max-width:100%;max-height:100%}
+.chrz{position:absolute;z-index:3;touch-action:none}
+.chrz:hover,.chrz.on{background:var(--accent);opacity:.6}
+.chrz.l,.chrz.r{top:0;bottom:0;width:6px;cursor:col-resize}.chrz.l{left:0}.chrz.r{right:0}
+.chrz.t,.chrz.b{left:0;right:0;height:6px;cursor:row-resize}.chrz.t{top:0}.chrz.b{bottom:0}
+.chsolo{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:8px 12px;font-size:12px;color:var(--muted);background:var(--accent-soft);border-bottom:1px solid var(--line)}
 .chathead{grid-column:1/-1;display:flex;gap:10px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line)}
 .chathead h2{margin:0;font-size:17px}
 .chatleft{border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
@@ -84,7 +90,7 @@ body.chatopen .toast{z-index:80}
 .artkv .k{font-size:11px;color:var(--muted);margin-right:5px}
 .artkv .v{overflow-wrap:normal;word-break:normal}
 .artkv .lt{overflow-wrap:anywhere}
-@media (max-width:760px){.chatov{padding:6px}.chatwin{grid-template-columns:1fr;grid-template-rows:auto minmax(0,40%) 1fr}.chatwin>.psplit{display:none}.chatleft{border-right:none;border-bottom:1px solid var(--line)}.bub{max-width:92%}}
+@media (max-width:760px){.chrz{display:none}.chatov{padding:6px}.chatwin{grid-template-columns:1fr;grid-template-rows:auto minmax(0,40%) 1fr}.chatwin>.psplit{display:none}.chatleft{border-right:none;border-bottom:1px solid var(--line)}.bub{max-width:92%}}
 </style>
 <script>
 (() => {
@@ -97,7 +103,8 @@ body.chatopen .toast{z-index:80}
     <p class="lead">${T("Scegli l'estrazione del file system completo del telefono (iPhone o Android): zip o tar dello strumento di acquisizione, oppure la cartella già estratta.")}</p>
     <div class="row2"><button class="btn primary big" id="mobPickFile">${T("Scegli il file dell'estrazione…")}</button><button class="btn big" id="mobPickDir">${T("Scegli una cartella…")}</button></div>
     <input class="pathin" id="mobPath" placeholder="${esc(T("…oppure incolla qui il percorso, es. /Volumes/Reperti/iPhone_FFS.zip"))}">
-    <div class="hint">${T("Formati: zip (Cellebrite FFS, GrayKey, altri), tar, tar.gz, cartella. Le estrazioni XRY si aprono se esportate come file system. Un report UFDR non è un'estrazione del file system: arriverà in una versione successiva.")}</div>
+    <div class="hint" id="mobFmt">${T("Formati: zip (Cellebrite FFS, GrayKey, altri), tar, tar.gz, cartella. Le estrazioni XRY si aprono se esportate come file system. Un report UFDR non è un'estrazione del file system: arriverà in una versione successiva.")}</div>
+    <button class="btn small hidden" id="mobDisco" style="margin:8px 0">${T("Ho una copia forense della scheda (E01, dd): apri Memorie di massa")}</button>
     <div id="mobInfo" class="imginfo hidden"></div>
     <label class="opt"><input type="checkbox" id="mobHash" checked><span>${T("Calcola subito lo SHA-256 dell'estrazione")}<small>${T("Consigliato. Toglilo per un'analisi speditiva: l'hash si calcola dopo, dal caso.")}</small></span></label>
     <label class="opt"><input type="checkbox" id="mobLeapp" checked><span>${T("Artefatti con iLEAPP (iPhone) o ALEAPP (Android)")}<small>${T("Centinaia di artefatti delle app (posizioni, chiamate, browser, account…), con i programmi open source di Alexis Brignoni inclusi in RepertIA. Può durare a lungo sulle estrazioni grandi.")}</small></span></label>
@@ -113,8 +120,9 @@ body.chatopen .toast{z-index:80}
       <div class="kcrow"><input class="pathin" id="mobWaKey" type="password" autocomplete="off" spellcheck="false"></div>
       <div class="hint">${T("Serve solo se encrypted_backup.key non è nell'estrazione. Resta in memoria: non viene salvata né scritta nel registro.")}</div></div>
     <label class="opt"><input type="checkbox" id="mobHashFile"><span>${T("Calcola gli hash di tutti i file (MD5, SHA-1, SHA-256)")}<small>${T("Serve per cercare file noti con una lista di hash. Si può fare anche dopo, dal caso.")}</small></span></label>
-    <div class="hint" style="margin:-6px 0 14px">${T("Chat (WhatsApp, iMessage/SMS, SMS/MMS), rubriche, testo dei documenti e metadati delle foto vengono letti sempre, in automatico.")}</div>
+    <div class="hint" id="mobAuto" style="margin:-6px 0 14px">${T("Chat (WhatsApp, iMessage/SMS, SMS/MMS), rubriche, testo dei documenti e metadati delle foto vengono letti sempre, in automatico.")}</div>
     <button class="btn primary" id="mobStart" disabled>${T("Avanti")}</button>`;
+  const LEAD_PHONE = card.querySelector(".lead").textContent;
   const disk = document.getElementById("homeDisk");
   disk.parentNode.insertBefore(card, disk.nextSibling);
   // (2.20) casella «Trascrivi gli audio» (definita in forense_gui.html: si aggiunge quando tutta la pagina è caricata)
@@ -131,9 +139,9 @@ body.chatopen .toast{z-index:80}
       cur = i; info.className = "imginfo";
       const fmt = {zip: "zip", tar: "tar", targz: "tar.gz", cartella: T("cartella")}[i.formato] || i.formato;
       info.innerHTML = `<b>${esc(base(i.path))}</b> · ${esc(fmt)}` + (i.size != null ? " · " + gb(i.size) : "") +
-        `<br><span class="hint">${i.case_exists ? T("Esiste già un caso per questa estrazione: verrà riaperto.") : T("Il caso verrà creato in ") + esc(i.case_root)}</span>` +
+        `<br><span class="hint">${i.case_exists ? (modoDrone ? T("Esiste già un caso per questi dati: verrà riaperto.") : T("Esiste già un caso per questa estrazione: verrà riaperto.")) : T("Il caso verrà creato in ") + esc(i.case_root)}</span>` +
         (i.decomprimere ? `<div class="note" style="margin-top:8px">${TF("È un tar compresso: per leggerne i file RepertIA crea nella cartella del caso una copia derivata decompressa, con SHA-256 e riferimento all'originale (che non viene modificato). Serve circa lo spazio dei dati decompressi (di solito 1,5-3 volte {0}); spazio libero: {1}.", gb(i.size || 0), i.free != null ? gb(i.free) : "?")}</div>` : "") +
-        (i.formato === "cartella" ? `<div class="note" style="margin-top:8px">${T("Cartella già estratta: le date dei file sono quelle del computer su cui è stata copiata e possono non essere quelle del telefono (il caso lo dichiara). Se c'è, preferisci lo zip o il tar originale.")}</div>` : "");
+        (i.formato === "cartella" ? `<div class="note" style="margin-top:8px">${modoDrone ? T("Cartella: le date dei file sono quelle del computer su cui è stata copiata e possono non essere quelle della scheda (il caso lo dichiara). Le date dei voli vengono dai registri.") : T("Cartella già estratta: le date dei file sono quelle del computer su cui è stata copiata e possono non essere quelle del telefono (il caso lo dichiara). Se c'è, preferisci lo zip o il tar originale.")}</div>` : "");
       $("mobStart").disabled = false;
       $("mobStart").textContent = i.case_exists ? T("Apri il caso") : T("Avanti");
     }catch(e){ info.className = "imginfo err"; info.classList.remove("hidden"); info.textContent = e.message; }
@@ -160,7 +168,7 @@ body.chatopen .toast{z-index:80}
   $("mobStart").onclick = async () => {
     if (!cur) return;
     if (!(await sdAdd($("mobSd").value))) return;
-    mobOpts = {no_hash: !$("mobHash").checked, leapp: $("mobLeapp").checked, hash_file: $("mobHashFile").checked, wa_backup: $("mobWaBackup").checked, wa_chiave: $("mobWaKey").value.trim() || undefined, decomprimi: !!cur.decomprimere,
+    mobOpts = {drone: modoDrone || undefined, no_hash: !$("mobHash").checked, leapp: !modoDrone && $("mobLeapp").checked, hash_file: $("mobHashFile").checked, wa_backup: $("mobWaBackup").checked, wa_chiave: $("mobWaKey").value.trim() || undefined, decomprimi: !!cur.decomprimere,
                keychain: $("mobKc").value.trim() || undefined, sysdiagnose: SD.length ? SD.map(x => x.path) : undefined,
                trascrizione: await trascrOptRead("mobTrascr")};      // (2.20) consenso al modello prima di avviare
     if (mobOpts.keychain && !mobOpts.leapp) return toast(T("Il portachiavi serve a iLEAPP: spunta anche «Artefatti con iLEAPP»."), "bad");
@@ -170,7 +178,7 @@ body.chatopen .toast{z-index:80}
     $("newImg").textContent = cur.path;
     $("niNome").value = base(cur.path).replace(/\.(zip|tar|tgz|tar\.gz)$/i, "");
     $("niOper").value = store.get("repertia_operatore", "") || "";
-    $("niReperto").value = T("Telefono / tablet"); $("niNote").value = ""; $("niFusoSel").value = ""; $("niFuso").value = ""; $("niFuso").classList.add("hidden");
+    $("niReperto").value = modoDrone ? T("Drone") : T("Telefono / tablet"); $("niNote").value = ""; $("niFusoSel").value = ""; $("niFuso").value = ""; $("niFuso").classList.add("hidden");
     $("niLingua").value = LG.lingua || "it";
     $("niDest").value = (homeInfo && homeInfo.last_dest) || (homeInfo && homeInfo.homes && homeInfo.homes[0] && homeInfo.homes[0].path) || "";
     show("vNew"); $("niNome").focus(); $("niNome").select();
@@ -190,7 +198,7 @@ body.chatopen .toast{z-index:80}
       const r = await api("/api/mobile/prepare", {path: cur.path, ...mobOpts, info: inf, fuso, lingua: $("niLingua").value || LG.lingua || "it", dest: $("niDest").value.trim() || undefined});
       RM.mode = false;
       if (r.existing) return openCase(r.root);
-      startPrepView(cur.path, {}); prepSteps = MSTEPS.filter(s => (s[0] !== "hash" || !mobOpts.no_hash) && (s[0] !== "decomp" || mobOpts.decomprimi) &&
+      startPrepView(cur.path, {}); prepSteps = MSTEPS.filter(s => (s[0] !== "chat" || !mobOpts.drone) && (s[0] !== "hash" || !mobOpts.no_hash) && (s[0] !== "decomp" || mobOpts.decomprimi) &&
         (s[0] !== "leapp" || mobOpts.leapp) && (s[0] !== "hashfile" || mobOpts.hash_file) && (s[0] !== "sysdiag" || (mobOpts.sysdiagnose || []).length) && (s[0] !== "trascr" || mobOpts.trascrizione)); curStep = -1; drawSteps(-1, null); pollPrep();
     }catch(err){ toast(err.message, "bad"); }
     finally{ $("niGo").disabled = false; }
@@ -220,7 +228,7 @@ body.chatopen .toast{z-index:80}
     if (!box){ box = document.createElement("div"); box.id = "mobBox"; box.className = "mobbox"; $("caseParts").insertAdjacentElement("afterend", box); }
     const ch = c.chat || {}, apps = ch.app || {}, lp = c.leapp, mob = c.mobile || {};
     const nmsg = Object.values(apps).reduce((a, x) => a + x.messaggi, 0), nth = Object.values(apps).reduce((a, x) => a + x.conversazioni, 0);
-    box.innerHTML = `${c.righe_vuote_windows ? `<div class="note" style="margin-bottom:8px">⚠ ${TF("Questo caso contiene {0} righe vuote negli artefatti di iLEAPP: su Windows le versioni 2.20.0 e 2.20.1 le importavano per errore. Conteggi, ricerche e report sono gonfiati e possono comparire chiamate inesistenti. Il caso non è stato modificato: rifallo con la versione aggiornata.", nf(c.righe_vuote_windows))}</div>` : ""}📱 <b>${esc((mob.sistema || {}).modello || (c.disk_type || ""))}</b>${mob.produttore ? ` · <span class="hint">${esc(TF("estrazione {0}", mob.produttore))}</span>` : ""}
+    box.innerHTML = `${c.righe_vuote_windows ? `<div class="note" style="margin-bottom:8px">⚠ ${TF("Questo caso contiene {0} righe vuote negli artefatti di iLEAPP: su Windows le versioni 2.20.0 e 2.20.1 le importavano per errore. Conteggi, ricerche e report sono gonfiati e possono comparire chiamate inesistenti. Il caso non è stato modificato: rifallo con la versione aggiornata.", nf(c.righe_vuote_windows))}</div>` : ""}📱 <b>${esc((mob.sistema || {}).modello || (c.disk_type_vis || ""))}</b>${mob.produttore ? ` · <span class="hint">${esc(TF("estrazione {0}", mob.produttore))}</span>` : ""}
       <div style="margin-top:6px">💬 ${nmsg ? TF("{0} messaggi in {1} conversazioni", nf(nmsg), nf(nth)) : T("nessuna chat letta")}
       ${Object.entries(apps).map(([k, a]) => `<div class="hint">${esc(APP[k] || k)}: ${nf(a.messaggi)}</div>`).join("")}</div>
       ${nmsg ? `<button class="btn small primary" id="mobChats">💬 ${T("Apri le chat")}</button>` : ""}
@@ -248,20 +256,20 @@ body.chatopen .toast{z-index:80}
       }catch(e){ toast(e.message, "bad"); }
     };
     if ($("mobKcDel")) $("mobKcDel").onclick = async () => {
-      if (!confirm(T("Togliere il portachiavi dal caso? Gli artefatti già importati restano finché non rifai iLEAPP."))) return;
+      if (!await chiedi(T("Togliere il portachiavi dal caso? Gli artefatti già importati restano finché non rifai iLEAPP."))) return;
       try{ await api("/api/mobile/keychain", {remove: true}); renderCase(await api("/api/case")); }catch(e){ toast(e.message, "bad"); }
     };
     if ($("mobSdSet")) $("mobSdSet").onclick = async () => {
       try{
         const r = await api("/api/mobile/choose_sysdiagnose", {}); if (!r.path) return;
         const i = await api("/api/mobile/sysdiagnose_check", {path: r.path});
-        if (!confirm(TF("Aggiungere il sysdiagnose {0} ({1}) e leggerlo con iLEAPP?", base(r.path), i.dispositivo_testo || ""))) return;
+        if (!await chiedi(TF("Aggiungere il sysdiagnose {0} ({1}) e leggerlo con iLEAPP?", base(r.path), i.dispositivo_testo || ""))) return;
         sdTask({add: r.path});
       }catch(e){ toast(e.message, "bad"); }
     };
-    box.querySelectorAll("[data-sdrun]").forEach(b => b.onclick = () => { if (confirm(T("Rileggere questo sysdiagnose con iLEAPP? Le sue righe negli Artefatti vengono sostituite."))) sdTask({run: b.dataset.sdrun}); });
+    box.querySelectorAll("[data-sdrun]").forEach(b => b.onclick = async () => { if (await chiedi(T("Rileggere questo sysdiagnose con iLEAPP? Le sue righe negli Artefatti vengono sostituite."))) sdTask({run: b.dataset.sdrun}); });
     box.querySelectorAll("[data-sddel]").forEach(b => b.onclick = async () => {
-      if (!confirm(T("Togliere il sysdiagnose dal caso? Le sue righe negli Artefatti vengono tolte; il rapporto di iLEAPP resta nella cartella del caso e l'operazione resta nel registro."))) return;
+      if (!await chiedi(T("Togliere il sysdiagnose dal caso? Le sue righe negli Artefatti vengono tolte; il rapporto di iLEAPP resta nella cartella del caso e l'operazione resta nel registro."))) return;
       try{ const r = await api("/api/mobile/sysdiagnose", {remove: b.dataset.sddel}); toast(TF("Sysdiagnose tolto ({0} righe)", nf(r.righe || 0)), "good"); renderCase(await api("/api/case")); }catch(e){ toast(e.message, "bad"); }
     });
     // analisi aggiuntive: per un telefono non hanno senso carving, plaso, copie shadow, artefatti di Windows/Mac
@@ -283,13 +291,13 @@ body.chatopen .toast{z-index:80}
     }catch(e){ toast(e.message, "bad"); }
   }
   async function runMobile(what){
-    if (!confirm(what === "leapp" ? T("Esegue iLEAPP (iPhone) o ALEAPP (Android) sull'estrazione: può durare a lungo. Gli artefatti importati prima vengono sostituiti. Avviare?")
+    if (!await chiedi(what === "leapp" ? T("Esegue iLEAPP (iPhone) o ALEAPP (Android) sull'estrazione: può durare a lungo. Gli artefatti importati prima vengono sostituiti. Avviare?")
       : what === "wa-backup" ? T("Decifra i backup di WhatsApp con la chiave trovata nell'estrazione o indicata da te (copie nel caso, registrate con lo SHA-256) e rilegge chat e rubriche. Avviare?")
       : T("Rilegge chat e rubriche dall'estrazione (i risultati precedenti vengono sostituiti). Avviare?"))) return;
     try{
       let wa_chiave;
       if (what === "wa-backup"){
-        const k = prompt(T("Chiave di 64 cifre dei backup crypt15 (facoltativa: lascia vuoto se è nell'estrazione). Non viene salvata."), "");
+        const k = await chiediTesto(T("Chiave di 64 cifre dei backup crypt15 (facoltativa: lascia vuoto se è nell'estrazione). Non viene salvata."), "");
         if (k === null) return;
         wa_chiave = k.trim() || undefined;
       }
@@ -372,7 +380,8 @@ body.chatopen .toast{z-index:80}
         <div class="chatright"><div class="chtop" id="chTop"><div class="cinfo" id="chInfo">${T("Scegli una conversazione a sinistra.")}</div>
           <div class="flt"><input id="chMq" placeholder="${esc(T("Cerca nella conversazione"))}"><input id="chWho" placeholder="${esc(T("Mittente"))}" style="max-width:180px"><label class="hint"><input type="checkbox" id="chAtt"> ${T("solo con allegati")}</label></div></div>
           <div class="hsplit" id="chTopSplit" title="${esc(T("Trascina in su o in giù; doppio clic: altezza predefinita; ▾/▸ comprime o riapre"))}"></div>
-          <div class="msgs" id="chMsgs"></div></div></div>`;
+          <div class="msgs" id="chMsgs"></div></div>
+          <div class="chrz l"></div><div class="chrz r"></div><div class="chrz t"></div><div class="chrz b"></div></div>`;
       document.body.appendChild(ov);
       $("chClose").onclick = closeChats;
       if (window.hsplit){
@@ -381,10 +390,11 @@ body.chatopen .toast{z-index:80}
       }
       if (window.paneSplit) paneSplit($("chSplit"), {key: "chat", el: () => ov.querySelector(".chatleft"), dir: 1, min: 200, max: () => ov.querySelector(".chatwin").clientWidth * 0.6,
         set: w => { const cw = ov.querySelector(".chatwin"); w ? cw.style.setProperty("--chlw", w + "px") : cw.style.removeProperty("--chlw"); }});
+      chatLati();
       ov.onclick = e => { if (e.target === ov) closeChats(); };
       document.addEventListener("keydown", e => { if (e.key === "Escape" && chatOpen() && !AV && $("modal").classList.contains("hidden")) closeChats(); });
       let t1, t2;
-      const relist = () => { clearTimeout(t1); t1 = setTimeout(loadThreads, 300); };
+      const relist = () => { CS.solo = null; clearTimeout(t1); t1 = setTimeout(loadThreads, 300); };
       $("chApp").onchange = relist; $("chQ").oninput = relist; $("chFrom").onchange = relist; $("chTo").onchange = relist;
       const reload = () => { clearTimeout(t2); t2 = setTimeout(() => { CS.q = $("chMq").value.trim(); CS.who = $("chWho").value.trim(); CS.att = $("chAtt").checked; loadMsgs(true); }, 300); };
       $("chMq").oninput = reload; $("chWho").oninput = reload; $("chAtt").onchange = reload;
@@ -393,11 +403,40 @@ body.chatopen .toast{z-index:80}
     ov.classList.remove("hidden"); document.body.classList.add("chatopen");
     let tid = opts.thread;
     if (!tid && opts.mid){ try{ tid = (await api("/api/mobile/thread_of?" + new URLSearchParams({mid: opts.mid}))).thread; }catch(e){ toast(e.message, "bad"); } }
+    // alla prima apertura il menu delle app è ancora vuoto: senza questa voce il filtro andrebbe perso
+    if (opts.f && opts.f.app && ![...$("chApp").options].some(o => o.value === opts.f.app)) $("chApp").add(new Option(opts.f.app, opts.f.app));
     if (opts.f){ $("chApp").value = opts.f.app || ""; $("chQ").value = opts.f.q || ""; $("chFrom").value = opts.f.from || ""; $("chTo").value = opts.f.to || ""; }
     else if (tid){ $("chApp").value = ""; $("chQ").value = ""; $("chFrom").value = ""; $("chTo").value = ""; }
+    // (3.0) aperta da un'evidenza: in elenco solo quella conversazione, finché non si chiede di vederle tutte o si cerca
+    CS.solo = opts.f ? opts.f.solo || null : tid || null;
     await loadThreads();
     if (tid && CS.threads.some(x => x.id === tid)) await selectThread(tid, opts);
     if (window.NAVR) NAVR();
+  }
+  // (3.0) i lati della finestra si trascinano; la finestra resta al centro, quindi il lato segue il mouse con il doppio della misura
+  function chatLati(){
+    const cw = ov.querySelector(".chatwin"), tip = T("Trascina per ridimensionare la finestra; doppio clic: misura predefinita");
+    ov.querySelectorAll(".chrz").forEach(x => x.title = tip);
+    const setW = w => { cw.style.width = w ? w + "px" : ""; };
+    const setH = h => { cw.style.height = h ? h + "px" : ""; cw.style.alignSelf = h ? "center" : ""; };
+    if (window.paneSplit) [[".chrz.l", -2], [".chrz.r", 2]].forEach(([c, dir]) => paneSplit(ov.querySelector(c), {key: "chatw", el: () => cw, dir, min: 640, max: () => ov.clientWidth - 36, set: setW}));
+    if (typeof PANES === "undefined") return;
+    PANES.push({key: "chath", any: () => !!paneStore.get("chath"), reset(){ setH(null); paneStore.set("chath", null); }, restore(){ setH(paneStore.get("chath")); }});
+    setH(paneStore.get("chath"));
+    [[".chrz.t", -2], [".chrz.b", 2]].forEach(([c, dir]) => {
+      const sp = ov.querySelector(c);
+      sp.addEventListener("mousedown", e => {
+        if (e.button !== 0) return;
+        e.preventDefault();
+        const y0 = e.clientY, h0 = cw.getBoundingClientRect().height;
+        sp.classList.add("on"); document.body.classList.add("vdragging");
+        const mv = ev => setH(Math.round(Math.max(320, Math.min(h0 + dir * (ev.clientY - y0), ov.clientHeight - 36))));
+        const up = () => { document.removeEventListener("mousemove", mv); document.removeEventListener("mouseup", up);
+          sp.classList.remove("on"); document.body.classList.remove("vdragging"); paneStore.set("chath", cw.getBoundingClientRect().height); };
+        document.addEventListener("mousemove", mv); document.addEventListener("mouseup", up);
+      });
+      sp.addEventListener("dblclick", e => { e.preventDefault(); setH(null); paneStore.set("chath", null); });
+    });
   }
   async function loadThreads(){
     const q = {app: $("chApp").value, q: $("chQ").value.trim(), from: $("chFrom").value, to: $("chTo").value};
@@ -406,11 +445,13 @@ body.chatopen .toast{z-index:80}
     const sel = $("chApp"), keep = sel.value;
     sel.innerHTML = `<option value="">${T("Tutte le app")}</option>` + Object.entries(r.apps || {}).map(([k, n]) => `<option value="${esc(k)}">${esc(appLbl(k))} (${nf(n)})</option>`).join("");
     sel.value = keep;
-    CS.threads = r.threads;
-    $("chList").innerHTML = r.threads.length ? r.threads.map(t => `<div class="th ${CS.th && CS.th.id === t.id ? "on" : ""}" data-id="${t.id}">
+    const solo = r.threads.filter(t => t.id === CS.solo);
+    CS.threads = solo.length ? solo : r.threads;
+    $("chList").innerHTML = (solo.length ? `<div class="chsolo"><span class="grow">${TF("Solo questa conversazione, su {0}", nf(r.threads.length))}</span><button class="btn small" id="chTutte">${T("Mostra tutte")}</button></div>` : "") + (CS.threads.length ? CS.threads.map(t => `<div class="th ${CS.th && CS.th.id === t.id ? "on" : ""}" data-id="${t.id}">
         <div class="t"><span>${ICO[t.app] || "💬"}</span><span class="grow">${esc(t.title)}</span><span class="badge">${nf(t.n)}</span></div>
         <div class="s">${t.origin === "backup" ? `<span class="orig" title="${esc(TF("Conversazione letta dal backup {0}, decifrato con la chiave dell'estrazione", base(t.src || "")))}">${esc(base(t.src || ""))}</span> ` : ""}${t.origin === "leapp" ? `<span class="orig" title="${esc(T("Conversazione ricavata dagli artefatti di iLEAPP/ALEAPP (app non letta direttamente da RepertIA)"))}">${esc(appLbl(t.app))} · ${esc(leappTool())}</span> ` : ""}${t.group ? "👥 " : ""}${t.preview_out ? T("Tu: ") : ""}${esc(t.preview || (t.preview_kind ? "[" + (t.preview_tipo || KIND[t.preview_kind] || t.preview_kind) + "]" : ""))}</div>
-        <div class="s">${fts(t.last)}</div></div>`).join("") : `<div class="empty" style="padding:14px">${T("Nessuna conversazione.")}</div>`;
+        <div class="s">${fts(t.last)}</div></div>`).join("") : `<div class="empty" style="padding:14px">${T("Nessuna conversazione.")}</div>`);
+    if ($("chTutte")) $("chTutte").onclick = () => { CS.solo = null; loadThreads(); };
     $("chList").querySelectorAll(".th").forEach(el => el.onclick = () => { if (window.NAVP) NAVP(); selectThread(+el.dataset.id).then(() => window.NAVR && NAVR()); });
   }
   async function selectThread(id, opts){
@@ -464,7 +505,7 @@ body.chatopen .toast{z-index:80}
            : a.lat != null && !a.device_path ? ""
            : `<div class="hint">${T("File non presente nell'estrazione")}${a.device_path ? `: <span class="mono" style="font-size:11px">${esc(a.device_path)}</span>` : ""}</div>`}
       ${a.trascrizione ? trascrChat(a.trascrizione) : ""}
-      ${ok || lm || a.thumb ? `<button class="btn small" data-zoom="1">${T("Anteprima")}</button>` : ""}${ok ? `<button class="btn small" data-tree="1">${T("Mostra nell'albero")}</button>` : ""}</div>`;
+      ${ok || lm || a.thumb ? `<button class="btn small" data-zoom="1">${T("Anteprima")}</button>` : ""}${ok ? `<button class="btn small" data-tree="1">${T("Mostra nel File System")}</button>` : ""}</div>`;
   }
   // (2.20) nota vocale trascritta: il testo sotto l'allegato (aperto; si chiude con un clic), sempre come «da verificare»
   function trascrChat(t){
@@ -512,7 +553,7 @@ body.chatopen .toast{z-index:80}
         ${t.inode != null && t.inode !== "" && t.inode !== "None" ? `<button class="btn small" id="chSrc" title="${esc(T("Database da cui viene la conversazione"))}">${T("Fonte")}</button>` : ""}
         <button class="btn small" id="chAsk">${T("Chiedi all'agente")}</button></div>
       ${(r.messages || []).some(m => (m.extra || {}).decifrato) ? `<div class="hint">🔑 ${T("Conversazione decifrata da iLEAPP con il portachiavi: la decifratura e la lettura sono di iLEAPP.")}</div>` : ""}
-      <div>${t.group ? "👥 " : ""}📱 ${T("questo dispositivo")}${t.local ? ` <span class="mono">${esc(t.local)}</span>` : ""} ↔ ${partHtml(t.participants || [])}</div><div class="mono" style="font-size:11px">${esc(T("Fonte: ") + (t.src || ""))}${t.origin === "leapp" ? ` · ${esc(TF("ricavata dagli artefatti di {0}", leappTool()))}` : ""}${t.origin === "backup" ? ` · ${esc(T("backup decifrato con la chiave dell'estrazione: i messaggi assenti dal database attuale sono segnati «solo nel backup»"))}` : ""}</div>
+      <div>${t.group ? "👥 " : ""}📱 ${T("questo dispositivo")}${t.local ? ` <span class="mono">${esc(t.local)}</span>` : ""} ↔ ${partHtml(t.participants || [])}</div>${(t.lid_fonti || []).length ? `<div class="hint" title="${esc(T("Associazione scritta da WhatsApp nei suoi database: le cifre del LID sono casuali e non contengono il numero. Lo schema non è documentato da WhatsApp."))}">🔗 ${esc(TF("LID e numero associati da: {0}", t.lid_fonti.join("; ")))}</div>` : ""}<div class="mono" style="font-size:11px">${esc(T("Fonte: ") + (t.src || ""))}${t.origin === "leapp" ? ` · ${esc(TF("ricavata dagli artefatti di {0}", leappTool()))}` : ""}${t.origin === "backup" ? ` · ${esc(T("backup decifrato con la chiave dell'estrazione: i messaggi assenti dal database attuale sono segnati «solo nel backup»"))}` : ""}</div>
       <div style="font-size:11.5px;margin-top:3px">${T("Messaggi cancellati: sono evidenziati i segnaposto «messaggio eliminato» lasciati dalle app; i messaggi cancellati ancora presenti nelle pagine libere dei database non sono recuperati in questa versione.")}</div>`;
     $("chFav").onclick = async () => { try{ const a = await api("/api/mobile/thread_art?" + new URLSearchParams({thread: t.id})); bmAddDialog(resSec, {source: "art", id: a.id, title: a.title, path: a.title, label: threadLabel(t)}); }catch(e){ toast(e.message, "bad"); } };
     $("chFind").onclick = async () => { let a = {}; try{ a = await api("/api/mobile/thread_art?" + new URLSearchParams({thread: t.id})); }catch(e){}
@@ -576,7 +617,7 @@ body.chatopen .toast{z-index:80}
       const ref = el.querySelector("[data-ref]");
       if (ref) ref.onclick = () => {
         const txt = TF("{0} · {1} · {2} riga {3} · messaggio {4} del {5} UTC", appLbl(m.app), m.src_path, m.src_table, m.src_row, m.id, (m.ts || "").replace("T", " "));
-        (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(() => toast(T("Riferimento copiato"), "good"), () => prompt(T("Riferimento"), txt));
+        (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(() => toast(T("Riferimento copiato"), "good"), () => chiediTesto(T("Riferimento"), txt));
       };
     });
     if (CS.focus){                     // aperta da un messaggio dei preferiti o tornando indietro: lo si cerca anche nelle pagine dopo
@@ -685,7 +726,7 @@ body.chatopen .toast{z-index:80}
     if (box) for (const b of box.querySelectorAll(".bub")){ if (b.offsetTop + b.offsetHeight > top){ vis = +b.dataset.mid; break; } }
     const fe = box && box.querySelector(".bub.focus");
     return {thread: CS.th ? CS.th.id : null, title: CS.th ? CS.th.title : null, app: CS.th ? CS.th.app : null, scroll: top, mid: fe ? +fe.dataset.mid : vis, hl: !!fe,
-      f: {app: $("chApp").value, q: $("chQ").value, from: $("chFrom").value, to: $("chTo").value, mq: $("chMq").value, who: $("chWho").value, att: $("chAtt").checked},
+      f: {app: $("chApp").value, q: $("chQ").value, from: $("chFrom").value, to: $("chTo").value, mq: $("chMq").value, who: $("chWho").value, att: $("chAtt").checked, solo: CS.solo || null},
       att: AV ? {mid: AV.list[AV.i].mid, k: AV.i - AV.list.findIndex(x => x.mid === AV.list[AV.i].mid), name: AV.list[AV.i].name, tab: pvState.tab} : null};
   }
   async function navRestore(st){
@@ -700,9 +741,9 @@ body.chatopen .toast{z-index:80}
   }
   function crumbs(){
     const st = navState(); if (!st) return [];
-    const out = [{label: "💬 " + T("Chat"), go: () => { if (AV) attClose(true); $("chApp").value = ""; CS.th = null; loadThreads(); $("chInfo").textContent = T("Scegli una conversazione a sinistra."); $("chMsgs").innerHTML = ""; }}];
+    const out = [{label: "💬 " + T("Chat"), go: () => { if (AV) attClose(true); $("chApp").value = ""; CS.th = null; CS.solo = null; loadThreads(); $("chInfo").textContent = T("Scegli una conversazione a sinistra."); $("chMsgs").innerHTML = ""; }}];
     if (st.thread){
-      out.push({label: appLbl(st.app), go: () => { if (AV) attClose(true); $("chApp").value = st.app; loadThreads(); }});
+      out.push({label: appLbl(st.app), go: () => { if (AV) attClose(true); $("chApp").value = st.app; CS.solo = null; loadThreads(); }});
       out.push({label: st.title, go: () => { if (AV) attClose(); }});
     }
     if (st.att) out.push({label: "📎 " + (st.att.name || T("allegato"))});
@@ -748,9 +789,9 @@ body.chatopen .toast{z-index:80}
     if (!isPhone() || !cm || !cm.n) return nodes;
     const meta = nodes.find(n => n.id === "meta"); if (!meta) return nodes;
     FILTERS.meta = metaFlt([...new Set([...Object.keys(((caseInfo || {}).chat || {}).app || {}), ...cm.app.map(x => x[0])])]);
-    meta.kids.push({id: "meta:chat", label: T("💬 Dalle chat"), sec: "meta", filt: {orig: "*"}, count: cm.n,
-      kids: cm.app.map(([a, n]) => ({id: "meta:chat:" + a, label: appLbl(a), sec: "meta", filt: {orig: a}, count: n, kids: []}))});
-    // (2.20) anche sotto Foto, Video e Audio: gli allegati delle chat di quel tipo, per app
+    // (2.20) sotto Foto, Video e Audio: gli allegati delle chat di quel tipo, per app. (3.0) Tolta la voce «Dalle chat»
+    // diretta sotto Foto/Video/Audio: ripeteva le stesse foto (più gli altri file con metadati, es. PDF). Tutti gli allegati
+    // restano nel filtro «Origine › Allegati delle chat».
     for (const [k, flt] of [["foto", {foto: true}], ["vid", {vid: true}], ["aud", {aud: true}]]){
       const nd = meta.kids.find(n => n.id === "meta:" + k), c = cm[k];
       if (!nd || !c || !c.n) continue;
@@ -840,7 +881,27 @@ body.chatopen .toast{z-index:80}
   ART_LBL.leapp = T("Artefatti iLEAPP/ALEAPP (smartphone)");
   ART_LBL.chiamate = T("Chiamate");
   const MSG_DISK = ART_LBL.messaggi, ART_CAT_DISK = FILTERS.art[0][3], META_FLT_DISK = FILTERS.meta;
-  window.RM = {mode: false, home: () => { $("mobPath").focus(); }, caseRendered, openChats, closeChats, chatOpen, navState, navRestore, crumbs,
+  let modoDrone = false;
+  // (3.0) stessa pagina dello smartphone con testi e opzioni dei droni: ogni voce di telefono si cambia o si nasconde
+  const TESTI_TEL = {h1: card.querySelector("h1").textContent, pick: $("mobPickFile").textContent, ph: $("mobPath").placeholder, fmt: $("mobFmt").textContent, auto: $("mobAuto").textContent, hash: card.querySelector("label.opt span").firstChild.textContent};
+  const TESTI_DRONE = {h1: T("Nuova analisi di un drone"), pick: T("Scegli il file zip o tar…"), ph: T("…oppure incolla qui il percorso, es. /Volumes/Scheda/DJI.zip"),
+    fmt: T("Formati: zip, tar, tar.gz, cartella. Si leggono: registri TXT DJI fino alla versione 12, sottotitoli SRT, CSV di Litchi e Airdata, registri Autel, PX4 ULog (.ulg), ArduPilot tlog e BIN. Betaflight e .DAT DJI vengono elencati ma non letti."),
+    auto: T("Voli, testo dei documenti e metadati delle foto vengono letti sempre, in automatico."), hash: T("Calcola subito lo SHA-256 dei dati")};
+  const droneMode = on => {
+    modoDrone = on;
+    MSTEPS[0][1] = on ? T("Calcolo SHA-256 dei dati") : T("Calcolo SHA-256 dell'estrazione");
+    MSTEPS[2][1] = on ? T("Elenco dei file") : T("Elenco dei file dell'estrazione");
+    const x = on ? TESTI_DRONE : TESTI_TEL;
+    card.querySelector("h1").textContent = x.h1;
+    card.querySelector(".lead").textContent = on ? T("Scegli la cartella, lo zip o il tar con i file della scheda o dell'app del drone: registri di volo, sottotitoli, foto e video.") : LEAD_PHONE;
+    $("mobPickFile").textContent = x.pick; $("mobPath").placeholder = x.ph; $("mobFmt").textContent = x.fmt; $("mobAuto").textContent = x.auto;
+    card.querySelector("label.opt span").firstChild.textContent = x.hash;
+    $("mobDisco").classList.toggle("hidden", !on);
+    card.querySelectorAll(".kcbox").forEach(e => e.classList.toggle("hidden", on));
+    [$("mobLeapp"), $("mobWaBackup"), $("mobTrascr")].forEach(e => { if (e){ e.closest("label").classList.toggle("hidden", on); if (on && e.id === "mobTrascr" && e.checked) e.click(); } });
+  };
+  $("mobDisco").onclick = () => homeKind("disk");
+  window.RM = {grpLbl, mode: false, droneMode, home: () => { $("mobPath").focus(); }, caseRendered, openChats, closeChats, chatOpen, navState, navRestore, crumbs,
                appLbl, grpLbl, attOpen: () => !!AV, pvSaved: () => AV ? AV.saved : null};
 })();
 </script>

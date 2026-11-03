@@ -1,5 +1,5 @@
 #!/bin/bash
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 silvexe
 # RepertIA - Versioni e aggiornamento degli strumenti (Linux). Serve internet.
 # Gli strumenti forensi vengono dalla distribuzione (apt); plaso e i moduli Python stanno in python/

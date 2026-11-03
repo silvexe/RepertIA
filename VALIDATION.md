@@ -2,7 +2,7 @@
 
 *Translation of [VALIDAZIONE.md](VALIDAZIONE.md); the Italian text prevails.*
 
-Program version: 2.21.0 · Document updated on 31/10/2026
+Program version: 3.0.0 · Document updated on 01/11/2026
 
 This document describes **how RepertIA was verified, with which data, with which results and with which known
 limitations**. It is meant for those who use the program in an expert examination and need to state the reliability of
@@ -65,6 +65,8 @@ volume (plist, sqlite with WAL, bookmarks); APFS (dfvfs) unencrypted and encrypt
 | 2.20.3 (fixes, before assembly) | Author's Windows 11 | 437/437, 77/77 on public images |
 | 2.21.0 | Author's Mac (as for 2.20.0) | 448/448 in Italian and 448/448 in English, from the assembled Mac package, 77/77 on public images; 11 new checks |
 | 2.21.0 | Author's Windows (final package) | passed (reported by the author) |
+| 3.0.0 | Author's Mac, from the assembled Mac package (568/568 from source too) | 568/568 in Italian and 568/568 in English, 77/77 on public images; navigation 410/410 in Italian and in English (Chromium) |
+| 3.0.0 | Author's Windows (final package) | passed (as reported by the author) |
 
 Carving DFTT 11: 2 files out of 15 (enterprise.wav, haxor2.jpg) are not recovered by PhotoRec: this is a limitation of
 PhotoRec, declared as a "measurement" and not as a requirement.
@@ -172,6 +174,10 @@ offset, inode, registry key).
   minutes) a log rewritten in full with a recomputed chain appears intact and lines removed at the end are not visible; the
   original content of an altered line cannot be reconstructed; exported files outside the case folder or deleted cannot be
   re-checked.
+- **Photo GPS coordinates**: up to 2.21.0 the sign of South and West was lost; fixed in 3.0, in existing cases too. Reports produced earlier with coordinates in those areas must be redone.
+- **Deleted records (3.0)**: partial recovery, to be verified on the bytes shown. In the test on schemas not used for tuning, about 55% of deleted rows were recovered exactly, with no wrong value detected; records that do not resemble a known deleted row cannot be verified. Deletions in the test were made with SQLite, not by the apps. `-journal` files are not read by the recovery; limit of 20,000 records per database.
+- **Drones (3.0)**: no real Autel log available, reader tested on built files (v3 same as autel-logger, v1 and v2 from published sizes only); DJI from version 13 not read because encrypted; `.DAT` and Betaflight not read; SRT and CSV only on built examples. tlog, ULog and DataFlash same as pymavlink and pyulog on a few public files (DataFlash: 5 positions). A track says what the file reports, not who was flying.
+- **Map (3.0)**: a point is a datum from the source, not proof that the device was there; dates are not converted between time zones, so different sources may be out of order in the tables and in the animation, which does not show real speed.
 - **Language model**: the answers are not literally reproducible and are not a result: every statement must be
   checked on the data indicated.
 
