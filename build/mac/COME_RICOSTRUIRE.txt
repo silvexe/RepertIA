@@ -49,3 +49,5 @@ pcm_f32le,pcm_u8,pcm_mulaw,pcm_alaw,pcm_s16be,pcm_s24be,adpcm_ima_qt,adpcm_ms,gs
       --enable-encoder=pcm_s16le,mjpeg --enable-filter=aresample,aformat,anull,scale,format,null,select \
       --enable-swresample --enable-swscale
     make -j8  -> ffmpeg (licenza LGPL v2.1 o successiva) in strumenti/ffmpeg/bin/, con COPYING.LGPLv2.1 e LICENSE.md
+  (3.0.1) Senza percorsi di chi costruisce: compilare in una cartella anonima con --prefix=/usr/local e, per whisper.cpp,
+    -DCMAKE_C_FLAGS/-DCMAKE_CXX_FLAGS="-ffile-prefix-map=<sorgenti>=whisper.cpp-1.9.5"; poi controlla_pacchetti.py --parole.

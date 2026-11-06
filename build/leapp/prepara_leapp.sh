@@ -40,4 +40,7 @@ mkdir -p strum_linux/wheels; cp wheels/*.whl strum_linux/wheels/
 { cat "$HERE/requirements-ileapp.txt"; echo "pyasn1>=0.6.5"; } > strum_linux/ileapp/requirements-repertia.txt
 cp "$HERE/requirements-aleapp-windows.txt" strum_linux/aleapp/requirements-repertia.txt
 find strum_* -type d \( -name __pycache__ -o -path "*/site/bin" \) -prune -exec rm -rf {} +
+# (3.0.1) direct_url.json di pip contiene il percorso locale delle wheel (cartella e nome utente di chi costruisce): fuori
+find strum_* -path "*.dist-info/direct_url.json" -delete
+find strum_* -path "*.dist-info/RECORD" -exec sed -i.bak '/direct_url\.json,/d' {} + && find strum_* -name RECORD.bak -delete
 du -sh strum_*

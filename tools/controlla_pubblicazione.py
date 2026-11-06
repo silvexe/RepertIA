@@ -8,7 +8,8 @@ Uso:
     python3 tools/controlla_pubblicazione.py [cartella] [--parole parole_riservate.txt]
 
 `parole_riservate.txt` (da NON pubblicare: è nel .gitignore) contiene, una per riga, nomi, indirizzi,
-nomi di computer, numeri di procedimento o altre parole dei casi da cercare in più.
+nomi di computer, numeri di procedimento o altre parole dei casi da cercare in più; «utente:<nome>» per i nomi utente dei
+computer, cercati solo nei percorsi.
 Esce con codice 1 se trova qualcosa: si può usare come controllo automatico prima di ogni «git push»."""
 import argparse
 import re
@@ -41,7 +42,11 @@ TEXT_EXT = {".py", ".html", ".md", ".txt", ".json", ".nsi", ".bat", ".command", 
 def scan(root, extra):
     rules = [(n, re.compile(r), s) for n, r, s in RULES]
     rules += [("parola_riservata", re.compile(r"(?<![A-Za-z0-9])" + re.escape(w) + r"(?![A-Za-z0-9])", re.I),
-               "parola dell'elenco riservato") for w in extra]
+               "parola dell'elenco riservato") for w in extra if not w.lower().startswith("utente:")]
+    # (3.0.1) «utente:<nome>»: nome utente di un computer, cercato solo nei percorsi (anche «-Users-<nome>-» delle cartelle temporanee)
+    rules += [("utente_riservato", re.compile(r"(?:Users|home)(?:[/-]|\\{1,2})" + re.escape(w.split(":", 1)[1].strip()) +
+                                              r"(?![A-Za-z0-9_])", re.I), "nome utente di un computer dell'elenco riservato")
+              for w in extra if w.lower().startswith("utente:")]
     allow = [re.compile(a) for a in ALLOW]
     found = 0
     for p in sorted(Path(root).rglob("*")):

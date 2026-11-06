@@ -3,12 +3,18 @@
 # Copyright (C) 2026 silvexe
 """RepertIA (3.0): controlla i pacchetti costruiti prima di pubblicarli, sui file finali e non sulla cartella di lavoro.
 
-Uso: python3 tools/controlla_pacchetti.py <cartella dei pacchetti> [--versione 3.0.0] [--no-avvio]
+Uso: python3 tools/controlla_pacchetti.py <cartella dei pacchetti> [--versione 3.0.0] [--no-avvio] [--parole <file>]
 
 Per ogni pacchetto: permessi di esecuzione, link simbolici, versione, file necessari, sorgenti uguali a src/, niente file
 di sistema o percorsi personali. Inoltre: Setup uguale allo zip Windows, guida, archivio di collaudo, SHA256SUMS. Sul Mac
 estrae lo zip e avvia il programma da `avvia.command`, come fa l'app: il collaudo da riga di comando non passa da lì.
-Non sostituisce il collaudo né la prova a mano (doppio clic sull'app, Setup su Windows). Esce con 1 se qualcosa non va."""
+Non sostituisce il collaudo né la prova a mano (doppio clic sull'app, Setup su Windows). Esce con 1 se qualcosa non va.
+
+(3.0.1) Tracce di chi costruisce: ogni file di ogni pacchetto (anche i programmi compilati e i metadati delle librerie) e
+ogni allegato vengono letti alla ricerca del nome dell'utente di questo computer, delle parole di `--parole` (un file fuori
+dal repository, una per riga: nomi propri; «utente:<nome>» per i nomi utente dei computer, cercati solo nei percorsi), della cartella del progetto e delle prove: se ci sono, il controllo
+non passa. Le cartelle temporanee di costruzione senza nomi (claude-<n>, scratchpad) si segnalano soltanto. I nomi da
+cercare non stanno in questo file pubblico."""
 import argparse
 import hashlib
 import os
@@ -39,6 +45,50 @@ NECESSARI_WIN = ["RepertIA/RepertIA.bat", "RepertIA/Collaudo.bat", "RepertIA/pyt
 DOCUMENTI = ["LICENSE", "THIRD_PARTY_LICENSES.md", "VALIDAZIONE.md", "AI_ACT.md", "LEGGIMI.txt", "README_EN.txt"]
 PERSONALE = re.compile(rb"/Users/(?!<|\$|nome|utente|USER|mario)[A-Za-z0-9._-]+/")
 ERRORI = []
+# (3.0.1) tracce del computer su cui si costruisce. PERSONALI (non si pubblica): nome dell'utente di questo computer e parole
+# di --parole (anche dentro «-Users-<nome>-», come le cartelle temporanee le scrivono), cartella del progetto, prove locali.
+# ANONIME (solo segnalate): cartelle temporanee di costruzione senza nomi (claude-<n>, scratchpad)
+ANONIME = re.compile(rb"claude-\d+[/\\-]|[/\\]scratchpad[/\\]")
+PERSONALI = None
+
+
+def imposta_tracce(parole):
+    """Tracce personali: nome dell'utente di questo computer, parole riservate (file fuori dal repository), cartella del
+    progetto e delle prove; ogni nome anche nella forma «-Users-<nome>-» delle cartelle temporanee."""
+    global PERSONALI
+    utenti, parole_l = {Path.home().name}, set()
+    if parole and parole.exists():
+        for x in parole.read_text(encoding="utf-8").splitlines():
+            x = x.strip()
+            if not x or x.startswith("#"):
+                continue
+            if x.lower().startswith("utente:"):      # nome utente di un computer: cercato solo come percorso
+                utenti.add(x.split(":", 1)[1].strip())
+            else:
+                parole_l.add(x)
+    alt = [rb"repertia_prove", re.escape(RADICE.parent.name.encode()), re.escape(RADICE.parent.name.replace(" ", "-").encode())]
+    alt += [rb"(?:Users|home)(?:[/-]|\\{1,2})" + re.escape(n.encode()) + rb"(?![A-Za-z0-9_])" for n in utenti | parole_l if len(n) >= 3]
+    alt += [rb"(?<![A-Za-z0-9_])" + re.escape(n.encode()) + rb"(?![A-Za-z0-9_])" for n in parole_l if len(n) >= 4]
+    PERSONALI = re.compile(b"|".join(alt), re.I)
+
+
+def tracce(nomi, leggi, nome):
+    """(3.0.1) Ogni file del pacchetto, binari compresi: nessun dato di chi l'ha costruito; le cartelle temporanee anonime
+    si segnalano soltanto."""
+    pers, anon = {}, {}
+    for n in sorted(nomi):
+        try:
+            b = leggi(n) or b""
+        except (KeyError, OSError):
+            continue
+        for rx, dove in ((PERSONALI, pers), (ANONIME, anon)):
+            for m in rx.finditer(b):
+                dove.setdefault(n, set()).add(m.group(0).decode("utf-8", "replace"))
+    elenco = lambda d: "; ".join(f"{k} [{', '.join(sorted(v)[:3])}]" for k, v in list(d.items())[:6]) + (f" … e altri {len(d) - 6}" if len(d) > 6 else "")
+    esito(f"nessun dato personale di chi costruisce in {len(nomi)} file ({nome})", not pers, elenco(pers))
+    solo_anon = {k: v for k, v in anon.items() if k not in pers}
+    if solo_anon:
+        print(f"  --   cartelle temporanee di costruzione senza nomi ({nome}): " + elenco(solo_anon))
 
 
 def esito(nome, ok, dettaglio=""):
@@ -79,6 +129,7 @@ def comuni(nomi, leggi, base, versione, prefisso):
     testi = [f"{prefisso}{d}" for d in DOCUMENTI if f"{prefisso}{d}" in nomi] + [f"{base}/README.md", f"{base}/guida/guida.html"]
     pers = [n for n in testi if PERSONALE.search(leggi(n))]
     esito("nessun percorso personale in documenti e guida", not pers, ", ".join(pers))
+    tracce(nomi, leggi, prefisso.rstrip("/") or base)
     prima = leggi(f"{prefisso}LEGGIMI.txt").lstrip(b"\xef\xbb\xbf").split(b"\n", 1)[0].decode("utf-8", "replace")
     esito(f"versione {versione} nel LEGGIMI", versione in prima, prima)
 
@@ -189,6 +240,10 @@ def varie(cart, versione):
     fuori = [f.name for f in cart.iterdir() if f.is_file() and f.suffix in (".zip", ".exe", ".gz", ".tar", ".xz", ".html") and f.name not in elenco]
     esito("ogni allegato è in SHA256SUMS", not fuori, ", ".join(fuori))
     esito("rapporti con percorsi personali fuori da SHA256SUMS", not [n for n in elenco if n.startswith("collaudo_")])
+    sciolti = [n for n in sorted(elenco) if (cart / n).exists() and not n.endswith((".zip", ".gz")) or n == "RepertIA-collaudo.zip"]
+    tracce(sciolti, lambda n: (cart / n).read_bytes(), "allegati: guida, video, Setup, sorgenti, collaudo")
+    if c.exists():
+        tracce([i.filename for i in zipfile.ZipFile(c).infolist() if not i.is_dir()], zipfile.ZipFile(c).read, "RepertIA-collaudo.zip, contenuto")
     firma(s)
     return None
 
@@ -215,7 +270,9 @@ def main():
     ap.add_argument("cartella", type=Path)
     ap.add_argument("--versione")
     ap.add_argument("--no-avvio", action="store_true", help="non avviare il programma dallo zip Mac")
+    ap.add_argument("--parole", type=Path, help="file con nomi da non pubblicare, uno per riga (fuori dal repository)")
     a = ap.parse_args()
+    imposta_tracce(a.parole)
     versione = a.versione or re.search(r'^APP_VERSION = "([^"]+)"', (SRC / "forense_agent.py").read_text(encoding="utf-8"), re.M).group(1)
     c = a.cartella
     mac(c / f"RepertIA-{versione}-Mac.zip", versione, not a.no_avvio)
