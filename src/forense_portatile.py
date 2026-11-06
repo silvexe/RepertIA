@@ -14,7 +14,7 @@ permettono di leggere file locali in altro modo da una pagina aperta con doppio 
 Il contenuto delle prove non viene mai interpretato come HTML: è mostrato come testo,
 immagini o pagine PDF già convertite in immagini.
 """
-import base64, csv, errno, sys, hashlib, html, json, os, re, shutil, subprocess, threading, time
+import base64, csv, errno, sys, hashlib, html, json, os, re, shutil, sqlite3, subprocess, threading, time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -301,12 +301,31 @@ def wanted_files(case, opts, progress):
             add(("fs", int(part), inode), f"reperto {f['n']}", True)
         for name in CARVED_RE.findall(text):
             add(("c", None, Path(name).name), f"reperto {f['n']}", True)
+    th = fa.bm_threads(case)
+    chat_t, chat_m = set(), set()
     for cat in fa.bookmarks(case):            # segnalibri delle categorie «nel report»
         for itm in cat["items"]:
+            if itm["source"] == "art" and str(itm["inode"]) in th:
+                chat_t.add((int(th[str(itm["inode"])]), cat["name"]))
+            elif itm["source"] == "chat" and str(itm["inode"]).isdigit():
+                chat_m.add((int(itm["inode"]), cat["name"]))
             if itm["source"] == "carving":
                 add(("c", None, Path(str(itm["inode"])).name), tr("preferiti: {name}").format(name=cat['name']), True)
             elif itm["source"] == "fs" and itm["part"] is not None:
                 add(("fs", int(itm["part"]), str(itm["inode"])), tr("preferiti: {name}").format(name=cat['name']), True)
+    if chat_t or chat_m:                      # (3.0.1) chat nei preferiti: i loro allegati, per vederli nel report
+        con = fa.db_ro(case)
+        try:
+            for ids, q in ((chat_t, "SELECT a.part, a.inode FROM chat_attachments a JOIN chat_messages m ON m.id = a.msg WHERE m.thread=?"),
+                           (chat_m, "SELECT part, inode FROM chat_attachments WHERE msg=?")):
+                for i, nome in ids:
+                    for part, inode in con.execute(q + " AND a.inode IS NOT NULL" if "JOIN" in q else q + " AND inode IS NOT NULL", (i,)):
+                        if part is not None and inode not in (None, "", "None"):
+                            add(("fs", int(part), str(inode)), tr("preferiti: {name}").format(name=nome), True)
+        except sqlite3.Error:
+            pass
+        finally:
+            con.close()
     if case.export_dir.exists():
         for mf in sorted(case.export_dir.glob("selezione_*/manifest.csv")):
             with open(mf, encoding="utf-8-sig", newline="") as fh:
@@ -410,6 +429,14 @@ def office_fallback(dest, pdir):
 def make_previews(case, it, dest, pdir, kind, lvl):
     """Pagine PDF/Office come JPEG e immagini convertite, in anteprime/<id>/."""
     pages, preview = 0, False
+    if kind == "video" and g.tool("ffmpeg"):         # (3.0.1) fotogramma per miniature e report (il video si apre a parte)
+        Path(g.lp(pdir)).mkdir(parents=True, exist_ok=True)
+        jp = Path(g.lp(pdir / "anteprima.jpg"))
+        for ss in ("1", "0"):
+            if g.run_quiet([g.tool("ffmpeg"), "-v", "quiet", "-ss", ss, "-i", g.lp(dest), "-frames:v", "1", "-vf", "scale=640:-2",
+                            "-y", str(jp)], 60) and jp.exists() and jp.stat().st_size:
+                preview = True
+                break
     if kind == "image_conv":
         Path(g.lp(pdir)).mkdir(parents=True, exist_ok=True)
         if g.to_jpeg(Path(g.lp(dest)), Path(g.lp(pdir / "anteprima.jpg")), 2000):
@@ -705,11 +732,12 @@ def export_ext(case, out, dati, opts):
         mode = opts.get("contenuto") or "scelti"
         lim = (500 << 20) if mode == "tutti" else int(float(opts.get("auto_mb") or 5) * (1 << 20)) if mode == "piccoli" else -1
         if has("xitems"):
+            bm_x = {str(i["inode"]) for c in fa.bookmarks(case) for i in c["items"] if i["source"] == "x"}  # (3.0.1) estratti nei Preferiti
             for xid, kind, path, name, size, mtime, enc, sha, note, mail, rel in con.execute(
                     "SELECT id, kind, path, name, size, mtime, encrypted, sha256, note, mail, relpath FROM xitems ORDER BY path"):
                 dest = ""
                 src = case.root / rel if rel else None
-                if src and src.exists() and 0 <= src.stat().st_size <= lim:
+                if src and src.exists() and (0 <= src.stat().st_size <= lim or (str(xid) in bm_x and src.stat().st_size <= 500 << 20)):
                     d = out / "estratti" / kind
                     d.mkdir(parents=True, exist_ok=True)
                     f = d / f"x{xid}_{g.safe_part(name or 'file')}"

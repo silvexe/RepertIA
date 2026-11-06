@@ -2,7 +2,7 @@
 
 *English: [VALIDATION.md](VALIDATION.md).*
 
-Versione del programma: 3.0.0 · Documento aggiornato al 01/11/2026
+Versione del programma: 3.0.1 · Documento aggiornato al 05/11/2026
 
 Questo documento descrive **come è stato verificato RepertIA, con quali dati, con quali risultati e con quali
 limiti noti**. Serve a chi usa il programma in una consulenza per dichiarare l'affidabilità del metodo
@@ -65,6 +65,8 @@ di un Mac (plist, sqlite con WAL, bookmark); APFS (dfvfs) in chiaro e cifrato co
 | 2.21.0 | Windows dell'autore (pacchetto definitivo) | superato (dato riferito dall'autore) |
 | 3.0.0 | Mac dell'autore, dal pacchetto Mac assemblato (568/568 anche dai sorgenti) | 568/568 in italiano e 568/568 in inglese, 77/77 su immagini pubbliche; navigazione 410/410 in italiano e in inglese (Chromium) |
 | 3.0.0 | Windows dell'autore (pacchetto definitivo) | superato (dato riferito dall'autore) |
+| 3.0.1 | Mac dell'autore, dal pacchetto Mac assemblato (iLEAPP 2026.4.6, ALEAPP 2026.4.5) | 660/660 in italiano e 660/660 in inglese, 79/79 su immagini pubbliche; navigazione 410/410 in italiano e in inglese (Chromium); i 92 controlli nuovi riguardano il report illustrato (HTML, PDF e Word creati, SHA-256 di ogni file in impronte.csv, nessuno script nelle pagine, tutti i messaggi della chat in fumetti, foto allegata visibile e originale copiato identico, elemento tolto assente, «tutte le foto» anche senza estensione, numerazione «1 di N» per sezione, evento nel registro), l'avviso di nuove versioni (con un GitHub finto locale), foto/video/audio riconosciuti dal contenuto e attribuiti alle app sui telefoni e ai programmi o alle cartelle sui dischi (DFTT 8: un JPEG con estensione .dat e un JPEG cancellato con estensione inventata), WhatsApp Business, le chiamate di Telegram, le foto dentro le cache dei browser Chromium (voci costruite: offset, lunghezza, indirizzo, intestazione di 20 byte, voce troncata, pagina HTML esclusa, nome del file), le chiamate WhatsApp (esiti 2 e 4 di call_log, LID tradotto nel numero, sottovoci per esito e voce/video, conversazioni «solo chiamate» non per gruppi e backup) e i messaggi e le chiamate WhatsApp cancellati recuperati dai byte di msgstore.db (copia costruita). Provati a parte, fuori dal collaudo: foto e video delle cache dei browser sull'Android 14 di Hickman (4.226 estratti, 30 voci a caso rilette dallo zip con byte identici) e su un disco FAT costruito con le cache di Chrome ed Edge; report illustrato su tutte le chat e le 21.295 foto dell'Android 14 di Hickman (6 minuti), Word aperto in LibreOffice, report portatile nel browser (chat nel Nuovo report, pannello laterale, frecce); archivi con percorsi che escono dalla cartella (immagine costruita), trascrizioni corrette e confermate e scaricamento del modello (server finto) |
+| 3.0.1 | Windows 11 dell'autore, dal pacchetto Windows | 660 su 664: i 4 non superati erano del collaudo stesso (report.docx lasciato aperto, che Windows non lascia cancellare a fine prova), corretto nel pacchetto ricostruito; tutti i controlli del report illustrato superati, 79/79 su immagini pubbliche |
 
 Carving DFTT 11: 2 file su 15 (enterprise.wav, haxor2.jpg) non vengono recuperati da PhotoRec: è un limite di
 PhotoRec, dichiarato come «misura» e non come requisito.

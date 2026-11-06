@@ -116,7 +116,7 @@ except ImportError:
 
 APP_NAME = "RepertIA"
 APP_BY = "By silvexe"
-APP_VERSION = "3.0.0"
+APP_VERSION = "3.0.1"
 
 # ------------------------------------------------------------ configurazione
 # Tutti i valori si possono passare anche come opzioni di `analizza`.
@@ -2281,8 +2281,16 @@ def build_index(case, con):
     for name, cmd in (("exiftool", ["exiftool", "-ver"]), ("pdftotext", ["pdftotext", "-v"])):
         if shutil.which(cmd[0]):
             tv[name] = tool_version(cmd)
+    media = None
+    if True:                    # (3.0.1) foto, video e audio riconosciuti dal contenuto (anche nelle cache), per app o cartella
+        import forense_mobile_media as fmm
+        try:
+            media = fmm.run(case, con, lambda x: print(x, flush=True))
+        except Exception as e:
+            avvisi.append(tr("Foto, video e audio per contenuto: non completato ({vname}: {e})").format(vname=type(e).__name__, e=e))
+            print(tr("Attenzione: ") + avvisi[-1], flush=True)
     return {"documenti": texts, "metadati": metas, "gps": gps, "ts": now(),
-            "non_indicizzati": n_skip, "avvisi": avvisi,
+            "non_indicizzati": n_skip, "avvisi": avvisi, "media": media,
             "copertura": {g: {"candidati": a, "con_testo": b} for g, (a, b) in stats.items()}}
 
 
@@ -2915,7 +2923,8 @@ NOISE_DOMAINS = ("schemas.openxmlformats.org", "schemas.microsoft.com", "www.w3.
 
 
 def db_ro(case):
-    return sqlite3.connect(case.db_path.as_uri() + "?mode=ro", uri=True)
+    # (3.0.1) mentre un'analisi aggiuntiva scrive nel caso la lettura aspetta fino a 30 s invece di 5 («database is locked»)
+    return sqlite3.connect(case.db_path.as_uri() + "?mode=ro", uri=True, timeout=30)
 
 
 def table_exists(con, name):
@@ -4961,6 +4970,8 @@ def make_tools(case):
     if is_mobile(case):                  # smartphone: strumenti per chat, contatti e artefatti di iLEAPP/ALEAPP
         import forense_mobile_chat as fmc
         tools += fmc.agent_tools(case)
+    import forense_mobile_media as fmm   # (3.0.1) foto, video e audio riconosciuti dal contenuto, dischi e telefoni
+    tools += fmm.agent_tools(case)
     tools.append(record_finding)
     return {t.__name__: t for t in tools}
 
@@ -5065,6 +5076,8 @@ def system_prompt(case):
     if is_mobile(case):
         import forense_mobile_chat as fmc
         extra += fmc.prompt_extra(case)
+    import forense_mobile_media as fmm
+    extra += fmm.prompt_extra(case)
     return tr(SYSTEM_TEMPLATE).format(disk_type=m.get("disk_type"), parts=parts,
                                   tl=json.dumps(m.get("timeline")),
                                   extra="\n".join(extra) or tr("- nessuna"))
@@ -5674,9 +5687,9 @@ def write_report(case):
         L.append(tr("- Timeline di sistema (plaso): ") + (f"{tl['plaso_events']} eventi"
                                                         if tl.get("plaso_events") else tr("non eseguita")))
     i = m.get("indice")
-    L.append(tr("- Testo dei documenti e metadati (exiftool): {documenti} documenti indicizzati, "
+    L.append(tr("- Testo dei documenti e media (exiftool): {documenti} documenti indicizzati, "
                 "{metadati} file con metadati, {gps} con coordinate GPS").format(documenti=i['documenti'], metadati=i['metadati'], gps=i['gps'])
-             if i else tr("- Testo dei documenti e metadati: non eseguito"))
+             if i else tr("- Testo dei documenti e media: non eseguito"))
     if i and i.get("non_indicizzati"):
         L.append(tr("  - File non indicizzati o indicizzati solo in parte: {non_indicizzati} (elenco con il "
                     "motivo in `non_indicizzati.csv`): la ricerca per parola nel testo dei documenti non li "
@@ -5728,11 +5741,11 @@ def write_report(case):
             for it in cat["items"][:5000]:
                 L.append("| " + " | ".join(cell(v) for v in (
                     it["path"], it["part"] if it["source"] in ("fs", "ua") and (it["part"] or 0) >= 0
-                    else "disco" if it["source"] == "ua" else {"carving": "recuperato", "x": "estratto",
-                                                               "mail": "posta", "art": "artefatto",
-                                                               "chat": tr("messaggio")}.get(it["source"], ""),
+                    else tr("disco") if it["source"] == "ua" else {"carving": tr("recuperato"), "x": tr("estratto"),
+                                                                   "mail": tr("posta"), "art": tr("artefatto"),
+                                                                   "chat": tr("messaggio")}.get(it["source"], ""),
                     it["inode"] if it["source"] == "fs" else _ua_pos(it["inode"]) if it["source"] == "ua" else "",
-                    tr("non allocato") if it["source"] == "ua" else "cancellato" if it["deleted"] else "allocato",
+                    tr("non allocato") if it["source"] == "ua" else tr("cancellato") if it["deleted"] else tr("allocato"),
                     it["size"], (it["mtime"] or "").replace("T", " "), it["sha256"] or "", it["note"])) + " |")
             if len(cat["items"]) > 5000:
                 L.append(tr("| … altri {v1} file (elenco completo nel report portatile) | | | | | | | |").format(v1=len(cat['items']) - 5000))

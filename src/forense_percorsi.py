@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 silvexe
 """RepertIA (2.20) – file citati.
 
 Una riga (artefatto di sistema, riga di iLEAPP/ALEAPP, evento della timeline, allegato di una chat, percorso citato

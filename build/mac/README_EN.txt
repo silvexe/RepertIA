@@ -1,4 +1,4 @@
-RepertIA 3.0.0 - By silvexe (Mac Apple Silicon)
+RepertIA 3.0.1 - By silvexe (Mac Apple Silicon)
 Forensic analysis of disk images, smartphone extractions and drone flight logs with a local language model (LLM).
 
 LANGUAGE
@@ -14,9 +14,11 @@ iLEAPP and ALEAPP (MIT licence) are included in strumenti/ileapp and strumenti/a
 
 INSTALLATION
 1. Drag RepertIA.app into the Applications folder (or wherever you prefer).
-2. First start: right-click on RepertIA.app > Open > Open. If macOS still blocks it,
-   go to System Settings > Privacy & Security and press "Open Anyway".
-   (The app is not signed with an Apple certificate.)
+2. First start (the app is not signed with an Apple certificate): double-click RepertIA.app and,
+   at the warning, press "Done" (not "Move to Trash"); go to System Settings > Privacy &
+   Security, Security section, press "Open Anyway" and confirm; then double-click again and
+   "Open Anyway". On macOS 15 and later "right-click > Open" is no longer enough.
+   Alternatively, in Terminal: xattr -dr com.apple.quarantine /Applications/RepertIA.app
 3. Terminal opens: on the first start it installs with Homebrew (internet required)
    Sleuth Kit, libewf, exiftool, poppler, PhotoRec, bulk_extractor and Tesseract (OCR).
    Then the browser opens.

@@ -19,6 +19,7 @@ Artefatti: qui si riordinano soltanto, con il riferimento alla riga di partenza 
 """
 import datetime as dt
 import json
+import sqlite3
 import re
 from pathlib import Path
 
@@ -116,6 +117,49 @@ def hms(s):
 
 def _split_key(k):
     return tuple(k.split("|", 1)) if "|" in k else (None, k)
+
+
+_RX = {}
+
+
+def _chiamata(cs, c):
+    """(3.0.1) Chiamata scritta come messaggio di servizio della chat (Telegram: «[Phone call (call id …, outcome …,
+    duration seconds …)]» di ALEAPP, «Action: <phoneCall (…)>» di iLEAPP). `cs` = {campo: [...], regex: [...]} con i
+    gruppi id, esito, durata, video, gruppo. Restituisce {id, esito, durata_s, video, gruppo} o None."""
+    if not cs:
+        return None
+    for f in cs.get("campo") or []:
+        v = _val(c, f)
+        if not v:
+            continue
+        for rx in cs.get("regex") or []:
+            if rx not in _RX:
+                _RX[rx] = re.compile(rx)
+            m = _RX[rx].match(v)
+            if m:
+                g = m.groupdict()
+                # video: sì/no solo se la fonte lo dice (iLEAPP scrive «video call=yes» solo per i video: «video_predefinito»
+                # false); ALEAPP non lo scrive e il tipo resta non indicato
+                vd = (g.get("video") or "").lower()
+                return {"id": g.get("id"), "esito": (g.get("esito") or "").strip().lower() or None,
+                        "durata_s": float(g["durata"]) if g.get("durata") else None,
+                        "video": True if vd == "yes" else False if vd == "no" else cs.get("video_predefinito"),
+                        "gruppo": bool(g.get("gruppo") == "Group")}
+    return None
+
+
+def _tipo_chiamata(ch):
+    return tr("di gruppo") if ch["gruppo"] else tr("video") if ch["video"] else tr("voce") if ch["video"] is False else None
+
+
+def _esito_chiamata(cs, ch, verso):
+    """Verso, risposta ed esito (testo tradotto) di una chiamata da messaggio di servizio."""
+    e = ch.get("esito")
+    if e and e in (cs.get("persa_se") or []) and verso == "in":
+        verso = "persa"
+    risposta = False if e and e in (cs.get("senza_risposta") or []) else True if ch.get("durata_s") else None
+    lbl = (cs.get("esito_valori") or {}).get(e, e) if e else None
+    return verso, risposta, tr(lbl) if lbl else None
 
 
 # ------------------------------------------------------------------------------ righe iLEAPP
@@ -344,7 +388,7 @@ def chat_from_leapp(case, con, names=None):
                 W.inode = fi
             W.part, W.inode = (fp if fp is not None else part), fi
             snd = _get(c, spec.get("mittente"))
-            snd_name = nm.get(snd) if snd else None
+            snd_name = (nm.get(snd) if snd else None) or _get(c, spec.get("nome_mittente"))
             title = _get(c, spec.get("titolo"))
             title = nm.get(title, title) if title else (nm.get(tkey) if tkey else None)
             if not ch:
@@ -367,7 +411,17 @@ def chat_from_leapp(case, con, names=None):
             kind, extra = "testo", {"fonte": "leapp", "strumento": tool, "artefatto": name, "riga_leapp": rid}
             if name in decifrate:
                 extra["decifrato"] = pk_uso
-            if not text:
+            for f in spec.get("campi_extra") or []:     # (3.0.1) es. «Record Origin» di ALEAPP (riga recuperata dal WAL)
+                if _val(c, f):
+                    extra.setdefault("campi", {})[f] = _val(c, f)
+            chc = _chiamata(spec.get("chiamata"), c)
+            if chc:                                     # (3.0.1) chiamata come messaggio di servizio: evento «chiamata»
+                import forense_mobile_chiamate as fmca
+                vv, risp, esl = _esito_chiamata(spec["chiamata"], chc, d)
+                kind, text = "chiamata", None
+                extra.update(codice="chiamata", durata_s=chc["durata_s"], risposta=risp,
+                             tipo=fmca.etichetta_chiamata(_tipo_chiamata(chc), vv, chc["durata_s"], esl))
+            if not text and kind != "chiamata":
                 if ev:
                     kind = "sistema"
                     text = ev
@@ -460,6 +514,47 @@ def fonti_txt(fonti):
     return ", ".join(k + (f" ×{n}" if n > 1 else "") for k, n in cnt.items())
 
 
+def risolvi_lid(con, recs):
+    """(3.0.1) Chiamate WhatsApp col LID (identificativo casuale) come contatto: il numero è quello scritto da WhatsApp in
+    chat_lid (mai dedotto), il LID resta nella riga («lid»). Con più numeri per lo stesso LID resta il LID. Restituisce
+    quante ne ha tradotte."""
+    per_lid = {}
+    try:
+        for lid, num in con.execute("SELECT lid, numero FROM chat_lid"):
+            per_lid.setdefault(lid, set()).add(num)
+    except sqlite3.Error:
+        return 0
+    n = 0
+    for r in recs:
+        if r.get("numero") and str(r["numero"]).endswith("@lid"):
+            nums = per_lid.get(r["numero"])
+            if nums and len(nums) == 1:
+                r["lid"], r["numero"] = r["numero"], next(iter(nums))
+                n += 1
+    return n
+
+
+WA_CALL_APPS = ("WhatsApp", "WhatsApp Business")
+ESITI_SOTTO = (N_("Risposte"), N_("Non risposte"), N_("Rifiutate"), N_("Esito non indicato"))
+
+
+def sotto_chiamata(r):
+    """(3.0.1) Sottovoce delle chiamate WhatsApp nell'albero: «esito › voce/video» (l'interfaccia ne fa due livelli).
+    Rifiutate = codice 4 di call_log (o verso «rifiutata»), non risposte = codice 2 o risposta «no» della fonte."""
+    if r.get("app") not in WA_CALL_APPS:
+        return None
+    t = tr("Video") if "video" in str(r.get("tipo") or "").lower() else tr("Voce")
+    if r.get("risposta") is True:
+        e = ESITI_SOTTO[0]
+    elif r.get("codice_esito") == 4 or r.get("verso") == "rifiutata":
+        e = ESITI_SOTTO[2]
+    elif r.get("risposta") is False:
+        e = ESITI_SOTTO[1]
+    else:
+        e = ESITI_SOTTO[3]
+    return f"{tr(e)} › {t}"
+
+
 def call_label(app):
     return tr(CALL_APP[app]) if app in CALL_APP else app
 
@@ -511,15 +606,25 @@ def calls_from_leapp(case, con, names=None):
             tipo = _get(c, spec.get("tipo"))
             if tipo and spec.get("tipo_valori"):
                 tipo = tr(spec["tipo_valori"].get(tipo, tipo))
+            ch = _chiamata(spec.get("estrai"), c) if spec.get("estrai") else None
+            if spec.get("estrai") and not ch:       # (3.0.1) solo le righe che sono chiamate (messaggi di servizio)
+                continue
+            esito = _get(c, spec.get("esito"))
+            if ch:
+                v, risp, esito = _esito_chiamata(spec["estrai"], ch, v)
+                dur = ch["durata_s"] if ch["durata_s"] is not None else dur
+                tipo = _tipo_chiamata(ch)
             rec = {"app": app, "fine_inizio": bool(spec.get("fine_come_inizio")), "debole": bool(spec.get("app_debole")), "toll": float(spec.get("tolleranza_s") or STESSA_CHIAMATA_S), "ts": ts, "fine": fine, "verso": v, "numero": numero,
-                   "nome_app": nome_app, "durata_s": dur, "tipo": tipo, "esito": _get(c, spec.get("esito")),
+                   "nome_app": nome_app, "durata_s": dur, "tipo": tipo, "esito": esito,
                    "account": _get(c, spec.get("account")), "nota": tr(spec["nota"]) if spec.get("nota") else None,
                    "fonti": [{"strumento": tool, "artefatto": name, "riga": rid}], "src": F.per(name, c)}
             rs = spec.get("risposta")
             if rs:
                 a = (_val(c, rs["campo"]) or "").lower()
                 rec["risposta"] = True if a in rs.get("si", []) else False if a in rs.get("no", []) else None
-            cid = _get(c, spec.get("id"))
+            if ch:
+                rec["risposta"] = risp
+            cid = (ch or {}).get("id") or _get(c, spec.get("id"))
             fs = spec.get("fine_se")
             if cid and (app, cid) in by_id:        # stessa chiamata in più righe (inizio e fine, copie del database)
                 prev = by_id[(app, cid)]
@@ -539,6 +644,7 @@ def calls_from_leapp(case, con, names=None):
             usate[key] = n
     raw += proprie
     usate.update(usate_proprie)
+    risolvi_lid(con, raw)
     for r in raw:
         if r["ts"] is None and r.get("fine") and r.get("durata_s") is not None:
             try:
@@ -610,7 +716,7 @@ def calls_from_leapp(case, con, names=None):
                 r["risposta"] = True
         nome_rub = names.get(fmc.norm_number(r["numero"])) if r["numero"] else None
         lbl = call_label(r["app"])
-        who = " ".join(x for x in (nome_rub or r.get("nome_app"), r["numero"]) if x) or tr("(non indicato)")
+        who = " ".join(x for x in (nome_rub or r.get("nome_app"), fmc.show_id(r["numero"]) if r["numero"] else None) if x) or tr("(non indicato)")
         vv = tr(VERSI[r["verso"]]) if r["verso"] in VERSI else tr("verso non indicato")
         title = tr("{app}: chiamata {v} · {who}").format(app=lbl, v=vv, who=who)
         det = " · ".join(x for x in (
@@ -622,9 +728,10 @@ def calls_from_leapp(case, con, names=None):
         data = {"chiamata": True, "app": r["app"], "app_lbl": lbl, "verso": r["verso"], "numero": r["numero"],
                 "nome_rubrica": nome_rub, "nome_app": r.get("nome_app"), "ts": r["ts"], "fine": r.get("fine"),
                 "durata_s": r.get("durata_s"), "risposta": r.get("risposta"), "tipo": r.get("tipo"), "esito": r.get("esito"),
-                "account": r.get("account"), "nota": r.get("nota"), "fonti": r["fonti"], "discordanze": r.get("discordanze")}
+                "account": r.get("account"), "nota": r.get("nota"), "fonti": r["fonti"], "discordanze": r.get("discordanze"),
+                "lid": r.get("lid"), "codice_esito": r.get("codice_esito"), "recuperato": r.get("recuperato")}
         rows.append(("chiamate", r["ts"], title[:300], det, "", spath or "", sp, si, json.dumps(data, ensure_ascii=False),
-                     r["app"], None))
+                     r["app"], sotto_chiamata(r)))
         per_app[r["app"]] = per_app.get(r["app"], 0) + 1
         if r["ts"]:
             evs.append((r["ts"], "CALL", lbl, spath or "", f"{lbl} | {vv} | {who}" + (f" | {hms(r['durata_s'])}" if r.get("durata_s") is not None else ""),

@@ -95,6 +95,7 @@ a.ref{cursor:pointer;text-decoration:underline}
 .psplit:hover,.psplit.on{opacity:1;background:var(--accent)}
 .pv>.psplit{position:absolute;left:-3px;top:0;bottom:0;z-index:6}
 body.dragging,body.dragging *{cursor:col-resize!important;user-select:none!important}
+body.dragging iframe,body.dragging embed,body.dragging object,body.vdragging iframe,body.vdragging embed,body.vdragging object,body.colresizing iframe,body.colresizing embed,body.colresizing object{pointer-events:none}
 .tree{width:240px;flex:none;border-right:1px solid var(--line);overflow:auto;padding:6px 0;background:var(--panel)}
 .tn{display:flex;align-items:center;gap:4px;padding:2px 8px;cursor:pointer;white-space:nowrap;font-size:13px}
 .tn:hover{background:var(--panel2)}.tn.on{background:var(--accent-soft);color:var(--accent)}
@@ -150,7 +151,7 @@ body.colresizing,body.colresizing *{cursor:col-resize!important;user-select:none
 .vb{flex:1;overflow:auto;position:relative}
 .vr{position:absolute;left:0;right:0;height:30px;border-bottom:1px solid var(--line);cursor:pointer;white-space:nowrap}
 .vr:hover{background:var(--panel2)}.vr.on{background:var(--accent-soft)}
-.vr>span{overflow:hidden;text-overflow:ellipsis}
+.vr>span{overflow:hidden;text-overflow:ellipsis}.vr .kvb{display:inline}.vr .kvb>div{display:inline;margin:0 10px 0 0}.vr .kvb .v{white-space:nowrap}
 .vr .r{text-align:right}.vh .r{text-align:right}
 .del{color:var(--bad)}
 .tag{font-size:11px;border-radius:99px;padding:0 6px;margin-left:5px;border:1px solid var(--line)}
@@ -171,6 +172,7 @@ body.tlfullon .pv{position:fixed;top:17px;right:17px;bottom:17px;z-index:9}
 .pvt button{border:0;background:none;padding:6px 10px;border-radius:7px 7px 0 0;cursor:pointer;color:var(--muted)}
 .pvt button.on{background:var(--panel2);color:var(--ink);font-weight:600}
 .pvb{flex:1;overflow:auto;background:var(--panel2)}
+.pvcard{padding:12px 14px}.pvcard .dt{width:100%}.pvacts{display:flex;flex-wrap:wrap;gap:6px;padding:0 14px 14px}
 .pvb pre{margin:0;padding:12px 14px;white-space:pre-wrap;overflow-wrap:anywhere}
 .pvb img.full{display:block;max-width:100%;margin:12px auto;background:#fff;box-shadow:0 1px 6px rgba(0,0,0,.15)}
 .pages{display:flex;flex-direction:column;align-items:center;gap:12px;padding:12px}
@@ -246,6 +248,8 @@ mark{background:var(--warn-soft);color:inherit;border-radius:3px}
   #printArea tr{page-break-inside:avoid}#printArea img.pth{max-width:110pt;max-height:110pt}
   #printArea .mono{font-family:Menlo,Consolas,monospace;font-size:8pt}
   #printArea .meta{color:#444;font-size:9.5pt}
+  #printArea .rr{display:flex;gap:10px;align-items:flex-start;border:1px solid #ccc;border-radius:7px;padding:7px 9px;margin:0 0 7px;break-inside:avoid;page-break-inside:avoid} #printArea .rr.del{border:1px dashed #d97706;background:#fdf8ee} #printArea .rn{flex:0 0 auto;min-width:38px;text-align:center;font-weight:700;color:#1f3a5f;background:#e9edf4;border-radius:5px;padding:4px 3px;line-height:1.15} #printArea .rn small{display:block;font-size:8pt;font-weight:400;color:#555} #printArea .rd{flex:1;min-width:0} #printArea .rkv{border-collapse:collapse;width:100%;font-size:8.5pt;margin-top:3px} #printArea .rkv th,#printArea .rkv td{border:1px solid #ddd;padding:2px 5px;text-align:left;vertical-align:top;overflow-wrap:anywhere} #printArea .rkv th{width:130px;background:#f4f5f8;font-weight:600} #printArea .rt{flex:0 0 auto} #printArea .rt img.pth{max-width:170px;max-height:150px;display:block}
+  #printArea .rchat{display:flex;flex-direction:column;gap:5px;margin:6px 0 14px} #printArea .rday{align-self:center;font-size:9pt;color:#555;background:#eee;border-radius:99px;padding:1px 9px} #printArea .rb{max-width:76%;padding:5px 9px;border-radius:10px;border:1px solid #ccc;background:#fff;white-space:pre-wrap;overflow-wrap:anywhere;break-inside:avoid} #printArea .rb.out{align-self:flex-end;background:#dbe8ff;border-color:#dbe8ff} #printArea .rb.in{align-self:flex-start} #printArea .rb.sys{align-self:center;border:none;font-style:italic;color:#555} #printArea .rb.del{border:1px dashed #d97706;background:#fdf3e1} #printArea .rw{font-weight:600;color:#2456c7;font-size:9.5pt} #printArea .ra{margin-top:5px;padding:5px;border:1px solid #ddd;border-radius:7px;background:#f7f8fa;white-space:normal} #printArea .ra img.pth{display:block;max-width:220px;max-height:220px;margin-bottom:3px}
 }
 @media (max-width:1000px){nav{width:58px}nav button span.l,nav .n,nav .foot,nav .nsub,nav .car,#navQ{display:none}.tree,.tree+.psplit,.pv>.psplit{display:none}.pv{position:fixed;inset:56px 0 0 0;width:auto;z-index:20}}
 .fqres{flex:1;min-height:0;overflow:auto;padding:0 14px 10px}.fqg{margin:6px 0;border:1px solid var(--line);border-radius:8px;padding:4px 8px}.fqg summary{cursor:pointer;padding:3px 0}.fqr{display:grid;grid-template-columns:150px 1fr;gap:10px;padding:5px 4px;border-top:1px solid var(--line);cursor:pointer;font-size:12.5px}.fqr:hover{background:rgba(127,127,127,.08)}.fqt{white-space:nowrap;opacity:.75}.fqe{display:block;opacity:.75;overflow-wrap:anywhere}.fqr mark{background:#fde68a;color:#111;border-radius:2px}
@@ -321,7 +325,7 @@ mark{background:var(--warn-soft);color:inherit;border-radius:3px}
       <div class="vl" id="tlList"></div>
     </section>
     <section class="view hidden" id="v-meta">
-      <div class="bar"><input type="search" id="metaQ" placeholder="Filtra per file, dispositivo, autore…"><label class="hint"><input type="checkbox" id="metaGps"> solo con GPS</label><label class="hint"><input type="checkbox" id="metaVid"> solo video</label><label class="hint"><input type="checkbox" id="metaFoto"> solo foto</label><label class="hint"><input type="checkbox" id="metaAud"> solo audio</label><select id="metaOrig" class="hidden"></select><span class="hint grow" id="metaInfo"></span><button class="btn small" data-csv="meta">Esporta CSV</button></div>
+      <div class="bar"><input type="search" id="metaQ" placeholder="Filtra per file, dispositivo, autore…"><label class="hint"><input type="checkbox" id="metaGps"> solo con GPS</label><label class="hint"><input type="checkbox" id="metaVid"> solo video</label><label class="hint"><input type="checkbox" id="metaFoto"> solo foto</label><label class="hint"><input type="checkbox" id="metaAud"> solo audio</label><label class="hint"><input type="checkbox" id="metaAltri"> solo altri file</label><select id="metaOrig" class="hidden"></select><span class="hint grow" id="metaInfo"></span><button class="btn small" data-csv="meta">Esporta CSV</button></div>
       <div class="vl" id="metaList"></div>
     </section>
     <section class="view hidden" id="v-doc">
@@ -448,7 +452,7 @@ function fmtTaken(s){
   if (!m) return esc(s);
   const z = m[5] ? (m[5] === "Z" ? "UTC" : m[5].replace(/^([+-]\d\d)(\d\d)$/, "$1:$2")) : "";
   const conv = z ? tzConv(`${m[1]}-${m[2]}-${m[3]} ${m[4]}${m[5]}`, false, tzZone()) : null;
-  return esc(`${m[1]}-${m[2]}-${m[3]} ${m[4]}`) + (z ? ` <span class="hint">${esc(z)}</span>` + (conv ? TF(" <span class=\"hint\" title=\"Stesso istante nel fuso scelto ({0})\">→ {1}</span>", esc(tzLbl()), esc(conv)) : "")
+  return esc(dataTxt(`${m[1]}-${m[2]}-${m[3]} ${m[4]}`)) + (z ? ` <span class="hint">${esc(z)}</span>` + (conv ? TF(" <span class=\"hint\" title=\"Stesso istante nel fuso scelto ({0})\">→ {1}</span>", esc(tzLbl()), esc(dataTxt(conv))) : "")
     : T(" <span class=\"hint\" title=\"Nel file non c'è il fuso orario: è l'ora scritta dal dispositivo o dal programma\">ora locale, fuso n.d.</span>"));
 }
 function takenTz(s){ const m = /(Z|[+-]\d\d:?\d\d)$/.exec(String(s || "").trim()); return !String(s || "").trim() ? "" : !m ? T("non indicato (ora locale del dispositivo)") : m[1] === "Z" ? "UTC" : m[1]; }
@@ -458,7 +462,19 @@ function nowStamp(){ const d = new Date(), o = -d.getTimezoneOffset(), a = Math.
 const nf = n => Number(n || 0).toLocaleString(LOC);
 const fsize = n => n == null ? "" : n < 1024 ? n + " B" : n < 1048576 ? (n / 1024).toFixed(1) + " KB" : n < 1073741824 ? (n / 1048576).toFixed(1) + " MB" : (n / 1073741824).toFixed(2) + " GB";
 const U = p => String(p || "").split("/").map(encodeURIComponent).join("/");   // percorso → indirizzo relativo
-const fts = s => s ? (TZ !== "utc" ? (tzConv(s) || ftsRaw(s, true)) : ftsRaw(s)) : "";
+const fts = s => s ? dataTxt(TZ !== "utc" ? (tzConv(s) || ftsRaw(s, true)) : ftsRaw(s)) : "";
+/* (3.0.1) formato delle date mostrate, come nel programma (menu 📅 accanto al fuso): solo come si vedono */
+const DFMT_OPZ = ["gma", "iso", "mga", "esteso"];
+let DFMT = (() => { try{ const v = JSON.parse(localStorage.getItem("repertia_formato_data")); return DFMT_OPZ.includes(v) ? v : null; }catch(e){ return null; } })();
+const dataFmt = () => DFMT || (LG.lingua === "en" ? "iso" : "gma");
+let _mesi = null;
+const meseBreve = n => (_mesi = _mesi || Array.from({length: 12}, (_, i) => new Date(Date.UTC(2000, i, 1)).toLocaleString(LOC, {month: "short", timeZone: "UTC"}).replace(".", "")))[n - 1];
+function dataTxt(t, f){
+  t = String(t == null ? "" : t); f = f || dataFmt();
+  const m = /^(\d{4})-(\d\d)-(\d\d)/.exec(t);
+  if (!m || f === "iso") return t;
+  return (f === "gma" ? `${m[3]}/${m[2]}/${m[1]}` : f === "mga" ? `${m[2]}/${m[3]}/${m[1]}` : `${+m[3]} ${meseBreve(+m[2])} ${m[1]}`) + t.slice(10);
+}
 /* fuso orario: i dati restano in UTC; si possono mostrare in UTC, in ora italiana o nel fuso del dispositivo
    (quello rilevato dal sistema del disco, o scelto dall'operatore, registrato nel caso) */
 let TZ = (() => { try{ const v = JSON.parse(localStorage.getItem("repertia_fuso")); return v === "rome" || v === "dev" ? v : "utc"; }catch(e){ return "utc"; } })();
@@ -620,7 +636,7 @@ async function boot(){
   FD.atts = null;
   for (const m of FD.meta) META_BY_KEY.set(keyOf(m[1], m[2]), m);
   $("nFiles").textContent = nf(F.filter(r => !r[C.isdir]).length);
-  $("nEv").textContent = nf(c.counts.eventi); $("nMeta").textContent = nf(FD.meta.length);
+  $("nEv").textContent = nf(c.counts.eventi); $("nMeta").textContent = nf(metaTutti().length);
   if (FD.docs.length){ $("navDoc").classList.remove("hidden"); $("nDoc").textContent = nf(FD.docs.length); }
   $("nAtt").textContent = nf(ATT.size); $("nCarv").textContent = nf(FD.carved.length); $("nTrc").textContent = nf(FD.traces.length);
   if (!FD.carved.length) $("navCarv").classList.add("hidden");
@@ -702,6 +718,7 @@ document.querySelectorAll("nav button[data-v]").forEach(b => b.onclick = () => n
 function show(v){
   if (v !== "tl" && $("v-tl").classList.contains("tlfull")) tlFull(false);
   if (typeof PNAV !== "undefined" && VIEW && VIEW !== v) PNAV.replace();        // stato della vista che si lascia
+  if (VIEW && VIEW !== v && typeof pvChiudi === "function" && PV) pvChiudi();   // (3.0.1) cambiando sezione l'anteprima si chiude
   VIEW = v;
   document.querySelectorAll("nav button[data-v]").forEach(b => b.classList.toggle("on", b.dataset.v === v));
   document.querySelectorAll("main .view").forEach(s => s.classList.toggle("hidden", s.id !== "v-" + v));
@@ -713,7 +730,7 @@ function show(v){
   PNAV.push();
 }
 /* ---------- (3.0) albero delle sezioni come nel caso: ogni sottovoce imposta i filtri della sua vista, che restano utilizzabili ---------- */
-const NAV_RESET = {art: [["artCat", ""], ["artSub", ""]], doc: [["docExt", ""]], meta: [["metaGps", false], ["metaFoto", false], ["metaVid", false], ["metaAud", false]],
+const NAV_RESET = {art: [["artCat", ""], ["artSub", ""]], doc: [["docExt", ""]], meta: [["metaGps", false], ["metaFoto", false], ["metaVid", false], ["metaAud", false], ["metaAltri", false]],
   mail: [["mailFmt", ""]], xarch: [["xKind", ""]], carv: [["carvKind", ""]], trc: [["trcKind", ""]], anom: [["anKind", ""]], att: [["attKind", ""]], tl: [["tlOrig", ""]]};
 let NAVN = [], NAV_OPEN = new Set();
 const navVal = id => { const e = $(id); return !e ? null : e.type === "checkbox" ? e.checked : e.value; };
@@ -723,6 +740,7 @@ function navSet(id, v){
   e.dispatchEvent(new Event("change", {bubbles: true}));
 }
 function navGo(v, set){
+  pvChiudi();                     // (3.0.1) un'altra sezione o voce: l'anteprima dell'evidenza di prima si chiude, come nel caso
   show(v);
   const voluti = new Map([...(NAV_RESET[v] || []), ...(set || [])]);
   // prima la categoria e poi la voce: le voci degli artefatti dipendono dalla categoria
@@ -758,9 +776,9 @@ function navKids(){
   os.innerHTML = [["", T("Tutte le origini")], ...piatta(K.tl, 0)].map(([v, l]) => `<option value="${esc(v)}">${esc(l)}</option>`).join(""); os.value = ov;
   K.doc = contaPer(FD.docs, r => extOf(r[0]) || "~").map(([e, n]) => voce("doc", "docExt", e, e === "~" ? T("Senza estensione") : "." + e, n));
   const mt = (id, label, re) => { const n = re ? FD.meta.filter(m => re(m)).length : audioRows().length; return n ? [voce("meta", id, true, label, n)] : []; };
-  K.meta = [...mt("metaGps", T("Con GPS"), m => m[8] != null), ...mt("metaFoto", T("Foto"), m => RE_FOTO.test(m[4] || "")), ...mt("metaVid", T("Video"), m => RE_VID.test(m[4] || "")), ...mt("metaAud", T("Audio"))];
+  K.meta = [...mt("metaGps", T("Con GPS"), m => m[8] != null), ...mt("metaFoto", T("Foto"), m => RE_FOTO.test(m[4] || "")), ...mt("metaVid", T("Video"), m => RE_VID.test(m[4] || "")), ...mt("metaAud", T("Audio")), ...mt("metaAltri", T("Altri file con metadati"), altroMeta)];
   K.mail = contaPer(X.mail || [], r => r[7]).map(([k, n]) => voce("mail", "mailFmt", k, k, n));
-  const XL = {archivio: T("Contenuto di archivi"), allegato: T("Allegati di posta"), vss: T("Copie shadow"), miniatura: T("Miniature (thumbcache)")};
+  const XL = {archivio: T("Contenuto di archivi"), allegato: T("Allegati di posta"), vss: T("Copie shadow"), miniatura: T("Miniature (thumbcache)"), cache_web: T("Cache dei browser")};
   K.xarch = contaPer(X.x || [], r => r[1]).map(([k, n]) => voce("xarch", "xKind", k, XL[k] || k, n));
   K.carv = contaPer(FD.carved, r => r[2]).map(([k, n]) => voce("carv", "carvKind", k, k, n));
   K.trc = contaPer(FD.traces, r => r[0]).map(([k, n]) => voce("trc", "trcKind", k, k, n));
@@ -890,7 +908,7 @@ function cfGrip(pop){
   g.onmousedown = e => {
     e.preventDefault(); e.stopPropagation();
     const x0 = e.clientX, w0 = pop.getBoundingClientRect().width;
-    const mv = ev => { const w = Math.max(220, Math.min(window.innerWidth - 12, w0 + (x0 - ev.clientX))); try{ localStorage.setItem(CFW_KEY, String(Math.round(w))); }catch(er){} cfPlace(pop, pop._btn); };
+    const mv = ev => { if (!(ev.buttons & 1)) return up(); const w = Math.max(220, Math.min(window.innerWidth - 12, w0 + (x0 - ev.clientX))); try{ localStorage.setItem(CFW_KEY, String(Math.round(w))); }catch(er){} cfPlace(pop, pop._btn); };
     const up = () => { document.removeEventListener("mousemove", mv, true); document.removeEventListener("mouseup", up, true); };
     document.addEventListener("mousemove", mv, true); document.addEventListener("mouseup", up, true);
   };
@@ -914,7 +932,7 @@ function paneSplit(sp, o){
     e.preventDefault();
     const x0 = e.clientX, w0 = o.el().getBoundingClientRect().width;
     sp.classList.add("on"); document.body.classList.add("dragging");
-    const mv = ev => o.set(clamp(w0 + o.dir * (ev.clientX - x0)));
+    const mv = ev => { if (!(ev.buttons & 1)) return up(); o.set(clamp(w0 + o.dir * (ev.clientX - x0))); };
     const up = () => { document.removeEventListener("mousemove", mv); document.removeEventListener("mouseup", up);
       sp.classList.remove("on"); document.body.classList.remove("dragging"); store.set(paneKey(o.key), Math.round(o.el().getBoundingClientRect().width));
       paneRedraw(); };
@@ -948,7 +966,7 @@ function hsplit(sp, o){
     let coll = sp.classList.contains("coll");
     const el = o.el(), y0 = e.clientY, hh = coll ? 0 : el.getBoundingClientRect().height;
     sp.classList.add("on"); document.body.classList.add("vdragging");
-    const mv = ev => { if (coll){ if (Math.abs(ev.clientY - y0) < 4) return; coll = false; del(kc); setC(false); } setH(clamp(hh + (ev.clientY - y0))); };
+    const mv = ev => { if (!(ev.buttons & 1)) return up(); if (coll){ if (Math.abs(ev.clientY - y0) < 4) return; coll = false; del(kc); setC(false); } setH(clamp(hh + (ev.clientY - y0))); };
     const up = () => { document.removeEventListener("mousemove", mv); document.removeEventListener("mouseup", up);
       sp.classList.remove("on"); document.body.classList.remove("vdragging"); if (el.style.height) store.set(kh, Math.round(el.getBoundingClientRect().height)); paneRedraw(); };
     document.addEventListener("mousemove", mv); document.addEventListener("mouseup", up);
@@ -1067,7 +1085,9 @@ function VList(el, cols0, rowFn0, onClick, selCfg, cfCfg){
       clearTimeout(tt); tt = setTimeout(() => { drawHead(); cfCfg.onChange(); }, delay);
     };
     foot.addEventListener("input", e => { if (e.target.dataset.j != null && e.target.type !== "date") apply(e.target, 250); });
-    foot.addEventListener("change", e => { if (e.target.dataset.j != null && e.target.type === "date") apply(e.target, 0); });
+    // (3.0.1) data scritta a mano: si applica solo con l'anno completo (scrivendo «2026» il campo vale prima 0002, 0020, 0202
+    // e ridisegnarlo a ogni cifra riportava il cursore sul giorno)
+    foot.addEventListener("change", e => { const t = e.target; if (t.dataset.j != null && t.type === "date" && (!t.value || +t.value.slice(0, 4) >= 1000)) apply(t, 600); });
     foot.addEventListener("click", e => { const b = e.target.closest("[data-dd]"); if (b) o.openMenu(+b.dataset.dd, b); });
     head.addEventListener("click", e => {
       if (e.target.dataset.cfclear){ for (const k of Object.keys(cfs)) delete cfs[k]; drawHead(); drawCf(); cfCfg.onChange(); return; }
@@ -1125,7 +1145,7 @@ function VList(el, cols0, rowFn0, onClick, selCfg, cfCfg){
     e.preventDefault();
     const i = +h.dataset.rs, k = vis.indexOf(i), span = head.children[k], x0 = e.clientX, w0 = span.getBoundingClientRect().width;
     document.body.classList.add("colresizing");
-    const mv = ev => { WO[i] = Math.max(40, Math.round(w0 + ev.clientX - x0)); layout(); o.draw(true); };
+    const mv = ev => { if (!(ev.buttons & 1)) return up(); WO[i] = Math.max(40, Math.round(w0 + ev.clientX - x0)); layout(); o.draw(true); };
     const up = () => { document.removeEventListener("mousemove", mv); document.removeEventListener("mouseup", up); document.body.classList.remove("colresizing"); rsBlock = Date.now() + 300; wSave(); };
     document.addEventListener("mousemove", mv); document.addEventListener("mouseup", up);
   });
@@ -1148,8 +1168,20 @@ function VList(el, cols0, rowFn0, onClick, selCfg, cfCfg){
       for (let k = range[0]; k <= range[1]; k++){ const it = selCfg.itemOf(k); if (it){ on ? S.set(it.key, it) : S.delete(it.key); } }
       o.lastCk = i; o.draw(true); renderSelBar(); return;
     }
-    o.sel = i; o.draw(true); onClick(i, e);
+    o.sel = i; o.draw(true); VL_ATTIVA = o; onClick(i, e);
   };
+  // (3.0.1) ↑ ↓ come nel caso: spostano la riga selezionata e aprono quella nuova; la riga resta visibile
+  o.vai = d => {
+    if (!o.n) return;
+    const i = Math.max(0, Math.min(o.n - 1, (o.sel < 0 ? -1 : o.sel) + d));
+    if (i === o.sel) return;
+    o.sel = i;
+    const top = i * H, bot = top + H;
+    if (top < body.scrollTop) body.scrollTop = top; else if (bot > body.scrollTop + body.clientHeight) body.scrollTop = bot - body.clientHeight;
+    o.draw(true); onClick(i, {tasto: true});
+  };
+  o.invio = () => { if (o.sel >= 0 && o.sel < o.n) onClick(o.sel, {}); };
+  o.visibile = () => el.offsetParent !== null;
   if (selCfg){
     head.addEventListener("click", e => {
       if (!e.target.matches(".ckall")) return;
@@ -1164,6 +1196,17 @@ function VList(el, cols0, rowFn0, onClick, selCfg, cfCfg){
   return o;
 }
 const LISTS = [];
+let VL_ATTIVA = null;
+document.addEventListener("keydown", e => {
+  if (e.key !== "ArrowDown" && e.key !== "ArrowUp" && e.key !== "Enter" || e.altKey || e.ctrlKey || e.metaKey) return;
+  const t = e.target, tag = t && t.tagName;
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || (t && t.isContentEditable) || document.querySelector(".mod")) return;
+  if (t && t.closest && t.closest("#pv .pvb")) return;              // dentro l'anteprima le frecce scorrono il suo contenuto
+  const l = VL_ATTIVA && VL_ATTIVA.visibile() ? VL_ATTIVA : null;
+  if (!l) return;
+  if (e.key === "Enter"){ if (t && t.closest && t.closest("button,a")) return; e.preventDefault(); l.invio(); return; }
+  e.preventDefault(); l.vai(e.key === "ArrowDown" ? 1 : -1);
+});
 function redrawLists(){ for (const l of LISTS) l.draw(true); }
 function flags(i){
   const r = F[i], k = keyOf(r[C.part], r[C.inode]);
@@ -1212,7 +1255,7 @@ let EXP = {part: null, dir: "", rows: [], list: null}, TREE_OPEN = new Set();
 function initExplore(){
   EXP.list = VList($("expList"), [[T("Nome"), "minmax(180px,1fr)"], [T("Dimensione"), "84px", "r", 360], [T("Modificato (<span class=\"tzl\"></span>)"), "196px", "", 520], [T("Creato (<span class=\"tzl\"></span>)"), "196px", "", 680]],
     i => { const r = F[EXP.rows[i]]; return [`<span>${icon(r)} <span class="${r[C.deleted] ? "del" : ""}">${esc(r[C.name])}</span>${flags(EXP.rows[i])}</span>`, `<span class="r">${r[C.isdir] ? "" : fsize(r[C.size])}</span>`, `<span>${fts(r[C.mtime])}</span>`, `<span>${fts(r[C.crtime])}</span>`]; },
-    i => { const fi = EXP.rows[i]; if (F[fi][C.isdir]) openDir(F[fi][C.part], PATH(fi)); else openFile(fi); },
+    (i, e) => { const fi = EXP.rows[i]; if (F[fi][C.isdir]){ if (!(e && e.tasto)) openDir(F[fi][C.part], PATH(fi)); } else openFile(fi); },
     {view: "exp", itemOf: i => fsItem(EXP.rows[i])},
     {cols: [{t: "t", get: i => $("expSub").checked ? PATH(i) : F[i][C.name]}, {t: "n", get: i => F[i][C.isdir] ? null : F[i][C.size]}, {t: "d", get: i => F[i][C.mtime]}, {t: "d", get: i => F[i][C.crtime]}], pin: i => F[i][C.isdir], onChange: () => listDir()});
   const parts = [...new Set(F.map(r => r[C.part]))];
@@ -1477,7 +1520,7 @@ function initTimeline(){
   TL.list = VList($("tlList"), [[T("Data e ora (<span class=\"tzl\"></span>)"), "196px"], [T("Evento"), "140px", "", 560], [T("Origine"), "110px", "", 720], [T("File o messaggio"), "minmax(200px,1fr)"]],
     i => { const e = TL.rows[i]; const what = e[4] ? esc(e[4]) + (e[5] ? ` <span class="hint">${esc(e[5])}</span>` : "") : `<span class="hint">${esc(e[5] || "")}</span>`;
       return [`<span>${fts(e[0])}</span>`, `<span>${esc(KIND[e[1]] || e[1])}</span>`, `<span class="hint">${e[2] === "tsk" ? T("file system") : esc(e[3] || e[2])}</span>`, `<span>${what}</span>`]; },
-    i => { const e = TL.rows[i]; if (e[8] != null && window.PCHAT) return PCHAT.openMsg(e[8]); if (e[7] != null){ const fi = KEY.get(keyOf(e[6], e[7])); if (fi != null) openFile(fi); } },
+    (i, ev) => { const e = TL.rows[i]; if (e[8] != null && window.PCHAT) return ev && ev.tasto ? null : PCHAT.openMsg(e[8]); if (e[7] != null){ const fi = KEY.get(keyOf(e[6], e[7])); if (fi != null) openFile(fi); } },
     {view: "tl", itemOf: i => { const e = TL.rows[i]; return e[7] != null ? fsItem(KEY.get(keyOf(e[6], e[7]))) : null; }},
     {cols: [{t: "d", get: e => e[0]}, {t: "t", get: e => KIND[e[1]] || e[1]}, {t: "t", get: e => e[2] === "tsk" ? T("file system") : (e[3] || e[2])}, {t: "t", get: e => (e[4] || "") + " " + (e[5] || "")}], onChange: () => filterTl()});
   $("tlQ").oninput = filterTl; $("tlOrig").onchange = filterTl;
@@ -1647,7 +1690,14 @@ const RE_VID = /\.(mp4|m4v|mov|webm|3gp|avi|mkv|wmv|mpg|mpeg|flv|mts|m2ts)$/i, R
 const RE_AUD = /\.(mp3|m4a|aac|wav|flac|ogg|oga|opus|amr|wma|aiff?|caf|3ga)$/i;
 // dimensione e date dal catalogo del file system: [byte, modifica, creazione]
 function datiFile(part, inode){ const fi = KEY.get(keyOf(part, inode)), r = fi != null ? F[fi] : null; return r ? [r[C.size], r[C.mtime], r[C.crtime]] : [null, null, null]; }
-let AUDIO_R = null;
+let AUDIO_R = null, META_T = null;
+// (3.0.1) voce principale: i file con metadati più gli audio che non vi sono già (il numero comprende tutte le sottovoci)
+function metaTutti(){
+  if (META_T) return META_T;
+  const s = new Set(FD.meta);
+  return (META_T = FD.meta.concat(audioRows().filter(m => !s.has(m))));
+}
+const altroMeta = m => !RE_FOTO.test(m[4] || "") && !RE_VID.test(m[4] || "") && !RE_AUD.test(m[4] || "");
 function audioRows(){
   if (AUDIO_R) return AUDIO_R;
   AUDIO_R = [];
@@ -1656,7 +1706,10 @@ function audioRows(){
 }
 /* ---------- (3.0) documenti: stessi file della sezione del caso, con dimensione e date ---------- */
 let DV = {rows: [], list: null};
-function docDati(r){ if (r[2] === "x"){ const x = ((FD.ext || {}).x || []).find(y => String(y[0]) === String(r[4])); return x ? [x[4], x[5], null] : [null, null, null]; } return datiFile(r[3], r[4]); }
+function docDati(r){ if (r[2] === "x"){ const x = xDi(r[4]); return x ? [x[4], x[5], null] : [null, null, null]; } return datiFile(r[3], r[4]); }
+let XDI = null;
+function xDi(id){ if (!XDI) XDI = new Map(((FD.ext || {}).x || []).map(y => [String(y[0]), y])); return XDI.get(String(id)); }
+const metaDati = m => { if (m[0] === "x"){ const x = xDi(m[2]); return x ? [x[4], x[5], null] : [null, null, null]; } return datiFile(m[1], m[2]); };
 function initDoc(){
   DV.list = VList($("docList"), [[T("Documento"), "minmax(220px,1fr)"], [T("Dimensione"), "84px", "r", 420], [T("Modificato (<span class=\"tzl\"></span>)"), "196px", "", 560], [T("Creato (<span class=\"tzl\"></span>)"), "196px", "", 760], [T("Tipo"), "150px", "", 960]],
     i => { const r = DV.rows[i], d = docDati(r); return [`<span class="${r[5] ? "del" : ""}">${esc(r[0])}</span>`, `<span class="r">${d[0] != null ? fsize(d[0]) : ""}</span>`, `<span>${fts(d[1])}</span>`, `<span>${fts(d[2])}</span>`, `<span class="hint">${esc(r[1] || "")}</span>`]; },
@@ -1672,18 +1725,19 @@ function initDoc(){
 
 function initMeta(){
   MT.list = VList($("metaList"), [[T("File"), "minmax(180px,1fr)"], [T("Dimensione"), "84px", "r", 420], [T("Modificato (<span class=\"tzl\"></span>)"), "196px", "", 560], [T("Creato (<span class=\"tzl\"></span>)"), "196px", "", 760], [T("Dispositivo"), "160px", "", 960], [T("Data (dai metadati)"), "220px", "", 1140], ["GPS", "180px", "", 1320], [T("Autore"), "130px", "", 1460]],
-    i => { const m = MT.rows[i], d = datiFile(m[1], m[2]); return [`<span class="${m[3] ? "del" : ""}">${esc(m[4])}</span>` + (m[11] ? ` <a href="#" class="hint" data-mchat="${m[12]}" title="${esc(T("Apri nella chat"))}">💬 ${esc(m[11])}</a>` : ""), `<span class="r">${d[0] != null ? fsize(d[0]) : ""}</span>`, `<span>${fts(d[1])}</span>`, `<span>${fts(d[2])}</span>`, `<span>${esc([m[5], m[6]].filter(Boolean).join(" "))}</span>`, `<span>${fmtTaken(m[7])}</span>`, `<span class="mono">${m[8] != null ? m[8].toFixed(6) + ", " + m[9].toFixed(6) : ""}</span>`, `<span>${esc(m[10] || "")}</span>`]; },
-    i => { const m = MT.rows[i]; const fi = KEY.get(keyOf(m[1], m[2])); if (fi != null) openFile(fi); else { const a = ATT_BY_KEY.get("c:" + m[2]); if (a) openAtt(a); } },
+    i => { const m = MT.rows[i], d = metaDati(m); return [`<span class="${m[3] ? "del" : ""}">${esc(m[4])}</span>` + (m[11] ? ` <a href="#" class="hint" data-mchat="${m[12]}" title="${esc(T("Apri nella chat"))}">💬 ${esc(m[11])}</a>` : ""), `<span class="r">${d[0] != null ? fsize(d[0]) : ""}</span>`, `<span>${fts(d[1])}</span>`, `<span>${fts(d[2])}</span>`, `<span>${esc([m[5], m[6]].filter(Boolean).join(" "))}</span>`, `<span>${fmtTaken(m[7])}</span>`, `<span class="mono">${m[8] != null ? m[8].toFixed(6) + ", " + m[9].toFixed(6) : ""}</span>`, `<span>${esc(m[10] || "")}</span>`]; },
+    i => { const m = MT.rows[i]; if (m[0] === "x"){ const x = xDi(m[2]); return x && xOpen(x); }     // (3.0.1) foto e video dalle cache dei browser
+      const fi = KEY.get(keyOf(m[1], m[2])); if (fi != null) openFile(fi); else { const a = ATT_BY_KEY.get("c:" + m[2]); if (a) openAtt(a); } },
     {view: "meta", itemOf: i => { const m = MT.rows[i]; const fi = KEY.get(keyOf(m[1], m[2])); return fi != null ? fsItem(fi) : ATT_BY_KEY.get("c:" + m[2]) ? attItem(ATT_BY_KEY.get("c:" + m[2])) : null; }},
-    {cols: [{t: "t", get: m => m[4]}, {t: "n", get: m => datiFile(m[1], m[2])[0]}, {t: "d", get: m => datiFile(m[1], m[2])[1]}, {t: "d", get: m => datiFile(m[1], m[2])[2]}, {t: "t", get: m => [m[5], m[6]].filter(Boolean).join(" ")}, {t: "d", get: m => m[7]}, null, {t: "t", get: m => m[10]}], onChange: () => f()});
+    {cols: [{t: "t", get: m => m[4]}, {t: "n", get: m => metaDati(m)[0]}, {t: "d", get: m => metaDati(m)[1]}, {t: "d", get: m => metaDati(m)[2]}, {t: "t", get: m => [m[5], m[6]].filter(Boolean).join(" ")}, {t: "d", get: m => m[7]}, null, {t: "t", get: m => m[10]}], onChange: () => f()});
   // (2.20) solo video (per estensione); telefoni: origine = app delle chat in cui il file è allegato (m[11])
   const VID = RE_VID, FOTO = RE_FOTO;
   const apps = [...new Set(FD.meta.flatMap(m => m[11] ? m[11].split(", ") : []))].sort();
   if (apps.length){ $("metaOrig").innerHTML = [["", T("Origine: tutte")], ["*", T("Allegati delle chat")], ...apps.map(a => [a, a])].map(([v, l]) => `<option value="${esc(v)}">${esc(l)}</option>`).join(""); $("metaOrig").classList.remove("hidden"); }
-  const f = () => { const q = $("metaQ").value.trim().toLowerCase(), gps = $("metaGps").checked, vid = $("metaVid").checked, foto = $("metaFoto").checked, aud = $("metaAud").checked, og = $("metaOrig").value;
-    MT.rows = MT.list.filterRows((aud ? audioRows() : FD.meta).filter(m => (!gps || m[8] != null) && (!vid || VID.test(m[4] || "")) && (!foto || FOTO.test(m[4] || "")) && (!og || (m[11] && (og === "*" || m[11].split(", ").includes(og)))) && (!q || [m[4], m[5], m[6], m[7], m[10]].join(" ").toLowerCase().includes(q))));
+  const f = () => { const q = $("metaQ").value.trim().toLowerCase(), gps = $("metaGps").checked, vid = $("metaVid").checked, foto = $("metaFoto").checked, aud = $("metaAud").checked, altri = $("metaAltri").checked, og = $("metaOrig").value;
+    MT.rows = MT.list.filterRows((aud ? audioRows() : vid || foto || altri ? FD.meta : metaTutti()).filter(m => (!gps || m[8] != null) && (!altri || altroMeta(m)) && (!vid || VID.test(m[4] || "")) && (!foto || FOTO.test(m[4] || "")) && (!og || (m[11] && (og === "*" || m[11].split(", ").includes(og)))) && (!q || [m[4], m[5], m[6], m[7], m[10]].join(" ").toLowerCase().includes(q))));
     MT.list.set(MT.rows.length); $("metaInfo").textContent = nf(MT.rows.length) + " file"; };
-  $("metaQ").oninput = f; $("metaGps").onchange = f; $("metaVid").onchange = f; $("metaFoto").onchange = f; $("metaAud").onchange = f; $("metaOrig").onchange = f; f();
+  $("metaQ").oninput = f; $("metaGps").onchange = f; $("metaVid").onchange = f; $("metaFoto").onchange = f; $("metaAud").onchange = f; $("metaAltri").onchange = f; $("metaOrig").onchange = f; f();
   $("metaList").addEventListener("click", e => { const a = e.target.closest("[data-mchat]"); if (!a) return; e.preventDefault(); e.stopPropagation(); if (window.PCHAT) window.PCHAT.openMsg(+a.dataset.mchat); }, true);
 }
 
@@ -1746,7 +1800,8 @@ function initTraces(){
 const EXV = {art: {}, mail: {}, x: {}, anom: {}};
 /* artefatti degli smartphone (2.20): r[8] gruppo (categoria di iLEAPP/ALEAPP o app), r[9] voce (artefatto), r[10] dati della
    conversazione; per iLEAPP/ALEAPP i Dettagli sono i campi in JSON, mostrati come «campo: valore» con le date nel fuso scelto */
-const APP_LBL = {whatsapp: "WhatsApp", imessage: "iMessage/SMS", sms: "SMS/MMS"};
+const APP_LBL = {whatsapp: "WhatsApp", imessage: "iMessage/SMS", sms: "SMS/MMS", whatsapp_backup: T("WhatsApp (backup decifrato)"),
+  whatsapp_business: "WhatsApp Business", whatsapp_business_backup: T("WhatsApp Business (backup decifrato)")};
 function artFields(r){
   if (r[0] !== "leapp" || !r[3] || r[3][0] !== "{") return null;
   try{ return JSON.parse(r[3]); }catch(e){ return null; }
@@ -1840,10 +1895,11 @@ function initArt(){
       [...e.s.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([s, n]) => `<option value="${esc(JSON.stringify([g, s]))}">${"\u00a0\u00a0\u00a0\u00a0" + esc(s + " (" + nf(n) + ")")}</option>`).join("")).join("");
   };
   EXV.art.list = VList($("artList"), [[T("Data e ora (<span class=\"tzl\"></span>)"), "196px"], [T("Categoria"), "130px", "", 620], [T("Elemento"), "minmax(180px,1fr)"], [T("Dettagli"), "minmax(180px,1.4fr)", "", 760]],
+    // (3.0.1) righe ad altezza fissa: tutto su una riga (gli a capo diventano « · »), il resto nella scheda che si apre col clic
     i => { const r = EXV.art.rows[i], ch = artChat(r), kv = ch ? null : artKv(r, 8);
       return [`<span>${fts(r[1])}</span>`, `<span class="hint">${esc(cats[r[0]] || r[0])}${r[8] != null ? "<br>" + esc(r[0] === "messaggi" ? APP_LBL[r[8]] || r[8] : r[8]) : ""}</span>`,
         ch ? `<span>${ch.who}</span>` : `<span>${citedThumbP(r)}<b>${esc(r[2])}</b>${r[4] ? ` <span class="hint">· ${esc(r[4])}</span>` : ""}</span>`,
-        ch ? `<span>${ch.det}</span>` : kv ? `<span>${kv}</span>` : `<span class="hint">${esc(r[3])}</span>`]; },
+        ch ? `<span>${ch.det}</span>` : kv ? `<span>${kv}</span>` : `<span class="hint">${esc(r[3])}</span>`].map(c => c.replace(/<br\s*\/?>/g, " · ")); },
     i => EXV.art.open(EXV.art.rows[i]), null,
     {cols: [{t: "d", get: r => r[1]}, {t: "t", get: r => cats[r[0]] || r[0]}, {t: "t", get: r => r[2] + " " + (r[4] || "")}, {t: "t", get: r => r[3]}], onChange: () => f()});
   EXV.art.open = r => { const ch = artChat(r), kv = artKv(r), d = r[10] || {};
@@ -1851,7 +1907,7 @@ function initArt(){
       const acts = ci.map((c, k) => [ci.length > 1 ? TF("Apri il file citato {0}", k + 1) : T("Apri il file citato"), () => { openFile(KEY.get(keyOf(c[3], c[4]))); }])
         .concat(r[6] != null && KEY.get(keyOf(r[6], r[7])) != null ? [[T("Apri la fonte"), () => { openFile(KEY.get(keyOf(r[6], r[7]))); }]] : [])
         .concat(ch && window.PCHAT ? [[T("💬 Apri chat"), () => { PCHAT.open(d.chat_thread); }]] : []);
-      modal(r[2], `<table class="dt">${[[T("Categoria"), cats[r[0]] || r[0]], [T("Gruppo"), r[8] != null ? (r[0] === "messaggi" ? APP_LBL[r[8]] || r[8] : r[8]) : ""], [T("Artefatto"), r[9] || ""], [TF("Data ({0})", tzLbl()), fts(r[1])], [T("Dettagli"), kv || ch ? "" : r[3]], [T("Utente"), r[4]], [T("Fonte"), r[5] ? (X.art_sub && r[7] != null ? TF("{0} (percorso nell'estrazione)", r[5]) : `${r[5]}` + (r[7] != null ? ` (offset ${r[6]}, inode ${r[7]})` : "")) : ""]].filter(x => x[1]).map(([k, v]) => `<tr><th>${esc(k)}</th><td style="white-space:pre-wrap">${esc(v)}</td></tr>`).join("")}</table>` +
+      openSide(r[2], r[5] || "", `<table class="dt">${[[T("Categoria"), cats[r[0]] || r[0]], [T("Gruppo"), r[8] != null ? (r[0] === "messaggi" ? APP_LBL[r[8]] || r[8] : r[8]) : ""], [T("Artefatto"), r[9] || ""], [TF("Data ({0})", tzLbl()), fts(r[1])], [T("Dettagli"), kv || ch ? "" : r[3]], [T("Utente"), r[4]], [T("Fonte"), r[5] ? (X.art_sub && r[7] != null ? TF("{0} (percorso nell'estrazione)", r[5]) : `${r[5]}` + (r[7] != null ? ` (offset ${r[6]}, inode ${r[7]})` : "")) : ""]].filter(x => x[1]).map(([k, v]) => `<tr><th>${esc(k)}</th><td style="white-space:pre-wrap">${esc(v)}</td></tr>`).join("")}</table>` +
         (ch ? `<p>${ch.who}</p><p>${ch.det}</p>` : "") + citedBlockP(cl) + (kv || ""), acts); };
   EXV.art.getState = () => ({cat: $("artCat").value, sub: $("artSub").value, q: $("artQ").value});
   EXV.art.setState = s => { $("artCat").value = s.cat || ""; subOpts(); $("artSub").value = s.sub || ""; $("artQ").value = s.q || ""; f(); };
@@ -1880,14 +1936,14 @@ function initArt(){
 }
 function xOpen(r){
   if (r[10]) return window.open(r[10], "_blank");
-  modal(r[3] || T("File estratto"), TF("<p style=\"word-break:break-word\">{0}</p><p class=\"hint\">{1}{2}{3}</p><p class=\"hint\">Il contenuto di questo file non è incluso nel report portatile.</p>", esc(r[2]), fsize(r[4]), r[7] ? " · SHA-256 " + esc(r[7]) : "", r[8] ? " · " + esc(r[8]) : ""), []);
+  openSide(r[3] || T("File estratto"), r[2] || "", TF("<p style=\"word-break:break-word\">{0}</p><p class=\"hint\">{1}{2}{3}</p><p class=\"hint\">Il contenuto di questo file non è incluso nel report portatile.</p>", esc(r[2]), fsize(r[4]), r[7] ? " · SHA-256 " + esc(r[7]) : "", r[8] ? " · " + esc(r[8]) : ""), []);
 }
 function initMail(){
   const X = FD.ext, XB = new Map((X.x || []).map(r => [r[0], r]));
   EXV.mail.list = VList($("mailList"), [[T("Data e ora (<span class=\"tzl\"></span>)"), "196px"], ["Da", "minmax(140px,0.8fr)", "", 620], [T("Oggetto"), "minmax(180px,1.4fr)"], [T("Cartella"), "minmax(120px,0.8fr)", "", 820]],
     i => { const r = EXV.mail.rows[i]; return [`<span>${fts(r[1])}</span>`, `<span>${esc(r[2])}</span>`, `<span><b>${esc(r[5])}</b>${r[6] ? ` <span class="hint">📎 ${r[6]}</span>` : ""}</span>`, `<span class="hint">${esc(r[7])} ${esc(r[8] || "")}</span>`]; },
     i => { const r = EXV.mail.rows[i], atts = (X.x || []).filter(x => x[9] === r[0]);
-      const m = modal(r[5], `<table class="dt">${[["Da", r[2]], ["A", r[3]], ["Cc", r[4]], [TF("Data ({0})", tzLbl()), fts(r[1])], [T("Fonte"), `${r[9]} › ${r[8] || ""}`]].filter(x => x[1]).map(([k, v]) => `<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>`).join("")}</table>
+      const m = openSide(r[5], `${r[9] || ""} › ${r[8] || ""}`, `<table class="dt">${[["Da", r[2]], ["A", r[3]], ["Cc", r[4]], [TF("Data ({0})", tzLbl()), fts(r[1])], [T("Fonte"), `${r[9]} › ${r[8] || ""}`]].filter(x => x[1]).map(([k, v]) => `<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>`).join("")}</table>
         ${atts.length ? TF("<p style=\"margin:10px 0 4px\"><b>Allegati</b></p>{0}", atts.map(a => `<button class="btn small" data-xa="${a[0]}">📎 ${esc(a[3])} <span class="hint">${fsize(a[4])}</span></button> `).join("")) : ""}
         <pre style="white-space:pre-wrap;max-height:50vh;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:10px;margin-top:10px">${esc(r[10] || T("(testo non incluso)"))}</pre>`, []);
       m.querySelectorAll("[data-xa]").forEach(b => b.onclick = () => xOpen(XB.get(+b.dataset.xa))); }, null,
@@ -1904,6 +1960,7 @@ function initX(){
     i => xOpen(EXV.x.rows[i]), null,
     {cols: [{t: "t", get: r => r[2]}, {t: "n", get: r => r[4]}, {t: "d", get: r => r[5]}, {t: "t", get: r => (r[7] || "") + " " + (r[8] || "")}], onChange: () => f()});
   if (X.x.some(r => r[1] === "miniatura")) $("xKind").innerHTML += `<option value="miniatura">${esc(T("Miniature (thumbcache)"))}</option>`;
+  if (X.x.some(r => r[1] === "cache_web")) $("xKind").innerHTML += `<option value="cache_web">${esc(T("Cache dei browser"))}</option>`;
   const f = () => { const k = $("xKind").value, q = $("xQ").value.trim().toLowerCase(); EXV.x.rows = EXV.x.list.filterRows(X.x.filter(r => (!k || r[1] === k) && (!q || r[2].toLowerCase().includes(q)))); EXV.x.list.set(EXV.x.rows.length); $("xInfo").textContent = nf(EXV.x.rows.length) + T(" file (📎 = contenuto incluso nel report)"); };
   $("xKind").onchange = f; $("xQ").oninput = f; f();
 }
@@ -1934,7 +1991,7 @@ function openCarved(r){
   PV = {type: "carved", key: "c:" + r[0], name: r[0], path: T("file recuperato ") + r[0], att: null, row: null, carved: r}; showPv();
 }
 function showPv(){
-  $("pv").classList.remove("hidden");
+  $("pv").classList.remove("hidden"); $("pvTabs").classList.remove("hidden"); $("pvBm").classList.remove("hidden");
   $("pvName").textContent = PV.name; $("pvPath").textContent = PV.path + (PV.row ? `  ·  offset ${PV.row[C.part]}, inode ${PV.row[C.inode]}` : "");
   pvTab(PV.att ? PVT : (PVT === "view" || PVT === "hex" ? "info" : PVT));
 }
@@ -1945,9 +2002,26 @@ function pvFull(si){
 }
 $("pvFull").onclick = () => pvFull(!$("pv").classList.contains("pvfull"));
 document.addEventListener("keydown", e => { if (e.key === "Escape" && $("pv").classList.contains("pvfull") && !document.querySelector(".mod")) pvFull(false); });
-$("pvClose").onclick = () => { pvFull(false); $("pv").classList.add("hidden"); PV = null; };
+function pvChiudi(){ pvFull(false); $("pv").classList.add("hidden"); PV = null; }
+$("pvClose").onclick = pvChiudi;
+/* (3.0.1) scheda di un elemento senza file (artefatto, messaggio di posta, file estratto non incluso) nel pannello laterale,
+   come nel caso, al posto della finestra al centro: campi e pulsanti, senza le schede Anteprima/Testo/Esadecimale */
+function openSide(title, path, html, acts){
+  PV = {type: "card", name: title, path: path || ""};
+  pvFull(false);
+  $("pv").classList.remove("hidden"); $("pvName").textContent = title || ""; $("pvPath").textContent = path || "";
+  $("pvTabs").classList.add("hidden"); $("pvBm").classList.add("hidden");
+  const body = $("pvBody");
+  body.innerHTML = `<div class="pvcard">${html}</div>` + ((acts || []).length ? `<div class="pvacts"></div>` : "");
+  for (const [label, fn] of acts || []){
+    const b = document.createElement("button"); b.className = "btn small"; b.textContent = label; b.onclick = () => fn();
+    body.querySelector(".pvacts").appendChild(b);
+  }
+  body.scrollTop = 0;
+  return body;
+}
 $("pvBm").onclick = () => { if (!PV) return; const it = PV.type === "fs" ? fsItem(PV.i) : PV.att ? attItem(PV.att) : PV.carved ? carvedItem(PV.carved) : null; if (it) bmDialog([it]); };
-$("pvTabs").onclick = e => { const b = e.target.closest("button"); if (b && PV) pvTab(b.dataset.t); };
+$("pvTabs").onclick = e => { const b = e.target.closest("button"); if (b && PV && PV.type !== "card") pvTab(b.dataset.t); };
 async function detail(a){
   // (2.20) i file in blocco hanno i dettagli raggruppati a 100 per file dati (DET_GRP); reperti e selezioni uno per file
   const src = a.full ? `dati/a/${String(Math.floor(a.id / 1000)).padStart(4, "0")}/${String(a.id).padStart(6, "0")}.js`
@@ -1973,7 +2047,7 @@ async function pvTab(t){
       body.innerHTML = nota(TF("{0} {1} come immagini (nessun contenuto attivo del documento viene eseguito){2}.{3}", lim ? TF("Prime {0} pagine", a.pages) : a.pages === 1 ? T("1 pagina") : TF("{0} pagine", a.pages), a.pages === 1 ? T("mostrata") : T("mostrate"), a.kind === "office" ? T("; impaginazione ricostruita con LibreOffice") : "", a.kind === "pdf" ? TF(" <a href=\"{0}\" target=\"_blank\" rel=\"noopener noreferrer\">Apri il PDF originale</a> (nel visualizzatore PDF del browser).", esc(U(a.file))) : "")) + `<div class="pages">${a.pageList.map(p => `<img loading="lazy" src="${esc(p)}" alt="">`).join("")}</div>`;
     }
     else if (a.kind === "pdf") body.innerHTML = nota(TF("Pagine non disponibili. <a href=\"{0}\" target=\"_blank\" rel=\"noopener noreferrer\">Apri il PDF originale</a> (nel visualizzatore PDF del browser).", esc(U(a.file))));
-    else if (a.kind === "video") body.innerHTML = `<video controls style="width:100%;margin-top:12px" src="${esc(U(a.file))}"></video>`;
+    else if (a.kind === "video") body.innerHTML = `<video controls style="width:100%;margin-top:12px" src="${esc(U(a.file))}"${a.prev ? ` poster="${esc(a.prev)}"` : ""}></video>`;
     else if (a.kind === "audio") body.innerHTML = `<audio controls style="width:96%;margin:14px 2%" src="${esc(U(a.file))}"></audio>`;
     else if (a.kind === "text"){ const d = await detail(a); if (PV !== cur) return; body.innerHTML = `<pre>${esc(d ? d.text : "")}</pre>`; }
     else if (a.kind === "office"){
@@ -2132,7 +2206,7 @@ function initBm(){
   BMV.list = VList($("bmList"), [[T("File"), "minmax(200px,1fr)"], [T("Nota"), "minmax(140px,1fr)", "", 560], [T("Dimensione"), "84px", "r", 720], [T("Modificato (<span class=\"tzl\"></span>)"), "196px", "", 860]],
     i => { const x = BMV.rows[i], it = x.it, r = it && it.fi != null ? F[it.fi] : null;
       return [`<span>${r ? icon(r) : "📄"} <span class="${it && it.deleted ? "del" : ""}">${esc(it ? it.path : x.path || x.key)}</span>${x.local ? "" : T(" <span class=\"tag att\">dal report</span>")}</span>`, `<span class="hint">${esc(x.note)}</span>`, `<span class="r">${it ? fsize(it.size) : ""}</span>`, `<span>${r ? fts(r[C.mtime]) : ""}</span>`]; },
-    i => openItem(BMV.rows[i].it), {view: "bm", itemOf: i => BMV.rows[i].it},
+    (i, ev) => { const it = BMV.rows[i].it; if (ev && ev.tasto && /^chatt?:/.test(String(it.key))) return; openItem(it); }, {view: "bm", itemOf: i => BMV.rows[i].it},
     {cols: [{t: "t", get: x => x.it ? x.it.path : x.path}, {t: "t", get: x => x.note}, {t: "n", get: x => x.it ? x.it.size : null}, {t: "d", get: x => x.it && x.it.fi != null ? F[x.it.fi][C.mtime] : null}], onChange: () => renderBmCats()});
   $("bmCats").onclick = e => { const c = e.target.closest(".bmc"); if (c){ BMV.cat = c.dataset.c; SELV("bm").clear(); renderBmCats(); renderSelBar(); } };
   $("bmNew").onclick = () => modal(T("Nuova categoria"), T("<input type=\"text\" id=\"mNew\" placeholder=\"Nome della categoria\">"), [[T("Crea"), m => { const n = m.querySelector("#mNew").value.trim(); if (!n){ toast(T("Scrivi un nome")); return true; } if (!BML[n]) BML[n] = {note: "", created: new Date().toISOString(), items: {}}; bmSave(); BMV.cat = n; renderBmCats(); }, true]]);
@@ -2198,6 +2272,15 @@ document.addEventListener("click", e => {
 });
 
 /* ---------- fuso orario ---------- */
+{ // (3.0.1) formato delle date
+  const ds = document.createElement("select"), esd = "2024-01-31 17:38:12"; ds.id = "dfmtSel"; ds.style.cssText = $("tzSel").style.cssText + ";margin-left:6px;max-width:190px";
+  ds.title = T("Formato delle date mostrate in tabelle, anteprime, chat e grafici (i dati, i CSV e l'ordinamento restano in formato ISO)");
+  ds.innerHTML = [["gma", T("giorno/mese/anno")], ["iso", T("anno-mese-giorno (ISO)")], ["mga", T("mese/giorno/anno")], ["esteso", T("mese in lettere")]]
+    .map(([k, l]) => `<option value="${k}">📅 ${esc(dataTxt(esd, k).slice(0, -9))} · ${esc(l)}</option>`).join("");
+  ds.value = dataFmt();
+  $("tzSel").insertAdjacentElement("afterend", ds);
+  ds.onchange = () => { DFMT = ds.value; store.set("repertia_formato_data", DFMT); redrawLists(); renderSummary(); if (PV) pvTab(PVT); toast(TF("Date mostrate come {0}", dataTxt(esd))); };
+}
 tzSelRefresh();
 $("tzSel").onchange = () => {
   const v = $("tzSel").value; TZ = v === "rome" || v === "dev" ? v : "utc"; store.set("repertia_fuso", TZ);
@@ -2212,8 +2295,9 @@ $("tzSel").onchange = () => {
 $("pdfBtn").onclick = () => {
   const cats = bmCats();
   modal(T("📄 Nuovo report"), TF("<p class=\"hint\" style=\"margin-top:0\"><b>PDF</b>: si apre la finestra di stampa, scegli «Salva come PDF». <b>Word</b>: file .docx modificabile. <b>HTML</b>: pagina da aprire in qualsiasi browser.</p>\n    <p style=\"margin:6px 0 4px\">Titolo</p><input type=\"text\" id=\"pTitle\" value=\"Report di analisi – {0}\">\n    <p style=\"margin:10px 0 4px\">Redatto da</p><input type=\"text\" id=\"pAuth\" value=\"{1}\">\n    <p style=\"margin:12px 0 4px\"><b>Contenuto</b></p>\n    <label class=\"opt\"><input type=\"checkbox\" id=\"pCase\" checked> Dati del caso e della copia forense</label>\n    <label class=\"opt\"><input type=\"checkbox\" id=\"pFind\" checked> Reperti ({2})</label>\n    <label class=\"opt\"><input type=\"checkbox\" id=\"pNotes\" {3}> Note sui file ({4})</label>\n    <label class=\"opt\"><input type=\"checkbox\" id=\"pThumb\" checked> Miniature di foto e prime pagine dei documenti inclusi</label>\n    <label class=\"opt\"><input type=\"checkbox\" id=\"pMd\"> Report completo dell'analisi (testo generato da RepertIA)</label>\n    <p style=\"margin:12px 0 4px\"><b>Preferiti</b></p>\n    {5}", esc(FD.case.case), esc(store.get("repertia_autore", "")), (FD.case.findings || []).length, Object.keys(NOTES).length ? "checked" : "", Object.keys(NOTES).length, cats.length ? cats.map(c => TF("<label class=\"opt\"><input type=\"checkbox\" data-pc=\"{0}\" checked> ⭐ {1} <span class=\"hint\">({2} file)</span></label>", esc(c.name), esc(c.name), nf(c.n))).join("") : T("<p class=\"hint\">Nessuna categoria.</p>")),
-    [["📄 PDF", m => { buildPrint(m); }, true], ["📝 Word", m => { buildDocx(m); }], ["🌐 HTML", m => { buildHtmlFile(m); }]]);
+    [["📄 PDF", async m => { await prepChat(); buildPrint(m); }, true], ["📝 Word", async m => { await prepChat(); buildDocx(m); }], ["🌐 HTML", async m => { await prepChat(); buildHtmlFile(m); }]]);
 };
+const prepChat = () => window.PCHAT && PCHAT.prep ? PCHAT.prep().catch(() => {}) : Promise.resolve();
 function buildPrint(m){
   const pa = $("printArea"); pa.innerHTML = reportHtml(m);
   const imgs = [...pa.querySelectorAll("img")];
@@ -2224,12 +2308,17 @@ function reportHtml(m, noThumb){
   const v = id => m.querySelector("#" + id), on = id => id === "pThumb" && noThumb ? false : v(id).checked, c = FD.case;
   const pick = [...m.querySelectorAll("[data-pc]")].filter(x => x.checked).map(x => x.dataset.pc);
   store.set("repertia_autore", v("pAuth").value);
-  const th = it => { if (!on("pThumb")) return ""; const a = it.att || (it.fi != null && F[it.fi][C.att] ? ATT.get(F[it.fi][C.att]) : ATT_BY_KEY.get(it.key)); const t = a ? thumbOf(a) : null; return t ? `<img class="pth" src="${esc(t)}" alt="">` : ""; };
-  const rowOf = (it, note) => { const r = it.fi != null ? F[it.fi] : null, a = r && r[C.att] ? ATT.get(r[C.att]) : ATT_BY_KEY.get(it.key), n = NOTES[it.key];
-    return `<tr>${on("pThumb") ? `<td>${th(it)}</td>` : ""}<td>${esc(it.path)}<div class="meta">${it.src === "fs" ? `offset ${esc(it.part)}, inode ${esc(it.inode)}` : T("file recuperato col carving")} · ${it.deleted ? T("cancellato") : T("allocato")}${it.size != null ? " · " + fsize(it.size) : ""}</div></td>
-      <td class="meta">${r ? `M ${fts(r[C.mtime])}<br>A ${fts(r[C.atime])}<br>C ${fts(r[C.ctime])}<br>B ${fts(r[C.crtime])}` : ""}</td>
-      <td class="mono">${esc((r && r[C.sha256]) || (a && a.sha256) || "")}</td><td>${esc([note, n ? [n.tag, n.text].filter(Boolean).join(": ") : ""].filter(Boolean).join(" — "))}</td></tr>`; };
-  const head = TF("<tr>{0}<th style=\"width:26%\">File</th><th style=\"width:17%\">Date ({1})</th><th style=\"width:22%\">SHA-256</th><th style=\"width:20%\">Note</th></tr>", on("pThumb") ? T("<th>Anteprima</th>") : "", tzLbl());
+  // (3.0.1) come nel report del programma: una riga per evidenza, «1 di N» a sinistra, dati al centro, anteprima a destra
+  const card = (it, note, k, tot) => { const r = it.fi != null ? F[it.fi] : null, a = r && r[C.att] ? ATT.get(r[C.att]) : ATT_BY_KEY.get(it.key), n = NOTES[it.key];
+    const t = on("pThumb") && a ? thumbOf(a) : null, link = a ? U(a.file) : null, nota = [note, n ? [n.tag, n.text].filter(Boolean).join(": ") : ""].filter(Boolean).join(" — ");
+    const rows = [[T("Percorso"), it.path], [T("Posizione"), it.src === "fs" ? `offset ${it.part}, inode ${it.inode}` : it.src === "c" || it.src === "carving" ? T("file recuperato col carving") : ""],
+      [T("Stato"), it.deleted ? T("cancellato") : T("allocato")], [T("Dimensione"), it.size != null ? fsize(it.size) : ""],
+      ...(r ? [[TF("Modificato ({0})", tzLbl()), fts(r[C.mtime])], [TF("Accesso ({0})", tzLbl()), fts(r[C.atime])], [TF("Cambiato ({0})", tzLbl()), fts(r[C.ctime])], [TF("Creato ({0})", tzLbl()), fts(r[C.crtime])]] : []),
+      ["SHA-256", (r && r[C.sha256]) || (a && a.sha256) || ""]].filter(x => x[1]);
+    return `<div class="rr${it.deleted ? " del" : ""}"><div class="rn">${k}<small> ${esc(TF("di {0}", tot))}</small></div><div class="rd"><b>${esc((it.path || "").split("/").pop() || it.path || "")}</b>`
+      + `<table class="rkv">${rows.map(([x, y]) => `<tr><th>${esc(x)}</th><td${x === "SHA-256" ? ' class="mono"' : ""}>${esc(y)}</td></tr>`).join("")}</table>`
+      + (nota ? `<div class="meta">${esc(T("Nota: ") + nota)}</div>` : "") + `</div>`
+      + (t ? `<div class="rt">${link ? `<a href="${esc(link)}" target="_blank">` : ""}<img class="pth" src="${esc(t)}" alt="">${link ? "</a>" : ""}</div>` : "") + `</div>`; };
   let h = TF("<h1>{0}</h1><div class=\"meta\">Generato il {1}{2} dal report portatile di {3} (creato il {4}).</div>", esc(v("pTitle").value), esc(nowStamp()), v("pAuth").value ? " da " + esc(v("pAuth").value) : "", esc(c.app), esc(ftsRaw(c.generated, true)));
   if (on("pCase")){
     const hs = Object.entries(c.sha256 || {});
@@ -2238,10 +2327,16 @@ function reportHtml(m, noThumb){
   if (on("pFind") && (c.findings || []).length) h += T("<h2>Reperti</h2>") + c.findings.map(f => `<h3>${f.n}. ${esc(f.title)}</h3><p><b>[${esc(findLabel(f))}]</b></p><p style="white-space:pre-wrap">${esc(f.description)}</p><p class="meta">${T("Riferimenti:")} ${esc(f.references)}</p>`).join("");
   for (const name of pick){
     const items = [...bmItems(name).values()]; const cat = bmCats().find(x => x.name === name);
-    h += TF("<h2>⭐ {0} ({1} file)</h2>{2}<table>{3}{4}</table>", esc(name), nf(items.length), cat && cat.note ? `<p>${esc(cat.note)}</p>` : "", head, items.map(x => rowOf(itemByKey(x.key) || {key: x.key, path: x.path, src: "?"}, x.note)).join(""));
+    // (3.0.1) le chat dei preferiti si vedono come conversazioni, con gli allegati
+    const isChat = x => window.PCHAT && PCHAT.html && /^chatt?:/.test(x.key), chats = items.filter(isChat), files = items.filter(x => !isChat(x));
+    h += TF("<h2>⭐ {0} ({1})</h2>{2}", esc(name), nf(items.length), cat && cat.note ? `<p>${esc(cat.note)}</p>` : "")
+      + items.map((x, i) => isChat(x)
+        ? (PCHAT.html(x.key, on("pThumb")) || `<h3>${esc(x.path)}</h3>`).replace("<h3>", `<h3>${esc(TF("{0} di {1}", i + 1, items.length))} – `) + (x.note ? `<p class="meta">${esc(T("Nota: ") + x.note)}</p>` : "")
+        : card(itemByKey(x.key) || {key: x.key, path: x.path, src: "?"}, x.note, i + 1, items.length)).join("");
   }
   if (on("pNotes") && Object.keys(NOTES).length){
-    h += TF("<h2>Note sui file</h2><table>{0}{1}</table>", head, Object.entries(NOTES).map(([k, n]) => rowOf(itemByKey(k) || {key: k, path: n.path || k, src: "?"}, "")).join(""));
+    const nn = Object.entries(NOTES);
+    h += TF("<h2>Note sui file ({0})</h2>", nn.length) + nn.map(([k, n], i) => card(itemByKey(k) || {key: k, path: n.path || k, src: "?"}, "", i + 1, nn.length)).join("");
   }
   if (on("pMd")) h += TF("<h2>Report dell'analisi</h2><div>{0}</div>", md(mdTz(c.report_md || "")));
   h += T("<p class=\"meta\" style=\"margin-top:18pt\">Integrità del report portatile: confrontare impronte.csv e IMPRONTA_REPORT.txt con quanto comunicato da chi lo ha generato.</p>");
@@ -2255,6 +2350,8 @@ function buildHtmlFile(m){
 h1{font-size:20pt;margin:0 0 4pt}h2{font-size:15pt;margin:20pt 0 6pt;border-bottom:1px solid #999}h3{font-size:12.5pt;margin:14pt 0 4pt}
 table{border-collapse:collapse;width:100%;font-size:9.5pt;margin:4pt 0 10pt}td,th{border:1px solid #bbb;padding:3pt 6pt;vertical-align:top;text-align:left;overflow-wrap:anywhere}th{background:#eef0f3}
 img.pth{max-width:130px;max-height:130px}.mono,code{font-family:Menlo,Consolas,monospace;font-size:8.5pt}.meta{color:#555;font-size:9.5pt}
+.rchat{display:flex;flex-direction:column;gap:5px;margin:6px 0 14px}.rday{align-self:center;font-size:9pt;color:#555;background:#eee;border-radius:99px;padding:1px 9px}.rb{max-width:76%;padding:5px 9px;border-radius:10px;border:1px solid #ccc;background:#fff;white-space:pre-wrap;overflow-wrap:anywhere;break-inside:avoid}.rb.out{align-self:flex-end;background:#dbe8ff;border-color:#dbe8ff}.rb.in{align-self:flex-start}.rb.sys{align-self:center;border:none;font-style:italic;color:#555}.rb.del{border:1px dashed #d97706;background:#fdf3e1}.rw{font-weight:600;color:#2456c7;font-size:9.5pt}.ra{margin-top:5px;padding:5px;border:1px solid #ddd;border-radius:7px;background:#f7f8fa;white-space:normal}.ra img.pth{display:block;max-width:220px;max-height:220px;margin-bottom:3px}
+.rr{display:flex;gap:10px;align-items:flex-start;border:1px solid #ccc;border-radius:7px;padding:7px 9px;margin:0 0 7px;break-inside:avoid;page-break-inside:avoid}.rr.del{border:1px dashed #d97706;background:#fdf8ee}.rn{flex:0 0 auto;min-width:38px;text-align:center;font-weight:700;color:#1f3a5f;background:#e9edf4;border-radius:5px;padding:4px 3px;line-height:1.15}.rn small{display:block;font-size:8pt;font-weight:400;color:#555}.rd{flex:1;min-width:0}.rkv{border-collapse:collapse;width:100%;font-size:8.5pt;margin-top:3px}.rkv th,.rkv td{border:1px solid #ddd;padding:2px 5px;text-align:left;vertical-align:top;overflow-wrap:anywhere}.rkv th{width:130px;background:#f4f5f8;font-weight:600}.rt{flex:0 0 auto}.rt img.pth{max-width:170px;max-height:150px;display:block}
 @media print{body{margin:0;max-width:none}tr{page-break-inside:avoid}h2,h3{page-break-after:avoid}}`;
   const html = `<!doctype html><html lang="${LG.lingua || "it"}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><base href="${esc(base)}"><title>${esc(m.querySelector("#pTitle").value)}</title><style>${css}</style></head><body>${reportHtml(m)}</body></html>`;
   download(repName(m, "html"), html, "text/html");

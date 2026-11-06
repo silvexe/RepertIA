@@ -17,13 +17,13 @@
 
 ![RepertIA: un volo dimostrativo simulato animato sulla mappa locale](docs/media/repertia-demo.gif)
 
-🎬 **Guarda la demo** (dati di prova da un'immagine pubblica di Josh Hickman e un volo simulato, dichiarati nel video). Da scaricare: [italiano](https://github.com/silvexe/RepertIA/releases/download/v3.0.0/RepertIA-demo-3.0.0-it.mp4) · [inglese](https://github.com/silvexe/RepertIA/releases/download/v3.0.0/RepertIA-demo-3.0.0-en.mp4)
+🎬 **Guarda la demo** (dati di prova da un'immagine pubblica di Josh Hickman e un volo simulato, dichiarati nel video). Da scaricare: [italiano](https://github.com/silvexe/RepertIA/releases/download/v3.0.1/RepertIA-demo-3.0.1-it.mp4) · [inglese](https://github.com/silvexe/RepertIA/releases/download/v3.0.1/RepertIA-demo-3.0.1-en.mp4)
 
 https://github.com/user-attachments/assets/287f5b2f-ccfa-49c2-8949-f0259551fc9e
 
 
 
-📘 **Guida illustrata:** [italiano e inglese, un'unica pagina](https://github.com/silvexe/RepertIA/releases/download/v3.0.0/RepertIA-guida-3.0.0.html)
+📘 **Guida illustrata:** [italiano e inglese, un'unica pagina](https://github.com/silvexe/RepertIA/releases/download/v3.0.1/RepertIA-guida-3.0.1.html)
 
 RepertIA analizza copie forensi (E01, raw/dd, dmg), dalla 2.20 estrazioni del file system completo di iPhone e telefoni
 Android e, dalla 3.0, registri di volo dei droni da un'unica interfaccia web locale, su Mac Apple Silicon, Windows o
@@ -85,13 +85,14 @@ modello tutte le analisi, le ricerche e i report funzionano lo stesso.
 
 | Sistema | File |
 |---|---|
-| Windows (installazione) | [RepertIA-3.0.0-Setup.exe](https://github.com/silvexe/RepertIA/releases/download/v3.0.0/RepertIA-3.0.0-Setup.exe) |
-| Windows (portatile) | [RepertIA-3.0.0-Windows.zip](https://github.com/silvexe/RepertIA/releases/download/v3.0.0/RepertIA-3.0.0-Windows.zip) |
-| Mac (Apple Silicon) | [RepertIA-3.0.0-Mac.zip](https://github.com/silvexe/RepertIA/releases/download/v3.0.0/RepertIA-3.0.0-Mac.zip) |
-| Linux x86_64 (sperimentale) | [RepertIA-3.0.0-Linux.tar.gz](https://github.com/silvexe/RepertIA/releases/download/v3.0.0/RepertIA-3.0.0-Linux.tar.gz) |
-| Collaudo | [RepertIA-collaudo.zip](https://github.com/silvexe/RepertIA/releases/download/v3.0.0/RepertIA-collaudo.zip) |
-| Impronte SHA-256 | [SHA256SUMS.txt](https://github.com/silvexe/RepertIA/releases/download/v3.0.0/SHA256SUMS.txt) |
-| Guida illustrata (HTML) | [italiano e inglese](https://github.com/silvexe/RepertIA/releases/download/v3.0.0/RepertIA-guida-3.0.0.html) |
+| Windows (installazione) | [RepertIA-3.0.1-Setup.exe](https://github.com/silvexe/RepertIA/releases/download/v3.0.1/RepertIA-3.0.1-Setup.exe) |
+| Windows (portatile) | [RepertIA-3.0.1-Windows.zip](https://github.com/silvexe/RepertIA/releases/download/v3.0.1/RepertIA-3.0.1-Windows.zip) |
+| Mac (Apple Silicon) | [RepertIA-3.0.1-Mac.zip](https://github.com/silvexe/RepertIA/releases/download/v3.0.1/RepertIA-3.0.1-Mac.zip) |
+| Linux x86_64 (sperimentale) | [RepertIA-3.0.1-Linux.tar.gz](https://github.com/silvexe/RepertIA/releases/download/v3.0.1/RepertIA-3.0.1-Linux.tar.gz) |
+| Collaudo | [RepertIA-collaudo.zip](https://github.com/silvexe/RepertIA/releases/download/v3.0.1/RepertIA-collaudo.zip) |
+| Impronte SHA-256 | [SHA256SUMS.txt](https://github.com/silvexe/RepertIA/releases/download/v3.0.1/SHA256SUMS.txt) |
+| Firma delle impronte | [SHA256SUMS.txt.minisig](https://github.com/silvexe/RepertIA/releases/download/v3.0.1/SHA256SUMS.txt.minisig) |
+| Guida illustrata (HTML) | [italiano e inglese](https://github.com/silvexe/RepertIA/releases/download/v3.0.1/RepertIA-guida-3.0.1.html) |
 
 Tutte le versioni: <https://github.com/silvexe/RepertIA/releases>
 
@@ -132,13 +133,54 @@ Dopo aver scaricato il pacchetto del proprio sistema (vedi [Scarica](#scarica)):
 
 | | Mac (Apple Silicon) | Windows 10/11 64 bit | Linux x86_64 (sperimentale) |
 |---|---|---|---|
-| Installazione | decomprimere e spostare `RepertIA.app` (con Python, plaso e librerie) dove si preferisce; primo avvio: tasto destro › Apri | eseguire il Setup.exe (senza diritti di amministratore) oppure decomprimere lo zip portatile | estrarre ed eseguire `./installa.sh` (Ubuntu 24.04+, Debian 13) |
+| Installazione | decomprimere e spostare `RepertIA.app` (con Python, plaso e librerie) dove si preferisce; primo avvio: vedi [Primo avvio su Mac](#primo-avvio-su-mac) | eseguire il Setup.exe (senza diritti di amministratore) oppure decomprimere lo zip portatile | estrarre ed eseguire `./installa.sh` (Ubuntu 24.04+, Debian 13) |
 | Strumenti esterni | installati al primo avvio con Homebrew | inclusi | installati con apt da `installa.sh`, che prepara anche Python, plaso e le librerie |
 | Collaudo | `RepertIA-collaudo.zip` + *Collaudo RepertIA.command* | stesso zip, menu Start › RepertIA › Collaudo | stesso zip, `./collaudo.sh` |
 | Modello IA (facoltativo) | LM Studio, llama-server o Ollama, sullo stesso computer o in rete interna | come Mac | come Mac |
 
 **Consiglio:** subito dopo l'installazione esegui il collaudo e conserva il rapporto `collaudo_<data>.md`:
 dimostra che su quel computer, con quelle versioni, il programma dà i risultati attesi.
+
+### Verificare i file scaricati
+
+Ogni release contiene `SHA256SUMS.txt` (le impronte di tutti i file) e `SHA256SUMS.txt.minisig`, la firma di quelle impronte
+fatta con la chiave dell'autore. La firma dimostra che le impronte vengono dall'autore e non sono state cambiate insieme ai
+file. Con [minisign](https://jedisct1.github.io/minisign/) (`brew install minisign` sul Mac; per Windows e Linux gli zip nella
+[pagina delle release di minisign](https://github.com/jedisct1/minisign/releases)), nella cartella dei file scaricati:
+
+```bash
+minisign -Vm SHA256SUMS.txt -P RWRcYbYmv6AKnsFJMmI0szUorQooceqz0AZ3/9nGrdigNZ4hC6F9KJia
+shasum -a 256 -c SHA256SUMS.txt --ignore-missing
+```
+
+La prima riga deve dire `Signature and comment signature verified`, la seconda `OK` per ogni file scaricato. Su Windows:
+`minisign.exe` per la firma e `certutil -hashfile <file> SHA256` per l'impronta. La chiave pubblica è anche in
+[SECURITY.md](SECURITY.md). Le release fino alla 3.0.0 non sono firmate.
+
+### Primo avvio su Mac
+
+RepertIA non è firmata con un certificato Apple a pagamento, quindi la prima volta macOS dice che «non è stato possibile
+verificare» l'app e propone solo *Fine* o *Sposta nel Cestino*. Non è un errore del pacchetto: prima controllate che
+l'impronta dello zip sia uguale a quella di `SHA256SUMS.txt` (`shasum -a 256 RepertIA-<versione>-Mac.zip` nel Terminale).
+Poi, una volta sola:
+
+1. Decomprimete lo zip e spostate `RepertIA.app` dove preferite (per esempio in *Applicazioni*).
+2. Fate doppio clic su `RepertIA.app`. Compare l'avviso: premete **Fine** (non *Sposta nel Cestino*).
+3. Aprite **Impostazioni di Sistema › Privacy e sicurezza** e scorrete fino alla sezione *Sicurezza*: c'è la riga
+   «L'apertura di "RepertIA" è stata bloccata…». Premete **Apri comunque** e confermate con la password del Mac o con
+   Touch ID.
+4. Fate di nuovo doppio clic su `RepertIA.app` e nella finestra che compare premete **Apri comunque**.
+
+Da quel momento l'app si apre normalmente, anche dopo il riavvio. Il pulsante *Apri comunque* resta disponibile per circa
+un'ora dopo il tentativo del punto 2: se non lo trovate, ripetete il doppio clic. Su macOS 15 e successivi il vecchio
+metodo «tasto destro › Apri» non basta più. La stessa procedura vale per *Collaudo RepertIA.command* e
+*Aggiorna strumenti.command*, la prima volta che li aprite.
+
+In alternativa, chi usa il Terminale può togliere il blocco a tutta l'app con un solo comando (adattate il percorso):
+
+```bash
+xattr -dr com.apple.quarantine /Applications/RepertIA.app
+```
 
 ### Requisiti
 

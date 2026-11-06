@@ -126,6 +126,11 @@ def start(G, root, args, add=None, wa_chiave=None):
     threading.Thread(target=P._read, daemon=True).start()
 
 
+# (3.0.1) filtro «cancellati»: messaggi e chiamate recuperati dai byte del database, o presenti solo in un backup decifrato
+CANC_SQL = {"rec": "({x} LIKE '%\"recuperato\"%' AND json_extract({x}, '$.recuperato') IS NOT NULL)",
+            "bkp": "({x} LIKE '%\"solo_nel_backup\"%' AND json_extract({x}, '$.solo_nel_backup'))"}
+
+
 def threads(case, q):
     con = _con(case)
     try:
@@ -140,6 +145,11 @@ def threads(case, q):
             w.append("(title LIKE ? ESCAPE '\\' OR participants LIKE ? ESCAPE '\\' OR id IN (SELECT thread FROM "
                      "chat_messages WHERE text LIKE ? ESCAPE '\\' OR sender_name LIKE ? ESCAPE '\\'))")
             a += [fa.like(q["q"].strip())] * 4
+        has_origin = "origin" in {r[1] for r in con.execute("PRAGMA table_info(chat_threads)")}
+        if q.get("canc") == "chi" and has_origin:        # (3.0.1) conversazioni con sole chiamate (ricostruite)
+            w.append("origin = 'chiamate'")
+        if q.get("canc") in CANC_SQL:
+            w.append("id IN (SELECT thread FROM chat_messages WHERE " + CANC_SQL[q["canc"]].format(x="extra") + ")")
         if q.get("from"):
             w.append("last_ts >= ?")
             a.append(q["from"])
@@ -147,7 +157,6 @@ def threads(case, q):
             w.append("first_ts <= ?")
             a.append(q["to"] if "T" in q["to"] else q["to"] + "T23:59:59")
         import forense_mobile_chat as fmc
-        has_origin = "origin" in {r[1] for r in con.execute("PRAGMA table_info(chat_threads)")}
         rows = con.execute("SELECT id, app, title, participants, is_group, n_msg, first_ts, last_ts, src_path, "
                            + ("origin" if has_origin else "NULL") + ", local, part, inode FROM chat_threads"
                            + (" WHERE " + " AND ".join(w) if w else "") + " ORDER BY last_ts DESC LIMIT 5000", a).fetchall()
@@ -163,7 +172,10 @@ def threads(case, q):
                         "preview_tipo": fmw.etichetta(last[1], last[3]) if last and last[1] == "non gestito" else None,
                         "origin": origin, "local": fmc.show_id(local) if local else None, "part": tpart, "inode": tinode,
                         "lid_fonti": sorted({x[1] for x in lid_f if x[0] in (p or "")})})
-        return {"threads": out, "apps": apps}
+        canc = {k: con.execute("SELECT COUNT(*) FROM chat_messages WHERE " + v.format(x="extra")).fetchone()[0] for k, v in CANC_SQL.items()}
+        if has_origin:
+            canc["chi"] = con.execute("SELECT COUNT(*) FROM chat_threads WHERE origin = 'chiamate'").fetchone()[0]
+        return {"threads": out, "apps": apps, "canc": canc}
     finally:
         con.close()
 
@@ -195,13 +207,22 @@ def _attachments(con, ids):
 def _trascrizioni(con, atts):
     """(2.20) Trascrizione automatica (la più recente) dei file allegati, se c'è: testo, modello, lingua, data."""
     keys = [[a["part"], str(a["inode"])] for a in atts if a.get("inode") not in (None, "") and a.get("part") is not None]
-    if not keys or not con.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='trascrizioni'").fetchone():
+    if not keys:
         return
     tr_ = {}
-    for part, inode, testo, modello, lingua, ts in con.execute(
-            "SELECT part, inode, testo, modello, lingua, ts FROM trascrizioni WHERE (part, inode) IN "
-            "(SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]') FROM json_each(?)) ORDER BY ts", (json.dumps(keys),)):
-        tr_[(part, str(inode))] = {"testo": testo or "", "modello": modello, "lingua": lingua, "ts": ts}
+    if con.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='trascrizioni'").fetchone():
+        for part, inode, testo, modello, lingua, ts in con.execute(
+                "SELECT part, inode, testo, modello, lingua, ts FROM trascrizioni WHERE (part, inode) IN "
+                "(SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]') FROM json_each(?)) ORDER BY ts", (json.dumps(keys),)):
+            tr_[(part, str(inode))] = {"testo": testo or "", "modello": modello, "lingua": lingua, "ts": ts}
+    if con.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='trascrizioni_analista'").fetchone():
+        # (3.0.1) versione più recente dell'analista (bozza o confermata), anche per gli audio senza trascrizione automatica
+        for part, inode, testo, stato, op, ts in con.execute(
+                "SELECT a.part, a.inode, a.testo, a.stato, a.operatore, a.ts FROM trascrizioni_analista a WHERE (a.part, a.inode) IN "
+                "(SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]') FROM json_each(?)) AND a.id = "
+                "(SELECT MAX(b.id) FROM trascrizioni_analista b WHERE b.part = a.part AND b.inode = a.inode)", (json.dumps(keys),)):
+            tr_.setdefault((part, str(inode)), {"testo": "", "modello": None, "lingua": None, "ts": None})["analista"] = {
+                "testo": testo, "stato": stato, "operatore": op, "ts": ts}
     for a in atts:
         t = tr_.get((a.get("part"), str(a.get("inode"))))
         if t:
@@ -224,7 +245,7 @@ def att_thumb(case, q):
 
 
 def messages(case, q):
-    """Messaggi di una conversazione (o di tutte, con una ricerca), a pagine; filtri testo, mittente, periodo."""
+    """Messaggi di una conversazione (o di tutte, con una ricerca), a pagine; filtri testo (anche numero e nome di chi scrive), mittente, periodo."""
     import forense_agent as fa
     con = _con(case)
     try:
@@ -235,9 +256,9 @@ def messages(case, q):
         if q.get("app"):
             w.append("m.app = ?")
             a.append(q["app"])
-        if (q.get("q") or "").strip():
-            w.append("m.text LIKE ? ESCAPE '\\'")
-            a.append(fa.like(q["q"].strip()))
+        if (q.get("q") or "").strip():           # testo, numero o nome di chi scrive
+            w.append("(m.text LIKE ? ESCAPE '\\' OR m.sender LIKE ? ESCAPE '\\' OR m.sender_name LIKE ? ESCAPE '\\')")
+            a += [fa.like(q["q"].strip())] * 3
         if (q.get("who") or "").strip():
             w.append("(m.sender LIKE ? ESCAPE '\\' OR m.sender_name LIKE ? ESCAPE '\\')")
             a += [fa.like(q["who"].strip())] * 2
@@ -249,6 +270,8 @@ def messages(case, q):
             a.append(q["to"] if "T" in q["to"] else q["to"] + "T23:59:59")
         if q.get("att") in ("1", "true"):
             w.append("m.n_att > 0")
+        if q.get("canc") in CANC_SQL:
+            w.append(CANC_SQL[q["canc"]].format(x="m.extra"))
         where = (" WHERE " + " AND ".join(w)) if w else ""
         tot = con.execute("SELECT COUNT(*) FROM chat_messages m" + where, a).fetchone()[0]
         off = max(0, int(q.get("offset") or 0))
@@ -332,7 +355,7 @@ def art_tree(con):
 
 def art_filter(con, q, w, a):
     """Filtri «grp»/«sub» della sezione Artefatti (clic su una sottovoce dell'albero)."""
-    if not (q.get("grp") or q.get("sub")):
+    if not (q.get("grp") or q.get("sub") or q.get("subp")):
         return
     if "grp" not in {r[1] for r in con.execute("PRAGMA table_info(artifacts)")}:
         w.append("0")
@@ -341,6 +364,9 @@ def art_filter(con, q, w, a):
         if q.get(k):
             w.append(f"{k} = ?")
             a.append(q[k])
+    if q.get("subp"):           # (3.0.1) voce di primo livello delle sottovoci «A › B» (chiamate WhatsApp per esito)
+        w.append("substr(sub, 1, ?) = ?")
+        a += [len(q["subp"]) + 3, q["subp"] + " › "]
 
 
 def art_rows(G, case, data, tz):
@@ -391,11 +417,15 @@ def art_rows(G, case, data, tz):
         rows = [(tr("App"), data.get("app_lbl") or data.get("app")),
                 (tr("Data e ora di inizio"), when(data.get("ts"))), (tr("Fine"), when(data.get("fine")) if data.get("fine") else ""),
                 (tr("Direzione"), tr(fmlc.VERSI[v]) if v in fmlc.VERSI else tr("non indicata dalla fonte")),
-                (tr("Numero / identificativo"), data.get("numero") or ""), (tr("Nome in rubrica"), data.get("nome_rubrica") or ""),
+                (tr("Numero / identificativo"), data.get("numero") or ""),
+                (tr("LID di WhatsApp"), data.get("lid") or ""), (tr("Nome in rubrica"), data.get("nome_rubrica") or ""),
                 (tr("Nome nell'app"), data.get("nome_app") or ""),
                 (tr("Durata"), fmlc.hms(data["durata_s"]) if data.get("durata_s") is not None else ""),
                 (tr("Risposta"), "" if data.get("risposta") is None else tr("sì") if data["risposta"] else tr("no")),
                 (tr("Tipo"), data.get("tipo") or ""), (tr("Esito"), data.get("esito") or ""), (tr("Nota"), data.get("nota") or ""),
+                (tr("Record cancellato recuperato"), tr("{file}, offset {offset}, pagina {pagina} ({fonte})").format(
+                    file=data["recuperato"].get("file"), offset=data["recuperato"].get("offset"), pagina=data["recuperato"].get("pagina"),
+                    fonte=data["recuperato"].get("fonte")) if data.get("recuperato") else ""),
                 (tr("Questo telefono"), data.get("account") or ""),
                 (tr("Fonti ({n})").format(n=len(data.get("fonti") or [])),
                  "; ".join(f"{f['strumento']} «{f['artefatto']}» {tr('riga')} {f['riga']}" for f in data.get("fonti") or []))]
@@ -780,7 +810,10 @@ def export_chat(G, case, b):
                       + (f'<div class="mono">{E(a.get("path") or a.get("device_path"))}</div>' if (a.get("path") or a.get("device_path")) else "")
                       + (f'<div class="tr"><b>{E(tr("Trascrizione automatica (da verificare ascoltando l\'audio)"))}:</b> {E(a["trascrizione"]["testo"])}'
                          f' <span class="mono">[{E(a["trascrizione"]["modello"] or "")}, {E(a["trascrizione"]["lingua"] or "?")}]</span></div>'
-                         if a.get("trascrizione") else "") + "</div>")
+                         if a.get("trascrizione") and a["trascrizione"].get("testo") else "")
+                      + (f'<div class="tr"><b>{E(tr("Trascrizione confermata dall\'analista ({o}, {t})").format(o=a["trascrizione"]["analista"]["operatore"] or "", t=a["trascrizione"]["analista"]["ts"] or ""))}:</b> '
+                         f'{E(a["trascrizione"]["analista"]["testo"])}</div>'
+                         if (a.get("trascrizione") or {}).get("analista", {}).get("stato") == "confermata" else "") + "</div>")
         meta_l = " · ".join(x for x in (when(ts), st, svc, f"{tb} #{row}", f"{tr('messaggio')} {mid}") if x)
         body.append(f'<div class="b {cls}">{who}{txt}{"".join(aa)}<div class="m">{E(meta_l)}</div></div>')
     doc = (f'<!doctype html><html lang="{E(b.get("lingua") or "it")}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
@@ -803,7 +836,9 @@ def export_chat(G, case, b):
                         when(rts), svc or "", " | ".join(" ".join(x for x in (a.get("name"), a.get("_rel") or a.get("path") or a.get("device_path"),
                                                                              ("SHA-256 " + a["_sha"]) if a.get("_sha") else None,
                                                                              (tr("trascrizione automatica: «{t}»").format(t=a["trascrizione"]["testo"])
-                                                                              if a.get("trascrizione") else None)) if x)
+                                                                              if a.get("trascrizione") and a["trascrizione"].get("testo") else None),
+                                                                             (tr("trascrizione confermata dall'analista: «{t}»").format(t=a["trascrizione"]["analista"]["testo"])
+                                                                              if (a.get("trascrizione") or {}).get("analista", {}).get("stato") == "confermata" else None)) if x)
                                                          for a in att.get(mid, [])), f"{tb} #{row}"])
     files = [{"file": f"{fx.name}", "sha256": _sha_file(fx)} for fx in (fh, fc)]
     case.log("export_chat", {"thread": tid, "app": lbl, "titolo": title, "messaggi": len(msgs), "periodo": [da, al] if da or al else None,
@@ -869,15 +904,15 @@ def meta_counts(con):
     return {"n": n, "app": [list(r) for r in app]}
 
 
-def media_counts(con, table, where, args):
+def media_counts(con, table, where, args, where_t=None):
     """(2.20) Conteggi per l'albero di una sottovoce di Foto/Video/Audio (foto, video o audio): file di `table` che
-    soddisfano `where` allegati alle chat, in tutto e per app."""
+    soddisfano `where` allegati alle chat, in tutto e per app. `where_t`: la stessa condizione con le colonne di «t.»."""
     if not _has_att(con):
         return {"n": 0, "app": []}
     n = con.execute(f"SELECT COUNT(*) FROM {table} WHERE {where} AND (part, inode) IN ({_att_media()})", args).fetchone()[0]
     app = con.execute(f"SELECT x.app, COUNT(*) FROM {table} t JOIN (SELECT DISTINCT c.part, c.inode, cm.app FROM "
                       "chat_attachments c JOIN chat_messages cm ON cm.id = c.msg WHERE c.inode IS NOT NULL AND c.inode != '') x "
-                      f"ON x.part = t.part AND x.inode = t.inode WHERE {where.replace('path', 't.path')} GROUP BY 1 ORDER BY 2 DESC",
+                      f"ON x.part = t.part AND x.inode = t.inode WHERE {where_t or where.replace('path', 't.path')} GROUP BY 1 ORDER BY 2 DESC",
                       args).fetchall()
     return {"n": n, "app": [list(r) for r in app]}
 

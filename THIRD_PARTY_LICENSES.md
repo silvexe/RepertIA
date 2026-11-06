@@ -8,7 +8,7 @@ qui sotto, ciascuno con la propria licenza. I componenti sono distribuiti senza 
 programmi o librerie separati; i testi delle licenze sono nelle cartelle dei componenti dentro i pacchetti
 (`strumenti/…`, `python/…/*.dist-info/`).
 
-Versioni riferite ai pacchetti **3.0.0**. Tesseract resta alla 5.4.0 su Windows perché UB Mannheim non pubblica una build più recente; Python resta alla 3.12.15.
+Versioni riferite ai pacchetti **3.0.1**. Tesseract resta alla 5.4.0 su Windows perché UB Mannheim non pubblica una build più recente; Python resta alla 3.12.15.
 
 ## Componenti della mappa (tutti i pacchetti)
 
@@ -29,7 +29,7 @@ Per i componenti con licenza GPL o LGPL distribuiti in forma eseguibile, il codi
 dai progetti originali agli indirizzi indicati, per la versione indicata, ed è **allegato a ogni Release**:
 `RepertIA-2.19.0-sorgenti-terze-parti.tar` (Sleuth Kit con libewf/libvhdi/libvmdk, TestDisk/PhotoRec, bulk_extractor
 con la libewf collegata e la ricetta di compilazione, 7-Zip, librerie libyal; elenco nel `LEGGIMI.txt` interno) e
-`poppler-<versione>.tar.xz`; dalla 3.0.0 anche `7z2605-src.tar.xz` e `Image-ExifTool-13.60.tar.gz`, per le versioni di 7-Zip ed ExifTool incluse; dalla 2.20 anche `ffmpeg-n9.0.2-36-g6882969ce9-sorgenti.tar.gz` (FFmpeg al commit
+`poppler-<versione>.tar.xz`; dalla 3.0.0 anche `7z2605-src.tar.xz` e `Image-ExifTool-13.61.tar.gz` (13.60 nella 3.0.0), per le versioni di 7-Zip ed ExifTool incluse; dalla 2.20 anche `ffmpeg-n9.0.2-36-g6882969ce9-sorgenti.tar.gz` (FFmpeg al commit
 6882969ce9 da cui è costruito l'eseguibile di BtbN). Per le librerie di sistema incluse nelle distribuzioni originali di TestDisk e Poppler per
 Windows (Cygwin, Qt, GLib, cairo, libiconv, gettext) e per qualunque altro sorgente corrispondente non allegato,
 l'autore lo fornisce su richiesta, per almeno tre anni dalla pubblicazione del pacchetto, tramite le Issues del repository.
@@ -42,7 +42,7 @@ l'autore lo fornisce su richiesta, per almeno tre anni dalla pubblicazione del p
 | libewf (in Sleuth Kit e libewf-python) | vedi sotto | LGPL-3.0-or-later | https://github.com/libyal/libewf |
 | TestDisk / PhotoRec | 7.2 | GPL-2.0-or-later | https://www.cgsecurity.org/wiki/TestDisk_Download — https://github.com/cgsecurity/testdisk |
 | Poppler (pdftotext, pdftoppm) | 26.09.0 (build per Windows) | GPL-2.0-or-later / GPL-3.0 | https://poppler.freedesktop.org — https://github.com/oschwartz10612/poppler-windows |
-| ExifTool | 13.60 (64 bit, con Strawberry Perl) | Artistic-1.0-Perl OR GPL-1.0-or-later (licenze di Strawberry Perl in `exiftool_files/`) | https://exiftool.org |
+| ExifTool | 13.61 (64 bit, con Strawberry Perl) | Artistic-1.0-Perl OR GPL-1.0-or-later (licenze di Strawberry Perl in `exiftool_files/`) | https://exiftool.org |
 | bulk_extractor | 2.2.0, compilato in proprio con MinGW-w64 (ricetta in `build/windows/COME_RICOSTRUIRE.txt`) | codice pubblico + LGPL-2.1, LGPL-3.0, GPL-3.0, CPL-1.0, OpenSSL (vedi `strumenti/bulk_extractor/licenses/`) | https://github.com/simsong/bulk_extractor (tag v2.2.0) |
 | 7-Zip (7z.exe, 7z.dll) | 26.05 | LGPL-2.1-or-later + BSD-3-Clause; **restrizione unRAR**: il codice di decompressione RAR non può essere usato per ricreare l'algoritmo di compressione RAR (vedi `License.txt`) | https://www.7-zip.org |
 | Tesseract OCR | 5.4.0 (build UB Mannheim) con le DLL che usa (Leptonica, libtiff, libpng, libjpeg, libwebp, OpenJPEG, zlib, zstd, libarchive…) | Apache-2.0; librerie con licenze proprie (BSD, MIT, libtiff, zlib, IJG, OpenSSL/Apache-2.0) | https://github.com/tesseract-ocr/tesseract — https://github.com/UB-Mannheim/tesseract |
@@ -99,8 +99,8 @@ Cartelle `strumenti/ileapp` e `strumenti/aleapp` dei pacchetti, eseguite come pr
 
 | Componente | Versione | Licenza | Fonte |
 |---|---|---|---|
-| iLEAPP (Alexis Brignoni e collaboratori) | 2026.4.5 | MIT | https://github.com/abrignoni/iLEAPP |
-| ALEAPP (Alexis Brignoni e collaboratori) | 2026.4.4 | MIT | https://github.com/abrignoni/ALEAPP |
+| iLEAPP (Alexis Brignoni e collaboratori) | 2026.4.6 | MIT | https://github.com/abrignoni/iLEAPP |
+| ALEAPP (Alexis Brignoni e collaboratori) | 2026.4.5 | MIT | https://github.com/abrignoni/ALEAPP |
 
 Librerie Python di iLEAPP/ALEAPP (versioni dei pacchetti Mac e Windows; licenze dichiarate dai pacchetti, testi in
 `site/*.dist-info/`):
@@ -113,7 +113,7 @@ Librerie Python di iLEAPP/ALEAPP (versioni dei pacchetti Mac e Windows; licenze 
 | bencoding | 0.2.6 | MIT |
 | biplist | 1.0.3 | BSD License |
 | branca | 0.8.2 | MIT License |
-| brotli | 1.2.0 | MIT |
+| brotli | 1.2.1 | MIT |
 | bs4 | 0.0.2 | MIT License |
 | ccl_chromium_reader | 0.3.18 | MIT License |
 | ccl_mozilla_reader | 0.0.12 | MIT License |
@@ -145,20 +145,20 @@ Librerie Python di iLEAPP/ALEAPP (versioni dei pacchetti Mac e Windows; licenze 
 | polyline | 2.0.0 | MIT |
 | protobuf | 5.29.6 | 3-Clause BSD License |
 | pyahocorasick | 2.3.1 | BSD-3-Clause and Public-Domain |
-| pyasn1 | 0.6.4 | BSD-2-Clause |
+| pyasn1 | 0.6.5 | BSD-2-Clause |
 | pycparser | 3.12 | BSD-3-Clause |
-| pycryptodome | 4.2.0 | BSD-2-Clause AND Unlicense AND MIT |
+| pycryptodome | 4.3.0 | BSD-2-Clause AND Unlicense AND MIT |
 | pyliblzfse | 0.4.1 | MIT |
-| python-dateutil | 3.0.0 | BSD License; Apache Software License |
+| python-dateutil | 4.0.0 | BSD-3-Clause |
 | pytypedstream | 0.1.0 | GNU Lesser General Public License v3 or later (LGPLv3+) |
-| pytz | 2026.5 | MIT License |
+| pytz | 2026.6 | MIT License |
 | requests | 2.34.2 | Apache Software License |
 | simplekml | 1.3.5 | GNU Lesser General Public License v3 or later (LGPLv3+) |
 | six | 1.17.0 | MIT License |
-| soupsieve | 3.0.4 | MIT |
+| soupsieve | 4.0 | MIT |
 | sqlcipher3 | 0.6.2 | MIT |
 | typing_extensions | 4.16.0 | PSF-2.0 |
-| tzdata | 2026.5 | Apache-2.0 |
+| tzdata | 2026.6 | Apache-2.0 |
 | urllib3 | 2.8.0 | MIT |
 | wheel | 0.48.0 | MIT |
 | XlsxWriter | 3.1.1 | BSD License |
@@ -199,4 +199,4 @@ NSIS (zlib/libpng), python-build-standalone, Homebrew, MinGW-w64. Gli script `bu
 
 ## Formati dei registri di volo (dalla 3.0)
 
-I lettori di registri Autel, PX4 ULog, ArduPilot tlog e DataFlash sono scritti in RepertIA: nessun codice di terzi è incluso. Per il formato Autel ci si è basati sulla documentazione e sul parser di [autel-logger](https://github.com/MansfieldTX-MattR/autel-logger) (MIT, Copyright (c) 2024 Matt Reid), non inclusi nel programma. autel-logger, pyulog (BSD-3) e pymavlink (LGPL-3) sono stati usati solo per il confronto dei risultati durante le prove, fuori dai pacchetti.
+I lettori di registri Autel, PX4 ULog, ArduPilot tlog e DataFlash sono scritti in RepertIA: nessun codice di terzi è incluso. Per il formato Autel ci si è basati sulla documentazione e sul parser di [autel-logger](https://github.com/MansfieldTX-MattR/autel-logger) (MIT, Copyright (c) 2024 Matt Reid): il programma non li include, ma le dimensioni dei record sono ricavate dal parser e la nota di copyright e di licenza MIT è riportata in `src/forense_droni.py`. autel-logger, pyulog (BSD-3) e pymavlink (LGPL-3) sono stati usati solo per il confronto dei risultati durante le prove, fuori dai pacchetti.

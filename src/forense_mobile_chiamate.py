@@ -41,8 +41,11 @@ FONTI = {
     "imo_android": re.compile(r"(^|/)com\.imo\.android\.imous/databases/imofriends\.db$"),
 }
 APP = {"wa_android": "WhatsApp", "wa_ios": "WhatsApp", "wa_ios_chat": "WhatsApp", "skype": "Skype", "imo_android": "imo"}
-# esito di call_log.call_result: 5 = chiamata avvenuta (le 2 chiamate documentate di Android 10, entrambe risposte)
-WA_AND_ESITO = {5: N_("connessa")}
+# esito di call_log.call_result: 5 = chiamata avvenuta (le 2 chiamate documentate di Android 10, entrambe risposte).
+# (3.0.1) 2 = non risposta (in arrivo: persa; in uscita: l'altro non ha risposto) e 4 = rifiutata: indicati dall'utente dal
+# confronto di un caso con un altro programma (stessi totali per esito); nessuna documentazione pubblica, i dati di prova
+# pubblici hanno solo il codice 5. Gli altri codici restano «esito n».
+WA_AND_ESITO = {2: N_("non risposta"), 4: N_("rifiutata"), 5: N_("connessa")}
 NOTA_IMO = N_("imo non registra la durata nella tabella calls_only")
 NOTA_59 = N_("orario d'inizio dal messaggio WhatsApp di tipo 59 della chat")
 
@@ -119,23 +122,37 @@ def _fonte(db, tabella, riga):
 
 # ------------------------------------------------------------------------------------------- lettori
 
-def wa_android(w, src):
+def wa_android(w, src, recupero=True):
+    """`recupero` (3.0.1): anche le chiamate cancellate ancora nei byte di msgstore.db (forense_mobile_chat.recuperati_wa),
+    con «recuperato» e la nota «da verificare»; il contatto viene dalla tabella jid attuale (jid_row_id non cambia)."""
+    import forense_mobile_chat as fmc
     t = w.tables()
     if "call_log" not in t:
         return []
     jid = {r["_id"]: r["raw_string"] for r in w.db.execute("SELECT _id, raw_string FROM jid")} if "jid" in t else {}
     out = []
-    for r in w.db.execute("SELECT * FROM call_log ORDER BY timestamp"):
-        d = dict(r)
+    righe = [(dict(r), None) for r in w.db.execute("SELECT * FROM call_log ORDER BY timestamp")]
+    if recupero:
+        vivi = {d.get("call_id") for d, _i in righe}
+        for d, info in fmc.recuperati_wa(w, src).get("call_log", []):
+            if d.get("timestamp") and d.get("call_id") and d["call_id"] not in vivi:
+                vivi.add(d["call_id"])
+                righe.append((d, info))
+    for d, rec in righe:
         j = jid.get(d.get("jid_row_id"))
         res = d.get("call_result")
         dur = d.get("duration")
         out.append(_rec("WhatsApp", _unix(d.get("timestamp"), 1000), "out" if d.get("from_me") else "in", j,
-                        _fonte("msgstore.db", "call_log", d.get("_id")), src, float(dur) if dur is not None else None,
+                        _fonte("msgstore.db", "call_log" if rec is None else fmc.rif_recupero("call_log", rec),
+                               d.get("_id") if rec is None else rec["rowid"] if rec.get("rowid") is not None else rec["offset"]),
+                        src, float(dur) if dur is not None else None,
                         tipo=tr("video") if d.get("video_call") else tr("voce"),
                         esito=tr(WA_AND_ESITO[res]) if res in WA_AND_ESITO else (tr("esito {n}").format(n=res) if res is not None else None),
-                        risposta=True if res == 5 else None,
+                        risposta=True if res == 5 else False if res in (2, 4) else None,
                         chat={"jid": j, "id": d.get("call_id")}))
+        out[-1]["codice_esito"] = res
+        if rec is not None:
+            out[-1].update(recuperato=rec, nota=tr(fmc.NOTA_RECUPERO))
     return out
 
 
@@ -214,17 +231,36 @@ def imo_android(w, src):
     return out
 
 
-def nella_chat(W, recs, tabella, names=None):
-    """Chiamate WhatsApp come eventi della conversazione con lo stesso JID (solo se la conversazione esiste: contatto
-    abbinato con certezza). W = Writer del database delle chiamate con le conversazioni del lettore della chat."""
+def nella_chat(W, recs, tabella, names=None, solo_chiamate=True):
+    """Chiamate WhatsApp come eventi della conversazione con lo stesso JID (contatto abbinato con certezza). W = Writer
+    del database delle chiamate con le conversazioni del lettore della chat. (3.0.1) `solo_chiamate`: le chiamate con un
+    contatto senza conversazione vanno in una conversazione «solo chiamate» (chat_threads.origin = 'chiamate'), ricostruita
+    da RepertIA e mostrata a parte; non per i backup decifrati (doppioni del database attuale)."""
     import forense_mobile_leapp_chat as fmlc
     import forense_mobile_chat as fmc
     import datetime as _dt
     import json as _json
     n = 0
+    alt = {}        # (3.0.1) LID ↔ numero (chat_lid): la chiamata col LID va nella chat che ha il numero, e viceversa
+    try:
+        for lid, num in W.con.execute("SELECT lid, numero FROM chat_lid"):
+            cifre = re.sub(r"\D", "", str(num).split("@")[0])
+            if cifre:
+                alt.setdefault(lid, []).append(cifre + "@s.whatsapp.net")
+                alt.setdefault(cifre + "@s.whatsapp.net", []).append(lid)
+    except Exception:
+        pass
+    nuove = set()
     for r in recs:
         jid = (r.get("chat") or {}).get("jid")
         th = W.threads.get(jid) if jid else None
+        if jid and not th:
+            th = next((W.threads[x] for x in alt.get(jid, []) if x in W.threads), None)
+        if jid and not th and solo_chiamate and r.get("ts") and not jid.endswith(("@g.us", "@broadcast")):
+            num = next((x for x in [jid, *alt.get(jid, [])] if not x.endswith("@lid")), jid)
+            nome = (names or {}).get(fmc.norm_number(num))
+            th = W.thread(jid, " ".join(x for x in (nome, fmc.show_id(num)) if x), [jid])
+            nuove.add(th)
         if not th or not r.get("ts"):
             continue
         v = r["verso"]
@@ -251,8 +287,12 @@ def nella_chat(W, recs, tabella, names=None):
                   r["fonti"][0]["riga"], service="WhatsApp",
                   sender_name=None if v == "out" else (names or {}).get(fmc.norm_number(jid)),
                   extra={"tipo": lbl, "codice": "chiamata", "verificato": True, "durata_s": r.get("durata_s"),
-                         "risposta": r.get("risposta"), "fonte_chiamata": r["fonti"][0]["artefatto"]})
+                         "risposta": r.get("risposta"), "fonte_chiamata": r["fonti"][0]["artefatto"],
+                         **({"recuperato": r["recuperato"], "nota_recupero": r.get("nota")} if r.get("recuperato") else {})})
         n += 1
+    if nuove:
+        W.con.execute("UPDATE chat_threads SET origin = 'chiamate' WHERE id IN (SELECT value FROM json_each(?))",
+                      (_json.dumps(sorted(nuove)),))
     return n
 
 
@@ -316,6 +356,9 @@ def raccogli(case, con, avvisi=None):
                         avvisi.append(f"{path}: {type(e).__name__}: {e}")
                 finally:
                     w.close()
+                if rr and kind.startswith("wa_") and fmc.wa_app(case, part, path) == "whatsapp_business":
+                    for r in rr:            # (3.0.1) chiamate di WhatsApp Business: app a parte
+                        r["app"] = "WhatsApp Business"
                 if rr:
                     recs += rr
                     k = f"{STRUMENTO}|{rr[0]['fonti'][0]['artefatto']}"

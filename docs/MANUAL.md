@@ -6,7 +6,7 @@
 and folder names created by the program (`estratti`, `export`, `CasiForensi`…) are in Italian whatever the language.*
 
 **Forensic analysis of disk and USB drive images, smartphone extractions and drone flight logs, with local artificial intelligence.**
-Version 3.0.0 · macOS, Windows and Linux (experimental) · interface in English or Italian
+Version 3.0.1 · macOS, Windows and Linux (experimental) · interface in English or Italian
 
 RepertIA takes a forensic image (raw, dd, img or E01), indexes it with established forensic tools and lets you examine
 it in two complementary ways:
@@ -30,6 +30,9 @@ RepertIA is designed to work **only locally**. Case data are **never sent to thi
 - **No external services.** There are no accounts, cloud, telemetry, usage statistics or automatic updates. The program
   contacts no website during the analysis.
 - **Downloads only on request and with no case open (3.0).** Background maps and transcription models are downloaded only with a click of the analyst and with no case open (models also when starting a new analysis, before the case exists): with a case open the program refuses. Only the chosen map or model is requested and no case data is sent.
+- **Optional new version notice (3.0.1).** On first opening you choose whether to check “Only when I ask” (recommended),
+  “At start-up, at most once a day” or “Never”. The check only reads from GitHub (`api.github.com`) which is the latest
+  published version: no case data, nothing downloaded or installed, never with a case open (see *Updates*).
 - **The AI model is local.** The agent talks only to the LLM server started on your computer (`localhost`: LM Studio
   port 1234, llama-server 8080, Ollama 11434). Questions, answers and content read from the evidence stay on the
   machine.
@@ -90,8 +93,10 @@ rankings (October 2026): check them on your own cases.
 1. **LLM server.** Open LM Studio, load a model with a large context (e.g. 32768) and start the server in the
    *Developer* tab. llama-server or Ollama are fine too.
    *RepertIA works without an LLM server as well*: you can browse all the indexed data.
-2. **Start RepertIA.** Mac: double-click the app (or `Avvia RepertIA.command`); the first time macOS may block it:
-   right-click → *Open* → *Open*. On first start it installs by itself (Homebrew and internet required) Sleuth Kit,
+2. **Start RepertIA.** Mac: double-click the app (or `Avvia RepertIA.command`); the first time macOS blocks it because it
+   is not signed: *Done* at the warning, then *System Settings › Privacy & Security* → **Open Anyway**, and double-click
+   again → **Open Anyway** (on macOS 15 and later «right-click → *Open*» is no longer enough; full procedure in the
+   repository README, «First start on a Mac»). On first start it installs by itself (Homebrew and internet required) Sleuth Kit,
    libewf, exiftool, poppler, testdisk (PhotoRec), bulk_extractor and Tesseract. Windows: Start menu → RepertIA. Linux:
    `./RepertIA.sh` (after `./installa.sh`).
 3. The browser opens: **Choose the forensic image…**, select the image (for E01 files the first segment) and press
@@ -180,6 +185,10 @@ saved searches, favourite categories and open tabs. A sub-entry opens the sectio
 At the top of the tree the **Filter the entries** box (2.20) keeps only the entries that contain the typed words,
 ignoring case and accents (e.g. «whatsapp», «biome», «whatsapp group»), with the parent entries open; **Esc** clears it.
 
+**Windows (3.0.1).** Preview, chats, database manager, map, guide and full-screen Timeline are windows: they move by the title bar and resize from edges and corners; **—** minimises them to the **Open windows** bar at the bottom (one click reopens them, a click on the front window minimises it), **⤢** or a double-click on the title makes them full screen, **✕** closes them. You can work on the case with the windows open; several databases open together, each in its own window. The preview normally stays in the right-hand pane: **⧉** opens it in a window (the choice stays for the next previews) and **⧉** in the window docks it back; **📌** copies the current preview into a separate window, to compare several files. Esc closes only the window in use. Position and size are remembered per kind of window. Windows stay inside the browser page (they cannot be moved to a second screen).
+
+**Date format (3.0.1).** Next to the time zone, the **📅** menu chooses how dates are shown: day/month/year (default in Italian), ISO year-month-day (default in English), month/day/year or with the month in letters. It applies to tables, previews, chats and the portable report; data, log, CSV files, filters and sorting stay in ISO format.
+
 **Time zone.** At the top, next to *Summary*, the **🕒 UTC / Italian time / Detected zone** selector shows dates and
 times in UTC or in Italian time (Europe/Rome, with daylight saving time): lists, timeline
 (also the *From/To* filters and the chart per day), previews and date interpretations in the hex view. Case data, the
@@ -216,7 +225,7 @@ The three choices do not search in the same way:
 
 | Where you search | What it reads | What may be missed |
 |---|---|---|
-| *text of documents* | the text index, prepared with *Document text and metadata*: fast, reads inside PDF, Word, Excel, PowerPoint, OpenDocument, RTF, email, archives | files **not indexed or only partly indexed** (list below) |
+| *text of documents* | the text index, prepared with *Document text and media*: fast, reads inside PDF, Word, Excel, PowerPoint, OpenDocument, RTF, email, archives | files **not indexed or only partly indexed** (list below) |
 | *raw content of every file* | the bytes of every file, non-indexed ones too, in UTF-8 and UTF-16 | text inside compressed formats: PDF, Word, Excel, PowerPoint and archives are **not** read this way; it is slow |
 | *whole image* | all bytes of the image, including unallocated space and overwritten files | compressed text, fragmented files |
 
@@ -435,8 +444,8 @@ The **case panel** (on the left) shows the case details, media, hash and last ve
 **Menu bar (2.20).** Below the RepertIA name, in the case view, four drop-down menus (they used to be the *Actions* and
 *Additional analyses* boxes of the panel):
 - **Case**: *Edit case details*, **Case folder**, **Exported files**, **Cache and location**;
-- **Report**: **Report** (also as **PDF** and **Word** .docx: `report.pdf` and `report.docx` in the case folder, with
-  the SHA-256 in the log) and **Portable report**;
+- **Report**: **Report** (illustrated report, see below; “Text only (report.md)” for the previous report, also as **PDF**
+  and **Word** in the case folder with the SHA-256 in the log) and **Portable report**;
   The agent's lists state the rows shown out of how many and continue in pages; if it runs out of steps “Analysis NOT complete” appears and “continue” resumes. References cited by the model must be verified.
   The **🎤** button dictates the prompt: local transcription with whisper.cpp, audio deleted at once, text to check and send by hand.
   RepertIA works on **one case at a time**: if you open another in a second tab, the first stops with a notice.
@@ -489,7 +498,7 @@ In the preview of an SQLite database, **🗄 Open in the database manager** list
 - **CSV.** **Export CSV** saves the result in `export/database/` with its SHA-256 (at most 1,000,000 rows). Values stay identical to the original: a text starting with `=` may be read as a formula if the file is opened in a spreadsheet.
 - **★ and 📌.** From each row you can add the database to Bookmarks, with the query and values in the note, or record a finding of «analyst» origin with references to file, hashes, query and row.
 - **Dates and numbers** are shown as they are in the database, unconverted: write the conversion in the query, stating unit and time zone.
-- **Search.** The box at the top searches a value in all columns of all tables, shows tables and columns with the number of rows and opens the rows with one click; on request it also searches deleted records. BLOBs are compared as text. The search stays in the log.
+- **Search.** The box at the top searches a value in all columns of all tables, shows tables and columns with the number of rows and opens the rows with one click; on request it also searches deleted records: each table is a button that opens its deleted records already filtered on the value, highlighted (3.0.1), and the deleted-records view has a search box. BLOBs are compared as text. The search stays in the log.
 - **Where to open it.** From the file preview or from the menu **Additional tools → Database manager**, which lists files with a database extension or name (a database without an extension opens from its preview). The list does not read file contents: many `.db` files are not SQLite, such as Windows thumbnail caches or Firefox Berkeley DB files. Opening one shows a notice with the format, when recognised, and the hex view.
 - **AI agent.** The `query_database` tool runs one read-only query and receives the first 200 rows.
 
@@ -571,9 +580,19 @@ replace a certified transcription.
   a window shows source (official whisper.cpp repository, pinned version), license (MIT), size and expected SHA-256; the
   download happens only with **I accept, download**, then the fingerprint is checked again (a different file is
   deleted). On an offline computer **I already have the model file…** accepts a file only if its SHA-256 is the listed
-  one. Models stay next to the settings (`modelli_trascrizione/`, with `modelli.json`: who, when, from where) and serve
+  one or (3.0.1) the one typed in the *Expected SHA-256* box, taken from the source (the file's page on Hugging Face): the
+  comparison stays in the record and in the log. (3.0.1) Before downloading RepertIA reads from Hugging Face the SHA-256
+  declared for the file (also on request, **Read the declared hash from Hugging Face now**) and compares the file with
+  it. Models stay next to the settings (`modelli_trascrizione/`, with `modelli.json`: who, when, from where) and serve
   all cases: the window shows the folder (**Open the folder**) and, next to each installed model, **Remove** (logged). When creating a case the window appears before starting; cancelling prepares the case without
   transcription.
+- **Transcription reviewed by the analyst (3.0.1)**: under the automatic transcription (audio preview and chat)
+  **✏️ Correct the transcription** (or **Write the transcription** when there is none) opens the text; **Save as draft**
+  or **Save and confirm** (operator and explicit confirmation: “I listened to the audio”). The automatic one does not
+  change; each save is a version with operator, date and SHA-256 of the text, in the log. The text is searchable
+  («Transcription verified by the analyst»); confirmed audio files are in Photos/Videos/Audio › Audio › **✅ Confirmed
+  transcriptions** (the others in **📝 Transcribed, to be confirmed**), in the **Confirmed transcriptions** Bookmarks and
+  in the chat export.
 - **Where the text appears**: text search (type «Automatic transcription»); preview of each audio file (tab with the
   sentences and their times: a click plays the audio from there); chat view, under the voice note; *Export chat* (HTML
   and CSV); portable report (chats and search); case report (section with numbers, model and SHA-256, engine and
@@ -583,6 +602,22 @@ replace a certified transcription.
   removed afterwards.
 - **Speed** (Apple Silicon Mac, small model): an 8-second audio in about 1.5 seconds. On Windows and Linux the engine
   runs on the processor, more slowly.
+
+## Illustrated report (3.0.1)
+
+**Report** opens a window where you choose what goes into the report: the sections (case and image data, analyses
+performed, findings, bookmarks timeline, methodological notes, environment and log, full text), the Favourites
+categories (**Choose items…** removes single items) and **whole types** (all chats, all photos, all videos, all audio,
+all email, the artifacts of a category or of an iLEAPP/ALEAPP section, all map locations). Whoever receives the report
+sees the items as in the case: photo thumbnails (a click opens the original copied next to it, with its SHA-256; for
+HEIC, TIFF and RAW also a large JPEG), videos with a frame, documents with their first page, chats with bubbles, sender,
+time, source (table and row) and attachments, artifacts and email with all their fields. The output in
+`export/report_<date>/` is **report.html** (split into pages), **report.pdf** and, if chosen, **report.docx** with the
+same content, plus `impronte.csv` with the SHA-256 of every file; everything is recorded in the case log. Hand over the
+whole folder. The PDF embeds a Unicode system font (Arial on Mac and Windows, DejaVu on Linux) with only the glyphs used;
+Arabic and Hebrew appear there with unjoined letters (they are correct in the HTML). PDF and Word carry at most 5,000
+previews and 20,000 table rows: the rest is in the HTML. Options: chat period; copy of the originals of photos,
+documents and audio (default) and, if chosen, also of videos and other attachments.
 
 ## Portable report (for those who do not have the forensic image)
 
@@ -641,8 +676,8 @@ without the forensic image and without AI.
   report.
 - **Export CSV** in every list (folder, search, timeline, metadata, included files, recovered, items of interest,
   favourites, selection) and **📄 New report** as **PDF** (browser print dialog), **Word** (.docx) or **HTML**: case data,
-  findings, chosen favourite categories (with thumbnails, dates, SHA-256 and notes), notes and, optionally, the full
-  report.
+  findings, chosen favourite categories (with thumbnails, dates, SHA-256 and notes; chats as conversations with their
+  attachments, 3.0.1), notes and, optionally, the full report.
 - Every list (File system, search, timeline, metadata, recovered files, traces, mail, anomalies, favourites) has the
   same **row of column filters** as the program (text, min/max size, from/to dates); "✕ filters" clears them.
 - The recipient can **browse, search** (name, content, metadata, hash also from a list), scroll the **timeline** by
@@ -658,8 +693,9 @@ without the forensic image and without AI.
 
 - **File hashes** (optional): MD5, SHA-1 and SHA-256 of every file, deleted ones too, for comparison with known-hash
   lists and to find duplicates. It resumes where it stopped.
-- **Text and metadata** (always, automatically): text of documents, deleted ones too if still readable; metadata of
-  photos, videos and documents with exiftool. System folders are excluded.
+- **Text and media** (always, automatically): text of documents, deleted ones too if still readable; metadata of
+  photos, videos and documents with exiftool; photos, videos and audio recognised by content (in app and browser caches
+  too) and assigned to their app or folder. For text, system folders are excluded.
 - **plaso timeline** (optional): registry, prefetch, logs, browsers; on Macs also FSEvents and other macOS artifacts.
   Useful for system disks. It is included in the app (Mac) and the installation (Windows); on Linux `installa.sh`
   installs it: Docker is needed only if RepertIA is started from source without plaso. It can take hours. Since 2.14, if
@@ -912,7 +948,9 @@ dmg. In the list of cases the icon shows the type.
   *Analysis environment* and in the portable report; the method is described as reading of the file system extraction
   (no Sleuth Kit, partitions, unallocated space). The disk report does not change.
 - **AI agent**: for smartphone cases it also has the tools `list_chats`, `read_chat`, `search_messages` and `find_contact`,
-  and always cites the database, table and row of the messages.
+  and always cites the database, table and row of the messages; (3.0.1) under the messages the time they were read on this
+  phone and the delivery and read receipts, with their source. On phones and disks `count_media` and `list_media` for photos,
+  videos and audio recognised by content, by app or folder.
 - From the terminal: `python3 forense_mobile.py prepara --image EXTRACTION --case CASE [--leapp] [--decomprimi]
   [--keychain FILE] [--sysdiagnose FILE …]` and `python3 forense_mobile.py aggiungi --case CASE chat leapp`
   (`leapp-import` reads again the tables of the last iLEAPP/ALEAPP report without running it again; `sysdiagnose --file
@@ -1032,6 +1070,28 @@ dmg. In the list of cases the icon shows the type.
   box says in which chat it was sent or received, by whom, when, with database, table and row, whether the file is
   certain or probable and whether the SHA-256 matches the one recorded by the app; **💬 Open in the chat** goes to the
   message. The CSV has the column `origine_chat`. Also in the portable report.
+- **Photos, videos and audio by content and by app** (3.0.1): in smartphone cases indexing recognises photos, videos and
+  audio from the first bytes of each file, also in app caches (names without an extension or “.0”, “.cnt”, “.exo”…), and
+  assigns each file to its app (Android package, iOS container) or folder (Camera/DCIM, Download, System…). Under Photos,
+  Videos and Audio there is an entry for each app or folder, with **of which in caches**; the filters **App or folder** and
+  **Only from app caches**; under the file name, the app, cache and recognised format. Cases already prepared are updated
+  with the additional analysis “Text and media”. **Storage media** (disks, pen drives, E01/raw images): the same
+  recognition on the file-system files, read as in the anomaly check; a deleted file goes in by content alone only if the
+  content is still its own (with the extension of a photo, video or audio file it goes in anyway, as before). Each file
+  has its program or folder: browsers and programs from the user's data folders (AppData, Library, .cache: Chrome, Edge,
+  Firefox, Safari, Telegram…), user folders (Pictures, Desktop, Downloads, Documents, OneDrive…), Temporary files, Recycle
+  bin, Programs, System, and **Recovered by carving**; filters **Program or folder** and **Only from caches**. Time: about
+  half a millisecond per file (40,000 files in 21 seconds).
+- **Photos and videos inside browser caches** (3.0.1, phones and storage media): the entries of Chromium's “Simple
+  Cache” (`Cache_Data/<hash>_0` of Chrome, Samsung Internet, Edge, Opera, Brave, DuckDuckGo and app WebViews) have a
+  header and the web address before the content. “Text and media” reads them according to Chromium's format and, if the
+  content is a photo or a video, extracts it (only those bytes, read-only, with MD5/SHA-1/SHA-256) among the extracted
+  files, named after the address with the extension of the real format. The photos are in Photos/Videos under the browser
+  or app (“· cache”), with the entry's date; the preview shows the web address and the offset in the source file,
+  **Container** opens the cache entry; full list in Archives and attachments › **Browser caches**; in the illustrated and
+  the portable report with origin, offset and hashes. A new indexing keeps the same numbers for the extracted files
+  (Bookmarks and perceptual hashes stay valid). Deleted entries on disks go in only if the content is still theirs;
+  videos downloaded in pieces (`_s` files) are not reassembled.
 - **Preview of phone databases** (2.20): an SQLite database of the phone is previewed with its `-wal`, `-shm` and
   `-journal` files (on a working copy), as the chat readers do, and the note says so. Before, only the main file was
   read: on Android 14, 383 of the 508 databases with a `-wal` showed incomplete data.
@@ -1039,8 +1099,8 @@ dmg. In the list of cases the icon shows the type.
   **⚠ Import notices (N)** of the panel, which opens a resizable window.
 - **Limits**: only what is in the extraction can be seen (a logical extraction or a backup does not contain the app
   databases); encrypted databases (Signal if ALEAPP/iLEAPP does not decrypt it, WhatsApp backups without their key or made with
-  another key) cannot be read; deleted messages still present in the free pages of databases are not recovered in this
-  version; extractions have no deleted files of the file system.
+  another key) cannot be read; deleted messages still present in the database bytes are recovered (3.0.1) only for WhatsApp
+  Android, messages and calls, marked “deleted, recovered: to be verified”; extractions have no deleted files of the file system.
 - **Validation**: two test extractions in `RepertIA-collaudo/smartphone/` built with excerpts of the public images of Josh
   Hickman (iOS 15) and «anne_a15» (Android 15) used in the iLEAPP and ALEAPP tests: the times of all messages must match the
   results published by those projects; plus an Android WhatsApp built with known content. From 2.20 also fake keychains,
@@ -1268,20 +1328,29 @@ Nothing updates itself, on purpose: every case records the versions of the tools
 the next and with internet: Mac `Aggiorna strumenti.command`, Windows *Aggiorna strumenti* in the Start menu, Linux
 `./aggiorna-strumenti.sh`; they show the versions before and after.
 
+**New versions of RepertIA (3.0.1).** On the start page **🔄 Updates** shows the installed version (so does the ⓘ button),
+the check choice and **Check now**. The program asks GitHub only for the latest published release (drafts and
+pre-releases are discarded); if it is newer a notice appears with date, notes (plain text), the name of the package for
+this computer and the SHA-256 to compare after downloading, with **Open the release page**, **Remind me later** (one day)
+and **Skip this version**. If the notes contain “[sicurezza]” or “[security]” the notice is red. The package is
+downloaded from the browser and installed as usual: the program downloads and installs nothing. With a case open or with
+“Never” no request is made; the check goes into no case log (date and result stay in the settings). GitHub sees the
+computer's IP address and the program version. Without network only “no connection” is shown.
+
 The history of the versions is in [CHANGELOG.en.md](../CHANGELOG.en.md).
 
 ## Mac package (Apple Silicon)
 
-`RepertIA-3.0.0-Mac.zip` contains **RepertIA.app** with Python 3.12, openai, Pillow and **plaso already included** (no
-Docker). Drag the app into Applications; the first time: right-click → *Open* (or *System Settings → Privacy & Security
-→ Open Anyway*), because it is not signed with an Apple certificate. The app opens the Terminal, installs the missing
+`RepertIA-3.0.1-Mac.zip` contains **RepertIA.app** with Python 3.12, openai, Pillow and **plaso already included** (no
+Docker). Drag the app into Applications; the first time: *Done* at the warning, then *System Settings → Privacy & Security
+→ Open Anyway* and double-click again (right-click → *Open* is no longer enough on macOS 15 and later), because it is not signed with an Apple certificate. The app opens the Terminal, installs the missing
 tools with Homebrew (Sleuth Kit, libewf, exiftool, poppler, PhotoRec, bulk_extractor, Tesseract) and then the browser.
 7-Zip, libpff and the Italian/English OCR data are already in the app. To update the tools there is
 *Aggiorna strumenti.command* in the zip. Only for Macs with M1 or later.
 
 ## Windows version
 
-`RepertIA-3.0.0-Setup.exe` installs RepertIA for the current user (no administrator rights) in
+`RepertIA-3.0.1-Setup.exe` installs RepertIA for the current user (no administrator rights) in
 `%LOCALAPPDATA%\Programs\RepertIA`, with Python and the tools already included: plaso, The Sleuth Kit (reads E01 files
 directly), ExifTool, Poppler, PhotoRec, bulk_extractor, 7-Zip, Tesseract OCR (Italian and English) and the libraries for
 Outlook mail, shadow copies and encrypted volumes. It is started from the Start menu → **RepertIA**: a black window opens,
@@ -1299,11 +1368,11 @@ to be kept open, and the browser. Cases are in `%USERPROFILE%\CasiForensi`, sett
 
 ## Linux version (experimental)
 
-`RepertIA-3.0.0-Linux.tar.gz` is for **Linux x86_64** with Python 3.12 or later (Ubuntu 24.04 or later, Debian 13).
+`RepertIA-3.0.1-Linux.tar.gz` is for **Linux x86_64** with Python 3.12 or later (Ubuntu 24.04 or later, Debian 13).
 The program is the same as the Mac and Windows versions (same source fingerprint).
 
 ```
-tar -xzf RepertIA-3.0.0-Linux.tar.gz
+tar -xzf RepertIA-3.0.1-Linux.tar.gz
 cd RepertIA
 ./installa.sh          # once, with internet: asks for the administrator password
 ./RepertIA.sh          # or from the applications menu
@@ -1373,7 +1442,7 @@ Useful variables: `FORENSE_CASI` (cases folder), `FORENSE_BACKEND`, `FORENSE_URL
 - **A word I know is in a file does not come up in the text search**: look at `non_indicizzati.csv` (and the ⚠ above
   the results): the file may be too large, an image-only PDF or in a system folder; try the search in the *raw content*
   (it does not read inside PDF and Office) or open the file. If the case was prepared with 2.7 or 2.8, redo *Document
-  text and metadata*.
+  text and media*.
 - **The raw content search is slow**: narrow it with extensions, folder or maximum size, or use *Text of indexed
   documents*, which is immediate. You can stop it and keep the results already found.
 - **Hash search with few results**: if the hashes were not computed and you chose not to compute them on the fly, files

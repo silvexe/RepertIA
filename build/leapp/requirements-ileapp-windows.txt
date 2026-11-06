@@ -38,4 +38,4 @@ pyliblzfse
 pytz
 simplekml
 cryptography
-pyasn1
+pyasn1>=0.6.5

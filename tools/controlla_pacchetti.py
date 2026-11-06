@@ -189,7 +189,25 @@ def varie(cart, versione):
     fuori = [f.name for f in cart.iterdir() if f.is_file() and f.suffix in (".zip", ".exe", ".gz", ".tar", ".xz", ".html") and f.name not in elenco]
     esito("ogni allegato è in SHA256SUMS", not fuori, ", ".join(fuori))
     esito("rapporti con percorsi personali fuori da SHA256SUMS", not [n for n in elenco if n.startswith("collaudo_")])
+    firma(s)
     return None
+
+
+def firma(s):
+    """(3.0.1) Firma minisign di SHA256SUMS con la chiave pubblicata in SECURITY.md. Si firma dopo la costruzione:
+    se manca la firma lo si segnala soltanto; se c'è deve essere valida."""
+    m = s.with_name(s.name + ".minisig")
+    if not m.exists():
+        print("  --   SHA256SUMS non ancora firmato (firma.sh, poi caricare SHA256SUMS.txt.minisig)")
+        return
+    chiave = re.search(r"^(RW[A-Za-z0-9+/]{54})$", (RADICE / "SECURITY.md").read_text(encoding="utf-8"), re.M)
+    if not chiave:
+        return esito("firma: chiave pubblica in SECURITY.md", False)
+    try:
+        r = subprocess.run(["minisign", "-V", "-q", "-P", chiave.group(1), "-m", str(s)], capture_output=True, text=True)
+    except FileNotFoundError:
+        return esito("firma: minisign installato", False, "brew install minisign")
+    esito("firma di SHA256SUMS valida (chiave di SECURITY.md)", r.returncode == 0, (r.stderr or r.stdout).strip())
 
 
 def main():

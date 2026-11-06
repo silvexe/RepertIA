@@ -3,7 +3,7 @@
 *English: [docs/MANUAL.md](../docs/MANUAL.md).*
 
 **Analisi forense di copie di dischi e pendrive, estrazioni di smartphone e registri di volo dei droni, con intelligenza artificiale locale.**
-Versione 3.0.0 · macOS, Windows e Linux (sperimentale) · interfaccia in italiano o in inglese
+Versione 3.0.1 · macOS, Windows e Linux (sperimentale) · interfaccia in italiano o in inglese
 
 RepertIA prende una copia forense (raw, dd, img o E01), la indicizza con strumenti forensi
 riconosciuti e permette di esaminarla in due modi complementari:
@@ -16,6 +16,10 @@ riconosciuti e permette di esaminarla in due modi complementari:
   registra i reperti per il report.
 
 ---
+
+**Finestre (3.0.1).** Anteprima, chat, gestore dei database, mappa, guida e Timeline a schermo intero sono finestre: si spostano dalla barra del titolo, si ridimensionano da bordi e angoli; **—** le riduce nella barra **Finestre aperte** in basso (un clic le riapre, un clic sulla finestra davanti la riduce), **⤢** o il doppio clic sul titolo le porta a schermo intero, **✕** le chiude. Si lavora sul caso con le finestre aperte; più database si aprono insieme, ognuno nella sua finestra. L'anteprima resta di norma nel pannello a destra: **⧉** la apre in una finestra (la scelta resta per le anteprime successive) e **⧉** nella finestra la riaggancia; **📌** copia l'anteprima di adesso in una finestra a parte, per confrontare più file. Esc chiude solo la finestra che si sta usando. Posizione e misura si ricordano per tipo di finestra. Le finestre restano dentro la pagina del browser (non si portano su un secondo schermo).
+
+**Formato delle date (3.0.1).** Accanto al fuso orario, il menu **📅** sceglie come mostrare le date: giorno/mese/anno (predefinito in italiano), anno-mese-giorno ISO (predefinito in inglese), mese/giorno/anno o con il mese in lettere. Vale per tabelle, anteprime, chat e report portatile; dati, registro, CSV, filtri e ordinamento restano in formato ISO.
 
 **Ripristina interfaccia.** **↺ Ripristina interfaccia**, nella barra del caso, riporta colonne, riquadri, viste, albero, filtri e ora mostrata come alla prima apertura e riapre il caso. I dati del caso non si toccano: reperti, preferiti, ricerche, registro e analisi restano, come tema, lingua e operatore. Larghezze e viste sono comuni a tutti i casi.
 
@@ -31,6 +35,10 @@ comunicati a terzi**.
 - **Scaricamenti solo su richiesta e senza un caso aperto (3.0).** Le mappe di sfondo e i modelli di trascrizione si scaricano
   solo con un clic dell'analista e con nessun caso aperto (i modelli anche all'avvio di una nuova analisi, prima che il caso esista): con un caso aperto
   il programma rifiuta. Si chiede solo la mappa o il modello scelto e non si invia alcun dato del caso.
+- **Avviso di nuove versioni facoltativo (3.0.1).** Alla prima apertura si sceglie se controllare «Solo quando lo chiedo»
+  (consigliato), «All'avvio, al massimo una volta al giorno» o «Mai». Il controllo legge soltanto da GitHub
+  (`api.github.com`) quale è l'ultima versione pubblicata: nessun dato dei casi, nessuno scaricamento né installazione,
+  mai con un caso aperto (vedi *Aggiornamenti*).
 - **Il modello IA è locale.** L'agente parla solo con il server LLM avviato sul tuo Mac
   (`localhost`: LM Studio porta 1234, llama-server 8080, Ollama 11434). Domande, risposte e
   contenuti letti dalla prova restano sulla macchina.
@@ -96,7 +104,9 @@ da classifiche pubbliche (ottobre 2026): verificatele sui vostri casi.
    server nella scheda *Developer*. Vanno bene anche llama-server od Ollama.
    *Senza server LLM RepertIA funziona lo stesso*: puoi consultare tutti i dati indicizzati.
 2. **Avvia RepertIA.** Mac: doppio clic sull'app (o su `Avvia RepertIA.command`); la prima volta macOS
-   potrebbe bloccarlo: tasto destro → *Apri* → *Apri*. Al primo avvio installa da solo (serve Homebrew e
+   la blocca perché non è firmata: *Fine* all'avviso, poi *Impostazioni di Sistema › Privacy e sicurezza* →
+   **Apri comunque**, e di nuovo doppio clic → **Apri comunque** (su macOS 15 e successivi «tasto destro → *Apri*»
+   non basta più; procedura completa nel README del repository, «Primo avvio su Mac»). Al primo avvio installa da solo (serve Homebrew e
    internet) Sleuth Kit, libewf, exiftool, poppler, testdisk (PhotoRec), bulk_extractor e Tesseract.
    Windows: menu Start → RepertIA. Linux: `./RepertIA.sh` (dopo `./installa.sh`).
 3. Si apre il browser: **Scegli la copia forense…**, seleziona l'immagine (per gli E01 il
@@ -165,7 +175,7 @@ Vedi [AI_ACT.md](../AI_ACT.md).
 | **File** | Elenco completo dei file, anche cancellati, con ricerca nel percorso ed estensione. |
 | **Timeline** | **Grafico a barre dell'attività** e tabella degli eventi (modifica, accesso, metadati, creazione; file system e plaso). |
 | **Documenti** | Ricerca di parole e frasi *dentro* i documenti (Word, Excel, PowerPoint, PDF, OpenDocument, RTF, testo, email). Nella vista ad albero la voce si divide **per estensione** (`.docx · Word`, `.xlsx · Excel`, `.pdf · PDF`…, più *E-mail* e *Senza estensione*, con il numero di documenti): un clic mostra solo quella famiglia; lo stesso filtro è il campo *Estensione* della sezione. |
-| **Foto/Video/Audio** | Dimensione e date del file (filtrabili e ordinabili, come in Documenti); dispositivo, data di scatto, GPS e autori letti con exiftool (foto, video e documenti); sottovoci **Foto**, **Video** e **Audio** (gli audio dall'elenco dei file del caso, anche nei casi già preparati). |
+| **Foto/Video/Audio** | Dimensione e date del file (filtrabili e ordinabili, come in Documenti); dispositivo, data di scatto, GPS e autori letti con exiftool (foto, video e documenti); sottovoci **Foto**, **Video** e **Audio** (gli audio dall'elenco dei file del caso, anche nei casi già preparati). Dalla 3.0.1 foto, video e audio sono riconosciuti dal contenuto anche sui dischi (vedi sotto) e divisi per programma o cartella. |
 | **File recuperati** | File recuperati dallo spazio libero con PhotoRec (se eseguito). |
 | **Evidenze di interesse** | Email, siti, ricerche, telefoni, GPS trovati da bulk_extractor (se eseguito). |
 | **⭐ Preferiti** | Categorie di file create dall'analista (vedi *Preferiti*). |
@@ -227,7 +237,7 @@ Le tre scelte non cercano nello stesso modo:
 
 | Dove cerchi | Cosa legge | Cosa può sfuggire |
 |---|---|---|
-| *testo dei documenti* | l'indice del testo, preparato con *Testo dei documenti e metadati*: è veloce e legge dentro PDF, Word, Excel, PowerPoint, OpenDocument, RTF, email, archivi | i file **non indicizzati o indicizzati solo in parte** (elenco sotto) |
+| *testo dei documenti* | l'indice del testo, preparato con *Testo dei documenti e media*: è veloce e legge dentro PDF, Word, Excel, PowerPoint, OpenDocument, RTF, email, archivi | i file **non indicizzati o indicizzati solo in parte** (elenco sotto) |
 | *contenuto grezzo di ogni file* | i byte di ogni file, anche quelli non indicizzati, in UTF-8 e UTF-16 | il testo dentro formati compressi: PDF, Word, Excel, PowerPoint e archivi **non** si leggono così; è lento |
 | *immagine intera* | tutti i byte della copia, anche spazio non allocato e file sovrascritti | il testo compresso, i file frammentati |
 
@@ -255,7 +265,7 @@ estratto (segno di uno strumento che non funziona), o se non è stato estratto a
 **Per essere sicuri di non perdere nulla** in un caso con file non indicizzati: cerca nel *testo dei
 documenti*, poi ripeti la ricerca con anche *contenuto grezzo* (filtrando per estensione o cartella
 per contenere i tempi); per i PDF e i documenti Office esclusi apri il file e leggilo, oppure alza il
-limite con `REPERTIA_MAX_FILE_MB` e ripreparare *Testo dei documenti e metadati*.
+limite con `REPERTIA_MAX_FILE_MB` e ripreparare *Testo dei documenti e media*.
 
 La ricerca gira in background con l'avanzamento e si può **interrompere** tenendo i risultati
 trovati fin lì. **L'esito si apre in una nuova scheda 🔎** con un file per riga, dove trovato
@@ -468,8 +478,8 @@ registrati. Il server LLM è nel menu **Modello IA** della barra: il pallino ne 
 **Barra dei menu (2.20).** Sotto la scritta RepertIA, nella vista del caso, quattro menu a tendina (prima erano i
 riquadri *Azioni* e *Analisi aggiuntive* del pannello):
 - **Caso**: *Modifica dati del caso*, **Cartella caso**, **File esportati**, **Cache e posizione**;
-- **Report**: **Report** (anche in **PDF** e **Word** .docx: `report.pdf` e `report.docx` nella cartella del caso, con
-  lo SHA-256 nel registro) e **Report portatile**;
+- **Report**: **Report** (report illustrato, vedi sotto; «Solo testo (report.md)» per il report di prima, anche in **PDF**
+  e **Word** nella cartella del caso con lo SHA-256 nel registro) e **Report portatile**;
   Gli elenchi dell'agente dichiarano le righe mostrate su quante e proseguono a pagine; se finisce i passi compare «Analisi NON completa» e «continua» riprende. I riferimenti citati dal modello vanno verificati.
   Il pulsante **🎤** detta il prompt: trascrizione locale con whisper.cpp, audio cancellato subito, testo da controllare e inviare a mano.
   RepertIA lavora su **un caso alla volta**: se ne apri un altro in una seconda scheda, la prima si ferma con un avviso.
@@ -500,6 +510,8 @@ audio, «testo OCR automatico» nell'elenco dei documenti e nel report. Vedi [AI
 
 ## Preferiti (categorie di file)
 
+**Report illustrato (3.0.1).** **Report** apre una finestra in cui si sceglie che cosa far confluire: le sezioni (dati del caso e della copia, analisi eseguite, reperti, cronologia dei preferiti, note metodologiche, ambiente e registro, testo completo), le categorie dei Preferiti (con **Scegli elementi…** si tolgono singoli elementi) e i **tipi interi** (tutte le chat, tutte le foto, tutti i video, tutti gli audio, tutta la posta, gli artefatti di una categoria o di una sezione di iLEAPP/ALEAPP, tutte le posizioni). Chi riceve il report vede gli elementi come nel caso: foto in miniatura (un clic apre l'originale copiato accanto, con il suo SHA-256), video con un fotogramma, documenti con la prima pagina, chat con fumetti, mittente, ora, fonte e allegati, artefatti e posta con tutti i campi. Escono in `export/report_<data>/` **report.html** (diviso in pagine), **report.pdf** e, a scelta, **report.docx** con lo stesso contenuto, più `impronte.csv` con lo SHA-256 di ogni file; tutto nel registro del caso. Si consegna l'intera cartella. Il PDF incorpora un carattere Unicode del sistema con i soli glifi usati; l'arabo e l'ebraico vi compaiono con le lettere staccate (nell'HTML sono corretti). PDF e Word portano al massimo 5.000 anteprime e 20.000 righe di tabella: il resto è nell'HTML. Opzioni: periodo delle chat; copia degli originali di foto, documenti e audio (predefinito) e, a scelta, anche di video e altri allegati.
+
 **Chat nei Preferiti e cronologia (2.21).** Aprendo la scheda di una chat dai Preferiti compare **💬 Apri chat**. **Esporta file** dai Preferiti salva la chat intera (HTML, CSV, allegati, con SHA-256 nel manifest), limitabile a un periodo; i messaggi singoli vanno in `chat/messaggi_preferiti.csv`. Il report contiene il testo della chat (primi 2.000 messaggi; completa nel report portatile). **🕒 Cronologia dei preferiti** mette tutti gli elementi in ordine di data dell'evento, con la colonna *Evento* che dice a che cosa si riferisce la data: la cronologia è anche nel report ed è esportabile in CSV. Il report contiene solo le categorie «nel report». Una data di modifica non prova da sola quando un fatto è avvenuto.
 
 Nei Risultati seleziona i file con le caselle a sinistra (anche cartelle intere, con tutto il
@@ -523,7 +535,7 @@ chiusura: l'originale non è toccato e le righe ancora nel `-wal` si vedono.
 - **CSV.** **Esporta CSV** salva il risultato in `export/database/` con il suo SHA-256 (massimo 1.000.000 di righe). I valori restano identici all'originale: un testo che inizia con `=` può essere interpretato come formula se il file si apre in un foglio di calcolo.
 - **★ e 📌.** Da ogni riga si aggiunge il database ai Preferiti, con query e valori nella nota, o si registra un reperto con origine «analista» e i riferimenti di file, impronte, query e riga.
 - **Date e numeri** si vedono come sono nel database, senza conversioni: la conversione va scritta nella query, dichiarando unità e fuso.
-- **Ricerca.** La casella in alto cerca un valore in tutte le colonne di tutte le tabelle, indica tabelle e colonne con il numero di righe e, con un clic, apre le righe; a richiesta cerca anche nei record cancellati. I BLOB sono confrontati come testo. La ricerca resta nel registro.
+- **Ricerca.** La casella in alto cerca un valore in tutte le colonne di tutte le tabelle, indica tabelle e colonne con il numero di righe e, con un clic, apre le righe; a richiesta cerca anche nei record cancellati: ogni tabella è un pulsante che apre i suoi record cancellati già filtrati sul valore, evidenziato (3.0.1), e la vista dei record cancellati ha una casella di ricerca. I BLOB sono confrontati come testo. La ricerca resta nel registro.
 - **💬 Chiedi all'agente.** Su ogni riga e su ogni record cancellato prepara la domanda con database, query o posizione e valori, fino a 300 caratteri per campo; il gestore si chiude e la domanda resta da inviare. I valori vanno al modello scelto: un server in rete li riceve.
 - **Indietro e Avanti.** **←** e **→** accanto alla ricerca percorrono tabelle, query, ricerche e record cancellati: dopo aver aperto un risultato si torna all'elenco senza ripetere la ricerca, e riaprire una query non aggiunge voci al registro. Il divisore a destra delle tabelle si trascina per allargarle; doppio clic per la larghezza predefinita.
 - **Da dove si apre.** Dall'anteprima del file o dal menu **Strumenti aggiuntivi → Gestore database**, che elenca i file con estensione o nome da database (un database senza estensione si apre dalla sua anteprima). L'elenco non legge il contenuto dei file: molti `.db` non sono SQLite, come le cache delle miniature di Windows o i Berkeley DB di Firefox. Aprendoli compare un avviso con il formato, quando è riconosciuto, e la vista esadecimale.
@@ -606,10 +618,20 @@ l'audio»**: non sostituisce una trascrizione certificata.
   574 MB)*. **Non sono nei pacchetti** e **non si scaricano da soli**: la prima volta una finestra mostra provenienza
   (repository ufficiale di whisper.cpp, versione fissata), licenza (MIT), dimensione e SHA-256 atteso; il download avviene
   solo con **Accetto e scarico**, poi l'impronta si ricontrolla (un file diverso viene eliminato). Su un computer senza rete
-  **Ho già il file del modello…** accetta un file solo se il suo SHA-256 è quello dell'elenco. I modelli restano accanto
+  **Ho già il file del modello…** accetta un file solo se il suo SHA-256 è quello dell'elenco oppure (3.0.1) quello scritto
+  nella casella *SHA-256 atteso*, preso dalla fonte (pagina del file su Hugging Face): il confronto resta nella scheda e nel
+  registro. (3.0.1) Prima di scaricare RepertIA legge da Hugging Face lo SHA-256 dichiarato per il file (anche da sola
+  all'apertura della finestra, a caso chiuso: la riga *SHA-256 atteso* passa all'impronta letta online) e confronta il file
+  con quello; se è cambiata, lo scaricamento procede e «Ho già il file del modello…» accetta il file con quella impronta. I modelli restano accanto
   alle impostazioni (`modelli_trascrizione/`, con `modelli.json`: chi, quando, da dove) e valgono per tutti i casi: la
   finestra mostra la cartella (**Apri la cartella**) e, accanto a ogni modello installato, **Rimuovi** (nel registro). Alla
   creazione del caso la finestra compare prima di avviare; annullando, il caso si prepara senza trascrizione.
+- **Trascrizione rivista dall'analista (3.0.1)**: sotto la trascrizione automatica (anteprima dell'audio e chat)
+  **✏️ Correggi la trascrizione** (o **Scrivi la trascrizione** se manca) apre il testo; **Salva come bozza** o **Salva e
+  conferma** (operatore e conferma esplicita: «ho ascoltato l'audio»). La automatica non cambia; ogni salvataggio è una
+  versione con operatore, data e SHA-256 del testo, nel registro. Il testo entra nella ricerca («Trascrizione verificata
+  dall'analista»); gli audio confermati sono in Foto/Video/Audio › Audio › **✅ Trascrizioni confermate** (gli altri in
+  **📝 Trascritti, da confermare**), nei Preferiti **Trascrizioni confermate** e nell'esportazione delle chat.
 - **Dove si vede il testo**: ricerca nel testo (tipo «Trascrizione automatica»); anteprima di ogni audio (scheda con le
   frasi e i loro orari: un clic fa partire l'audio da lì); vista chat, sotto la nota vocale; *Esporta chat* (HTML e CSV);
   report portatile (chat e ricerca); report del caso (sezione con numeri, modello e SHA-256, motore e SHA-256, lingua).
@@ -679,7 +701,7 @@ browser, **offline**, senza RepertIA, senza la copia forense e senza IA.
 - **Esporta CSV** in ogni elenco (cartella, ricerca, timeline, metadati, file inclusi,
   recuperati, evidenze di interesse, preferiti, selezione) e **📄 Nuovo report** in **PDF** (finestra di stampa
   del browser), **Word** (.docx) o **HTML**: dati del caso, reperti, categorie di preferiti scelte
-  (con miniature, date, SHA-256 e note), note e, a scelta, il report completo.
+  (con miniature, date, SHA-256 e note; le chat come conversazioni con gli allegati, 3.0.1), note e, a scelta, il report completo.
 - Ogni elenco (File system, ricerca, timeline, metadati, file recuperati, tracce, posta, anomalie, preferiti) ha la
   stessa **riga di filtri per colonna** del programma (testo, dimensione min/max, date dal/al); «✕ filtri» li azzera.
 - Chi lo riceve può **navigare, cercare** (nome, contenuto, metadati, hash anche da lista),
@@ -695,9 +717,10 @@ browser, **offline**, senza RepertIA, senza la copia forense e senza IA.
 
 - **Hash dei file** (facoltativo): MD5, SHA-1 e SHA-256 di ogni file, anche cancellato, per
   confronti con liste di hash noti e ricerca dei duplicati. Riprende da dove si era fermato.
-- **Testo e metadati** (sempre, in automatico): testo dei documenti anche cancellati ma ancora
-  leggibili; metadati di foto, video e documenti con exiftool. Le cartelle di sistema sono
-  escluse.
+- **Testo e media** (sempre, in automatico): testo dei documenti anche cancellati ma ancora
+  leggibili; foto, video e audio riconosciuti dal contenuto (anche nelle cache delle app e dei browser) e
+  attribuiti all'app o alla cartella; metadati di foto, video e documenti con exiftool. Per il testo le cartelle di
+  sistema sono escluse.
 - **Timeline plaso** (facoltativa): registro, prefetch, log, browser; sui Mac anche FSEvents e altri
   artefatti di macOS. Utile per i dischi di sistema. È inclusa nell'app (Mac) e nell'installazione
   (Windows); su Linux la installa `installa.sh`: Docker serve solo se si avvia RepertIA dai sorgenti senza plaso. Può durare ore. Dalla 2.14,
@@ -870,6 +893,8 @@ percorso di sempre per E01, dd/raw e dmg. Nell'elenco dei casi l'icona indica il
   (Android), con i nomi presi dalle rubriche del telefono e di WhatsApp. Ogni database si legge da una copia di lavoro con
   i suoi file `-wal`/`-shm`, così compaiono anche i messaggi non ancora riversati nel database. Il pulsante **💬 Apri le
   chat** del pannello del caso apre la **vista chat**: conversazioni con filtri per app, nome o numero, testo e periodo;
+  dentro la conversazione aperta, **Cerca nella conversazione** trova testo, nome o numero di chi scrive e **Mittente**
+  filtra solo chi scrive; la ricerca dell'elenco a sinistra non passa alla conversazione (3.0.1);
   messaggi a fumetti con mittente, ora, stato (consegnato, letto), allegati con miniatura (*Anteprima*, *Mostra
   nell'albero*) e posizioni; ogni messaggio indica database, tabella e riga di origine (clic per copiare il riferimento).
   I messaggi entrano anche nella timeline e, uno per conversazione, negli Artefatti: la voce **Messaggi delle chat** è
@@ -967,7 +992,9 @@ percorso di sempre per E01, dd/raw e dmg. Nell'elenco dei casi l'icona indica il
   e nel report portatile; il metodo è descritto come lettura dell'estrazione del file system (niente Sleuth Kit,
   partizioni, spazio non allocato). Il report dei dischi non cambia.
 - **Agente IA**: per i casi smartphone ha anche gli strumenti `list_chats`, `read_chat`, `search_messages` e
-  `find_contact`, e cita sempre database, tabella e riga dei messaggi.
+  `find_contact`, e cita sempre database, tabella e riga dei messaggi; (3.0.1) sotto i messaggi l'ora di lettura su questo
+  telefono e le ricevute di consegna e lettura, con la fonte. Su telefoni e dischi `count_media` e `list_media` per foto, video
+  e audio riconosciuti dal contenuto, per app o cartella.
 - Da terminale: `python3 forense_mobile.py prepara --image ESTRAZIONE --case CASO [--leapp] [--decomprimi]
   [--keychain FILE] [--sysdiagnose FILE …]` e `python3 forense_mobile.py aggiungi --case CASO chat leapp`
   (`leapp-import` rilegge le tabelle dell'ultimo rapporto di iLEAPP/ALEAPP senza rieseguirlo; `sysdiagnose --file FILE`
@@ -1090,6 +1117,28 @@ percorso di sempre per E01, dd/raw e dmg. Nell'elenco dei casi l'icona indica il
   in quale chat è stato inviato o ricevuto, da chi, quando, con database, tabella e riga, se il file è certo o probabile e
   se lo SHA-256 coincide con quello registrato dall'app; **💬 Apri nella chat** porta al messaggio. Il CSV ha la colonna
   `origine_chat`. Anche nel report portatile.
+- **Foto, video e audio per contenuto e per app** (3.0.1): nei casi smartphone l'indicizzazione riconosce foto, video e audio
+  dai primi byte di ogni file, anche nelle cache delle app (nomi senza estensione o «.0», «.cnt», «.exo»…), e attribuisce
+  ogni file all'app (pacchetto Android, contenitore iOS) o alla cartella (Fotocamera/DCIM, Download, Sistema…). Sotto Foto,
+  Video e Audio c'è una voce per ogni app o cartella, con **di cui nelle cache**; i filtri **App o cartella** e **Solo dalle
+  cache delle app**; sotto il nome del file, app, cache e formato riconosciuto. I casi già preparati si aggiornano con
+  l'analisi aggiuntiva «Testo e media». **Memorie di massa** (dischi, pendrive, copie E01/raw): lo stesso
+  riconoscimento sui file del file system, letti come nel controllo delle anomalie; un file cancellato entra dal solo
+  contenuto solo se il contenuto è ancora il suo (con l'estensione di una foto, di un video o di un audio entra comunque,
+  come prima). Ogni file ha il suo programma o la sua cartella: browser e programmi dalle cartelle dei dati dell'utente
+  (AppData, Library, .cache: Chrome, Edge, Firefox, Safari, Telegram…), cartelle dell'utente (Immagini, Scrivania,
+  Download, Documenti, OneDrive…), File temporanei, Cestino, Programmi, Sistema, e i **Recuperati dal carving**; filtri
+  **Programma o cartella** e **Solo dalle cache**. Tempo: circa mezzo millisecondo per file (40.000 file in 21 secondi).
+- **Foto e video dentro le cache dei browser** (3.0.1, telefoni e memorie di massa): le voci della «Simple Cache» di
+  Chromium (`Cache_Data/<hash>_0` di Chrome, Samsung Internet, Edge, Opera, Brave, DuckDuckGo e delle WebView delle app)
+  hanno un'intestazione e l'indirizzo web prima del contenuto. «Testo e media» le legge secondo il formato di Chromium e,
+  se il contenuto è una foto o un video, lo estrae (solo quei byte, in sola lettura, con MD5/SHA-1/SHA-256) tra i file
+  estratti, con il nome preso dall'indirizzo e l'estensione del formato vero. Le foto stanno in Foto/Video sotto il
+  browser o l'app («· cache»), con la data della voce; l'anteprima indica indirizzo web e offset nel file d'origine,
+  **Contenitore** apre la voce di cache; elenco completo in Archivi e allegati › **Cache dei browser**; nel report
+  illustrato e nel portatile con origine, offset e impronte. Una nuova indicizzazione tiene gli stessi numeri degli
+  estratti (Preferiti e hash percettivi restano validi). Le voci cancellate dei dischi entrano solo se il contenuto è
+  ancora il loro; i video scaricati a pezzi (file `_s`) non si ricompongono.
 - **Anteprima dei database dei telefoni** (2.20): un database SQLite del telefono si legge in anteprima con i suoi file
   `-wal`, `-shm` e `-journal` (su una copia di lavoro), come fanno i lettori di chat, e la nota lo dice. Prima si leggeva il
   solo file principale: su Android 14, 383 dei 508 database con un `-wal` mostravano dati incompleti.
@@ -1097,8 +1146,8 @@ percorso di sempre per E01, dd/raw e dmg. Nell'elenco dei casi l'icona indica il
   nel pulsante **⚠ Avvisi dell'importazione (N)** del pannello, che apre una finestra ridimensionabile.
 - **Limiti**: si vede solo quello che c'è nell'estrazione (un'estrazione logica o un backup non contengono i database delle
   app); i database cifrati (Signal se ALEAPP/iLEAPP non lo decifra, backup di WhatsApp senza la loro chiave o fatti con un'altra
-  chiave) non si leggono; i messaggi cancellati ancora presenti nelle pagine libere dei database non sono recuperati in
-  questa versione; le estrazioni non hanno file cancellati del file system.
+  chiave) non si leggono; i messaggi cancellati ancora presenti nei byte dei database sono recuperati (3.0.1) solo per WhatsApp
+  Android, messaggi e chiamate, segnati «cancellato, recuperato: da verificare»; le estrazioni non hanno file cancellati del file system.
 - **Collaudo**: due estrazioni di prova in `RepertIA-collaudo/smartphone/` costruite con estratti delle immagini pubbliche
   di Josh Hickman (iOS 15) e «anne_a15» (Android 15) usati nei test di iLEAPP e ALEAPP: gli orari di tutti i messaggi
   devono coincidere con i risultati pubblicati da quei progetti; più un WhatsApp Android costruito con contenuto noto.
@@ -1332,6 +1381,20 @@ stesso. I file principali sono:
 Nulla si aggiorna da solo, di proposito: ogni caso registra le versioni degli strumenti usati.
 Per aggiornare, tra un caso e l'altro e con internet: Mac `Aggiorna strumenti.command`, Windows *Aggiorna strumenti*
 nel menu Start, Linux `./aggiorna-strumenti.sh`; mostrano le versioni prima e dopo.
+
+**Nuove versioni di RepertIA (3.0.1).** Nella pagina iniziale **🔄 Aggiornamenti** mostra la versione installata (anche il
+pulsante ⓘ), la scelta del controllo e **Controlla ora**. Il programma chiede a GitHub soltanto l'ultima release pubblicata
+(scarta bozze e versioni in prova); se è più nuova compare un avviso con data, note (solo testo), nome del pacchetto per
+questo computer e lo SHA-256 da confrontare dopo lo scaricamento, con **Apri la pagina della release**, **Ricordamelo più
+tardi** (un giorno) e **Salta questa versione**. Se le note contengono «[sicurezza]» l'avviso è in rosso. Il pacchetto si
+scarica dal browser e si installa come sempre: il programma non scarica né installa nulla. Con un caso aperto o con «Mai»
+non parte nessuna richiesta; il controllo non va nel registro di nessun caso (data ed esito restano nelle impostazioni).
+GitHub vede l'indirizzo IP del computer e la versione del programma. Senza rete compare solo «nessuna connessione».
+
+**Versione 3.0.1** - **Report illustrato**: si sceglie che cosa far confluire (sezioni, Preferiti elemento per elemento, tipi interi) e chi lo riceve vede foto, video, documenti, chat con allegati, artefatti e posta come nel caso, in HTML, PDF e Word; **Trascrizioni riviste e confermate dall'analista** (categoria «Trascrizioni confermate»); impronta del modello di trascrizione controllata su Hugging Face o scritta a mano; **avvisi dell'importazione** nella barra dei menu; **Finestre** che si spostano, si ridimensionano, si riducono nella barra in basso e vanno a schermo intero (anteprima, chat, database, mappa, guida, Timeline); **formato delle date** a scelta (predefinito giorno/mese/anno). **Foto, video e audio riconosciuti dal contenuto**, cache comprese, con una voce per app o cartella;
+**WhatsApp Business** separato da WhatsApp (chat, backup decifrati, chiamate); **Telegram di ALEAPP** nelle chat e chiamate
+Telegram dai messaggi di servizio (anche iLEAPP); nel gestore dei database la parola cercata apre i **record cancellati già
+filtrati ed evidenziati**. **Agente IA** con gli stessi dati dell'interfaccia: file estratti e foto/video della cache dei browser, anomalie, foto, video e audio per app (`count_media`, `list_media`), ora di lettura e ricevute sotto i messaggi. ExifTool 13.61 su Windows. **Avviso di nuove versioni** facoltativo (🔄 Aggiornamenti, solo lettura da GitHub). **Sicurezza:** un archivio dentro la copia forense con voci «../» o collegamenti verso fuori non può più far leggere o spostare nel caso file del computer dell'analista (quelle voci restano nell'elenco come «non estratto»); le pagine del programma non si incorniciano in siti esterni; token confrontato a tempo costante. **iLEAPP 2026.4.6 e ALEAPP 2026.4.5** con Brotli 1.2.1 e pyasn1 0.6.5: su Android 14 di Hickman 31 artefatti in più, su iOS 17 624 artefatti invece di 246; chat e chiamate invariate o in più. Dettagli in CHANGELOG.md.
 
 **Versione 3.0.0** - **Gestore dei database** con **record cancellati**, **Mappa** locale con tabelle e animazione, voce **Posizioni e voli** nell'albero, **Droni** (DJI, Autel, PX4, ArduPilot), anche dalle copie forensi delle memorie. **Licenza AGPL-3.0-or-later** e pulsante ⓘ con le informazioni legali. Corretto **Collega copia forense** sui casi smartphone.
 
@@ -1609,7 +1672,7 @@ PDF molto grandi si leggono in flusso o a blocchi; ogni file non indicizzato o p
 `non_indicizzati.csv` con il motivo, segnalato nei risultati di ricerca, nel riepilogo e nel report;
 controllo di coerenza a fine indicizzazione; nuovo strumento `list_not_indexed` per l'agente. I casi
 preparati con versioni precedenti restano utilizzabili: per avere i blocchi e l'elenco rifare
-*Testo dei documenti e metadati*. L'indicizzazione può richiedere più tempo sui dischi con molti file grandi.
+*Testo dei documenti e media*. L'indicizzazione può richiedere più tempo sui dischi con molti file grandi.
 
 **Versione 2.8** - Windows: corretta l'estrazione del testo dei PDF (e dei metadati dallo strumento
 esterno dell'agente), che prima non produceva testo. I casi analizzati con la 2.7 su Windows vanno
@@ -1617,7 +1680,7 @@ ripreparati per indicizzare i PDF.
 
 ## Pacchetto per Mac Apple Silicon
 
-`RepertIA-3.0.0-Mac.zip` contiene **RepertIA.app** con Python 3.12, openai, Pillow e **plaso
+`RepertIA-3.0.1-Mac.zip` contiene **RepertIA.app** con Python 3.12, openai, Pillow e **plaso
 già inclusi** (niente Docker). Trascina l'app in Applicazioni; la prima volta: tasto destro →
 *Apri* (o *Impostazioni di Sistema → Privacy e sicurezza → Apri comunque*), perché non è firmata
 con un certificato Apple. L'app apre il Terminale, installa con Homebrew gli strumenti che mancano
@@ -1627,7 +1690,7 @@ c'è *Aggiorna strumenti.command* nello zip. Solo per Mac M1 o successivi.
 
 ## Versione Windows
 
-`RepertIA-3.0.0-Setup.exe` installa RepertIA per l'utente corrente (senza diritti di
+`RepertIA-3.0.1-Setup.exe` installa RepertIA per l'utente corrente (senza diritti di
 amministratore) in `%LOCALAPPDATA%\Programs\RepertIA`, con Python e gli strumenti già inclusi:
 plaso, The Sleuth Kit (legge gli E01 direttamente), ExifTool, Poppler, PhotoRec, bulk_extractor, 7-Zip,
 Tesseract OCR (italiano e inglese) e le librerie per posta Outlook, copie shadow e volumi cifrati. Si avvia dal menu
@@ -1648,11 +1711,11 @@ in `%USERPROFILE%\CasiForensi`, le impostazioni in `%APPDATA%\RepertIA`.
 
 ## Versione Linux (sperimentale)
 
-`RepertIA-3.0.0-Linux.tar.gz` è per **Linux x86_64** con Python 3.12 o successivo (Ubuntu 24.04 o
+`RepertIA-3.0.1-Linux.tar.gz` è per **Linux x86_64** con Python 3.12 o successivo (Ubuntu 24.04 o
 successivo, Debian 13). Il programma è lo stesso delle versioni Mac e Windows (stessa impronta dei sorgenti).
 
 ```
-tar -xzf RepertIA-3.0.0-Linux.tar.gz
+tar -xzf RepertIA-3.0.1-Linux.tar.gz
 cd RepertIA
 ./installa.sh          # una volta, con internet: chiede la password di amministratore
 ./RepertIA.sh          # oppure dal menu delle applicazioni
@@ -1723,7 +1786,7 @@ Variabili utili: `FORENSE_CASI` (cartella dei casi), `FORENSE_BACKEND`, `FORENSE
 - **Una parola che so essere in un file non esce nella ricerca nel testo**: guarda `non_indicizzati.csv`
   (e il ⚠ sopra i risultati): il file potrebbe essere troppo grande, un PDF di sole immagini o in
   una cartella di sistema; prova la ricerca nel *contenuto grezzo* (non legge dentro PDF e Office)
-  o apri il file. Se il caso è stato preparato con la 2.7 o la 2.8, rifai *Testo dei documenti e metadati*.
+  o apri il file. Se il caso è stato preparato con la 2.7 o la 2.8, rifai *Testo dei documenti e media*.
 - **La ricerca nel contenuto grezzo è lenta**: restringi con estensioni, cartella o dimensione
   massima, oppure usa *Testo dei documenti indicizzati*, che è immediato. Puoi interromperla e
   tenere i risultati già trovati.

@@ -3,14 +3,14 @@
 # Copyright (C) 2026 silvexe
 # RepertIA 2.20 - prepara le cartelle strumenti/ileapp e strumenti/aleapp per i pacchetti Mac, Windows e Linux.
 # Uso: ./prepara_leapp.sh <python 3.12 dell'app per Mac> <cartella di lavoro>
-# Scarica iLEAPP v2026.4.5 e ALEAPP v2026.4.4 (GitHub, licenza MIT) e le loro librerie (PyPI), ciascuno con le sue in
+# Scarica iLEAPP v2026.4.6 e ALEAPP v2026.4.5 (GitHub, licenza MIT) e le loro librerie (PyPI), ciascuno con le sue in
 # <strumento>/site (non si mescolano con quelle di RepertIA e di plaso). Risultato: <lavoro>/strum_mac, strum_win, strum_linux.
 set -e
 P="$1"; W="$2"; HERE="$(cd "$(dirname "$0")" && pwd)"
 [ -x "$P" ] && [ -n "$W" ] || { echo "uso: $0 <python3.12> <cartella>"; exit 1; }
 mkdir -p "$W/dl" "$W/wheels"; cd "$W"
-curl -sL -o dl/ileapp.tar.gz https://codeload.github.com/abrignoni/iLEAPP/tar.gz/refs/tags/v2026.4.5
-curl -sL -o dl/aleapp.tar.gz https://codeload.github.com/abrignoni/ALEAPP/tar.gz/refs/tags/v2026.4.4
+curl -sL -o dl/ileapp.tar.gz https://codeload.github.com/abrignoni/iLEAPP/tar.gz/refs/tags/v2026.4.6
+curl -sL -o dl/aleapp.tar.gz https://codeload.github.com/abrignoni/ALEAPP/tar.gz/refs/tags/v2026.4.5
 shasum -a 256 dl/*.tar.gz
 for t in ileapp aleapp; do rm -rf src_$t; mkdir src_$t; tar -xzf dl/$t.tar.gz -C src_$t --strip-components 1; done
 # lettori senza pacchetto binario: wheel universali (puro Python), alle versioni/commit usati da iLEAPP/ALEAPP
@@ -22,8 +22,9 @@ for t in ileapp aleapp; do rm -rf src_$t; mkdir src_$t; tar -xzf dl/$t.tar.gz -C
 EXCL=(--exclude admin --exclude tests --exclude packaging --exclude whl_files --exclude CLAUDE.md --exclude '*.whl' --exclude .github --exclude __pycache__)
 for os in mac win linux; do rm -rf strum_$os; mkdir strum_$os; for t in ileapp aleapp; do rsync -a "${EXCL[@]}" src_$t/ strum_$os/$t/; done; done
 # Mac (librerie del sistema su cui si costruisce: Apple Silicon)
-"$P" -m pip install --prefer-binary --find-links wheels --target strum_mac/ileapp/site -r "$HERE/requirements-ileapp.txt"
-grep -v mister_skinnylegs "$HERE/requirements-aleapp.txt" > /tmp/req_aleapp_mac.txt; printf "Brotli==1.2.0\nzstd==1.5.7.2\nlz4==4.3.3\n" >> /tmp/req_aleapp_mac.txt
+# (3.0.1) pyasn1 0.6.4 ha 4 CVE di blocco (CPU): almeno 0.6.5. Brotli 1.2.0 ha CVE-2026-111497 (critica): 1.2.1
+"$P" -m pip install --prefer-binary --find-links wheels --target strum_mac/ileapp/site -r "$HERE/requirements-ileapp.txt" "pyasn1>=0.6.5"
+grep -v mister_skinnylegs "$HERE/requirements-aleapp.txt" > /tmp/req_aleapp_mac.txt; printf "Brotli==1.2.1\nzstd==1.5.7.2\nlz4==4.3.3\n" >> /tmp/req_aleapp_mac.txt
 "$P" -m pip install --prefer-binary --target strum_mac/aleapp/site -r /tmp/req_aleapp_mac.txt
 "$P" -m pip install --no-deps --target strum_mac/aleapp/site wheels/mister_skinnylegs-*.whl wheels/ccl_*.whl
 # Windows x64, Python 3.12 (wheel binarie da PyPI; pyliblzfse dalla cartella whl_files di iLEAPP)
@@ -36,7 +37,7 @@ cd ..
 "$P" -m pip install --no-deps --target strum_win/aleapp/site wheels/mister_skinnylegs-*.whl wheels/ccl_*.whl
 # Linux: le librerie le installa installa.sh sul computer di destinazione
 mkdir -p strum_linux/wheels; cp wheels/*.whl strum_linux/wheels/
-cp "$HERE/requirements-ileapp.txt" strum_linux/ileapp/requirements-repertia.txt
+{ cat "$HERE/requirements-ileapp.txt"; echo "pyasn1>=0.6.5"; } > strum_linux/ileapp/requirements-repertia.txt
 cp "$HERE/requirements-aleapp-windows.txt" strum_linux/aleapp/requirements-repertia.txt
 find strum_* -type d \( -name __pycache__ -o -path "*/site/bin" \) -prune -exec rm -rf {} +
 du -sh strum_*

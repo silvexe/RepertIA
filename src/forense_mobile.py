@@ -26,7 +26,8 @@ Come si inserisce nel resto del programma (stesso schema di forense_apfs.py)
   fuso (spesso è l'ora dell'estrazione, non del telefono): sono convertite con il fuso del dispositivo e il caso
   lo dichiara. Una cartella già estratta ha le date del computer su cui è stata copiata: dichiarato.
 - File cancellati: un'estrazione del file system contiene solo i file presenti (deleted = 0); i record
-  cancellati DENTRO i database (chat, SMS) sono un'altra cosa e non sono recuperati in questa fase.
+  cancellati DENTRO i database (chat, SMS) sono un'altra cosa: si recuperano solo per WhatsApp Android (3.0.1, in
+  forense_mobile_chat.recuperati_wa).
 """
 import datetime as dt
 import hashlib
@@ -567,6 +568,39 @@ def head_tail(case, part, inode, n=4096, tail=0):
     if tail:
         end = bytes(last)
     return size, bytes(head), end
+
+
+IOS_CONT_RE = re.compile(r"^(.*?/[Cc]ontainers/(?:Shared/AppGroup|Data/Application|Bundle/Application|Data/PluginKitPlugin)/"
+                         r"[0-9A-Fa-f-]{36})/")
+IOS_META = ".com.apple.mobile_container_manager.metadata.plist"
+_contenitori = {}
+
+
+def contenitore_ios(case, part, path):
+    """(3.0.1) Identificativo dell'app o del gruppo di un contenitore iOS (…/Containers/Shared/AppGroup/<UUID>/…,
+    Data/Application, Bundle/Application), letto da MCMMetadataIdentifier nel file di metadati del contenitore;
+    None se il percorso non è in un contenitore o il file manca. Un valore per contenitore, ricordato."""
+    import plistlib
+    m = IOS_CONT_RE.match(path or "")
+    if not m:
+        return None
+    k = (str(case.root), int(part), m.group(1))
+    if k not in _contenitori:
+        val = None
+        con = mx(case)
+        try:
+            r = con.execute("SELECT id FROM mobile_files WHERE part=? AND path=? AND isdir=0",
+                            (int(part), m.group(1) + "/" + IOS_META)).fetchone()
+        finally:
+            con.close()
+        if r:
+            try:
+                d = plistlib.loads(b"".join(stream(case, part, r[0])))
+                val = str(d.get("MCMMetadataIdentifier") or "") or None
+            except Exception:
+                val = None
+        _contenitori[k] = val
+    return _contenitori[k]
 
 
 def istat_text(case, part, inode):

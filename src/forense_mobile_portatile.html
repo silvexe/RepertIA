@@ -47,7 +47,8 @@
   document.querySelector("main").appendChild(sec);
   if (window.paneSplit) paneSplit(sec.querySelector("#pcSplit"), {key: "chat", el: () => sec.querySelector("#pcList"), dir: 1, min: 200, max: () => sec.clientWidth * 0.6 || 600,
     set: w => { const g = sec.querySelector(".pchat"); w ? g.style.setProperty("--chlw", w + "px") : g.style.removeProperty("--chlw"); }});
-  const APP = {whatsapp: "WhatsApp", imessage: "iMessage/SMS", sms: "SMS/MMS", whatsapp_backup: T("WhatsApp (backup decifrato)")};
+  const APP = {whatsapp: "WhatsApp", imessage: "iMessage/SMS", sms: "SMS/MMS", whatsapp_backup: T("WhatsApp (backup decifrato)"),
+    whatsapp_business: "WhatsApp Business", whatsapp_business_backup: T("WhatsApp Business (backup decifrato)")};
   const appLbl = k => APP[k] || k;
   const KIND = {allegato: T("allegato"), sistema: T("evento"), reazione: T("reazione"), eliminato: T("messaggio eliminato (segnaposto dell'app: il testo non c'è più)"),
     posizione: T("posizione"), contatto: T("contatto"), link: T("link"), sondaggio: T("sondaggio"), chiamata: T("chiamata"), "non gestito": T("tipo non gestito")};
@@ -183,7 +184,36 @@
   b.addEventListener("click", () => { solo = null; if (D) list(); });
   function pushNav(){ if (typeof PNAV !== "undefined") PNAV.push(); }
   // aperta dagli Artefatti («Apri chat») o da un messaggio dei preferiti (chiave «chat:<id>»)
+  // (3.0.1) chat nel «Nuovo report»: fumetti con allegati (foto e fotogrammi dei video visibili, clic sul file incluso)
+  function repAtt(a, img){
+    const k = a[2] != null ? keyOf(a[2], a[3]) : null, at = k ? ATT_BY_KEY.get(k) : null, th = img && at ? thumbOf(at) : null;
+    const mth = img && !th && a[3] == null && a[8] ? a[8] : "";
+    const link = at ? U(at.file) : null;
+    const pic = th ? (link ? `<a href="${esc(link)}" target="_blank"><img class="pth" src="${esc(th)}" alt=""></a>` : `<img class="pth" src="${esc(th)}" alt="">`) : mth ? `<img class="pth" src="${esc(mth)}" alt="">` : "";
+    return `<div class="ra">${pic}<div>📎 ${link ? `<a href="${esc(link)}" target="_blank">${esc(a[0] || T("allegato"))}</a>` : `<b>${esc(a[0] || T("allegato"))}</b>`}${at && at.size != null ? " · " + fsize(at.size) : ""}</div>`
+      + (at && at.sha256 ? `<div class="mono">SHA-256 ${esc(at.sha256)}</div>` : "") + (a[5] != null ? `<div>📍 ${esc(String(a[5]))}, ${esc(String(a[6]))}</div>` : "")
+      + (a[4] || a[1] ? `<div class="meta">${esc(a[4] || a[1])}${!at && a[3] != null ? " · " + T("contenuto non incluso nel report portatile") : ""}</div>` : "")
+      + (a[9] ? `<div class="meta">${T("Trascrizione automatica (da verificare ascoltando l'audio)")}: «${esc(a[9])}»</div>` : "") + "</div>";
+  }
+  function repHtml(key, img){
+    if (!D) return "";
+    const one = key.startsWith("chat:") ? +key.slice(5) : null;
+    let tid = key.startsWith("chatt:") ? +key.slice(6) : null;
+    if (one != null){ const m = D.msgs.find(x => x[13] === one); if (!m) return ""; tid = m[0]; }
+    const t = D.threads.find(x => x[0] === tid); if (!t) return "";
+    const ids = (BY.get(tid) || []).filter(i => one == null || D.msgs[i][13] === one);
+    let last = "";
+    const body = ids.map(i => {
+      const m = D.msgs[i], cls = (m[2] === "out" ? "out" : m[2] === "sys" || m[6] === "sistema" ? "sys" : "in") + (m[6] === "eliminato" ? " del" : "");
+      const day = (fts(m[1]) || "").slice(0, 10), sep = day !== last ? `<div class="rday">${esc(day)}</div>` : ""; last = day;
+      return sep + `<div class="rb ${cls}">${cls.startsWith("in") && (t[4] || m[4]) ? `<div class="rw">${esc(m[4] || m[3] || "")}</div>` : ""}<div>${m[5] ? esc(m[5]) : `<i>[${esc(kindLbl(m))}]</i>`}</div>`
+        + (m[12] || []).map(j => repAtt(D.att[j], img)).join("") + `<div class="meta">${esc([fts(m[1]), m[7], m[8], m[9] + " #" + m[10]].filter(Boolean).join(" · "))}</div></div>`;
+    }).join("");
+    return `<h3>💬 ${esc(appLbl(t[1]))} · ${esc(t[2])}</h3><p class="meta">${esc(T("questo dispositivo") + (t[10] ? ` (${t[10]})` : "") + " ↔ " + t[2] + (t[3] && !t[2].includes(t[3]) ? ` (${t[3]})` : ""))} · ${esc(TF("{0} messaggi", nf(one != null ? 1 : t[5])))} · ${esc(fts(t[6]))} → ${esc(fts(t[7]))} · ${esc(T("Fonte: ") + (t[8] || ""))}</p><div class="rchat">${body}</div>`;
+  }
   window.PCHAT = {
+    prep: () => initChat(),
+    html: repHtml,
     open: async (thread, focus) => { show("chat"); await initChat(); if (!D) return; $("pcApp").value = ""; $("pcQ").value = ""; solo = thread; list(); if (D.threads.some(t => t[0] === thread)) open(thread, focus); },
     openMsg: async id => { await initChat(); const m = D && D.msgs.find(x => x[13] === id); if (m) return window.PCHAT.open(m[0], id); toast(T("Messaggio non incluso nel report")); },
     state: () => VIEW === "chat" && cur != null ? {thread: cur, scroll: $("pcMsgs").scrollTop, solo} : null,

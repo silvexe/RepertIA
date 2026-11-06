@@ -17,6 +17,7 @@ import datetime as dt
 import glob
 import gzip
 import hashlib
+import html
 import json
 import os
 import re
@@ -317,9 +318,16 @@ def run_test(t, img, out):
                   + (f" — {it['nota']}" if it.get("nota") else ""), it.get("misura", True))
     if t.get("tipo") == "smartphone":
         controlli_smartphone(t, img, case, con, a, check)
+    elif fa.table_exists(con, "meta"):         # (3.0.1) memorie di massa: foto, video e audio riconosciuti dal contenuto
+        controlli_media(case, con, check)
+        controlli_media_dftt8(t, con, check)
     if t.get("tipo") == "smartphone" or (fa.table_exists(con, "artifacts") and
                                          con.execute("SELECT 1 FROM artifacts WHERE src_path IS NOT NULL AND inode IS NOT NULL LIMIT 1").fetchone()):
         controlli_pulsanti(case, con, check)
+    try:
+        controlli_relazione(case, con, check)
+    except Exception as e:
+        check(tr("report illustrato"), False, f"{type(e).__name__}: {e}", interno=True)
     if a.get("manomissione_registro"):          # (2.20.1, AI Act) su un caso dei dischi, prima del controllo del registro
         controlli_reperti_ia(case, check)
     av = fa.audit_verifica(case)
@@ -352,6 +360,129 @@ def run_test(t, img, out):
         check("report", False, f"{type(e).__name__}: {e}")
     con.close()
     return res, cp
+
+
+def controlli_relazione(case, con, check):
+    """(3.0.1) Report illustrato, su una copia temporanea del caso: HTML, PDF e Word creati; una chat dei Preferiti con tutti
+    i suoi messaggi in fumetti e gli allegati (foto visibili, originali copiati identici); un elemento tolto non compare;
+    «tutte le foto» mostra ogni foto riconosciuta dal contenuto; impronte.csv giusto per ogni file; nessuno script nelle
+    pagine; evento nel registro."""
+    import forense_gui as G
+    import forense_relazione as frl
+    import xml.dom.minidom as _md
+    mob = fa.is_mobile(case)
+    chat = None
+    if fa.table_exists(con, "chat_threads"):
+        chat = con.execute("SELECT a.id, t.id, (SELECT COUNT(*) FROM chat_messages m WHERE m.thread = t.id) FROM artifacts a JOIN chat_threads t "
+                           "ON t.id = json_extract(a.data, '$.chat_thread') WHERE a.cat='messaggi' AND json_valid(a.data) AND EXISTS "
+                           "(SELECT 1 FROM chat_attachments x JOIN chat_messages m ON m.id = x.msg WHERE m.thread = t.id AND x.inode IS NOT NULL "
+                           "AND x.inode != 'None' AND lower(x.name) GLOB '*.[jJ][pP]*[gG]') ORDER BY t.n_msg DESC LIMIT 1").fetchone()
+    foto = con.execute("SELECT part, inode, path FROM media_file WHERE tipo='foto' ORDER BY path LIMIT 1").fetchone() \
+        if fa.table_exists(con, "media_file") else None
+    n_foto = con.execute("SELECT COUNT(*) FROM media_file WHERE tipo='foto'").fetchone()[0] if foto else 0
+    if not chat and not foto:
+        return
+    with tempfile.TemporaryDirectory() as d:
+        copia = Path(d) / case.root.name
+        shutil.copytree(case.root, copia, ignore=shutil.ignore_patterns("cache", "export"))
+        c = fa.Case(copia)
+        G.search_db(c).close()
+        if chat:
+            G.bm_add(c, {"cat": "Collaudo report", "item": {"source": "art", "id": chat[0]}})
+        if foto:
+            G.bm_add(c, {"cat": "Collaudo report", "item": {"source": "fs", "part": foto[0], "inode": foto[1], "path": foto[2], "name": Path(foto[2]).name}})
+        altro = con.execute("SELECT id FROM artifacts WHERE cat != 'messaggi' ORDER BY id LIMIT 1").fetchone() \
+            if fa.table_exists(con, "artifacts") else None
+        if altro:
+            G.bm_add(c, {"cat": "Collaudo report", "item": {"source": "art", "id": altro[0]}})
+        cat = next(x for x in G.bm_categories(c) if x["name"] == "Collaudo report")
+        els = frl.elementi_categoria(c, cat["cid"])
+        tolto = None
+        if altro:
+            cx = G.search_db(c)
+            try:
+                r0 = cx.execute("SELECT id FROM bm WHERE cid=? AND source='art' AND inode=?", (cat["cid"], str(altro[0]))).fetchone()
+            finally:
+                cx.close()
+            tolto = next((x for x in els if r0 and x["id"] == r0[0]), None)
+        o = {"formati": ["html", "pdf", "docx"], "sezioni": ["caso", "reperti"], "tz": "utc",
+             "preferiti": {str(cat["cid"]): {"on": 1, "esclusi": [tolto["id"]] if tolto else []}},
+             "tutto": (["foto"] if foto and n_foto <= 400 else [])
+             + [f"art:{x[0]}" for x in con.execute("SELECT cat FROM artifacts WHERE cat NOT IN ('messaggi', 'leapp') GROUP BY cat "
+                                                   "HAVING COUNT(*) <= 2000 ORDER BY COUNT(*) LIMIT 1")]}
+        r = frl.crea(c, o, lambda *_: None)
+        out = Path(r["path"])
+        pagine = [out / "report.html"] + sorted((out / "pagine").glob("*.html"))
+        tutto_html = "\n".join(p.read_text(encoding="utf-8") for p in pagine)
+        check(tr("report illustrato: HTML, PDF e Word creati nella cartella del report"),
+              all((out / n).exists() for n in ("report.html", "report.pdf", "report.docx")) and (out / "report.pdf").read_bytes()[:5] == b"%PDF-",
+              r["rel"], interno=True)
+        imp = {}
+        for riga in (out / "impronte.csv").read_text(encoding="utf-8").splitlines()[1:]:
+            f, _b, h = riga.rsplit(";", 2)
+            imp[f] = h
+        tutti = sorted(p.relative_to(out).as_posix() for p in out.rglob("*") if p.is_file() and p.name != "impronte.csv")
+        sbagliati = [f for f in tutti if imp.get(f) != fa.sha256_file(out / f)]
+        check(tr("report illustrato: impronte.csv con lo SHA-256 giusto di ogni file del report"), not sbagliati and set(imp) == set(tutti),
+              tr("{n} file, diversi o mancanti: {d}").format(n=len(tutti), d=", ".join(sbagliati[:3]) or "0"), interno=True)
+        check(tr("report illustrato: nessuno script nelle pagine (il contenuto delle prove è solo testo e immagini)"),
+              "<script" not in tutto_html.lower() and 'http-equiv="Content-Security-Policy"' in tutto_html, "", interno=True)
+        if chat:
+            n_bolle = len(re.findall(r'<div class="b (?:in|out|sys)', tutto_html))
+            cx = fa.db_ro(c)
+            try:
+                att = cx.execute("SELECT x.name, x.part, x.inode FROM chat_attachments x JOIN chat_messages m ON m.id = x.msg WHERE m.thread=? "
+                                 "AND x.inode IS NOT NULL AND x.inode != 'None' AND lower(x.name) GLOB '*.[jJ][pP]*[gG]' LIMIT 1", (chat[1],)).fetchone()
+            finally:
+                cx.close()
+            copiato = next((f for f in (out / "file").iterdir() if f.name.endswith("_" + re.sub(r"[^\w.\-]+", "_", att[0]))), None) if att else None
+            if mob:
+                import forense_mobile as fm
+                h = hashlib.sha256()
+                for b in fm.stream(c, int(att[1]), str(att[2])):
+                    h.update(b)
+                atteso = h.hexdigest()
+            else:
+                atteso = None
+            check(tr("report illustrato: la chat dei Preferiti ha tutti i suoi messaggi in fumetti"), n_bolle >= chat[2],
+                  tr("{a} fumetti, {b} messaggi nella chat").format(a=n_bolle, b=chat[2]), interno=True)
+            check(tr("report illustrato: la foto allegata alla chat si vede (anteprima) e l'originale copiato è identico"),
+                  copiato is not None and (atteso is None or fa.sha256_file(copiato) == atteso)
+                  and re.search(r'<div class="a"><a href="\.\./[^"]+" target="_blank"><img src="\.\./anteprime/', tutto_html) is not None,
+                  copiato.name if copiato else tr("non copiato"), interno=True)
+        if tolto:
+            titolo_t = G.art_campi(c, {"id": altro[0]})[0]
+            pag = "\n".join(p.read_text(encoding="utf-8") for p in (out / "pagine").glob(f"*_bm{cat['cid']}*.html"))
+            check(tr("report illustrato: un elemento tolto dalla categoria non compare"),
+                  bool(pag) and not re.search(r"<h3>\d+ \S+ \d+ – " + re.escape(html.escape(str(titolo_t))) + "</h3>", pag), str(titolo_t)[:60], interno=True)
+        sezioni_ok, n_tot = True, 0
+        for stem in sorted({re.sub(r"_\d+$", "", p.stem) for p in (out / "pagine").glob("*.html")}):
+            testo = "\n".join(p.read_text(encoding="utf-8") for p in sorted((out / "pagine").glob(stem + "*.html"),
+                                                                            key=lambda x: int(re.search(r"_(\d+)$", x.stem).group(1)) if re.search(r"_(\d+)$", x.stem) else 1)
+                              if re.sub(r"_\d+$", "", p.stem) == stem)
+            coppie = [(int(x), int(y)) for t in re.findall(r'<div class="num">(\d+)<small>\S+ (\d+)</small>|<h3>(?:💬 |✉️ )?(\d+) \S+ (\d+) – |<tr><td>(\d+) \S+ (\d+)</td>', testo)
+                      for x, y in [tuple(v for v in t if v)]]
+            n_tot += len(coppie)
+            sezioni_ok = sezioni_ok and [x for x, _ in coppie] == list(range(1, len(coppie) + 1)) and all(y == len(coppie) for _, y in coppie)
+        check(tr("report illustrato: in ogni sezione le evidenze sono numerate «1 di N», «2 di N»… con N il totale della sezione"),
+              n_tot > 0 and sezioni_ok, tr("{n} evidenze numerate").format(n=n_tot), interno=True)
+        if foto and "foto" in o["tutto"]:
+            pf = "\n".join(p.read_text(encoding="utf-8") for p in (out / "pagine").glob("*_foto*.html"))
+            n_el, n_altro = pf.count('<div class="el'), pf.count('<div class="th">📦')
+            n_altro += 0 if f"<b>🖼 {html.escape(Path(foto[2]).name)}</b>" in pf else 1
+            check(tr("report illustrato: «tutte le foto» mostra ogni foto riconosciuta dal contenuto, anche senza estensione"),
+                  n_el >= n_foto and not n_altro, tr("{a} schede, {b} foto nel caso, {c} non mostrate come foto").format(a=n_el, b=n_foto, c=n_altro),
+                  interno=True)
+        with zipfile.ZipFile(out / "report.docx") as dx:      # chiuso subito: su Windows un file aperto non si cancella
+            _md.parseString(dx.read("word/document.xml"))
+            media = any(n.startswith("word/media/") for n in dx.namelist())
+        pdf = (out / "report.pdf").read_bytes()
+        check(tr("report illustrato: il Word è valido e il PDF contiene le immagini"),
+              media and pdf.count(b"/Subtype /Image") >= 1, "", interno=True)
+        reg = [json.loads(x) for x in (c.root / "audit_log.jsonl").read_text(encoding="utf-8").splitlines() if x.strip()]
+        ev = [x for x in reg if x.get("event") == "report_illustrato"]
+        check(tr("report illustrato: registrato nel registro del caso con l'impronta di impronte.csv"),
+              bool(ev) and ev[-1]["data"].get("impronte_sha256") == fa.sha256_file(out / "impronte.csv"), "", interno=True)
 
 
 def controlli_preferiti_chat(case, con, check):
@@ -719,6 +850,110 @@ def controlli_mappe_rete(check):
     check(tr("Rete: con un caso aperto o in preparazione mappe e modelli non si scaricano"), a and passa, f"{a} {passa}", interno=True)
 
 
+def controlli_aggiornamenti(check):
+    """(3.0.1) Avviso di nuove versioni con un finto GitHub locale: versione nuova (anche di sicurezza), uguale, in prova,
+    bozza, risposta guasta o troppo grande, rete assente; collegamenti solo verso github.com; scelta «mai»; nessuna
+    richiesta con un caso aperto. Le impostazioni vanno in un file temporaneo, mai in quelle dell'analista."""
+    import http.server
+    import threading
+    import forense_aggiornamenti as fag
+    import forense_gui as G
+
+    risposte, richieste = {}, []
+
+    class H(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            richieste.append(self.path)
+            corpo = risposte.get("corpo", b"")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(corpo)))
+            self.end_headers()
+            self.wfile.write(corpo)
+
+        def log_message(self, *_a):
+            pass
+
+    def rel(tag, **x):
+        return json.dumps({"tag_name": tag, "draft": False, "prerelease": False, "published_at": "2026-12-01T10:00:00Z",
+                           "html_url": f"https://github.com/{fag.REPO}/releases/tag/{tag}", "body": "Novità", **x}).encode()
+
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    url0, env0, imp0 = fag.URL, os.environ.get("REPERTIA_AGGIORNAMENTI_URL"), fa.SETTINGS_PATH
+    caso, tmp = G.SES.case, Path(tempfile.mkdtemp())
+    fag.URL = os.environ["REPERTIA_AGGIORNAMENTI_URL"] = f"http://127.0.0.1:{srv.server_port}/latest"
+    fa.SETTINGS_PATH = tmp / "impostazioni.json"
+    G.SES.case = None
+    esiti = {}
+    try:
+        cur = fag.versione(fa.APP_VERSION)
+        piu = "v%d.%d.%d" % (cur[0], cur[1], cur[2] + 1)
+        prove = {"nuova": rel(piu, body="[sicurezza] corregge <script>x</script>", html_url="https://evil.example/x",
+                              assets=[{"name": "SHA256SUMS.txt", "browser_download_url": "http://127.0.0.1:9/s"}]),
+                 "uguale": rel("v" + fa.APP_VERSION), "vecchia": rel("v1.0.0"), "prova": rel(piu, prerelease=True),
+                 "bozza": rel(piu, draft=True), "guasta": b"{non json", "tag": rel("ultima"),
+                 "grande": b"{" + b" " * (fag.MAX_JSON + 10) + b"}"}
+        for k, corpo in prove.items():
+            risposte["corpo"] = corpo
+            esiti[k] = fag.controlla(fa.APP_VERSION)
+        n = esiti["nuova"]
+        ok_nuova = (n["esito"] == "nuova" and n["sicurezza"] and n["url"] == fag.PAGINA and "sha256" not in n
+                    and n["note"].startswith("[sicurezza]"))
+        ok_altre = (esiti["uguale"]["esito"] == esiti["vecchia"]["esito"] == "aggiornato"
+                    and all(esiti[k]["esito"] == "errore" for k in ("prova", "bozza", "guasta", "tag", "grande")))
+        check(tr("Aggiornamenti: versione nuova riconosciuta (anche di sicurezza), uguale o vecchia no, scartate prove, bozze e "
+                 "risposte guaste; collegamenti solo verso github.com"), ok_nuova and ok_altre,
+              ", ".join(f"{k}={v['esito']}" for k, v in esiti.items()), interno=True)
+        adesso = dt.datetime.now(dt.timezone.utc)
+        ieri = (adesso - dt.timedelta(hours=25)).isoformat()
+        ora = (adesso - dt.timedelta(hours=1)).isoformat()
+        tempi = (not fag.da_controllare_all_avvio({"modo": "mano"}) and fag.da_controllare_all_avvio({"modo": "avvio"})
+                 and fag.da_controllare_all_avvio({"modo": "avvio", "ultimo": {"controllato_il": ieri}})
+                 and not fag.da_controllare_all_avvio({"modo": "avvio", "ultimo": {"controllato_il": ora}})
+                 and fag.da_mostrare({"modo": "mano", "ultimo": n})
+                 and not fag.da_mostrare({"modo": "mano", "ultimo": n, "saltata": n["versione"]})
+                 and not fag.da_mostrare({"modo": "mai", "ultimo": n})
+                 and not fag.da_mostrare({"modo": "mano", "ultimo": n, "rimanda_fino": (adesso + dt.timedelta(hours=3)).isoformat()}))
+        check(tr("Aggiornamenti: controllo automatico al massimo una volta al giorno; avviso nascosto se saltato, rimandato o con «Mai»"),
+              tempi, str(tempi), interno=True)
+        risposte["corpo"] = prove["nuova"]
+        G.aggiornamenti_post({"azione": "modo", "modo": "avvio"})
+        st1 = G.aggiornamenti_post({"azione": "controlla", "auto": True})
+        prima = len(richieste)
+        st2 = G.aggiornamenti_post({"azione": "controlla", "auto": True})          # stesso giorno: nessuna richiesta
+        G.aggiornamenti_post({"azione": "modo", "modo": "mai"})
+        mai = False
+        try:
+            G.aggiornamenti_post({"azione": "controlla"})
+        except ValueError:
+            mai = True
+        G.aggiornamenti_post({"azione": "modo", "modo": "mano"})
+        G.SES.case = object()
+        bloccato = False
+        try:
+            G.aggiornamenti_post({"azione": "controlla"})
+        except ValueError:
+            bloccato = True
+        G.SES.case = None
+        salvate = json.loads(fa.SETTINGS_PATH.read_text()).get("aggiornamenti", {})
+        ok_srv = (st1["mostra"] and st1["ultimo"]["esito"] == "nuova" and len(richieste) == prima and st2["mostra"]
+                  and mai and bloccato and len(richieste) == prima and salvate.get("modo") == "mano")
+        check(tr("Aggiornamenti: scelta salvata, nessuna richiesta con «Mai» o con un caso aperto"), ok_srv,
+              tr("{n} richieste, «Mai» rifiutato: {m}, caso aperto rifiutato: {c}").format(n=len(richieste), m=mai, c=bloccato), interno=True)
+        srv.shutdown()
+        e = fag.controlla(fa.APP_VERSION)
+        check(tr("Aggiornamenti: senza rete un messaggio, nessun errore"), e["esito"] == "errore" and bool(e.get("motivo")),
+              e.get("motivo", ""), interno=True)
+    finally:
+        fag.URL, fa.SETTINGS_PATH, G.SES.case = url0, imp0, caso
+        if env0 is None:
+            os.environ.pop("REPERTIA_AGGIORNAMENTI_URL", None)
+        else:
+            os.environ["REPERTIA_AGGIORNAMENTI_URL"] = env0
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def controlli_droni(check):
     """(3.0) Lettori dei voli su testi costruiti: valori veri, file estranei ignorati, ordine incerto segnalato."""
     import forense_droni as fdr
@@ -791,6 +1026,41 @@ def controlli_copia_smartphone(check):
         fa.collega_copia(c2, str(nuovo), conferma=True)
     check(tr("Collega copia forense: nei casi smartphone i file si leggono dalla nuova posizione"),
           letto == str(nuovo) and c2.meta["partitions"][0]["mobile"]["file"] == str(nuovo.resolve()), letto[-30:], interno=True)
+
+
+def controlli_cache_web(check):
+    """(3.0.1) Voci della Simple Cache di Chromium costruite con contenuto noto: inizio e lunghezza del contenuto, indirizzo,
+    nome del file, intestazione vecchia di 20 byte, voce troncata, voce che non è una foto (pagina HTML)."""
+    import hashlib
+    import struct
+    import zlib
+    import forense_mobile_media as fmm
+    ini, fin = struct.pack("<Q", 0xfcfb6d1ba7725c30), struct.pack("<Q", 0xf4fa6f45970d41d8)
+
+    def voce(key, body, hdr=24):
+        k = key.encode()
+        s0 = b"HTTP/1.1 200\0content-type: image/jpeg\0\0"
+        return (ini + struct.pack("<III", 5, len(k), zlib.crc32(k)) + (b"\0" * 4 if hdr == 24 else b"") + k + body + fin
+                + struct.pack("<IIII", 1, zlib.crc32(body), 0, 0) + s0 + hashlib.sha256(k).digest() + fin
+                + struct.pack("<IIII", 3, zlib.crc32(s0), len(s0), 0))
+    jpg = b"\xff\xd8\xff\xe0\x00\x10JFIF\x00" + bytes(range(256)) * 4 + b"\xff\xd9"
+    key = "1/0/_dk_https://a.test https://a.test https://img.a.test/foto/gatto%20nero.jpg?w=800"
+    v = voce(key, jpg)
+    r = fmm.voce_chromium(v)
+    ok1 = r == (24 + len(key), len(jpg), "https://img.a.test/foto/gatto%20nero.jpg?w=800") and v[r[0]:r[0] + r[1]] == jpg
+    r2 = fmm.voce_chromium(voce("https://b.test/a.png", jpg, hdr=20))
+    r3 = fmm.voce_chromium(v[:24 + len(key) + 500])
+    r4 = fmm.voce_chromium(voce("https://c.test/index.html", b"<html></html>"))
+    ok2 = r2 is not None and r2[0] == 20 + len("https://b.test/a.png") and r2[1] == len(jpg)
+    ok3 = r3 is not None and r3[1] == 500 and fmm.firma(v[r3[0]:r3[0] + 32]) == ("foto", "jpg")
+    ok4 = r4 is not None and fmm.firma(b"<html></html>" + b"\0" * 20) is None
+    nomi = (fmm.nome_da_url(r[2], "jpg"), fmm.nome_da_url("https://b.test/a.png", "jpg"), fmm.nome_da_url("https://v.test/clip", "mp4"))
+    ok5 = nomi == ("gatto_nero.jpg", "a.png.jpg", "clip.mp4") and fmm.voce_chromium(jpg) is None
+    check(tr("Cache dei browser (Chromium): foto riconosciuta dentro la voce, con offset, lunghezza e indirizzo giusti"), ok1,
+          f"{r[:2] if r else None}", interno=True)
+    check(tr("Cache dei browser: intestazione di 20 byte, voce troncata e pagina HTML (non è una foto)"), ok2 and ok3 and ok4,
+          f"{r2[:2] if r2 else None} · {r3[:2] if r3 else None}", interno=True)
+    check(tr("Cache dei browser: nome del file dall'indirizzo con l'estensione del formato vero"), ok5, " · ".join(nomi), interno=True)
 
 
 def controlli_recupero(check):
@@ -1208,13 +1478,16 @@ def controlli_fase4(case, con, check):
               bool(con_dim) and (any(x.get("mtime") for x in r) or not any(x.get("source") == "fs" for x in r)) and bool(filt) and all(x["size"] >= soglia for x in filt)
               and ord_[0]["size"] == soglia, f"{len(filt)}/{len(r)}", interno=True)
     # (2.20) sottovoce «Audio» di Foto/Video/Audio: i file audio dall'elenco dei file, quelli delle chat con il messaggio
-    na = con.execute("SELECT COUNT(*) FROM files WHERE type LIKE '%/r' AND " + G.audio_where()).fetchone()[0]
+    mf = G.media_contenuto(case, con)      # (3.0.1) audio riconosciuti dal contenuto
+    na = con.execute("SELECT COUNT(*) FROM files WHERE type LIKE '%/r' AND " + (mf.filtro("audio") if mf else G.audio_where())).fetchone()[0]
     if na:
         r = G.results(case, {"kind": "meta", "aud": "1"}, limit=None)
-        ok_ext = all(Path(x["path"]).suffix.lower() in G.AUDIO_EXT for x in r["rows"])
+        ok_ext = all((x.get("mtipo") == "audio") if mf else Path(x["path"]).suffix.lower() in G.AUDIO_EXT for x in r["rows"])
         check(tr("Foto/Video/Audio «Audio»: {n} file audio dell'estrazione, tutti nell'elenco").format(n=na),
               r["total"] == na and ok_ext, tr("nell'elenco {n}").format(n=r["total"]), interno=True)
-        ca = fmg.media_counts(con, "files", "type LIKE '%/r' AND " + G.audio_where(), [])
+        ca = fmg.media_counts(con, "files", "type LIKE '%/r' AND " + mf.filtro("audio"), [],
+                              "t.type LIKE '%/r' AND " + mf.filtro("audio", "t.part", "t.inode")) if mf else \
+            fmg.media_counts(con, "files", "type LIKE '%/r' AND " + G.audio_where(), [])
         if ca["n"]:
             rc = G.results(case, {"kind": "meta", "aud": "1", "orig": "*"}, limit=None)
             bad = [x["path"] for x in rc["rows"] if not fmg.origine(case, {"part": x["part"], "inode": x["inode"]})["origine"]]
@@ -1255,6 +1528,88 @@ def controlli_fase4(case, con, check):
               interno=True)
     controlli_wa_backup(case, check)
     controlli_crypt15(case, check)
+    controlli_media(case, con, check)
+
+
+def controlli_media_dftt8(t, con, check):
+    """(3.0.1) DFTT 8 (NTFS): secondo la documentazione del test, alloc/file2.dat è un JPEG con l'estensione sbagliata e
+    del2/file7.hmm un JPEG cancellato con un'estensione inventata: per estensione restavano fuori da Foto."""
+    if t.get("nome") != "DFTT_08_NTFS_JPEG" or not fa.table_exists(con, "media_file"):
+        return
+    got = {p: (tp, m) for p, tp, m in con.execute("SELECT path, tipo, metodo FROM media_file")}
+    for p in ("alloc/file2.dat", "del2/file7.hmm"):
+        check(tr("DFTT 8: {p} tra le foto, riconosciuto dal contenuto").format(p=p), got.get(p) == ("foto", "contenuto"),
+              str(got.get(p) or tr("assente")))
+
+
+def controlli_media(case, con, check):
+    """(3.0.1) Foto, video e audio riconosciuti dal contenuto: la firma letta di nuovo dal file, ogni file con la sua app,
+    nessun file con l'estensione di una foto o di un video lasciato fuori, elenchi e voci per app con gli stessi numeri."""
+    import forense_gui as G
+    import forense_mobile as fm
+    import forense_mobile_media as fmm
+    mf = G.media_contenuto(case, con)
+    if not mf:
+        if "media" in (case.meta.get("indice") or {}):      # indicizzazione della 3.0.1 (telefoni e dischi)
+            check(tr("foto, video e audio riconosciuti dal contenuto (indicizzazione della 3.0.1)"), False, tr("elenco assente"), interno=True)
+        return
+    rows = con.execute("SELECT part, inode, path, tipo, formato, metodo, app FROM media_file ORDER BY random() LIMIT 300").fetchall()
+    if not rows and not con.execute("SELECT COUNT(*) FROM meta WHERE " + G.photo_where() + " OR " + G.video_where(),
+                                    G.photo_args() + G.video_args()).fetchone()[0]:
+        return                  # estrazione senza foto, video né audio (es. le prove del portachiavi)
+    bad = []
+    leggi = fmm.lettore(case)
+    for part, inode, path, tipo, fmt, metodo, app in rows:
+        f = fmm.riconosci(case, part, inode, Path(path).suffix.lower(), leggi)
+        # «estensione» con una firma di un altro tipo: solo un file cancellato il cui contenuto non è verificabile (dischi)
+        if not app or (metodo == "contenuto" and f != (tipo, fmt)) or (metodo == "estensione" and ((f and f[0] == tipo) or fmm.EXT_TIPO.get(Path(path).suffix.lower()) != tipo)):
+            bad.append(f"{path}: {tipo}/{fmt}/{metodo} ≠ {f}")
+    tot = con.execute("SELECT COUNT(*), SUM(metodo='contenuto'), SUM(area='cache') FROM media_file").fetchone()
+    check(tr("foto, video e audio per contenuto: {n} file ({c} dal contenuto, {k} nelle cache), firma riletta e app di {m} a caso").format(
+        n=tot[0], c=tot[1], k=tot[2], m=len(rows)), bool(rows) and not bad, "; ".join(bad[:3]), interno=True)
+    scambiati = [p for p, t in con.execute("SELECT path, tipo FROM media_file WHERE tipo = 'video'")
+                 if fmm.EXT_TIPO.get(Path(p).suffix.lower()) == "audio"]
+    check(tr("audio in contenitore MP4 (es. .m4a) riconosciuti come audio, non come video"), not scambiati, "; ".join(scambiati[:3]), interno=True)
+    fuori = con.execute("SELECT COUNT(*) FROM meta WHERE source = 'fs' AND (" + G.photo_where() + " OR " + G.video_where() + ") AND (part, inode) NOT IN "
+                        "(SELECT part, inode FROM media_file)", G.photo_args() + G.video_args()).fetchone()[0]
+    check(tr("foto e video per estensione: tutti anche nell'elenco per contenuto"), fuori == 0, tr("fuori {n}").format(n=fuori), interno=True)
+    rt = G.res_tree(case)
+    pa = rt.get("mediaapp") or {}
+    for k, tipo, flt in (("foto", "foto", {"foto": "1"}), ("video", "video", {"vid": "1"}), ("audio", "audio", {"aud": "1"})):
+        n = rt.get(k) or 0
+        somma = sum(x[2] for x in pa.get(tipo, []))
+        r = G.results(case, {"kind": "meta", **flt}, limit=None)
+        if not n:
+            continue
+        app0 = (pa.get(tipo) or [[None]])[0][0]
+        ra = G.results(case, {"kind": "meta", **flt, "mapp": app0}, limit=None)
+        check(tr("Foto/Video/Audio «{k}»: {n} file, elenco, somma delle voci per app e voce «{a}» uguali").format(k=k, n=n, a=fmm.etichetta(app0)),
+              r["total"] == n == somma and all(x.get("mtipo") == tipo for x in r["rows"]) and ra["total"] == pa[tipo][0][2]
+              and all(x.get("mapp") == app0 for x in ra["rows"]), tr("elenco {a}, somma {b}, voce {c}").format(a=r["total"], b=somma, c=ra["total"]),
+              interno=True)
+    senza = con.execute("SELECT part, inode, path FROM media_file WHERE tipo='foto' AND metodo='contenuto' AND formato IN ('jpg', 'png') "
+                        "AND path NOT LIKE '%.jpg' AND path NOT LIKE '%.jpeg' AND path NOT LIKE '%.png' LIMIT 1").fetchone()
+    if senza:
+        v = G.view_info(case, {"source": "fs", "part": senza[0], "inode": senza[1]})
+        check(tr("anteprima di una foto senza estensione (cache): mostrata come immagine"), v.get("type") == "image", senza[2], interno=True)
+
+
+def controlli_telegram_chiamate(check):
+    """(3.0.1) Chiamate di Telegram scritte come messaggi di servizio: formato di ALEAPP («[Phone call (…)]») e di iLEAPP
+    («Action: <phoneCall (…)>»), con id, esito, durata e video come scritti; senza «video call» ALEAPP non dice il tipo."""
+    import forense_mobile_leapp_chat as fmlc
+    mp = fmlc.carica()
+    sa, si = mp["chiamate"]["ALEAPP|Telegram - Messages"]["estrai"], mp["chiamate"]["iLEAPP|Telegram Messages"]["estrai"]
+    a = fmlc._chiamata(sa, {"Message": "[Phone call (call id 1873875638318552256, outcome hung up, duration seconds 96)]"})
+    b = fmlc._chiamata(sa, {"Message": "[Phone call (call id 6381608536058416468, outcome missed)]"})
+    c = fmlc._chiamata(si, {"Action Data": "Action: <phoneCall (id=5859382380446882168, discard reason=hung up, duration (seconds)=109, video call=yes)>"})
+    d = fmlc._chiamata(si, {"Action Data": "Action: <phoneCall (id=6381608536056868852, discard reason=hung up, duration (seconds)=105)>"})
+    n = fmlc._chiamata(sa, {"Message": "Ti chiamo [Phone call] dopo"})
+    ok = (a and a["id"] == "1873875638318552256" and a["esito"] == "hung up" and a["durata_s"] == 96 and a["video"] is None
+          and b and b["esito"] == "missed" and b["durata_s"] is None and fmlc._esito_chiamata(sa, b, "in")[:2] == ("persa", False)
+          and c and c["video"] is True and c["durata_s"] == 109 and d and d["video"] is False and n is None)
+    check(tr("Telegram: chiamate dai messaggi di servizio di ALEAPP e iLEAPP (id, esito, durata, video), un testo qualsiasi non è una chiamata"),
+          bool(ok), str([a, b, c, d, n]), interno=True)
 
 
 def _crypt14_finto(db, key, iv, firma):
@@ -1366,6 +1721,19 @@ def controlli_portatile_timeline(case, con, check):
         conti = sum(int(x.rsplit(": ", 1)[1]) for x in ta["count_artifacts"]().split("\n")[1:]) if "count_artifacts" in ta else n_a
         check(tr("Agente: le pagine di artefatti e messaggi coprono ogni riga una volta sola e i conteggi coincidono ({n} righe)").format(n=n_a),
               off == n_a and conti == n_a and (fine or not n_a), f"{off}/{conti}", interno=True)
+    # (3.0.1) ogni dato del caso che si vede nell'interfaccia arriva anche all'agente: tabella con righe -> suo strumento
+    copre = {"files": "find_files", "events": "query_timeline", "doc_text": "search_text", "artifacts": "query_artifacts",
+             "chat_messages": "read_chat", "mail": "search_emails", "xitems": "list_extracted", "anomalies": "list_anomalies",
+             "carved": "carved_files", "features": "search_traces", "hashes": "find_by_hash", "media_file": "list_media"}
+    manca = [f"{tb} ({s})" for tb, s in copre.items() if s not in ta and fa.table_exists(con, tb)
+             and con.execute(f"SELECT 1 FROM {tb} LIMIT 1").fetchone()]
+    check(tr("Agente: ogni tipo di dato presente nel caso ha il suo strumento ({n} strumenti)").format(n=len(ta)), not manca,
+          ", ".join(manca), interno=True)
+    if "read_chat" in ta and fa.table_exists(con, "chat_receipts"):
+        r = con.execute("SELECT c.msg FROM chat_receipts c ORDER BY c.id LIMIT 1").fetchone()
+        if r:
+            t = ta["read_message"](r[0])
+            check(tr("Agente: le ricevute di consegna e lettura arrivano con il messaggio, con la fonte"), "    ✓ " in t, t[-120:], interno=True)
     html_p = (Path(out["path"]) / "index.html").read_text(encoding="utf-8", errors="replace")
     n_doc = con.execute("SELECT COUNT(*) FROM doc_text").fetchone()[0] if fa.table_exists(con, "doc_text") else 0
     docs_p = (Path(out["path"]) / "dati" / "documenti.js").read_text(encoding="ascii")
@@ -1403,6 +1771,122 @@ def controlli_lid(check):
     check(tr("LID di WhatsApp: conversazione, mittente e rubrica mostrano LID e numero, il valore grezzo resta, si può ripetere"),
           "+390000000001" in primo[0][0] and "205690463334636@lid (+390000000001)" in primo[0][1] and primo[1] == ("205690463334636@lid", "+390000000001")
           and primo[2] == ("111111111111111@lid (+390000000002)", fmc.norm_number("390000000002")) and primo[3][0] == 2 and primo == secondo, str(primo), interno=True)
+
+
+def controlli_chiamate_wa(check):
+    """(3.0.1) Chiamate WhatsApp Android: esiti 2 (non risposta) e 4 (rifiutata) di call_log, contatto col LID tradotto nel
+    numero registrato da WhatsApp, chiamata col LID nella chat che ha il numero, sottovoci «esito › voce/video»."""
+    import sqlite3
+    import forense_mobile_chat as fmc
+    import forense_mobile_chiamate as fmca
+    import forense_mobile_leapp_chat as fmlc
+
+    class W0:
+        db = sqlite3.connect(":memory:")
+
+        def tables(self):
+            return {r[0] for r in self.db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    w = W0()
+    w.db.row_factory = sqlite3.Row
+    w.db.executescript("""CREATE TABLE jid(_id INTEGER PRIMARY KEY, raw_string TEXT);
+        INSERT INTO jid VALUES (1, '205690463334636@lid'), (2, '390000000001@s.whatsapp.net');
+        CREATE TABLE call_log(_id INTEGER PRIMARY KEY, jid_row_id INTEGER, from_me INTEGER, call_id TEXT, timestamp INTEGER,
+                              video_call INTEGER, duration INTEGER, call_result INTEGER);
+        INSERT INTO call_log VALUES (1, 1, 0, 'a', 1717000000000, 0, 0, 2), (2, 1, 1, 'b', 1717000600000, 1, 0, 2),
+                                    (3, 2, 0, 'c', 1717001200000, 1, 0, 4), (4, 1, 1, 'd', 1717001800000, 0, 65, 5);""")
+    recs = fmca.wa_android(w, (0, "1", "data/data/com.whatsapp/databases/msgstore.db"))
+    con = sqlite3.connect(":memory:")
+    fmc.ensure_schema(con)
+    con.execute("INSERT INTO chat_lid VALUES ('205690463334636@lid', '390000000001@s.whatsapp.net', 'msgstore.db · jid_map')")
+    W = fmc.Writer(con, "whatsapp", 0, 1, "msgstore.db")
+    W.thread("390000000001@s.whatsapp.net", "Anna", ["390000000001@s.whatsapp.net"])
+    n_chat = fmca.nella_chat(W, recs, "call_log")
+    n_lid = fmlc.risolvi_lid(con, recs)
+    sotto = [fmlc.sotto_chiamata(r) for r in recs]
+    check(tr("Chiamate WhatsApp: esiti 2 e 4 di call_log, LID tradotto nel numero registrato, chiamate col LID nella chat del numero, sottovoci per esito e voce/video"),
+          [r["risposta"] for r in recs] == [False, False, False, True] and n_chat == 4 and n_lid == 3
+          and {r["numero"] for r in recs} == {"390000000001@s.whatsapp.net"} and recs[0]["lid"] == "205690463334636@lid"
+          and sotto == [tr("Non risposte") + " › " + tr("Voce"), tr("Non risposte") + " › " + tr("Video"),
+                        tr("Rifiutate") + " › " + tr("Video"), tr("Risposte") + " › " + tr("Voce")],
+          f"{n_chat} {n_lid} {sotto}", interno=True)
+
+
+def controlli_solo_chiamate(check):
+    """(3.0.1) Chiamate WhatsApp con un contatto senza conversazione: conversazione «solo chiamate» (origin 'chiamate')
+    col nome in rubrica e il numero (anche partendo dal LID), mai per i gruppi né per i backup."""
+    import sqlite3
+    import forense_mobile_chat as fmc
+    import forense_mobile_chiamate as fmca
+
+    def rec(jid, ts, riga):
+        return {"chat": {"jid": jid}, "ts": ts, "verso": "in", "durata_s": 0, "tipo": "voce", "esito": None,
+                "risposta": None, "fonti": [{"artefatto": "msgstore.db", "riga": riga}]}
+    recs = [rec("390000000001@s.whatsapp.net", "2024-06-01T10:00:00", 1), rec("205690463334636@lid", "2024-06-01T11:00:00", 2),
+            rec("390000000002@s.whatsapp.net", "2024-06-01T12:00:00", 3), rec("120363000000@g.us", "2024-06-01T13:00:00", 4)]
+    esiti = []
+    for solo in (True, False):
+        con = sqlite3.connect(":memory:")
+        fmc.ensure_schema(con)
+        con.execute("INSERT INTO chat_lid VALUES ('205690463334636@lid', '390000000003@s.whatsapp.net', 'msgstore.db · jid_map')")
+        W = fmc.Writer(con, "whatsapp", 0, 1, "msgstore.db")
+        W.thread("390000000001@s.whatsapp.net", "Anna", ["390000000001@s.whatsapp.net"])
+        n = fmca.nella_chat(W, recs, "call_log", {fmc.norm_number("390000000003"): "Bruno"}, solo_chiamate=solo)
+        esiti.append((n, sorted(con.execute("SELECT title, origin FROM chat_threads WHERE origin IS NOT NULL").fetchall())))
+    check(tr("Chiamate WhatsApp senza conversazione: conversazione «solo chiamate» a parte (nome e numero, anche dal LID), non per gruppi e backup"),
+          esiti == [(3, [("+390000000002", "chiamate"), ("Bruno +390000000003", "chiamate")]), (1, [])], str(esiti), interno=True)
+
+
+def controlli_recupero_wa(check):
+    """(3.0.1) Messaggi e chiamate WhatsApp cancellati: letti dai byte del database (forense_recupero), uguali agli originali,
+    segnati come recuperati, mai doppioni delle righe vive."""
+    import shutil
+    import sqlite3
+    import tempfile
+    import forense_mobile_chat as fmc
+    import forense_mobile_chiamate as fmca
+    tmp = Path(tempfile.mkdtemp(prefix="collaudo_rec_"))
+    try:
+        f = tmp / "db" / "msgstore.db"
+        f.parent.mkdir()
+        db = sqlite3.connect(str(f))
+        db.executescript("""PRAGMA secure_delete = 0; PRAGMA auto_vacuum = 0;
+            CREATE TABLE jid(_id INTEGER PRIMARY KEY, raw_string TEXT); INSERT INTO jid VALUES (1, '390000000001@s.whatsapp.net');
+            CREATE TABLE message(_id INTEGER PRIMARY KEY AUTOINCREMENT, chat_row_id INTEGER, from_me INTEGER, key_id TEXT NOT NULL,
+                                 timestamp INTEGER, message_type INTEGER, text_data TEXT);
+            CREATE TABLE call_log(_id INTEGER PRIMARY KEY AUTOINCREMENT, jid_row_id INTEGER, from_me INTEGER, call_id TEXT,
+                                  timestamp INTEGER, video_call INTEGER, duration INTEGER, call_result INTEGER);""")
+        for i in range(30):
+            db.execute("INSERT INTO message(chat_row_id, from_me, key_id, timestamp, message_type, text_data) VALUES (1, ?, ?, ?, 0, ?)",
+                       (i % 2, f"KEY{i:02d}", 1717000000000 + i * 1000, f"messaggio di prova numero {i:02d}"))
+            db.execute("INSERT INTO call_log(jid_row_id, from_me, call_id, timestamp, video_call, duration, call_result) VALUES (1, ?, ?, ?, ?, ?, ?)",
+                       (i % 2, f"call:{i:02d}", 1717000000000 + i * 60000, i % 3 == 0, 0 if i % 4 else 30, (2, 4, 5)[i % 3]))
+        db.commit()
+        db.execute("DELETE FROM message WHERE key_id IN ('KEY05', 'KEY12', 'KEY20')")
+        db.execute("DELETE FROM call_log WHERE call_id IN ('call:05', 'call:12', 'call:20')")
+        db.commit()
+        db.close()
+
+        class W0:
+            pass
+        w = W0()
+        w.tmp, w.file = f.parent, f
+        w.db = sqlite3.connect(str(f))
+        w.db.row_factory = sqlite3.Row
+        w.tables = lambda: {r[0] for r in w.db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        fmc._RECUPERO.clear()
+        rec = fmc.recuperati_wa(w, (0, "1", "msgstore.db"))
+        msg = sorted((d["key_id"], d["text_data"], d["timestamp"]) for d, _i in rec.get("message", []))
+        calls = [r for r in fmca.wa_android(w, (0, "1", "msgstore.db")) if r.get("recuperato")]
+        w.db.close()
+        fmc._RECUPERO.clear()
+        check(tr("WhatsApp: messaggi e chiamate cancellati letti dai byte del database, uguali agli originali e segnati come recuperati"),
+              {k for k, _t, _s in msg} <= {"KEY05", "KEY12", "KEY20"} and len(msg) >= 2
+              and all(t == f"messaggio di prova numero {k[3:]}" and s == 1717000000000 + int(k[3:]) * 1000 for k, t, s in msg)
+              and len(calls) >= 2 and all(r["esito"] == tr(fmca.WA_AND_ESITO[(2, 4, 5)[int(r["chat"]["id"][5:]) % 3]])
+                                          and tr("record cancellato") in r["fonti"][0]["artefatto"] for r in calls),
+              f"{msg} {[(r['chat']['id'], r['esito']) for r in calls]}", interno=True)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
 
 
 def controlli_gps_segno(check):
@@ -1544,8 +2028,27 @@ def controlli_wa_backup(case, check):
                                               "AND json_extract(extra, '$.solo_nel_backup')")]
                 nb = c2.execute("SELECT COUNT(*) FROM chat_messages WHERE app='whatsapp_backup'").fetchone()[0]
                 nv = c2.execute("SELECT COUNT(*) FROM chat_messages WHERE app='whatsapp'").fetchone()[0]
+                # (3.0.1) lo stesso database come WhatsApp Business (com.whatsapp.w4b): app a parte, backup a parte
+                pb = r[1].replace("com.whatsapp/", "com.whatsapp.w4b/")
+                Wb = fmc.read_whatsapp_android(case, c2, part, str(r[0]), pb, {})
+                fmc.read_whatsapp_android(case, c2, part, str(r[0]), "WhatsApp Business/Databases/msgstore.db.crypt14", {},
+                                          backup={"file": tmp / "dec.db", "nome": "msgstore.db.crypt14 (Business)"})
+                nb2 = fmc.segna_backup(c2)
+                # il database letto come Business non ha il suo -wal: i messaggi «solo nel backup» di Business si contano
+                # confrontando con i messaggi Business letti, non con quelli di WhatsApp
+                atteso_b = c2.execute("SELECT COUNT(*) FROM chat_messages WHERE app='whatsapp_business_backup' AND "
+                                      "json_extract(extra, '$.key_id') IS NOT NULL AND json_extract(extra, '$.key_id') NOT IN "
+                                      "(SELECT json_extract(extra, '$.key_id') FROM chat_messages WHERE app='whatsapp_business' "
+                                      "AND json_extract(extra, '$.key_id') IS NOT NULL)").fetchone()[0]
+                per = dict(c2.execute("SELECT app, COUNT(*) FROM chat_messages GROUP BY 1").fetchall())
+                tb = dict(c2.execute("SELECT app, COUNT(*) FROM chat_threads GROUP BY 1").fetchall())
             finally:
                 c2.close()
+            check(tr("WhatsApp Business (com.whatsapp.w4b): conversazioni e backup separati da WhatsApp, messaggi solo nel backup per app"),
+                  Wb is not None and Wb.app == "whatsapp_business" and per.get("whatsapp_business", 0) > 0 and per.get("whatsapp") == nv
+                  and per.get("whatsapp_business_backup") == nb and tb.get("whatsapp_business", 0) > 0 and nb2 == n + atteso_b
+                  and atteso_b >= n,
+                  str(per), interno=True)
             check(tr("backup WhatsApp finto letto come conversazioni: {b} messaggi (attuale {v}), solo nel backup {n}").format(
                 b=nb, v=nv, n=n), W is not None and nb == nv + 1 and k == ["REPERTIA-COLLAUDO-BACKUP"], ", ".join(map(str, k)),
                 interno=True)
@@ -1693,6 +2196,9 @@ def controlli_smartphone(t, img, case, con, a, check):
     controlli_ricerca_veloce(case, con, check)
     controlli_gps_segno(check)
     controlli_lid(check)
+    controlli_chiamate_wa(check)
+    controlli_solo_chiamate(check)
+    controlli_recupero_wa(check)
     controlli_portatile_timeline(case, con, check)
     controlli_preferiti_chat(case, con, check)
     if a.get("posizione"):
@@ -1723,9 +2229,12 @@ def controlli_smartphone(t, img, case, con, a, check):
         controlli_database(check)
         controlli_recupero(check)
         controlli_copia_smartphone(check)
+        controlli_cache_web(check)
         controlli_mappa(check)
         controlli_mappa_font(check)
         controlli_mappe_rete(check)
+        controlli_aggiornamenti(check)
+        controlli_telegram_chiamate(check)
         controlli_droni(check)
     if a.get("leapp_righe_min") or a.get("sysdiagnose"):
         import forense_mobile_leapp as fml

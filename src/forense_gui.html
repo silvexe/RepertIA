@@ -146,13 +146,14 @@ h2{font-size:13px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted
 .bar.ind>div{width:30%!important;animation:pind 1.4s ease-in-out infinite}
 
 /* caso */
-.casev{display:grid;grid-template-columns:var(--sidew,300px) 10px minmax(0,1fr);gap:3px;height:calc(100vh - var(--hdrh,56px) - var(--mbh,0px) - 34px)}
+.casev{display:grid;grid-template-columns:var(--sidew,300px) 10px minmax(0,1fr);gap:3px;height:calc(100vh - var(--hdrh,56px) - var(--mbh,0px) - 34px - var(--wmh,0px))}
 /* (2.20) barra dei menu del caso sotto l'intestazione: Caso, Report, Verifiche, Analisi aggiuntive */
 .menubar{display:flex;align-items:center;gap:2px;padding:4px 18px;border-bottom:1px solid var(--line);background:var(--panel);position:relative;z-index:9}
 .menubar .grow{flex:1}
 .menubar .mm{position:relative}
 .menubar .mbtn{background:none;border:none;color:var(--ink);font:inherit;font-size:14px;padding:6px 11px;border-radius:7px;cursor:pointer}
 .menubar .mbtn:hover,.menubar .mm.open .mbtn{background:var(--panel2)}
+.menubar .mavv{color:var(--warn);font-weight:600;border:1px solid color-mix(in srgb,var(--warn) 45%,transparent)}
 .menubar .mbtn .car{color:var(--muted);font-size:11px;margin-left:3px}
 .menubar .mdd{display:none;position:absolute;top:calc(100% + 4px);left:0;min-width:250px;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.18);padding:6px;flex-direction:column;gap:1px}
 .menubar .mm.open .mdd{display:flex}
@@ -171,6 +172,8 @@ h2{font-size:13px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted
 .casev>.psplit{width:4px;justify-self:center;border-radius:3px;opacity:.35}
 .rtree.hidden+.psplit,.tree.hidden+.psplit{display:none}
 body.dragging,body.dragging *{cursor:col-resize!important;user-select:none!important}
+/* (3.0.1) durante un trascinamento anteprime in iframe/embed non si prendono il rilascio del mouse */
+body.dragging iframe,body.dragging embed,body.dragging object,body.vdragging iframe,body.vdragging embed,body.vdragging object,body.colresizing iframe,body.colresizing embed,body.colresizing object{pointer-events:none}
 aside{display:flex;flex-direction:column;gap:14px;overflow:auto;padding-bottom:10px}
 aside .card{padding:16px}
 .kv{font-size:13.5px;display:grid;grid-template-columns:auto 1fr;gap:3px 10px}
@@ -329,7 +332,7 @@ body.vdragging,body.vdragging *{cursor:row-resize!important;user-select:none!imp
 .tlscroll .hit{fill:transparent;cursor:pointer}
 .tlscroll .grid{stroke:var(--line);stroke-width:1}
 .tlscroll .axis{fill:var(--muted);font-size:10.5px;font-family:var(--sans)}
-.tltip{position:fixed;pointer-events:none;background:var(--ink);color:var(--bg);font-size:12.5px;padding:7px 10px;border-radius:7px;z-index:30;max-width:300px;box-shadow:var(--shadow);line-height:1.45}
+.tltip{position:fixed;pointer-events:none;z-index:58!important;background:var(--ink);color:var(--bg);font-size:12.5px;padding:7px 10px;border-radius:7px;z-index:30;max-width:300px;box-shadow:var(--shadow);line-height:1.45}
 .peaks{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:12.5px;color:var(--muted);margin-top:6px}
 .peaks button{border:1px solid var(--line);background:var(--panel2);border-radius:99px;padding:2px 10px;cursor:pointer;font-size:12px;color:var(--ink)}
 .peaks button:hover{border-color:var(--accent);color:var(--accent)}
@@ -526,6 +529,7 @@ body.vfull .menubar{z-index:1}
 .trchat{margin:6px 0;padding:6px 8px;border-left:3px solid var(--accent);background:color-mix(in srgb, var(--accent) 7%, transparent);border-radius:6px}
 .trchat summary{cursor:pointer;font-size:12.5px}.trchat .trtxt{white-space:pre-wrap;margin:4px 0;line-height:1.45}
 .tropt{display:flex;flex-direction:column;gap:6px;margin:-4px 0 12px 30px;font-size:13px}.trhead{margin:6px 0 2px}
+.tran{border:1px solid var(--line);border-radius:8px;padding:6px 8px;margin-top:6px}.tran.ok{border-color:var(--ok);background:color-mix(in srgb,var(--ok) 8%,transparent)}.tran.bozza{border-style:dashed}.tran .trtxt{white-space:pre-wrap;margin-top:4px}
 .trseg{padding:4px 6px;border-radius:6px;cursor:pointer;line-height:1.45}.trseg:hover{background:var(--panel2)}
 .trseg.on{background:var(--accent-soft)}.trseg .trt{color:var(--muted);font-size:11.5px;font-variant-numeric:tabular-nums;margin-right:6px}
 .rtree .rthead{position:sticky;top:-4px;z-index:2;background:var(--panel);margin:-4px -4px 4px;padding:4px 4px 0}
@@ -614,14 +618,45 @@ th.srt .sa{margin-left:5px;color:var(--accent);font-size:11px}
 .welcome{color:var(--muted);font-size:14px;max-width:620px}
 .welcome b{color:var(--ink)}
 
+/* (3.0.1) finestre: cornice con barra del titolo, bordi per ridimensionare, barra «Finestre aperte» in basso */
+.wm-win{position:fixed;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 16px 44px rgba(0,0,0,.28);display:flex;flex-direction:column;min-width:0}
+.wm-win.attiva{border-color:var(--accent);box-shadow:0 20px 56px rgba(0,0,0,.38)}
+.wm-win.wm-max{border-radius:0}
+.wm-bar{display:flex;align-items:center;gap:5px;padding:4px 6px 4px 12px;background:var(--panel2);border-bottom:1px solid var(--line);border-radius:10px 10px 0 0;cursor:move;user-select:none;font-size:13px;flex:none;touch-action:none}
+.wm-win.attiva .wm-bar{background:var(--accent-soft)}
+.wm-win.wm-max .wm-bar{border-radius:0;cursor:default}
+.wm-t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600}
+.wm-bar button{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:6px;min-width:28px;height:24px;cursor:pointer;font-size:13px;line-height:1;padding:0 6px}
+.wm-bar button:hover{border-color:var(--accent)}.wm-bar button.x:hover{background:var(--bad);border-color:var(--bad);color:#fff}
+.wm-body{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;border-radius:0 0 10px 10px}
+.wm-body>.pv{flex:1;width:auto!important;min-width:0;max-width:none;border-left:none;display:flex}
+.wm-rz{position:absolute;z-index:2}.wm-rz.n,.wm-rz.s{left:8px;right:8px;height:7px;cursor:ns-resize}.wm-rz.n{top:-4px}.wm-rz.s{bottom:-4px}
+.wm-rz.e,.wm-rz.w{top:8px;bottom:8px;width:7px;cursor:ew-resize}.wm-rz.e{right:-4px}.wm-rz.w{left:-4px}
+.wm-rz.ne,.wm-rz.nw,.wm-rz.se,.wm-rz.sw{width:14px;height:14px}.wm-rz.ne{top:-5px;right:-5px;cursor:nesw-resize}.wm-rz.sw{bottom:-5px;left:-5px;cursor:nesw-resize}
+.wm-rz.nw{top:-5px;left:-5px;cursor:nwse-resize}.wm-rz.se{bottom:-5px;right:-5px;cursor:nwse-resize}
+.wm-win.wm-max .wm-rz{display:none}
+.wm-nascosto{display:none!important}
+.wm-body>.pv #pvFull,.wm-body>.pv #pvClose{display:none}
+.dbmgr.wm-segue>.card>.row:first-child,.mapmgr.wm-segue #mapClose,.guidawin.wm-segue #guidaChiudi,.guidawin.wm-segue .card>.row>b{display:none!important}
+.guidawin.wm-segue .card>.row{justify-content:flex-end!important;padding:4px 10px!important}
+.wm-segue{margin:0!important;background:none!important;padding:0!important;box-shadow:none!important;border-radius:0!important}
+.wm-segue>.card{display:flex;flex-direction:column;min-width:0;width:100%!important;height:100%!important;max-width:none!important;max-height:none!important;border-radius:0 0 10px 10px;box-shadow:none;border:none}
+.resbody.wm-segue{background:var(--panel)!important;border:none!important}
+.wm-drag,.wm-drag *{user-select:none!important}.wm-drag iframe,.wm-drag canvas{pointer-events:none}
+#wmTask{position:fixed;left:0;right:0;bottom:0;height:34px;z-index:57;background:var(--panel);border-top:1px solid var(--line);display:flex;align-items:center;gap:6px;padding:0 10px;font-size:12.5px;box-shadow:0 -4px 14px rgba(0,0,0,.10);overflow-x:auto}
+#wmTask .lbl{color:var(--muted);white-space:nowrap}
+#wmTask button{border:1px solid var(--line);border-radius:7px;padding:3px 10px;background:var(--bg);color:var(--ink);max-width:280px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;flex:none}
+#wmTask button.on{background:var(--accent-soft);border-color:var(--accent);font-weight:600}
+#wmTask button.min{opacity:.7;font-style:italic}
+.pvcopia{display:flex;flex-direction:column;min-height:0;flex:1;overflow:auto;padding:8px 10px}
 /* modale e notifiche */
-.modal{position:fixed;inset:0;background:rgba(0,0,0,.4);display:grid;place-items:center;padding:20px;z-index:10}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.4);display:grid;place-items:center;padding:20px;z-index:70}
 .modal .card{width:min(900px,100%);max-height:88vh;display:flex;flex-direction:column;min-width:0}
 .modal .body{overflow:auto;margin:12px 0}
-.taskbox{position:fixed;right:18px;bottom:18px;z-index:25;width:min(360px,calc(100vw - 36px));background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);padding:10px 12px;font-size:13px;display:flex;flex-direction:column;gap:6px}
+.taskbox{position:fixed;right:18px;bottom:calc(18px + var(--wmh,0px));z-index:58;width:min(360px,calc(100vw - 36px));background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);padding:10px 12px;font-size:13px;display:flex;flex-direction:column;gap:6px}
 .tbbar{height:6px;border-radius:3px;background:var(--line);overflow:hidden}.tbbar span{display:block;height:100%;width:0;background:var(--accent);transition:width .4s}
 .tbbar span.ind{width:30%!important;animation:tbind 1.2s infinite linear}@keyframes tbind{from{margin-left:-30%}to{margin-left:100%}}
-.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);padding:10px 18px;border-radius:8px;background:var(--ink);color:var(--bg);font-size:14px;z-index:20;box-shadow:var(--shadow)}
+.toast{position:fixed;bottom:calc(22px + var(--wmh,0px));left:50%;transform:translateX(-50%);padding:10px 18px;border-radius:8px;background:var(--ink);color:var(--bg);font-size:14px;z-index:80;box-shadow:var(--shadow)}
 .toast.bad{background:var(--bad);color:#fff}
 .toast.good{background:var(--ok);color:#fff}
 
@@ -634,6 +669,17 @@ th.srt .sa{margin-left:5px;color:var(--accent);font-size:11px}
   header{flex-wrap:wrap}
 }
 .ppbar{height:10px;border-radius:99px;background:var(--line);overflow:hidden;margin-top:12px}
+.fqbig{font-size:15px;line-height:1.5;padding:14px 16px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);display:flex;flex-direction:column;gap:6px;margin:4px 0}
+.fqbig b{font-size:16px}.fqbig.wait{border-color:#d9a400;background:rgba(217,164,0,.10)}.fqbig.bad{border-color:#d33;background:rgba(221,51,51,.08)}.fqbig .btn{align-self:flex-start}
+.rlgrid{display:grid;grid-template-columns:2fr 1.3fr 1fr;gap:10px}.rlgrid label{display:flex;flex-direction:column;gap:3px;font-size:12.5px}
+.rlh{margin:14px 0 5px;font-weight:600}.rlrow{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center}.rlcol{display:flex;flex-direction:column;gap:4px}
+.rltop{background:var(--panel2,rgba(127,127,127,.07));border:1px solid var(--line);border-radius:10px;padding:10px 12px}.rltop .rlh:first-of-type{margin-top:10px}
+.rlacts{margin-top:12px}.rltree{border:1px solid var(--line);border-radius:8px;padding:4px 8px}
+.rlg .rlgh{display:flex;align-items:center;gap:6px;padding:3px 0;cursor:pointer;user-select:none}.rlg .rlgh:hover .rlgn{text-decoration:underline}
+.rlcar{width:12px;color:var(--muted)}.rlgn{font-weight:600}.rlg.sub .rlgn{font-weight:500}.rlgb{margin-left:22px}.rlgb .rlopt{padding:1px 0}
+.rlopt{display:block}.rlcat{margin:3px 0}.rlcat>label{margin-right:8px}.rlitems{margin:4px 0 8px 24px;max-height:260px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:6px 8px}
+.rlkv{border-collapse:collapse;font-size:12px;margin:6px 0}.rlkv th{text-align:left;padding:2px 10px 2px 0;white-space:nowrap}.rlkv td{word-break:break-all}
+@media (max-width:700px){.rlgrid{grid-template-columns:1fr}}
 .ppbar>div{height:100%;width:0;background:var(--accent);transition:width .4s}
 .fqres{max-height:calc(100vh - 330px);overflow:auto;container-type:inline-size}.fqg{margin:6px 0;border:1px solid var(--line);border-radius:8px;padding:4px 8px}.fqg summary{cursor:pointer;padding:3px 0}.fqr{display:grid;grid-template-columns:max-content minmax(0,1fr) minmax(0,auto);gap:10px;padding:5px 4px;border-top:1px solid var(--line);cursor:pointer;font-size:12.5px}.fqr:hover{background:var(--hover,rgba(127,127,127,.08))}.fqt{white-space:nowrap;color:var(--muted);font-variant-numeric:tabular-nums}.fqt:empty{display:none}@container (max-width:640px){.fqr{grid-template-columns:minmax(0,1fr)}.fqd{max-width:100%}}.fqe{display:block;color:var(--muted);overflow-wrap:anywhere}.fqd{font-size:10.5px;color:var(--muted);max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.fqr mark{background:#fde68a;color:#111;border-radius:2px}
 #openOv{position:fixed;inset:0;background:rgba(10,14,18,.55);z-index:9999;display:flex;align-items:center;justify-content:center}#openOv .ovcard{background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:12px;padding:20px 24px;min-width:380px;max-width:520px;box-shadow:0 10px 40px rgba(0,0,0,.35)}#openOv h3{margin:0 0 12px;font-size:16px}#openOv .ovbar{height:8px;background:var(--panel2);border-radius:6px;overflow:hidden;margin-bottom:12px}#openOv .ovbar i{display:block;height:100%;width:0;background:var(--accent);transition:width .3s}#openOv .ovsteps div{padding:3px 0;font-size:13px}
@@ -687,6 +733,7 @@ th.srt .sa{margin-left:5px;color:var(--accent);font-size:11px}
     </div></div>
   <div class="mm"><button class="mbtn" aria-haspopup="true" id="mLlm"><span class="mled off" id="mLlmLed"></span>Modello IA<span class="mest hidden" id="mLlmEst">server esterno</span><span class="car">▾</span></button>
     <div class="mdd wide"><div id="llmBox"></div></div></div>
+  <button class="mbtn mavv hidden" id="mAvv"></button>
   <span class="grow"></span>
   <button class="btn small" id="btnUiReset" title="Riporta l'interfaccia com'era alla prima apertura del caso">↺ Ripristina interfaccia</button>
   <button class="btn small" id="btnHome">← Tutti i casi</button>
@@ -696,6 +743,7 @@ th.srt .sa{margin-left:5px;color:var(--accent);font-size:11px}
   <!-- HOME -->
   <section id="vHome" class="home">
     <div class="card" id="homeKind">
+      <div id="updBox" class="hidden"></div>
       <h1>Nuova analisi con RepertIA</h1>
       <p class="lead">Che cosa analizzi?</p>
       <div class="kindrow">
@@ -703,7 +751,7 @@ th.srt .sa{margin-left:5px;color:var(--accent);font-size:11px}
         <button class="kindbtn" id="kindPhone"><span class="ico">📱</span><b>Smartphone</b><small>iPhone e Android: estrazioni del file system completo (Cellebrite, GrayKey, altri) in zip, tar o cartella</small></button>
         <button class="kindbtn kindmid" id="kindDrone"><span class="ico">🚁</span><b>Droni</b><small>Registri di volo (DJI, Autel, PX4, ArduPilot), sottotitoli e foto da una cartella, uno zip o un tar: voli sulla mappa</small></button>
       </div>
-      <div style="margin-top:12px"><button class="btn small" id="homeDiag" title="Prepara un file con gli errori tecnici del programma, senza dati dei casi">Esporta log diagnostici</button> <button class="btn small" id="homeMappe" title="Si scarica solo da qui, senza un caso aperto">🗺 Scarica mappe</button> <button class="btn small" id="homeModelli" title="Si scarica solo da qui o all'avvio dell'analisi, senza un caso aperto">🎙 Modelli di trascrizione</button> <button class="btn small" id="homeGuida" title="Guida illustrata in italiano e in inglese, in un unico file">📖 Guida</button></div>
+      <div style="margin-top:12px"><button class="btn small" id="homeDiag" title="Prepara un file con gli errori tecnici del programma, senza dati dei casi">Esporta log diagnostici</button> <button class="btn small" id="homeMappe" title="Si scarica solo da qui, senza un caso aperto">🗺 Scarica mappe</button> <button class="btn small" id="homeModelli" title="Si scarica solo da qui o all'avvio dell'analisi, senza un caso aperto">🎙 Modelli di trascrizione</button> <button class="btn small" id="homeGuida" title="Guida illustrata in italiano e in inglese, in un unico file">📖 Guida</button> <button class="btn small" id="homeAgg" title="Controlla se è uscita una versione nuova di RepertIA: solo lettura da GitHub, nessun dato dei casi, senza un caso aperto">🔄 Aggiornamenti</button></div>
     </div>
     <div class="card hidden" id="homeDisk">
       <button class="btn small homeback" id="homeDiskBack">← Indietro</button>
@@ -729,7 +777,7 @@ th.srt .sa{margin-left:5px;color:var(--accent);font-size:11px}
         <span>Copie shadow di Windows (VSS) e snapshot APFS dei Mac<small>Recupera dai punti di ripristino di Windows e dagli snapshot APFS (es. snapshot locali di Time Machine) i file cancellati e le versioni precedenti dei file.</small></span></label>
       <label class="opt"><input type="checkbox" id="optOcr">
         <span>Testo nelle immagini (OCR)<small>Tesseract legge il testo di foto, scansioni e PDF senza testo, che diventa ricercabile. Richiede tempo sui dischi con molte immagini.</small></span></label>
-      <div class="hint" style="margin:-6px 0 14px">Testo dei documenti e metadati di foto e documenti vengono indicizzati sempre, in automatico.</div>
+      <div class="hint" style="margin:-6px 0 14px">Testo dei documenti, foto, video e audio (riconosciuti dal contenuto, anche nelle cache) e i loro metadati vengono indicizzati sempre, in automatico.</div>
       <button class="btn primary" id="btnStart" disabled>Avvia l'analisi</button>
     </div>
     <div class="card">
@@ -852,7 +900,7 @@ th.srt .sa{margin-left:5px;color:var(--accent);font-size:11px}
           </div>
           <div class="pvsplit hidden" id="pvSplit" title="Trascina per allargare o stringere l'anteprima; doppio clic: larghezza predefinita"></div>
           <div class="pv hidden" id="pv">
-            <div class="pvhead"><div class="grow" style="min-width:0"><div class="pvt" id="pvTitle"></div><div class="hint" id="pvSub"></div></div><button class="btn small" id="pvFull" title="Apri a schermo intero">⤢</button><button class="btn small" id="pvClose" title="Chiudi l'anteprima (Esc)">✕</button></div>
+            <div class="pvhead"><div class="grow" style="min-width:0"><div class="pvt" id="pvTitle"></div><div class="hint" id="pvSub"></div></div><button class="btn small" id="pvPin">📌</button><button class="btn small" id="pvWin">⧉</button><button class="btn small" id="pvFull" title="Apri a schermo intero">⤢</button><button class="btn small" id="pvClose" title="Chiudi l'anteprima (Esc)">✕</button></div>
             <div class="pvacts" id="pvActs"></div>
             <div class="pvtabs"><button data-pv="view" class="on">Anteprima</button><button data-pv="text">Testo</button><button data-pv="hex">Esadecimale</button><button data-pv="meta">Metadati</button></div>
             <div class="pvbody" id="pvBody"></div>
@@ -906,6 +954,7 @@ document.addEventListener("DOMContentLoaded", () => {
   if (h && IS_WIN) h.textContent = T("Formati: raw, dd, img, E01 (scegli il primo segmento). In Esplora file: Maiusc + tasto destro sul file → “Copia come percorso”.");
 });
 const TOKEN = "__TOKEN__";
+const APPVER = "__VERSIONE__";
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 
@@ -1074,6 +1123,7 @@ async function loadHome(){
     ? T("Cartelle dei casi:") + h.homes.map(x => `<div class="mono" style="font-size:12px">${esc(x.path)}${x.ok ? "" : T(' <span class="badge warn">non raggiungibile</span>')}${x.default ? T(' <span class="hint">(predefinita)</span>') : TF(" <a class=\"plink\" data-rmhome=\"{0}\" title=\"Toglie la cartella dall'elenco (i casi non vengono toccati)\">✕</a>", esc(x.path))}</div>`).join("")
     : T("Cartella dei casi: ") + esc(r.cases_home);
   $("casesHome").querySelectorAll("[data-rmhome]").forEach(a => a.onclick = async () => { await api("/api/remove_home", {path: a.dataset.rmhome}); loadHome(); });
+  aggHome();
   if (h.prep_running){ show("vPrep"); pollPrep(); return; }
   const list = $("cases");
   if (!h.cases.length){ list.innerHTML = T('<div class="empty">Nessun caso ancora. Inizia scegliendo una copia forense.</div>'); return; }
@@ -1199,7 +1249,7 @@ const STEPS = [
   ["parts", T("Partizioni e file system"), /Analisi partizioni/],
   ["list", T("Elenco dei file (anche cancellati)"), /Elenco file|file elencati/],
   ["tl", T("Timeline del file system"), /Timeline file system/],
-  ["indice", T("Testo dei documenti e metadati"), /Indicizzazione|file esaminati|Documenti con testo/],
+  ["indice", T("Testo dei documenti e media"), /Indicizzazione|file esaminati|Documenti con testo/],
   ["hashfile", T("Hash di tutti i file (MD5, SHA-1, SHA-256)"), /Hash dei file|Hash calcolati/],
   ["plaso", T("Timeline di sistema (plaso)"), /plaso|log2timeline|psort/i],
   ["carving", T("Recupero dallo spazio libero (carving)"), /PhotoRec|bulk_extractor|carving/i],
@@ -1821,7 +1871,7 @@ $("btnUiReset").onclick = async () => {
 };
 const ADDON_ASK = {
   immagine: T("Calcola ora lo SHA-256 della copia forense (tutti i segmenti): legge l'intera copia, sui dischi grandi può richiedere parecchi minuti. Nel report risulterà calcolato dopo l'avvio dell'analisi. Avviare?"),
-  indice: T("Estrae il testo dei documenti e i metadati di foto e documenti. Avviare?"),
+  indice: T("Estrae il testo dei documenti, riconosce foto, video e audio dal contenuto (anche nelle cache delle app e dei browser) e ne legge i metadati. Avviare?"),
   plaso: T("Plaso analizza registro, log, prefetch e browser: può richiedere molto tempo (anche ore). Avviare?"),
   hash: T("Calcola MD5, SHA-1 e SHA-256 di ogni file della copia (anche cancellati): legge tutti i file, sui dischi grandi può richiedere molto tempo. Se era già stato avviato, riprende dai file mancanti. Avviare?"),
   carving: T("PhotoRec e bulk_extractor esaminano lo spazio libero e tutto il disco: può richiedere molto tempo e spazio (i file recuperati vanno nella cartella del caso). Avviare?"),
@@ -1836,7 +1886,7 @@ function renderAddons(c){
   const tl = c.timeline || {}, i = c.indice, cv = c.carving || {};
   const pr = cv.photorec, be = cv.bulk_extractor;
   const rows = [
-    ["indice", T("Testo e metadati"), i ? TF("{0} documenti, {1} con metadati, {2} con GPS", i.documenti, i.metadati, i.gps) : null],
+    ["indice", T("Testo e media"), i ? TF("{0} documenti, {1} con metadati, {2} con GPS", i.documenti, i.metadati, i.gps) : null],
     ["hash", T("Hash dei file"), c.hash_file ? TF("{0} file (MD5, SHA-1, SHA-256)", nf(c.hash_file.files)) : null],
     ["plaso", T("Timeline plaso"), tl.plaso_events ? TF("{0} eventi", tl.plaso_events) : null],
     ["carving", T("Carving"), (pr || be) ? [pr ? TF("{0} file recuperati", pr.files) : "", be ? TF("{0} evidenze di interesse", Object.values(be.kinds).reduce((a, b) => a + b, 0)) : ""].filter(Boolean).join(", ") : null],
@@ -1924,7 +1974,7 @@ async function trascrDialog(uno){
     if (go) go.disabled = !m.installato || !st.motore || !st.ffmpeg;
     $("trCons").innerHTML = m.installato ? "" : trascrConsHtml(m);
     if (!m.installato){
-      $("trFile").onclick = () => trascrModello("/api/trascr/importa", {});
+      $("trFile").onclick = () => trascrImporta(m); trascrDichWire(m);
       if (SES_OPEN()){      // (3.0) a caso aperto non si va in rete: si chiude, si scarica dalla pagina iniziale, si riapre
         $("trOk").textContent = T("Chiudi il caso e scarica");
         $("trOk").insertAdjacentHTML("beforebegin", `<div class="lcbad" style="flex-basis:100%">${T("Lo scaricamento avviene solo a caso chiuso, dalla pagina iniziale, per non andare online con i dati del caso. Finito lo scaricamento, riapri il caso con un clic.")}</div>`);
@@ -1950,12 +2000,39 @@ function trascrConsHtml(m){
   const mb = n => nf(Math.round(n / 1e6)) + " MB";
   return `<div class="trcons">
       <b>${TF("Per trascrivere serve il modello «{0}» ({1}), da scaricare una sola volta.", esc(m.nome), mb(m.size))}</b>
-      <div class="hint">${TF("Provenienza: {0} (repository ufficiale di whisper.cpp, versione fissata). Licenza MIT. Il modello resta su questo computer e vale per tutti i casi.", `<code>${esc(m.url)}</code>`)}</div>
-      <div class="hint">${TF("SHA-256 atteso: {0} — ricontrollato dopo il download; un file diverso viene eliminato.", `<code>${esc(m.sha256)}</code>`)}</div>
+      <div class="hint" id="trProv">${TF("Provenienza: {0} (repository ufficiale di whisper.cpp, versione fissata). Licenza MIT. Il modello resta su questo computer e vale per tutti i casi.", `<code>${esc(m.url)}</code>`)}</div>
+      <div class="hint" id="trAtt">${TF("SHA-256 atteso: {0} — ricontrollato dopo il download; un file diverso viene eliminato.", `<code>${esc(m.sha256)}</code>`)}</div>
+      <div class="hint" id="trDich">${caseInfo ? "" : `<button class="lnk2" id="trDichGo">${T("Leggi ora da Hugging Face l'impronta dichiarata")}</button> · ${T("lo fa comunque prima di scaricare")}`}</div>
       <div class="hint">${T("Il download avviene solo se lo accetti; chi l'ha accettato, quando e da dove resta nella scheda del modello e nel registro del caso.")}</div>
       <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><button class="btn small" id="trOk">${T("Accetto e scarico")}</button>
-        <button class="btn small" id="trFile">${T("Ho già il file del modello…")}</button></div></div>`;
+        <button class="btn small" id="trFile">${T("Ho già il file del modello…")}</button></div>
+      <div class="hint" style="margin-top:6px">${T("File scaricato da un altro computer e impronta diversa dall'elenco? Scrivi lo SHA-256 indicato dalla fonte (pagina del file su Hugging Face): il file viene accettato solo se l'impronta calcolata qui è uguale.")}</div>
+      <input class="pathin mono" id="trSha" placeholder="${esc(T("SHA-256 atteso (facoltativo): 64 cifre esadecimali"))}" style="margin-top:4px;font-size:12px"></div>`;
 }
+// (3.0.1) impronta dichiarata da Hugging Face: letta da sola all'apertura della finestra (solo a caso chiuso; ricordata
+// 10 minuti per modello), di nuovo con il collegamento e sempre prima di scaricare. Se è cambiata lo si dice e vale quella:
+// lo scaricamento e «Ho già il file del modello…» la usano senza che l'analista scriva niente
+const TR_DICH = {};
+function trascrDichWire(m){
+  const b = $("trDichGo"); if (!b) return;
+  b.onclick = async ev => {
+    $("trDich").textContent = T("Lettura da Hugging Face…");
+    try{
+      const c = TR_DICH[m.id], d = !ev && c && Date.now() - c.t < 6e5 ? c.d : await api("/api/trascr/dichiarato", {modello: m.id});
+      if (!d.errore) TR_DICH[m.id] = {d, t: Date.now()};
+      if (d.errore) return $("trDich").innerHTML = `⚠ ${esc(d.errore)}`;
+      // la riga «SHA-256 atteso» passa all'impronta letta online: è quella con cui si confronta il file scaricato
+      $("trAtt").innerHTML = TF("SHA-256 atteso, letto ora da Hugging Face: {0} ({1} byte) — ricontrollato dopo il download; un file diverso viene eliminato.", `<code>${esc(d.sha256)}</code>`, nf(d.size));
+      if (d.url && d.url !== m.url) $("trProv").innerHTML = TF("Provenienza: {0} (repository ufficiale di whisper.cpp, ultima versione: quella fissata non c'è più). Licenza MIT. Il modello resta su questo computer e vale per tutti i casi.", `<code>${esc(d.url)}</code>`);
+      $("trDich").innerHTML = d.uguale
+        ? `✅ ${T("Uguale all'impronta dell'elenco di RepertIA.")}`
+        : `⚠ ${TF("Diversa dall'impronta dell'elenco di RepertIA ({0}): il file scaricato sarà confrontato con quella letta online e la differenza resterà nel registro.", `<code>${esc(m.sha256)}</code>`)}`;
+    }catch(e){ $("trDich").textContent = e.message; }
+  };
+  b.onclick();
+}
+const trascrImporta = (m, onDone, attesa) => trascrModello("/api/trascr/importa", {modello: m.id, sha256: ($("trSha") || {}).value || "",
+  dichiarato: ((TR_DICH[m.id] || {}).d || {}).sha256 || ""}, onDone, attesa);
 /* (2.20) pagina del nuovo caso: il modello scelto deve essere installato PRIMA di avviare. Se manca, finestra del consenso
    (Accetto e scarico / Ho già il file / Annulla): true quando il modello è installato e verificato, false se l'analista
    annulla (il caso si prepara senza trascrizione) */
@@ -1972,7 +2049,7 @@ async function trascrConsenso(mid){
     modalLock(true);           // si chiude solo con Annulla o a installazione finita
     const done = ok => { modalLock(false); $("modal").classList.add("hidden"); if (ok) toast(T("Modello installato e verificato: la trascrizione sarà l'ultimo passo della preparazione."), "good"); res(ok); };
     $("trOk").onclick = () => trascrModello("/api/trascr/scarica", {modello: m.id, accetto: true}, done);
-    $("trFile").onclick = () => trascrModello("/api/trascr/importa", {}, done, m.id);
+    $("trFile").onclick = () => trascrImporta(m, done, m.id); trascrDichWire(m);
   });
 }
 /* (3.0) dettatura del prompt: il browser registra, RepertIA trascrive in locale con whisper.cpp; il testo si controlla e si invia a mano */
@@ -2086,8 +2163,9 @@ async function trascrModello(path, body, onDone, attesa){
     if (dl) dl.remove();
     modalLock(false);
     if (t.error){ toast(t.error, "bad"); return onDone ? (modalLock(true), document.querySelectorAll("#trCons button, #modalActs button").forEach(b => b.disabled = false)) : trascrDialog(); }
+    if (onDone && t.result.verifica && t.result.modello === (attesa || t.result.modello)) toast(TF("Modello installato e verificato (SHA-256 {0}…)", (t.result.sha256 || "").slice(0, 16)) + " · " + t.result.verifica, "good");
     if (onDone){ if (attesa && t.result.modello !== attesa) toast(T("Il file indicato è un altro modello dell'elenco: installato, ma scegli quel modello o scarica quello indicato."), "bad"); return onDone(!attesa || t.result.modello === attesa); }
-    toast(TF("Modello installato e verificato (SHA-256 {0}…)", (t.result.sha256 || "").slice(0, 16)), "good");
+    toast(TF("Modello installato e verificato (SHA-256 {0}…)", (t.result.sha256 || "").slice(0, 16)) + (t.result.verifica ? " · " + t.result.verifica : ""), "good");
     trascrDialog();
   };
   tick();
@@ -2099,14 +2177,17 @@ async function trascrBlock(el, audio, v){
   const L = r.trascrizioni || []; if (!el.isConnected) return;
   const uno = {part: v.part, inode: v.inode, name: base(v.path || v.name || ""), it: pvState.it, sec: pvState.sec, gia: L.length > 0};
   const btn = `<button class="btn small" id="pvTrGo" title="${esc(T("Apre la finestra della trascrizione per questo solo audio"))}">${L.length ? "🔁 " + T("Ritrascrivi questo audio") : "📝 " + T("Trascrivi questo audio")}</button>`;
-  if (!L.length){ el.innerHTML = btn; $("pvTrGo").onclick = () => trascrDialog(uno); return; }
+  const an = (r.analista || [])[0] || null, anBox = `<div class="tranbox" style="margin-top:8px"></div>`;
+  const wireAn = auto => { const bx = el.querySelector(".tranbox"); if (bx) trascrEditor(bx, {part: v.part, inode: v.inode, auto, an}); };
+  if (!L.length){ el.innerHTML = btn + anBox; $("pvTrGo").onclick = () => trascrDialog(uno); wireAn(""); return; }
   const t = L[0], mmss = s => { s = Math.floor(s); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
   el.innerHTML = `<div class="trhead"><b>📝 ${T("Trascrizione automatica")}</b> <span class="hint">${T("da verificare ascoltando l'audio")}</span></div>
     <div class="hint">${TF("Modello {0} · lingua {1} · {2} · {3}", esc(t.modello), esc(t.lingua || "?"), esc(t.motore || ""), esc(when(t.ts)))}</div>` +
     (t.segmenti.length ? t.segmenti.map(([a, b, x], i) => `<div class="trseg" data-i="${i}" data-t="${a}"><span class="trt">${mmss(a)}</span> ${esc(x)}</div>`).join("")
       : `<div class="hint">${T("Nessun parlato riconosciuto.")}</div>`) +
-    (L.length > 1 ? `<div class="hint">${TF("Altre {0} trascrizioni con altri modelli nel caso.", L.length - 1)}</div>` : "") + `<div style="margin-top:8px">${btn}</div>`;
+    (L.length > 1 ? `<div class="hint">${TF("Altre {0} trascrizioni con altri modelli nel caso.", L.length - 1)}</div>` : "") + anBox + `<div style="margin-top:8px">${btn}</div>`;
   $("pvTrGo").onclick = () => trascrDialog(uno);
+  wireAn(t.segmenti.map(x => x[2]).join(" ").replace(/\s+/g, " ").trim());
   el.querySelectorAll(".trseg").forEach(d => d.onclick = () => { if (audio){ audio.currentTime = +d.dataset.t; audio.play().catch(() => {}); } });
   if (audio) audio.ontimeupdate = () => { const now = audio.currentTime;
     el.querySelectorAll(".trseg").forEach((d, i) => { const s = t.segmenti[i]; d.classList.toggle("on", now >= s[0] && now < s[1]); }); };
@@ -2115,7 +2196,122 @@ $("niFusoSel").onchange = () => $("niFuso").classList.toggle("hidden", $("niFuso
 $("btnFolder").onclick = () => api("/api/reveal", {what:"case"}).catch(e => toast(e.message, "bad"));
 $("btnHashLists").onclick = () => hashListsDialog();
 $("btnExport").onclick = () => api("/api/reveal", {what:"export"}).catch(e => toast(e.message, "bad"));
+/* (3.0.1) report illustrato: l'analista sceglie sezioni, categorie dei Preferiti (anche togliendo singoli elementi) e tipi
+   interi; chi lo riceve vede foto, chat con allegati, documenti e schede come nel caso (HTML, PDF, Word) */
 $("btnReport").onclick = async () => {
+  let o;
+  try{ o = await api("/api/relazione_opzioni", {}); }catch(e){ return toast(e.message, "bad"); }
+  const ESCL = {};                      // categoria -> Set degli elementi tolti
+  const tzOpt = `<option value="utc">UTC</option><option value="rome" ${tzMode() === "rome" ? "selected" : ""}>${T("ora italiana")}</option>` +
+    (devTz() ? `<option value="dev" ${tzMode() === "dev" ? "selected" : ""}>${esc(devTzLabel())}</option>` : "");
+  const catHtml = o.preferiti.length ? o.preferiti.map(c => `<div class="rlcat"><label><input type="checkbox" data-rlc="${c.cid}" ${c.in_report ? "checked" : ""}> ⭐ ${esc(c.name)} <span class="hint" data-rln="${c.cid}">(${TF("{0} elementi", nf(c.n))})</span></label>
+      <button class="btn small" data-rle="${c.cid}" title="${esc(T("Scegli quali elementi di questa categoria entrano nel report"))}">${T("Scegli elementi…")}</button><div class="rlitems hidden" id="rlI${c.cid}"></div></div>`).join("")
+    : `<p class="hint">${T("Nessuna categoria nei Preferiti: aggiungi ⭐ agli elementi che vuoi nel report, oppure scegli qui sotto dei tipi interi.")}</p>`;
+  // (3.0.1) tipi interi in gruppi da aprire e chiudere (come l'albero degli artefatti), con Tutti/Nessuno per gruppo e in tutto
+  const GR = [];
+  o.tutto.forEach(t => {
+    const gn = t.g || T("Elementi principali");
+    let g = GR.find(x => x.nome === gn); if (!g) GR.push(g = {nome: gn, el: [], sg: []});
+    if (!t.sg) return g.el.push(t);
+    let s = g.sg.find(x => x.nome === t.sg); if (!s) g.sg.push(s = {nome: t.sg, el: []});
+    s.el.push(t);
+  });
+  const rlLeaf = t => `<label class="rlopt"><input type="checkbox" data-rlt="${esc(t.k)}"> ${esc(t.nome || t.lab)} <span class="hint">(${nf(t.n)}${t.msg ? " · " + TF("{0} messaggi", nf(t.msg)) : ""})</span></label>`;
+  const rlGrp = (nome, body, open, cls) => `<div class="rlg ${cls || ""}"><div class="rlgh"><span class="rlcar">${open ? "▾" : "▸"}</span><input type="checkbox" class="rlgc" title="${esc(T("Tutti o nessuno di questo gruppo"))}"><span class="rlgn">${esc(nome)}</span> <span class="hint rlgk"></span></div><div class="rlgb ${open ? "" : "hidden"}">${body}</div></div>`;
+  const tutHtml = o.tutto.length ? GR.map((g, i) => rlGrp(g.nome, g.el.map(rlLeaf).join("") + g.sg.map(s => rlGrp(s.nome, s.el.map(rlLeaf).join(""), false, "sub")).join(""), i === 0 && !g.sg.length)).join("")
+    : `<p class="hint">${T("Nessun elemento da includere per tipo.")}</p>`;
+  openModal(T("Report"), `<p class="hint" style="margin-top:0">${T("Chi riceve il report vede gli elementi come nel caso: foto in miniatura (un clic apre l'originale), video con un fotogramma, chat con fumetti e allegati, documenti con la prima pagina, artefatti e posta con tutti i campi. Esce una cartella con il report HTML e, a scelta, PDF e Word con lo stesso contenuto.")}</p>
+    <div class="rltop"><div class="rlgrid"><label>${T("Titolo")}<input type="text" id="rlTit" value="${esc(TF("Report di analisi forense – {0}", caseInfo ? ((caseInfo.info || {}).nome || caseInfo.name) : ""))}"></label>
+    <label>${T("Redatto da")}<input type="text" id="rlAut" value="${esc(o.autore)}"></label>
+    <label>${T("Orari")}<select id="rlTz" class="tzsel">${tzOpt}</select></label></div>
+    <p class="rlh">${T("Formati")}</p><div class="rlrow"><label><input type="checkbox" id="rlFh" checked disabled> ${T("HTML (cartella da consegnare)")}</label>
+      <label><input type="checkbox" id="rlFp" checked> PDF</label><label><input type="checkbox" id="rlFd"> ${T("Word")}</label></div>
+    <div class="rlrow" id="rlChatP" style="display:none;margin-top:8px"><span class="hint">${T("Periodo delle chat (facoltativo, giorni UTC):")}</span> <input type="date" id="rlDa"> → <input type="date" id="rlA"></div>
+    <p class="rlh">${T("File originali")}</p><div class="rlcol"><label><input type="checkbox" id="rlOr" checked> ${T("Copia nella cartella del report gli originali di foto, documenti e audio (un clic sulla miniatura li apre)")}</label>
+      <label><input type="checkbox" id="rlOrT"> ${T("Copia anche video e altri allegati (per i video basta di solito il fotogramma)")}</label></div>
+    ${o.ia ? `<p class="note">⚠ ${T("Il report conterrà testo generato da un modello di IA (reperti dell'agente): sarà indicato nel documento.")}</p>` : ""}
+    <div class="rlrow rlacts" id="rlActs"><button class="btn" id="rlGo">${T("📄 Crea il report")}</button><button class="btn small" id="rlMd">${T("Solo testo (report.md)")}</button><span class="hint" id="rlTot"></span></div>
+    <div id="rlProg" class="hint"></div></div>
+    <p class="rlh">${T("Sezioni")}</p><div class="rlrow">${o.sezioni.map(x => `<label><input type="checkbox" data-rls="${x.k}" ${x.on ? "checked" : ""}> ${esc(x.lab)}</label>`).join("")}</div>
+    <p class="rlh">${T("Preferiti")}</p>${catHtml}
+    <div class="rlh rlrow"><span>${T("Tipi interi (tutti gli elementi del tipo)")}</span><span class="grow"></span>${o.tutto.length ? `<button class="btn small" data-rlall="1">${T("Tutti")}</button><button class="btn small" data-rlall="0">${T("Nessuno")}</button>
+      <button class="btn small" data-rlexp="1">${T("Espandi tutto")}</button><button class="btn small" data-rlexp="0">${T("Comprimi tutto")}</button>` : ""}</div>
+    <div class="rltree">${tutHtml}</div>`, []);
+  $("rlGo").onclick = () => creaRelazione(ESCL).catch(e => toast(e.message, "bad"));
+  $("rlMd").onclick = () => reportTesto();
+  const rlTree = document.querySelector(".rltree");
+  const rlSync = () => {
+    rlTree.querySelectorAll(".rlg").forEach(g => {
+      const x = [...g.querySelectorAll(".rlgb [data-rlt]")], k = x.filter(i => i.checked).length, c = g.querySelector(".rlgc");
+      c.checked = k > 0 && k === x.length; c.indeterminate = k > 0 && k < x.length;
+      g.querySelector(".rlgk").textContent = `(${k ? TF("{0} di {1}", nf(k), nf(x.length)) : nf(x.length)})`;
+    });
+    const k = rlTree.querySelectorAll("[data-rlt]:checked").length;
+    $("rlTot").textContent = k ? TF("{0} tipi interi scelti", nf(k)) : "";
+  };
+  const rlApri = (g, on) => { g.querySelector(":scope>.rlgb").classList.toggle("hidden", !on); g.querySelector(":scope>.rlgh .rlcar").textContent = on ? "▾" : "▸"; };
+  rlTree.querySelectorAll(".rlgh").forEach(h => h.onclick = e => { if (e.target.closest("input")) return; const g = h.parentElement; rlApri(g, g.querySelector(":scope>.rlgb").classList.contains("hidden")); });
+  rlTree.querySelectorAll(".rlgc").forEach(c => c.onchange = () => { c.closest(".rlg").querySelectorAll(".rlgb [data-rlt]").forEach(i => { i.checked = c.checked; }); rlSync(); chatBox(); });
+  document.querySelectorAll("[data-rlall]").forEach(b => b.onclick = () => { rlTree.querySelectorAll("[data-rlt]").forEach(i => { i.checked = b.dataset.rlall === "1"; }); rlSync(); chatBox(); });
+  document.querySelectorAll("[data-rlexp]").forEach(b => b.onclick = () => rlTree.querySelectorAll(".rlg").forEach(g => rlApri(g, b.dataset.rlexp === "1")));
+  const chatBox = () => { const c = document.querySelector('[data-rlt="chat"]'); $("rlChatP").style.display = (c && c.checked) || o.preferiti.length ? "" : "none"; };
+  document.querySelectorAll("[data-rlt]").forEach(x => x.onchange = () => { chatBox(); rlSync(); }); chatBox(); rlSync();
+  document.querySelectorAll("[data-rle]").forEach(b => b.onclick = async () => {
+    const cid = b.dataset.rle, box = $("rlI" + cid);
+    if (!box.classList.contains("hidden")){ box.classList.add("hidden"); return; }
+    if (!box.dataset.ok){
+      box.innerHTML = `<div class="hint">${T("Carico…")}</div>`;
+      const r = await api("/api/relazione_elementi", {cid}).catch(e => ({elementi: [], err: e.message}));
+      const set = ESCL[cid] = ESCL[cid] || new Set();
+      box.innerHTML = `<div class="rlrow"><button class="btn small" data-rla="1">${T("Tutti")}</button><button class="btn small" data-rla="0">${T("Nessuno")}</button></div>` +
+        r.elementi.map(x => `<label class="rlopt"><input type="checkbox" data-rli="${x.id}" checked> ${esc(x.path || x.name || "")} <span class="hint">${esc({fs: T("file"), carving: T("recuperato"), x: T("estratto"), mail: T("posta"), art: T("artefatto"), chat: T("messaggio"), ua: T("non allocato")}[x.source] || x.source)}${x.deleted ? " · " + T("cancellato") : ""}</span></label>`).join("");
+      const upd = () => { const n = box.querySelectorAll("[data-rli]").length, k = n - set.size;
+        document.querySelector(`[data-rln="${cid}"]`).textContent = set.size ? `(${TF("{0} di {1} elementi", nf(k), nf(n))})` : `(${TF("{0} elementi", nf(n))})`; };
+      box.querySelectorAll("[data-rli]").forEach(i => i.onchange = () => { i.checked ? set.delete(+i.dataset.rli) : set.add(+i.dataset.rli); upd(); });
+      box.querySelectorAll("[data-rla]").forEach(bt => bt.onclick = () => { box.querySelectorAll("[data-rli]").forEach(i => { i.checked = bt.dataset.rla === "1"; i.onchange(); }); });
+      box.dataset.ok = 1;
+    }
+    box.classList.remove("hidden");
+  });
+};
+async function creaRelazione(ESCL){
+  const pref = {};
+  document.querySelectorAll("[data-rlc]").forEach(x => { if (x.checked) pref[x.dataset.rlc] = {on: 1, esclusi: [...(ESCL[x.dataset.rlc] || [])]}; });
+  const body = {titolo: $("rlTit").value, autore: $("rlAut").value, tz: $("rlTz").value,
+    formati: ["html", ...($("rlFp").checked ? ["pdf"] : []), ...($("rlFd").checked ? ["docx"] : [])],
+    sezioni: [...document.querySelectorAll("[data-rls]")].filter(x => x.checked).map(x => x.dataset.rls), preferiti: pref,
+    tutto: [...document.querySelectorAll("[data-rlt]")].filter(x => x.checked).map(x => x.dataset.rlt),
+    originali: $("rlOr").checked, originali_tutti: $("rlOrT").checked, chat_da: $("rlDa").value, chat_a: $("rlA").value, dfmt: dataFmt()};
+  await api("/api/relazione", body);
+  modalLock(true);
+  $("modalActs").innerHTML = "";
+  if ($("rlActs")) $("rlActs").style.display = "none";
+  $("rlProg").innerHTML = `<div class="ppbar"><div id="rlBar"></div></div><div style="display:flex;gap:10px;margin-top:4px"><span class="grow" id="rlMsg">${T("Avvio…")}</span><b id="rlPct">0%</b></div>`;
+  $("rlProg").scrollIntoView({block: "nearest"});
+  const tick = async () => {
+    const t = await api("/api/task?name=relazione").catch(e => ({done: true, error: e.message}));
+    if (!t.done){
+      const p = t.progress || {};
+      if ($("rlBar")){ $("rlBar").style.width = (p.pct || 0) + "%"; $("rlPct").textContent = Math.floor(p.pct || 0) + "%"; $("rlMsg").textContent = p.msg || T("In corso…"); }
+      return setTimeout(tick, 600);
+    }
+    modalLock(false);
+    if (t.error) return openModal(T("Report"), `<p class="note">${esc(t.error)}</p>`, []);
+    const r = t.result, k = r.conteggi;
+    openModal(T("Report creato"), `<p>${TF("Cartella del report ({0}):", fsize(r.byte))}</p><pre>${esc(r.rel)}</pre>
+      <p>${TF("{0} elementi · {1} file originali copiati · {2} anteprime · {3} pagine HTML · {4} s", nf(k.elementi), nf(k.file_copiati), nf(k.anteprime), nf(k.pagine), r.secondi)}</p>
+      <table class="rlkv">${Object.entries(r.file).map(([n, h]) => `<tr><th>${esc(n)}</th><td class="mono">${esc(h)}</td></tr>`).join("")}<tr><th>impronte.csv</th><td class="mono">${esc(r.impronte_sha256)}</td></tr></table>
+      ${r.pdf_ridotto ? `<p class="note">${T("Il PDF e il Word contengono solo una parte delle anteprime e delle righe: il report HTML è completo.")}</p>` : ""}
+      ${k.non_copiati_spazio ? `<p class="note">${TF("{0} file originali non copiati per lasciare libero spazio sul disco del caso.", nf(k.non_copiati_spazio))}</p>` : ""}
+      <p class="hint">${T("Si consegna l'intera cartella: il report HTML apre le foto e i documenti copiati accanto. Impronte SHA-256 di ogni file in impronte.csv; tutto è registrato nel registro del caso.")}</p>`,
+      [[T("Apri il report HTML"), () => api("/api/open_relazione", {rel: r.rel, file: "report.html"})],
+       ...(r.file["report.pdf"] ? [[T("Apri il PDF"), () => api("/api/open_relazione", {rel: r.rel, file: "report.pdf"})]] : []),
+       ...(r.file["report.docx"] ? [[T("Apri il Word"), () => api("/api/open_relazione", {rel: r.rel, file: "report.docx"})]] : []),
+       [T("Mostra in ") + FM, () => api("/api/reveal_path", {rel: r.rel})]]);
+  };
+  tick();
+}
+async function reportTesto(){
   try{
     const r = await api("/api/report", {});
     const saveAs = fmt => async () => {
@@ -2127,7 +2323,7 @@ $("btnReport").onclick = async () => {
     openModal(T("Report"), TF("<p class=\"hint\" style=\"margin-top:0\">Salvalo anche in <b>PDF</b> o in <b>Word</b> (.docx, modificabile): stesso contenuto, nella cartella del caso con l'impronta SHA-256 nel registro.\n      Orari nel PDF e nel Word: <select id=\"repTz\" class=\"tzsel\"><option value=\"utc\">UTC</option><option value=\"rome\" {0}>ora italiana</option>{1}</select></p>", tzMode() === "rome" ? "selected" : "", devTz() ? `<option value="dev" ${tzMode() === "dev" ? "selected" : ""}>${esc(devTzLabel())}</option>` : "") + md(r.text),
       [[T("📄 Salva PDF"), saveAs("pdf")], [T("📝 Salva Word"), saveAs("docx")], [T("Mostra in ") + FM, () => api("/api/reveal", {what:"report"})]]);
   }catch(e){ toast(e.message, "bad"); }
-};
+}
 $("btnPortable").onclick = async () => {
   const c = caseInfo || {}, tl = c.timeline || {};
   openModal(T("Report portatile"), TF("<p>Crea una cartella con <code>index.html</code> da consegnare a chi non ha la copia forense: si apre con un doppio clic in qualsiasi browser, offline, senza RepertIA e senza IA. Contiene sempre il catalogo completo del supporto (file anche cancellati, date, hash, metadati, testi, timeline, reperti).</p>\n    <p style=\"margin:10px 0 4px\"><b>Contenuto dei file</b></p>\n    <div style=\"display:flex;flex-direction:column;gap:6px\">\n      <label><input type=\"radio\" name=\"ppMode\" value=\"scelti\" checked> Solo i file dei reperti e delle selezioni esportate <span class=\"hint\" id=\"ppEstS\">(leggero)</span></label>\n      <label><input type=\"radio\" name=\"ppMode\" value=\"piccoli\"> Anche tutti i documenti e le immagini fino a <input type=\"number\" id=\"ppMb\" value=\"5\" min=\"1\" max=\"2000\" style=\"width:70px\"> MB <span class=\"hint\" id=\"ppEstP\"></span></label>\n      <label><input type=\"radio\" name=\"ppMode\" value=\"tutti\"> <b>Tutti i file del supporto</b>: chi riceve il report consulta tutto come se avesse la copia forense <span class=\"hint\" id=\"ppEstT\"></span></label>\n      <label style=\"margin-left:24px\"><input type=\"checkbox\" id=\"ppDel\" checked> compresi i file cancellati (contenuto recuperabile dal file system)</label>\n      <div class=\"hint\" id=\"ppSpace\" style=\"margin-left:24px\"></div>\n    </div>\n    <p style=\"margin:12px 0 4px\"><b>Altro</b></p>\n    <div style=\"display:flex;flex-direction:column;gap:6px;margin-bottom:10px\">\n      <label><input type=\"checkbox\" id=\"ppTxt\" checked> Testi estratti dei documenti (per la ricerca nel testo)</label>\n      {0}\n      {1}\n      <label><input type=\"checkbox\" id=\"ppZip\"> Crea anche un file .zip</label>\n    </div>\n    <div class=\"hint\" id=\"ppProg\"></div>", tl.plaso_events ? TF("<label><input type=\"checkbox\" id=\"ppPlaso\" checked> Eventi plaso nella timeline ({0})</label>", nf(tl.plaso_events)) : "", (c.carving || {}).bulk_extractor ? T("<label><input type=\"checkbox\" id=\"ppTrc\" checked> Evidenze di interesse (bulk_extractor)</label>") : ""), [[T("Crea il report"), startPortable]]);
@@ -2253,6 +2449,9 @@ $("btnLogCheckHome").onclick = () => logCheckDialog(false);
 $("btnLogCheck").onclick = () => logCheckDialog(true);
 // (3.0) Gestore dei database: copia di lavoro sul server, solo letture, query dell'analista nel registro del caso
 async function dbManager(v){
+  // (3.0.1) ogni database in una finestra sua: più gestori aperti insieme, ognuno cerca i suoi elementi dentro la sua finestra
+  let box = null;
+  const $ = id => (box && box.querySelector("#" + id)) || document.getElementById(id);
   const it = {source: v.source || "fs", part: v.part, inode: v.inode, id: v.id, name: v.carved_name || v.name};
   const d = await api("/api/db_apri", it);
   if (d.non_sqlite){
@@ -2265,8 +2464,8 @@ async function dbManager(v){
   }
   const per = 200;
   let sql = "", pag = 0, scritta = false, ultime = null;
-  const box = document.createElement("div");
-  box.className = "modal"; box.id = "dbMgr"; box.style.zIndex = 11;
+  box = document.createElement("div");
+  box.className = "dbmgr"; box.id = "dbMgr";
   // finestra di richiesta dentro il gestore: niente prompt/confirm del browser, che alcune finestre non supportano
   const dbAsk = (titolo, campi) => new Promise(ok => {
     const f = document.createElement("div");
@@ -2297,7 +2496,8 @@ async function dbManager(v){
       </div>
     </div></div>`;
   document.body.appendChild(box);
-  const chiudi = () => { box.remove(); api("/api/db_chiudi", {id: d.id}).catch(() => {}); };
+  const chiudi = () => { wmChiudi(box); box.remove(); api("/api/db_chiudi", {id: d.id}).catch(() => {}); };
+  wmApri(box, {kind: "db", titolo: "🗄 " + d.nome, chiudi, w: 1300, h: .9});
   // (3.0) «Chiedi» da una riga o da un record: i valori vanno nella domanda, con database e riferimento per poterli rileggere
   const valDb = c => c[0] === "n" ? "NULL" : c[0] === "?" ? T("perso") : c[0] === "b" ? TF("[{0} byte]", c[1]) : String(c[1]).slice(0, 300) + (c[2] || String(c[1]).length > 300 ? " " + T("(tagliato)") : "");
   const chiediDb = (cosa, valori) => {
@@ -2308,7 +2508,7 @@ async function dbManager(v){
   $("dbSplit").onmousedown = e => {
     e.preventDefault();
     const x0 = e.clientX, w0 = $("dbTabs").getBoundingClientRect().width;
-    const mv = ev => { $("dbTabs").style.width = Math.max(120, Math.min(box.clientWidth * 0.6, w0 + ev.clientX - x0)) + "px"; };
+    const mv = ev => { if (!(ev.buttons & 1)) return su(); $("dbTabs").style.width = Math.max(120, Math.min(box.clientWidth * 0.6, w0 + ev.clientX - x0)) + "px"; };
     const su = () => { document.removeEventListener("mousemove", mv); document.removeEventListener("mouseup", su); paneStore.set("db", $("dbTabs").getBoundingClientRect().width); };
     document.addEventListener("mousemove", mv); document.addEventListener("mouseup", su);
   };
@@ -2368,9 +2568,11 @@ async function dbManager(v){
       const rq = Object.entries(r.recuperati || {});
       $("dbOut").innerHTML = (r.parziale ? `<div class="lcbad">${T("Ricerca fermata per il limite di tempo: i risultati sono parziali.")}</div>` : "")
         + (r.tabelle.length ? r.tabelle.map((t, i) => `<div class="dbHit" data-i="${i}" style="cursor:pointer;border-top:1px solid var(--line,#8884);padding:6px 2px"><b>${esc(t.tabella)}</b> <span class="hint">${t.colonne.map(c => `${esc(c.colonna)}: ${c.righe}`).join(" · ")}</span></div>`).join("") : `<div class="hint">${TF("«{0}» non si trova nelle tabelle.", esc(testo))}</div>`)
-        + (rq.length ? `<div style="border-top:1px solid var(--line,#8884);padding:6px 2px"><b>${T("Record cancellati")} (${T("da verificare")})</b> <span class="hint">${rq.map(([k, n]) => `${esc(k)}: ${n}`).join(" · ")}</span> <button class="btn small" id="dbHitRec">🧩 ${T("Apri")}</button></div>` : "");
+        + (rq.length ? `<div style="border-top:1px solid var(--line,#8884);padding:6px 2px"><b>${T("Record cancellati")} (${T("da verificare")})</b> ${rq.map(([k, n], i) => `<button class="btn small dbHitRecT" data-i="${i}" title="${esc(T("Apri i record cancellati di questa tabella che contengono il valore"))}">🧩 ${esc(k)}: ${n}</button>`).join(" ")} <button class="btn small" id="dbHitRec">🧩 ${T("Apri tutti")}</button></div>` : "");
       box.querySelectorAll(".dbHit").forEach(el => el.onclick = () => { const t = r.tabelle[+el.dataset.i]; dbTabSel(t.tabella); $("dbSql").value = t.sql; esegui(t.sql, false); });
-      if ($("dbHitRec")) $("dbHitRec").onclick = () => $("dbRec").click();
+      // (3.0.1) i record cancellati si aprono già filtrati sul valore cercato (per tabella o tutti), con il valore evidenziato
+      box.querySelectorAll(".dbHitRecT").forEach(b => b.onclick = () => recApriSu(rq[+b.dataset.i][0], r.testo));
+      if ($("dbHitRec")) $("dbHitRec").onclick = () => recApriSu("", r.testo);
   };
   const cercaVal = async () => {
     const testo = $("dbFind").value.trim();
@@ -2385,28 +2587,41 @@ async function dbManager(v){
   $("dbFind").onkeydown = e => { if (e.key === "Enter") cercaVal(); };
   const LIV = {integra: T("Cella integra"), testa: T("Testa ricostruita"), ambiguo: T("Ambiguo")};
   const FON = {pagina_libera: T("pagina libera"), cancellata_nel_wal: T("non più presente dopo il WAL"), spazio_libero: T("spazio libero della pagina")};
-  let rec = null, recT = "", recL = "";
+  let rec = null, recT = "", recL = "", recQ = "";
+  // (3.0.1) ricerca nei record cancellati: stesso confronto del server (testo, numeri e valori letti, senza maiuscole)
+  const recHas = (x, q) => !q || x.valori.some(v => "tir".includes(v[0]) && String(v[1]).toLowerCase().includes(q.toLowerCase()));
+  const recMark = (t, q) => {
+    t = String(t);
+    if (!q) return esc(t);
+    const lo = t.toLowerCase(), ql = q.toLowerCase(); let out = "", i = 0, j;
+    while ((j = lo.indexOf(ql, i)) >= 0){ out += esc(t.slice(i, j)) + `<mark>${esc(t.slice(j, j + q.length))}</mark>`; i = j + q.length; }
+    return out + esc(t.slice(i));
+  };
   const recDraw = () => {
     const tabs = [...new Set(rec.record.map(x => x.tabella))].sort();
     const li = rec.limiti, av = [];
     if (li.auto_vacuum !== "off") av.push(TF("auto_vacuum attivo ({0}): le pagine liberate possono essere già sparite dal file.", esc(li.auto_vacuum)));
     if (rec.scaduto) av.push(T("Analisi fermata per il limite di tempo: i record sono parziali."));
     if (rec.troncato) av.push(T("Troppi record: elenco parziale."));
-    const list = rec.record.filter(x => (!recT || x.tabella === recT) && (!recL || x.livello === recL));
+    const list = rec.record.filter(x => (!recT || x.tabella === recT) && (!recL || x.livello === recL) && recHas(x, recQ));
     const cnt = l => rec.record.filter(x => x.livello === l).length;
     $("dbOut").innerHTML = `<div class="hint" style="margin-bottom:6px"><b>${T("Da verificare: nessun record è confermato.")}</b> ${T("Un record può essere la vecchia copia di una riga aggiornata o spostata. Zero record non significa che nulla sia stato cancellato: secure_delete, VACUUM e la riscrittura dello spazio cancellano le tracce, e secure_delete non si può leggere dal file.")}${av.map(x => "<br>⚠️ " + x).join("")}</div>
       <div class="row" style="gap:6px;flex-wrap:wrap;margin-bottom:6px">
         <select id="recT" class="pathin" style="width:auto"><option value="">${T("Tutte le tabelle")}</option>${tabs.map(t => `<option ${t === recT ? "selected" : ""} value="${esc(t)}">${esc(t)}</option>`).join("")}</select>
         <select id="recL" class="pathin" style="width:auto"><option value="">${T("Tutti i livelli")}</option>${Object.keys(LIV).map(k => `<option ${k === recL ? "selected" : ""} value="${k}">${LIV[k]} (${cnt(k)})</option>`).join("")}</select>
+        <input id="recQ" class="pathin" style="width:220px;margin:0" placeholder="${esc(T("Cerca nei record cancellati…"))}" value="${esc(recQ)}">
         <button class="btn small" id="recCsv">${T("Esporta CSV")}</button><button class="btn small" id="recFq">${T("Riscontro con il CSV di FQLite")}</button>
       </div>
+      ${recQ ? `<div class="hint" style="margin-bottom:6px">${esc(TF("Record che contengono «{0}»: {1}", recQ, list.length))}</div>` : ""}
       ${rec.csv.length ? `<div class="hint" style="margin-bottom:6px">${rec.csv.map(c => TF("Riscontro: {0}, {1}: {2} record nella stessa posizione. Abbinamento per posizione: non conferma i valori e l'assenza non è una prova contraria.", esc(c.strumento), esc(c.file), c.abbinati)).join("<br>")}</div>` : ""}
       ${list.length ? list.slice(0, 500).map(x => { const ns = rec.nomi[x.tabella] || [];
         return `<div style="border-top:1px solid var(--line,#8884);padding:6px 0"><div><b>${LIV[x.livello]}</b> · ${esc(x.tabella)} · ${FON[x.fonte] || esc(x.fonte)} · ${x.file === "wal" ? "-wal, " : ""}${T("pagina")} ${x.pagina}, offset ${x.offset} · ROWID ${x.rowid === null ? T("non disponibile") : x.rowid}</div>
-          <div style="margin:3px 0;word-break:break-word">${x.valori.map((v, j) => v[0] === "n" ? "" : `<span class="hint">${esc(ns[j] || j)}${x.dal_default.includes(j) ? " " + T("(dal DEFAULT)") : ""}</span> ${v[0] === "?" ? T("perso") : v[0] === "b" ? TF("[{0} byte]", esc(v[1])) : esc(v[1])}${v[2] ? " " + T("(tagliato)") : ""}`).filter(Boolean).join(" · ")}</div>
+          <div style="margin:3px 0;word-break:break-word">${x.valori.map((v, j) => v[0] === "n" ? "" : `<span class="hint">${esc(ns[j] || j)}${x.dal_default.includes(j) ? " " + T("(dal DEFAULT)") : ""}</span> ${v[0] === "?" ? T("perso") : v[0] === "b" ? TF("[{0} byte]", esc(v[1])) : recMark(v[1], recQ)}${v[2] ? " " + T("(tagliato)") : ""}`).filter(Boolean).join(" · ")}</div>
           <div class="hint">${x.riscontri.length ? TF("Record di {0} vicino a questa posizione · ", esc(x.riscontri.join(", "))) : ""}${TF("Controllabile con FQLite: tabella {0}, offset {1}", esc(x.tabella), x.offset)}</div>
           <div class="row" style="gap:6px;margin-top:3px"><button class="btn small recHex" data-n="${x.n}">${T("Vedi in esadecimale")}</button>${x.livello === "ambiguo" ? "" : `<button class="btn small recOk" data-n="${x.n}">${T("Confermo, verificato")}</button>`}<button class="btn small recAsk" data-n="${x.n}">💬 ${T("Chiedi")}</button></div><pre class="recHexOut mono" id="recHex${x.n}" style="display:none;font-size:11px;overflow:auto"></pre></div>`; }).join("") + (list.length > 500 ? `<div class="hint">${T("Mostrati i primi 500: usa i filtri o il CSV.")}</div>` : "") : `<div class="hint">${T("Nessun record recuperato.")}</div>`}`;
     $("recT").onchange = e => { recT = e.target.value; recDraw(); };
+    $("recQ").onkeydown = e => { if (e.key === "Enter"){ recQ = e.target.value.trim(); recDraw(); const q = $("recQ"); if (q){ q.focus(); q.setSelectionRange(q.value.length, q.value.length); } } };
+    if (recQ){ const m = $("dbOut").querySelector("mark"); if (m) m.scrollIntoView({block: "center"}); }
     $("recL").onchange = e => { recL = e.target.value; recDraw(); };
     $("recCsv").onclick = () => api("/api/db_rec_csv", {id: d.id}).then(r => toast(r.message)).catch(e => toast(e.message, "bad"));
     $("recFq").onclick = async () => { try { const s = await api("/api/db_scegli_csv", {id: d.id}); if (!s.path) return; const a = await dbAsk(T("Riscontro con il CSV di FQLite"), [{label: T("Strumento e versione:"), val: "FQLite 5.0", obbligo: true}]); if (!a) return; const r = await api("/api/db_riscontro", {id: d.id, path: s.path, strumento: a[0]}); rec.record = r.record; rec.csv = r.csv; recDraw(); } catch (e) { toast(e.message, "bad"); } };
@@ -2420,7 +2635,8 @@ async function dbManager(v){
   };
   $("dbRec").onclick = async () => { $("dbOut").innerHTML = `<div class="hint">${T("Lettura dei byte del database…")}</div>`; $("dbPage").textContent = ""; $("dbPrev").disabled = $("dbNext").disabled = true; try { rec = rec || await api("/api/db_recuperati", {id: d.id}); recDraw(); } catch (e) { $("dbOut").innerHTML = `<div class="lcbad">${esc(e.message)}</div>`; } };
   const recApri = $("dbRec").onclick;
-  $("dbRec").onclick = async () => { await recApri(); if (rec) passo({tipo: "rec"}); };
+  $("dbRec").onclick = async () => { recT = recQ = ""; await recApri(); if (rec) passo({tipo: "rec", recT, recQ}); };
+  const recApriSu = async (t, q) => { recT = t; recQ = q; await recApri(); if (rec) passo({tipo: "rec", recT, recQ}); };
   const vaiDb = async i => {
     qui = i; frecceDb(); tornando = true;
     const s = STORIA[i];
@@ -2429,7 +2645,7 @@ async function dbManager(v){
         sql = s.sql; pag = s.pag; scritta = false; $("dbSql").value = s.sql; dbTabSel(s.tab);
         await mostra();
       } else if (s.tipo === "cerca"){ $("dbFind").value = s.testo; dbTabSel(null); cercaMostra(s.r); }
-      else { dbTabSel(null); $("dbPage").textContent = ""; $("dbPrev").disabled = $("dbNext").disabled = true; recDraw(); }
+      else { dbTabSel(null); $("dbPage").textContent = ""; $("dbPrev").disabled = $("dbNext").disabled = true; recT = s.recT || ""; recQ = s.recQ || ""; recDraw(); }
     } catch (e) { $("dbOut").innerHTML = `<div class="lcbad">${esc(e.message)}</div>`; }
     tornando = false;
   };
@@ -2457,9 +2673,9 @@ $("mDbList").onclick = async () => {
 };
 // (3.0) Mappa: tutto locale. Sfondo Natural Earth nel pacchetto, estratti PMTiles scelti dall'analista, nessuna richiesta di rete
 async function mapManager(ritorno){
-  if ($("mapMgr")) return;
+  if ($("mapMgr")){ const w0 = wmDi($("mapMgr")); if (w0) wmMostra(w0); return; }
   const box = document.createElement("div");
-  box.className = "modal"; box.id = "mapMgr"; box.style.zIndex = 11;
+  box.className = "mapmgr"; box.id = "mapMgr";
   box.innerHTML = `<div class="card" style="width:min(1500px,100%);height:92vh;max-height:92vh">
     <div class="row" style="justify-content:space-between;gap:10px;flex-wrap:wrap"><b style="flex:none">🗺 ${T("Mappa")}</b><div id="mapTools" class="row" style="gap:6px;flex:1 1 300px;min-width:0;order:1;flex-wrap:wrap;justify-content:flex-start;align-items:center"></div><button class="btn small" id="mapClose" style="flex:none;order:2">${T("Chiudi")}</button></div>
     <div style="display:flex;gap:10px;flex:1;min-height:0;margin-top:8px">
@@ -2471,14 +2687,15 @@ async function mapManager(ritorno){
     </div></div>`;
   document.body.appendChild(box);
   let m = null;
-  $("mapClose").onclick = () => { if (m) m.remove(); box.remove(); };
+  $("mapClose").onclick = () => { if (m) m.remove(); wmChiudi(box); box.remove(); };
+  wmApri(box, {kind: "mappa", titolo: "🗺 " + T("Mappa"), chiudi: () => $("mapClose").click(), w: 1500, h: .94, ridim: () => { if (m) m.resize(); }});
   // (3.0) colonna a sinistra e altezza della tabella si trascinano; le colonne delle tabelle con colResize, come nei Risultati
   const altTab = h => ["mapPosT", "mapVoliT"].forEach(i => { $(i).style.height = h ? h + "px" : "30%"; });
   if (paneStore.get("maptab")) altTab(paneStore.get("maptab"));
   const trascina = (el, sposta, fine) => {
     el.onmousedown = e => {
       e.preventDefault();
-      const x0 = e.clientX, y0 = e.clientY, mv = ev => { sposta(ev.clientX - x0, ev.clientY - y0); if (m) m.resize(); };
+      const x0 = e.clientX, y0 = e.clientY, mv = ev => { if (!(ev.buttons & 1)) return su(); sposta(ev.clientX - x0, ev.clientY - y0); if (m) m.resize(); };
       const su = () => { document.removeEventListener("mousemove", mv); document.removeEventListener("mouseup", su); fine(); };
       document.addEventListener("mousemove", mv); document.addEventListener("mouseup", su);
     };
@@ -2978,7 +3195,7 @@ async function modelliDialog(){
     $("trCons").innerHTML = m.installato ? "" : trascrConsHtml(m);
     if (!m.installato){
       $("trOk").onclick = () => trascrModello("/api/trascr/scarica", {modello: m.id, accetto: true}, dopo);
-      $("trFile").onclick = () => trascrModello("/api/trascr/importa", {}, dopo, m.id);
+      $("trFile").onclick = () => trascrImporta(m, dopo, m.id); trascrDichWire(m);
     }
   };
   document.querySelectorAll("input[name=trM]").forEach(r => r.onchange = () => { TR_PICK = r.value; cons(); });
@@ -2991,17 +3208,86 @@ function apriGuida(){
   const u = "/guida/guida.html?l=" + (LG.lingua === "en" ? "en" : "it") + "&t=" + (isDark() ? "dark" : "light");
   // (3.0) la guida si apre sopra il programma: il caso resta sotto com'era. Alcuni browser (anche quello integrato in
   // Claude) aprono le «nuove schede» al posto della pagina; «Apri in una scheda» resta per chi la vuole a parte.
+  // (3.0.1) in una finestra: si sposta e resta aperta accanto al caso; una sola guida alla volta
+  const g0 = document.getElementById("guidaWin"); if (g0){ const w0 = wmDi(g0); if (w0) wmMostra(w0); return; }
   const v = document.createElement("div");
-  v.className = "modal"; v.style.zIndex = 350;
+  v.className = "guidawin"; v.id = "guidaWin";
   v.innerHTML = `<div class="card" style="width:min(1200px,100%);height:92vh;max-height:none;padding:0;overflow:hidden"><div class="row" style="justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid var(--line)"><b>📖 ${T("Guida")}</b><span class="row" style="gap:6px"><a class="btn small" href="${esc(u)}" target="_blank" rel="noopener">↗ ${T("Apri in una scheda")}</a><button class="btn small" id="guidaChiudi">${T("Chiudi")}</button></span></div><iframe src="${esc(u)}" title="${esc(T("Guida"))}" style="border:0;width:100%;flex:1;background:var(--bg)"></iframe></div>`;
   document.body.appendChild(v);
-  const chiudi = () => { v.remove(); document.removeEventListener("keydown", esc_, true); };
-  const esc_ = e => { if (e.key === "Escape"){ e.preventDefault(); e.stopPropagation(); chiudi(); } };
-  document.addEventListener("keydown", esc_, true);
+  const chiudi = () => { wmChiudi(v); v.remove(); };
   v.querySelector("#guidaChiudi").onclick = chiudi;
-  v.onclick = e => { if (e.target === v) chiudi(); };
+  wmApri(v, {kind: "guida", titolo: "📖 " + T("Guida"), chiudi, w: 1200, h: .92});
 }
 $("homeGuida").onclick = apriGuida;
+
+/* ---------- (3.0.1) avviso di nuove versioni: si legge solo l'ultima release su GitHub, niente si scarica né si installa ---------- */
+const AGG_MODI = () => [["mano", T("Solo quando lo chiedo")], ["avvio", T("All'avvio, al massimo una volta al giorno")], ["mai", T("Mai (nessun accesso a GitHub)")]];
+const aggSpiega = () => T("Il controllo legge soltanto, da GitHub (api.github.com), qual è l'ultima versione pubblicata di RepertIA. Non manda dati dei casi: GitHub vede l'indirizzo IP del computer e la versione del programma. Non scarica né installa nulla e con un caso aperto non si fa.");
+const aggLink = u => `<a class="btn small primary" style="text-decoration:none" href="${esc(u)}" target="_blank" rel="noopener noreferrer">↗ ${T("Apri la pagina della release")}</a>`;
+function aggNuova(u){
+  return `<p style="margin:0 0 6px"><b${u.sicurezza ? ' style="color:var(--bad)"' : ""}>${u.sicurezza ? "⚠ " : "🔔 "}${TF("È disponibile RepertIA {0}", esc(u.versione))}</b>${u.data ? " " + TF("del {0}", esc(u.data)) : ""} · ${TF("installata: {0}", esc(u.attuale))}</p>`
+    + (u.sicurezza ? `<p style="color:var(--bad);margin:0 0 6px">${T("Le note indicano correzioni di sicurezza: è consigliato aggiornare.")}</p>` : "")
+    + (u.note ? `<div style="white-space:pre-wrap;max-height:160px;overflow:auto;font-size:12px;border:1px solid var(--line);border-radius:8px;padding:8px;margin-bottom:6px">${esc(u.note)}</div>` : "")
+    + (u.pacchetto ? `<p class="hint" style="margin:0 0 8px">${TF("Pacchetto per questo computer: {0}", `<code>${esc(u.pacchetto)}</code>`)}${u.sha256 ? "<br>" + TF("SHA-256 da controllare dopo lo scaricamento: {0}", `<code style="overflow-wrap:anywhere">${esc(u.sha256)}</code>`) : ""}</p>` : "");
+}
+function aggEsito(u){
+  if (!u) return `<p class="hint">${T("Nessun controllo fatto finora.")}</p>`;
+  const quando = `<span class="hint">${TF("Controllato il {0}.", esc(when(u.controllato_il)))}</span>`;
+  if (u.esito === "errore") return `<p>${TF("Controllo non riuscito: {0}.", esc(u.motivo || ""))} ${quando}</p>`;
+  if (u.esito === "aggiornato") return `<p>✓ ${TF("Nessuna versione più nuova di questa: l'ultima pubblicata è RepertIA {0}.", esc(u.versione))} ${quando}</p>`;
+  return aggNuova(u) + `<p>${aggLink(u.url)} ${quando}</p>`;
+}
+function aggBanner(s){
+  const box = $("updBox");
+  if (!box) return;
+  if (!s || !s.mostra){ box.className = "hidden"; box.innerHTML = ""; return; }
+  const u = s.ultimo;
+  box.className = "";
+  box.style.cssText = `border:1px solid var(${u.sicurezza ? "--bad" : "--line"});border-radius:10px;padding:10px 14px;margin-bottom:14px`;
+  box.innerHTML = aggNuova(u) + `<div class="row" style="gap:8px;flex-wrap:wrap">${aggLink(u.url)}<button class="btn small" id="updLater">${T("Ricordamelo più tardi")}</button><button class="btn small" id="updSkip">${T("Salta questa versione")}</button></div>`;
+  $("updLater").onclick = async () => aggBanner(await api("/api/aggiornamenti", {azione: "rimanda"}));
+  $("updSkip").onclick = async () => aggBanner(await api("/api/aggiornamenti", {azione: "salta", versione: u.versione}));
+}
+async function aggHome(){
+  const box = $("updBox");
+  let s;
+  try{ s = await api("/api/aggiornamenti"); }catch(e){ return; }
+  if (!s.chiesto){                    // una volta sola: l'analista sceglie se e quando controllare
+    box.className = "";
+    box.style.cssText = "border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin-bottom:14px";
+    box.innerHTML = `<p style="margin:0 0 6px"><b>🔄 ${T("Avviso di nuove versioni")}</b></p><p class="hint" style="margin:0 0 8px">${aggSpiega()}</p><div class="row" style="gap:8px;flex-wrap:wrap">${AGG_MODI().map(([m, l], i) => `<button class="btn small${i ? "" : " primary"}" data-aggm="${m}">${esc(l)}</button>`).join("")}</div><p class="hint" style="margin:8px 0 0">${T("Si può cambiare quando vuoi da 🔄 Aggiornamenti.")}</p>`;
+    box.querySelectorAll("[data-aggm]").forEach(b => b.onclick = async () => {
+      try{ await api("/api/aggiornamenti", {azione: "modo", modo: b.dataset.aggm}); }catch(e){ toast(e.message, "bad"); }
+      aggHome();
+    });
+    return;
+  }
+  if (s.modo === "avvio"){ try{ s = await api("/api/aggiornamenti", {azione: "controlla", auto: true}); }catch(e){} }
+  aggBanner(s);
+}
+async function aggDialog(){
+  let s;
+  try{ s = await api("/api/aggiornamenti"); }catch(e){ toast(e.message, "bad"); return; }
+  const draw = () => `<p>${TF("Versione installata: {0}", `<b>${esc(s.attuale)}</b>`)}</p><p class="hint">${aggSpiega()}</p>
+    <label class="flab" for="aggModo">${T("Controllo delle nuove versioni")}</label>
+    <select class="pathin" id="aggModo">${AGG_MODI().map(([m, l]) => `<option value="${m}"${m === s.modo ? " selected" : ""}>${esc(l)}</option>`).join("")}</select>
+    <div id="aggEsito" style="margin-top:12px">${aggEsito(s.ultimo)}</div>
+    <p class="hint">${TF("Tutte le versioni e le note: {0}", `<a href="${esc(s.pagina)}" target="_blank" rel="noopener noreferrer">${esc(s.pagina)}</a>`)}</p>`;
+  const bind = () => {
+    $("aggModo").onchange = async e => {
+      try{ s = await api("/api/aggiornamenti", {azione: "modo", modo: e.target.value}); }catch(er){ toast(er.message, "bad"); }
+      $("modalBody").innerHTML = draw(); bind(); aggBanner(s);
+    };
+  };
+  openModal(T("Aggiornamenti di RepertIA"), draw(), [[T("Controlla ora"), async () => {
+    $("aggEsito").innerHTML = `<p class="hint">${T("Controllo in corso…")}</p>`;
+    try{ s = await api("/api/aggiornamenti", {azione: "controlla"}); }
+    catch(e){ $("aggEsito").innerHTML = `<p>${esc(e.message)}</p>`; return; }
+    $("modalBody").innerHTML = draw(); bind(); aggBanner(s);
+  }]]);
+  bind();
+}
+$("homeAgg").onclick = aggDialog;
 $("mGuida").onclick = () => { mbClose(); apriGuida(); };      // (3.0) anche a caso aperto, dal menu Caso
 function copyLinkDialog(){            // (2.21) la copia si accetta solo con lo stesso SHA-256 del caso
   const c = caseInfo || {};
@@ -3138,13 +3424,30 @@ function fmtTaken(s){
   if (!m) return esc(s);
   const z = m[5] ? (m[5] === "Z" ? "UTC" : m[5].replace(/^([+-]\d\d)(\d\d)$/, "$1:$2")) : "";
   const conv = z ? tzConv(`${m[1]}-${m[2]}-${m[3]} ${m[4]}${m[5]}`, false, tzZone()) : null;
-  return esc(`${m[1]}-${m[2]}-${m[3]} ${m[4]}`) + (z ? ` <span class="hint">${esc(z)}</span>` + (conv ? TF(" <span class=\"hint\" title=\"Stesso istante nel fuso scelto ({0})\">→ {1}</span>", esc(tzLbl()), esc(conv)) : "")
+  return esc(dataTxt(`${m[1]}-${m[2]}-${m[3]} ${m[4]}`)) + (z ? ` <span class="hint">${esc(z)}</span>` + (conv ? TF(" <span class=\"hint\" title=\"Stesso istante nel fuso scelto ({0})\">→ {1}</span>", esc(tzLbl()), esc(dataTxt(conv))) : "")
     : T(" <span class=\"hint\" title=\"Nel file non c'è il fuso orario: è l'ora scritta dal dispositivo o dal programma\">ora locale, fuso n.d.</span>"));
 }
 function takenTz(s){ const m = /(Z|[+-]\d\d:?\d\d)$/.exec(String(s || "").trim()); return !String(s || "").trim() ? "" : !m ? T("non indicato (ora locale del dispositivo)") : m[1] === "Z" ? "UTC" : m[1]; }
 const nf = n => n == null ? "" : Number(n).toLocaleString(LOC);
 const fsize = n => n == null ? "" : n < 1024 ? n + " B" : n < 1048576 ? (n/1024).toFixed(1) + " KB" : n < 1073741824 ? (n/1048576).toFixed(1) + " MB" : (n/1073741824).toFixed(2) + " GB";
-const fts = s => s ? esc(tzMode() !== "utc" ? (tzConv(s) || ftsRaw(s, true)) : ftsRaw(s)) : "";
+const fts = s => s ? esc(dataTxt(tzMode() !== "utc" ? (tzConv(s) || ftsRaw(s, true)) : ftsRaw(s))) : "";
+/* (3.0.1) formato delle date mostrate (menu 📅 accanto al fuso): «gma» 31/01/2024 (predefinito in italiano), «iso»
+   2024-01-31 (predefinito in inglese), «mga» 01/31/2024, «esteso» 31 gen 2024. Cambia solo come si vedono: dati, registro,
+   CSV, filtri e ordinamento restano in formato ISO. */
+const DFMT_OPZ = ["gma", "iso", "mga", "esteso"];
+let DFMT = null;
+function dataFmt(){
+  if (DFMT == null){ let v = null; try{ v = localStorage.getItem("repertia_formato_data"); }catch(e){} DFMT = DFMT_OPZ.includes(v) ? v : (LG.lingua === "en" ? "iso" : "gma"); }
+  return DFMT;
+}
+let _mesi = null;
+const meseBreve = n => (_mesi = _mesi || Array.from({length: 12}, (_, i) => new Date(Date.UTC(2000, i, 1)).toLocaleString(LOC, {month: "short", timeZone: "UTC"}).replace(".", "")))[n - 1];
+function dataTxt(t, f){
+  t = String(t == null ? "" : t); f = f || dataFmt();
+  const m = /^(\d{4})-(\d\d)-(\d\d)/.exec(t);
+  if (!m || f === "iso") return t;
+  return (f === "gma" ? `${m[3]}/${m[2]}/${m[1]}` : f === "mga" ? `${m[2]}/${m[3]}/${m[1]}` : `${+m[3]} ${meseBreve(+m[2])} ${m[1]}`) + t.slice(10);
+}
 /* fuso orario: i dati restano in UTC, l'interfaccia può mostrarli in UTC, in ora italiana o nel fuso del dispositivo
    (quello rilevato dal sistema del disco, o scelto dall'operatore, registrato nel caso) */
 let TZ = null;
@@ -3200,6 +3503,20 @@ function tzSelRefresh(){
   sel.value = tzMode();
 }
 setTimeout(() => {
+  // (3.0.1) menu del formato delle date, accanto al fuso
+  const ds = document.createElement("select"); ds.id = "dfmtSel"; ds.className = $("tzSel").className;
+  ds.title = T("Formato delle date mostrate in tabelle, anteprime, chat e grafici (i dati, i CSV e l'ordinamento restano in formato ISO)");
+  const esd = "2024-01-31 17:38:12";
+  ds.innerHTML = [["gma", T("giorno/mese/anno")], ["iso", T("anno-mese-giorno (ISO)")], ["mga", T("mese/giorno/anno")], ["esteso", T("mese in lettere")]]
+    .map(([k, l]) => `<option value="${k}">📅 ${esc(dataTxt(esd, k).slice(0, -9))} · ${esc(l)}</option>`).join("");
+  ds.value = dataFmt(); ds.style.marginLeft = "6px"; ds.style.maxWidth = "190px";
+  $("tzSel").insertAdjacentElement("afterend", ds);
+  ds.onchange = () => {
+    DFMT = ds.value; try{ localStorage.setItem("repertia_formato_data", DFMT); }catch(e){}
+    toast(TF("Date mostrate come {0}", dataTxt(esd)));
+    if (resTab === "res" && resSec) selectRes(resSec);
+    if (typeof pvState !== "undefined" && pvState.it && $("pvBody") && ["view", "meta", "text"].includes(pvState.tab)) pvTab(pvState.tab);
+  };
   tzSelRefresh();
   $("tzSel").onchange = () => {
     const v = $("tzSel").value; TZ = v === "rome" || v === "dev" ? v : "utc"; store.set("repertia_fuso", TZ);
@@ -3232,8 +3549,8 @@ const ART_LBL = {sistema: T("Sistema"), utenti: T("Account utente"), usb: T("Dis
 const ANOM_LBL = {volume: T("Volume cifrato"), estensione: T("Estensione falsa"), cifrato: T("Protetto da password"), contenitore: T("Possibile contenitore cifrato"), segnalato: T("Hash da segnalare")};
 const FILTERS = {
   search: [], bm: [],
-  art: [["cat", "select", T("Categoria"), [["", T("Tutte")], ...Object.entries({sistema: T("Sistema"), utenti: T("Account utente"), usb: T("Dispositivi USB"), programmi: T("Programmi installati"), esecuzioni: T("Programmi eseguiti"), recenti: T("File e cartelle recenti"), reti: T("Reti"), cestino: T("Cestino"), web: T("Cronologia web"), download: T("Download"), ricerche: T("Ricerche"), comandi: T("Comandi (shell)"), messaggi: T("Messaggi (iMessage/SMS)"), avvio: T("Avvio automatico"), permessi: T("Permessi alle app (TCC)"), uso: T("Uso delle app"), dispositivi: T("Dispositivi e volumi"), backup: T("Backup (Time Machine)")})]], ["q", "text", T("Cerca in elemento, dettagli, utente")], ["start", "date", T("Dal")], ["end", "date", "Al"]],
-  mail: [["q", "text", T("Cerca in oggetto, mittente, destinatari, testo")], ["fmt", "select", T("Formato"), [["", T("Tutti")], ["PST/OST", "Outlook PST/OST"], ["mbox", "mbox (Thunderbird…)"], ["EML", "EML"], ["EMLX", "Apple Mail"], ["MSG", "Outlook MSG"]]], ["att", "check", T("Solo con allegati")], ["start", "date", T("Dal")], ["end", "date", "Al"]],
+  art: [["cat", "select", T("Categoria"), [["", T("Tutte")], ...Object.entries({sistema: T("Sistema"), utenti: T("Account utente"), usb: T("Dispositivi USB"), programmi: T("Programmi installati"), esecuzioni: T("Programmi eseguiti"), recenti: T("File e cartelle recenti"), reti: T("Reti"), cestino: T("Cestino"), web: T("Cronologia web"), download: T("Download"), ricerche: T("Ricerche"), comandi: T("Comandi (shell)"), messaggi: T("Messaggi (iMessage/SMS)"), avvio: T("Avvio automatico"), permessi: T("Permessi alle app (TCC)"), uso: T("Uso delle app"), dispositivi: T("Dispositivi e volumi"), backup: T("Backup (Time Machine)")})]], ["q", "text", T("Cerca in elemento, dettagli, utente")], ["start", "date", T("Dal")], ["end", "date", T("Al")]],
+  mail: [["q", "text", T("Cerca in oggetto, mittente, destinatari, testo")], ["fmt", "select", T("Formato"), [["", T("Tutti")], ["PST/OST", "Outlook PST/OST"], ["mbox", "mbox (Thunderbird…)"], ["EML", "EML"], ["EMLX", "Apple Mail"], ["MSG", "Outlook MSG"]]], ["att", "check", T("Solo con allegati")], ["start", "date", T("Dal")], ["end", "date", T("Al")]],
   arch: [["q", "text", T("Cerca nel percorso")], ["xk", "select", T("Tipo"), [["", T("Tutti")], ["archivio", T("Contenuto di archivi")], ["allegato", T("Allegati di posta")], ["miniatura", T("Miniature (thumbcache)")]]], ["ext", "text", T("Estensione")], ["enc", "check", T("Solo protetti da password")]],
   vss: [["q", "text", T("Cerca nel percorso")], ["ext", "text", T("Estensione")]],
   anom: [["akind", "select", T("Tipo"), [["", T("Tutte")], ["volume", T("Volumi cifrati")], ["estensione", T("Estensioni false")], ["cifrato", T("File protetti da password")], ["contenitore", T("Possibili contenitori cifrati")], ["segnalato", T("Hash da segnalare")]]], ["q", "text", T("Cerca")]],
@@ -3241,7 +3558,7 @@ const FILTERS = {
   hits: [["q", "text", T("Filtra per percorso o dettaglio")], ["hwhere", "select", T("Trovato in"), [["", T("Ovunque")], [T("nome"), T("Nome")], [T("percorso"), T("Percorso")], [T("testo documento"), T("Testo documenti")], [T("metadati"), T("Metadati")], [T("contenuto"), T("Contenuto")], [T("byte grezzi"), T("Byte grezzi della copia")], ["hash", T("Hash")]]], ["term", "text", T("Termine")], ["deleted", "check", T("Solo cancellati")]],
   explore: [["q", "text", T("Filtra per nome (in questa cartella)")], ["sub", "check", T("Includi sottocartelle")], ["deleted", "check", T("Solo cancellati")]],
   file: [["q", "text", T("Cerca nel percorso (es. .docx, Users/mario)")], ["ext", "text", T("Estensione")], ["deleted", "check", T("Solo cancellati")]],
-  timeline: [["q", "text", T("Cerca in percorso o messaggio")], ["start", "date", T("Dal")], ["end", "date", "Al"], ["ekind", "select", T("Evento"), [["", T("Tutti")], ["M", T("Modifica")], ["A", T("Accesso")], ["C", T("Metadati")], ["B", T("Creazione")]]], ["origin", "select", T("Fonte"), [["", T("Tutte")], ["tsk", T("File system")], ["preferiti", T("Preferiti")], ["plaso", T("Plaso")]]]],
+  timeline: [["q", "text", T("Cerca in percorso o messaggio")], ["start", "date", T("Dal")], ["end", "date", T("Al")], ["ekind", "select", T("Evento"), [["", T("Tutti")], ["M", T("Modifica")], ["A", T("Accesso")], ["C", T("Metadati")], ["B", T("Creazione")]]], ["origin", "select", T("Fonte"), [["", T("Tutte")], ["tsk", T("File system")], ["preferiti", T("Preferiti")], ["plaso", T("Plaso")]]]],
   doc: [["q", "text", T("Parole dentro i documenti (frase esatta tra virgolette)")], ["dext", "text", T("Estensione (es. docx, pdf; ~posta = e-mail)")]],
   meta: [["q", "text", T("Cerca (es. iPhone, Rossi, 2024:03)")], ["gps", "check", T("Solo con GPS")], ["vid", "check", T("Solo video")], ["foto", "check", T("Solo foto")], ["aud", "check", T("Solo audio")]],
   carved: [["q", "text", T("Nome file")], ["type", "text", T("Tipo (es. jpg)")]],
@@ -3342,6 +3659,8 @@ function selectRes(sec){
       fetchRes();
     };
     if (el.type === "text"){ el.oninput = () => { clearTimeout(tt); tt = setTimeout(upd, 350); }; }
+    // (3.0.1) data scritta a mano: solo con l'anno completo (0002, 0020, 0202 mentre si scrive «2026»)
+    else if (el.type === "date") el.onchange = () => { clearTimeout(tt); if (!el.value || +el.value.slice(0, 4) >= 1000) tt = setTimeout(upd, 600); };
     else el.onchange = upd;
   });
   // (3.0) fonti della Timeline: un menu con la ricerca dentro, come i filtri di colonna (le fonti sono centinaia con
@@ -3465,7 +3784,7 @@ function paintRes(r, sec, st, kind){
   lastRes = r;
   renderRows(r); $("resTable").dataset.shown = sec;
   if (kind === "explore") renderCrumbs();
-  $("resInfo").textContent = `${nf(r.total)} ${kind === "explore" ? "elementi" : kind === "hits" ? "file" : "risultati"}` +
+  $("resInfo").textContent = `${nf(r.total)} ${kind === "explore" ? T("elementi") : kind === "hits" ? T("file") : T("risultati")}` +
     (kind === "explore" && cfActive(sec) && !st.sub ? T(" · filtri di colonna solo in questa cartella: spunta «Includi sottocartelle» per cercare in tutto il sottoalbero") : "") +
     (r.nav_attesa ? T(" · dimensioni e date in preparazione: filtri su queste colonne non ancora affidabili") : "");
   const from = r.total ? r.offset + 1 : 0, to = Math.min(r.offset + r.page, r.total);
@@ -3507,9 +3826,12 @@ const extOf = n => { const m = String(n || "").split("/").pop().split(":")[0].ma
 const nameOf = (kind, x) => kind === "explore" || kind === "carved" || kind === "hits" || kind === "arch" || kind === "vss" ? x.name : base(x.path);
 const parentOf = p => String(p || "").split(" › ").slice(0, -1).join(" › ");
 const isDirRow = (kind, x) => kind === "explore" ? !!x.isdir : kind === "file" ? /[dV]$/.test(x.type || "") : false;
+const MTIPO_KIND = {foto: "img", video: "vid", audio: "aud"};     // (3.0.1) telefoni: tipo riconosciuto dal contenuto
+const mediaHint = x => x.mapp_lbl ? `<div class="hint">${isPhone() ? "📱" : String(x.mapp).startsWith("~") ? "📁" : "🧩"} ${esc(x.mapp_lbl)}${x.marea === "cache" ? " · " + T("cache") : ""}${x.mmetodo === "contenuto" && !extOf(x.path) ? " · " + esc(TF("{0} riconosciuto dal contenuto", x.mformato)) : x.mmetodo === "contenuto" && MTIPO_KIND[x.mtipo] !== EXT_KIND[extOf(x.path)] ? " · " + esc(TF("{0} riconosciuto dal contenuto (estensione .{1})", x.mformato, extOf(x.path))) : ""}</div>` : "";
+const fileKindOf = (kind, x) => MTIPO_KIND[x.mtipo] || EXT_KIND[extOf(nameOf(kind, x))];
 function fileIcon(kind, x){
   if (isDirRow(kind, x)) return "📁";
-  return KIND_ICON[EXT_KIND[extOf(nameOf(kind, x))]] || "📄";
+  return KIND_ICON[fileKindOf(kind, x)] || "📄";
 }
 function hasFile(kind, x){
   if (kind === "trace") return false;
@@ -3734,7 +4056,7 @@ function cfGrip(pop){
   g.onmousedown = e => {
     e.preventDefault(); e.stopPropagation();
     const x0 = e.clientX, w0 = pop.getBoundingClientRect().width;
-    const mv = ev => { const w = Math.max(220, Math.min(window.innerWidth - 12, w0 + (x0 - ev.clientX))); try{ localStorage.setItem(CFW_KEY, String(Math.round(w))); }catch(er){} cfPlace(pop, pop._btn); };
+    const mv = ev => { if (!(ev.buttons & 1)) return up(); const w = Math.max(220, Math.min(window.innerWidth - 12, w0 + (x0 - ev.clientX))); try{ localStorage.setItem(CFW_KEY, String(Math.round(w))); }catch(er){} cfPlace(pop, pop._btn); };
     const up = () => { document.removeEventListener("mousemove", mv, true); document.removeEventListener("mouseup", up, true); };
     document.addEventListener("mousemove", mv, true); document.addEventListener("mouseup", up, true);
   };
@@ -3805,7 +4127,12 @@ function cfBind(tEl, sec){
     refresh();
   };
   tEl.querySelectorAll(".cfi").forEach(el => {
-    if (el.type === "date") el.onchange = () => apply(el);
+    // (3.0.1) data scritta a mano: si applica solo con l'anno completo, mezzo secondo dopo l'ultima cifra (scrivendo «2026» il
+    // campo vale prima 0002, 0020, 0202 e la tabella ridisegnata a ogni cifra riportava il cursore sul giorno)
+    if (el.type === "date"){
+      el.onchange = () => { clearTimeout(tt); if (!el.value || +el.value.slice(0, 4) >= 1000) tt = setTimeout(() => apply(el), 600); };
+      el.onkeydown = e => { if (e.key === "Enter"){ clearTimeout(tt); apply(el); } };
+    }
     else {
       el.oninput = () => { clearTimeout(tt); tt = setTimeout(() => apply(el), 450); };
       el.onkeydown = e => { if (e.key === "Enter"){ clearTimeout(tt); apply(el); } };
@@ -3825,10 +4152,11 @@ function cfBind(tEl, sec){
 function chiamataDett(x){
   const d = x.data || {}, fonti = {};
   (d.fonti || []).forEach(f => { const k = (f.strumento || "") + " «" + (f.artefatto || "") + "»"; fonti[k] = (fonti[k] || 0) + 1; });
-  return `<div class="artkv">${d.tipo || d.esito ? `<div><span class="v">${esc([d.tipo, d.esito].filter(Boolean).join(" · "))}</span></div>` : ""}`
+  return `<div class="artkv">${d.recuperato ? `<div style="color:#b91c1c;font-weight:600">⚠ ${T("cancellato, recuperato: da verificare")}</div>` : ""}${d.tipo || d.esito ? `<div><span class="v">${esc([d.tipo, d.esito].filter(Boolean).join(" · "))}</span></div>` : ""}`
     + `<div><span class="k">${TF("fonti ({0})", (d.fonti || []).length)}</span> <span class="v">${esc(Object.entries(fonti).map(([k, n]) => k + (n > 1 ? " ×" + n : "")).join(", "))}</span></div>`
     + (d.discordanze ? `<div class="hint">⚠ ${T("valori diversi tra le fonti: vedi Dettagli")}</div>` : "") + (d.nota ? `<div class="hint">${esc(d.nota)}</div>` : "") + "</div>";
 }
+const waNum = v => { const m = /^(\d{7,15})@s\.whatsapp\.net$/.exec(v || ""); return m ? "+" + m[1] : (v || ""); };
 const CALL_VERSI = {in: T("in arrivo"), out: T("in uscita"), persa: T("persa"), rifiutata: T("rifiutata"), segreteria: T("segreteria")};
 function renderTable(r){
   const rows = r.rows, kind = r.kind, sec = resSec;
@@ -3844,7 +4172,7 @@ function renderTable(r){
       [TF("Modificato ({0})", tzLbl()), x => fts(x.mtime), "d", {k: "mtime", t: "d"}], [TF("Creato ({0})", tzLbl()), x => fts(x.crtime), "d", {k: "crtime", t: "d"}], [TF("Accesso ({0})", tzLbl()), x => fts(x.atime), "d", {k: "atime", t: "d"}]],
     timeline: [[TF("Data ({0})", tzLbl()), x => fts(x.ts), "d", {k: "ts", t: "d"}], [T("Evento"), x => esc(x.kind), "", {k: "kind", t: "t", ph: T("es. modifica")}], [T("Fonte"), x => esc(x.origin === "tsk" ? T("file system") : x.source), "", {k: "source", t: "t"}], [T("Dettaglio"), (x, i) => x.origin === "tsk" && x.inode ? plink(x, i, x.path) : esc(x.origin === "tsk" ? x.path : x.message), "p", {k: "detail", t: "t"}]],
     doc: [[T("Documento"), (x, i) => `<span class="fic">${fileIcon(kind, x)}</span>` + (x.source === "carving" ? esc(x.path) : plink(x, i, x.path)) + delTag(x.deleted) + `<div class="hint">${esc(x.kind)}${/^OCR\b/.test(x.kind || "") ? ` · <b>${T("testo OCR automatico")}</b>` : ""} · ${esc(ref(x))}</div>`, "p", {k: "path", t: "t", ph: T("nome o percorso…")}], [T("Dimensione"), x => x.size != null ? fsize(x.size) : "", "n", {k: "size", t: "n"}], [TF("Modificato ({0})", tzLbl()), x => fts(x.mtime), "d", {k: "mtime", t: "d"}], [TF("Creato ({0})", tzLbl()), x => fts(x.crtime), "d", {k: "crtime", t: "d"}], [T("Testo trovato"), x => hlSnip(x.snippet), "p"]],
-    meta: [[T("File"), (x, i) => `<span class="fic">${fileIcon(kind, x)}</span>` + (x.source === "carving" ? esc(x.path) : plink(x, i, x.path)) + delTag(x.deleted), "p", {k: "path", t: "t"}], [T("Dimensione"), x => x.size != null ? fsize(x.size) : "", "n", {k: "size", t: "n"}], [TF("Modificato ({0})", tzLbl()), x => fts(x.mtime), "d", {k: "mtime", t: "d"}], [TF("Creato ({0})", tzLbl()), x => fts(x.crtime), "d", {k: "crtime", t: "d"}], [T("Dispositivo"), x => esc([x.make, x.model].filter(Boolean).join(" ")), "", {k: "device", t: "t"}], [T("Data (dai metadati)"), x => fmtTaken(x.taken), "m", {k: "taken", t: "D"}], ["GPS", x => x.lat != null ? `${x.lat.toFixed(6)}, ${x.lon.toFixed(6)}` : "", "m"], [T("Autore"), x => esc(x.author || ""), "", {k: "author", t: "t"}]],
+    meta: [[T("File"), (x, i) => `<span class="fic">${fileIcon(kind, x)}</span>` + (x.source === "carving" ? esc(x.path) : plink(x, i, x.path)) + delTag(x.deleted) + mediaHint(x), "p", {k: "path", t: "t"}], [T("Dimensione"), x => x.size != null ? fsize(x.size) : "", "n", {k: "size", t: "n"}], [TF("Modificato ({0})", tzLbl()), x => fts(x.mtime), "d", {k: "mtime", t: "d"}], [TF("Creato ({0})", tzLbl()), x => fts(x.crtime), "d", {k: "crtime", t: "d"}], [T("Dispositivo"), x => esc([x.make, x.model].filter(Boolean).join(" ")), "", {k: "device", t: "t"}], [T("Data (dai metadati)"), x => fmtTaken(x.taken), "m", {k: "taken", t: "D"}], ["GPS", x => x.lat != null ? `${x.lat.toFixed(6)}, ${x.lon.toFixed(6)}` : "", "m"], [T("Autore"), x => esc(x.author || ""), "", {k: "author", t: "t"}]],
     hits: [[T("File"), (x, i) => `<span class="fic">${x.source === "mail" ? "✉️" : x.source === "image" ? "🧩" : x.source === "art" ? "🪟" : x.source === "chat" || x.source === "thr" ? "💬" : x.source === "rub" ? "📇" : fileIcon(kind, x)}</span>` + (["carving", "x", "mail", "image", "art", "chat", "rub", "thr"].includes(x.source) ? esc(x.path) : plink(x, i, x.path)) + delTag(x.deleted) + `<div class="hint">${({carving: T("file recuperato col carving"), x: T("file estratto (archivio, allegato, miniatura o copia shadow)"), mail: T("messaggio di posta"), art: T("artefatto di sistema"), chat: T("messaggio di una chat"), image: T("byte grezzi della copia")})[x.source] || `offset ${x.part}, inode ${esc(x.inode)}`}</div>` + (x.source === "image" ? trcPathCell(i) : ""), "p", {k: "path", t: "t", ph: T("nome o percorso…")}],
       [T("Dimensione"), x => x.size != null ? fsize(x.size) : "", "n", {k: "size", t: "n"}],
       [TF("Modificato ({0})", tzLbl()), x => fts(x.mtime), "d", {k: "mtime", t: "d"}],
@@ -3853,7 +4181,8 @@ function renderTable(r){
     // (3.0) chiamate: verso e contatto in colonne proprie (testi uguali a CALL_VERSI del server, per i filtri)
     art: kind === "art" && stOf(sec).cat === "chiamate" ? [[TF("Data ({0})", tzLbl()), x => fts(x.ts), "d", {k: "ts", t: "d"}],
       [T("Verso"), x => { const v = (x.data || {}).verso; return `${{in: "↙", out: "↗", persa: "✖", rifiutata: "⛔", segreteria: "📼"}[v] || "☎"} ${esc(CALL_VERSI[v] || T("verso non indicato"))}`; }, "", {k: "verso", t: "t"}],
-      [T("Contatto"), x => { const d = x.data || {}, who = d.nome_rubrica || d.nome_app; return who || d.numero ? `${who ? `<b>${esc(who)}</b>` : ""}${who && d.numero ? "<br>" : ""}${d.numero ? `<span class="mono">${esc(d.numero)}</span>` : ""}` : `<span class="hint">${T("(non indicato)")}</span>`; }, "p", {k: "contatto", t: "t"}],
+      // (3.0.1) nome in rubrica, numero (+39… invece di 39…@s.whatsapp.net) e LID di WhatsApp se la fonte aveva quello
+      [T("Contatto"), x => { const d = x.data || {}, who = d.nome_rubrica || d.nome_app, num = waNum(d.numero); return who || num ? `${who ? `<b>${esc(who)}</b>` : ""}${who && num ? "<br>" : ""}${num ? `<span class="mono">${esc(num)}</span>` : ""}${d.lid ? `<br><span class="hint mono" title="${esc(T("identificativo WhatsApp (LID) registrato nella chiamata"))}">LID ${esc(d.lid)}</span>` : ""}` : `<span class="hint">${T("(non indicato)")}</span>`; }, "p", {k: "contatto", t: "t"}],
       [T("App"), x => esc((x.data || {}).app_lbl || ""), "", {k: "app", t: "t"}],
       [T("Durata"), x => { const v = (x.data || {}).durata_s; return v == null ? `<span class="hint">—</span>` : `<span class="mono">${[Math.floor(v / 3600), Math.floor(v % 3600 / 60), Math.round(v % 60)].map(n => String(n).padStart(2, "0")).join(":")}</span>`; }, "n", {k: "durata", t: "s"}],
       [T("Risposta"), x => { const v = (x.data || {}).risposta; return v == null ? `<span class="hint">${esc(T("non indicata"))}</span>` : v ? T("sì") : T("no"); }, "", {k: "risposta", t: "t"}],
@@ -3865,7 +4194,7 @@ function renderTable(r){
     mail: [[TF("Data ({0})", tzLbl()), x => fts(x.date), "d", {k: "date", t: "d"}], ["Da", x => esc(x.sender), "p", {k: "sender", t: "t"}], ["A", x => esc(x.recipients), "p", {k: "recipients", t: "t"}],
       [T("Oggetto"), x => `<b>${esc(x.subject)}</b>` + (x.n_att ? TF(" <span class=\"hint\" title=\"allegati\">📎 {0}</span>", x.n_att) : ""), "p", {k: "subject", t: "t"}],
       [T("Cartella"), (x, i) => `<span class="hint">${esc(x.fmt)}</span> ${esc(x.folder || "")}<div class="hint">${plink(x, i, x.src_path)}</div>`, "p", {k: "folder", t: "t"}]],
-    arch: [[T("File"), x => `<span class="fic">${fileIcon(kind, x)}</span>${esc(x.inner || x.name)}${x.encrypted ? T(' <span class="del">PROTETTO</span>') : ""}${x.deleted ? T(' <span class="del">DA FILE CANCELLATO</span>') : ""}<div class="hint">${x.kind === "allegato" ? T("📎 allegato di ") : x.kind === "miniatura" ? T("🖼 miniatura in ") : "in "}${esc(parentOf(x.path))}</div>`, "p", {k: "path", t: "t", ph: T("nome o percorso…")}],
+    arch: [[T("File"), x => `<span class="fic">${fileIcon(kind, x)}</span>${esc(x.inner || x.name)}${x.encrypted ? T(' <span class="del">PROTETTO</span>') : ""}${x.deleted ? T(' <span class="del">DA FILE CANCELLATO</span>') : ""}<div class="hint">${x.kind === "allegato" ? T("📎 allegato di ") : x.kind === "miniatura" ? T("🖼 miniatura in ") : x.kind === "cache_web" ? T("🌐 dalla voce di cache ") : "in "}${esc(parentOf(x.path))}</div>`, "p", {k: "path", t: "t", ph: T("nome o percorso…")}],
       [T("Dimensione"), x => fsize(x.size), "n", {k: "size", t: "n"}], [TF("Data ({0})", tzLbl()), x => fts(x.mtime), "d", {k: "mtime", t: "d"}],
       [T("SHA-256 / note"), x => x.sha256 ? `<span class="mono" style="font-size:12px" title="MD5 ${esc(x.md5 || "")}\nSHA-1 ${esc(x.sha1 || "")}\nSHA-256 ${esc(x.sha256)}">${esc(x.sha256.slice(0, 16))}…</span>` : `<span class="hint">${esc(x.note || "")}</span>`, "p", {k: "note", t: "t"}]],
     vss: [[T("File"), x => `<span class="fic">${fileIcon(kind, x)}</span>${esc(x.inner)}`, "p", {k: "path", t: "t"}], [T("Copia shadow"), x => esc(x.store), "", {k: "store", t: "t"}], [T("Stato"), x => esc(x.note), "p", {k: "note", t: "t"}],
@@ -3920,7 +4249,7 @@ function colResize(tEl, key){
       W = W || now(); apply(W);
       const x0 = ev.clientX, w0 = W[i];
       h.classList.add("on"); document.body.classList.add("colresizing");
-      const mv = e => { W[i] = Math.max(minW(th), Math.round(w0 + e.clientX - x0)); apply(W); };
+      const mv = e => { if (!(e.buttons & 1)) return up(); W[i] = Math.max(minW(th), Math.round(w0 + e.clientX - x0)); apply(W); };
       const up = () => { document.removeEventListener("mousemove", mv); document.removeEventListener("mouseup", up);
         h.classList.remove("on"); document.body.classList.remove("colresizing"); COLRS_BLOCK = Date.now() + 300; save(W); };
       document.addEventListener("mousemove", mv); document.addEventListener("mouseup", up);
@@ -3950,7 +4279,7 @@ function renderGrid(r, big){
   if (!rows.length){ $("resTable").innerHTML = cfNote(sec) + '<div class="resempty">' + (kind === "explore" ? T("Cartella vuota (o nessun elemento con questi filtri).") : T("Nessun risultato con questi filtri.")) + '</div>'; cfNoteBind($("resTable"), sec); renderSelBar(); return; }
   const size = big ? 512 : 256;
   $("resTable").innerHTML = cfNote(sec) + TF("<div class=\"gridhead\"><label><input type=\"checkbox\" id=\"ckAll\"> Seleziona la pagina</label><span class=\"hint\">Clic: anteprima a destra · doppio clic su una cartella: aprila · Maiusc+clic sulle caselle: intervallo</span></div>\n    <div class=\"tgrid {0}\">{1}</div>", big ? "big" : "", rows.map((x, i) => {
-      const dir = isDirRow(kind, x), nm = nameOf(kind, x), k = EXT_KIND[extOf(nm)];
+      const dir = isDirRow(kind, x), nm = nameOf(kind, x), k = fileKindOf(kind, x);
       const th = !dir && hasFile(kind, x) && THUMBABLE.has(k) ? `<img class="th" data-src="${thumbUrl(kind, x, size)}" alt=""${k === "vid" ? ' data-vid="1"' : ""}>` : "";
       const sub = kind === "explore" ? (dir ? `${nf(x.nitems)} elem.` : [fsize(x.size), x.mtime ? fts(x.mtime).slice(0, 10) : ""].filter(Boolean).join(" · "))
         : kind === "carved" ? fsize(x.size) : kind === "hits" ? x.wheres : kind === "meta" ? (x.taken || [x.make, x.model].filter(Boolean).join(" ")) : (x.path || "").split("/").slice(0, -1).join("/");
@@ -4452,19 +4781,35 @@ async function fastRun(){
   const seq = ++fastSeq, F = srchForm(), q = (F.fq || "").trim();
   clearTimeout(fastPoll);
   let r;
+  /* (3.0.1) avvisi grandi: l'analista deve capire subito se la ricerca è in preparazione, se aspetta un'analisi o se c'è un problema */
+  const avviso = (cls, html) => { if ($("fqStat")) $("fqStat").innerHTML = `<div class="fqbig ${cls}">${html}</div>`; if ($("fqRes")) $("fqRes").innerHTML = ""; if ($("fqCop")) $("fqCop").innerHTML = ""; };
+  const guasto = msg => {
+    avviso("bad", `<b>⚠ ${esc(T("La ricerca nel caso non è disponibile."))}</b><div>${esc(msg)}</div>
+      <div>${esc(T("Premi «Riprova». Se il problema resta, chiudi RepertIA (anche la finestra nera del programma) e riaprilo: il caso non viene modificato. Se succede ancora, usa «Esporta log diagnostici» nella pagina iniziale."))}</div>
+      <button class="btn small" id="fqRetry">↻ ${esc(T("Riprova"))}</button>`);
+    if ($("fqRetry")) $("fqRetry").onclick = async () => { try{ await api("/api/ricerca_veloce?" + new URLSearchParams({q, riprova: 1})); }catch(e){} fastRun(); };
+  };
   try{ r = await api("/api/ricerca_veloce?" + new URLSearchParams({q})); }
-  catch(e){ if ($("fqStat")) $("fqStat").textContent = e.message; return; }
+  catch(e){ if (seq === fastSeq) guasto(e.message); return; }
   if (seq !== fastSeq || !$("fqRes")) return;
   const S = $("fqStat"), O = $("fqRes");
   $("fqSave").disabled = true;
   $("fqCop").innerHTML = "";
   if (r.stato === "costruzione"){
-    S.innerHTML = `⏳ ${esc(TF("Preparo l'indice della ricerca veloce: una volta sola per questo caso, poi si aggiorna da solo quando cambiano i risultati ({0} di {1} righe, {2} s)…", nf(r.fatte), nf(r.totale), nf(r.secondi)))}`;
-    O.innerHTML = "";
+    const pct = r.totale ? Math.min(100, Math.round(r.fatte * 100 / r.totale)) : 0;
+    avviso("wait", `<b>⏳ ${esc(T("L'indice della ricerca nel caso non è ancora pronto: lo sto preparando."))}</b>
+      <div>${esc(TF("Si fa una volta sola per questo caso, poi si aggiorna da solo. Puoi continuare a lavorare: la ricerca parte da sola appena è pronto ({0} di {1} righe, {2} s).", nf(r.fatte), nf(r.totale), nf(r.secondi)))}</div>
+      <div class="ppbar"><div style="width:${pct}%"></div></div>`);
     fastPoll = setTimeout(fastRun, 1000);
     return;
   }
-  if (r.stato === "errore"){ S.textContent = TF("Indice della ricerca veloce non costruito: {0}", r.errore); O.innerHTML = ""; return; }
+  if (r.stato === "occupato"){
+    avviso("wait", `<b>⏳ ${esc(T("Il caso è occupato da un'analisi in corso."))}</b>
+      <div>${esc(T("Un'analisi (per esempio «Testo e media») sta scrivendo nel caso: la ricerca riprova da sola fra pochi secondi. Non serve riavviare."))}</div>`);
+    fastPoll = setTimeout(fastRun, 3000);
+    return;
+  }
+  if (r.stato === "errore"){ guasto(TF("Indice della ricerca veloce non costruito: {0}", r.errore)); return; }
   if (!q){ S.textContent = T("Scrivi per cercare: i risultati compaiono mentre scrivi."); O.innerHTML = ""; return; }
   if (r.corta){ S.textContent = T("Scrivi almeno 2 caratteri, o uno solo se è un'emoji o un ideogramma."); O.innerHTML = ""; return; }
   fastLast = r;
@@ -4679,6 +5024,8 @@ function extRef(kind, x){
     if (x.source === "fs") return {source: "fs", part: x.part, inode: x.inode, path: x.path, label: `anomalia: ${x.path} — ${x.detail} (offset ${x.part}, inode ${x.inode})`};
     return {label: `anomalia: ${x.path} — ${x.detail}`};
   }
+  if (kind === "meta" && x.source === "x") return {source: "x", id: +x.inode, name: x.xname || base(String(x.path || "")), path: x.path,     // (3.0.1) foto e video dalle cache dei browser
+    src: x.xpart != null ? {source: "fs", part: x.xpart, inode: x.xinode, path: x.xsrc} : null, label: TF("file estratto {0}", x.path) + (x.xnote ? "; " + x.xnote : "")};
   if ((kind === "hits" || kind === "doc") && x.source === "x") return {source: "x", id: +x.inode, name: x.name, path: x.path, label: TF("file estratto {0}", x.path) + (kind === "hits" ? TF(" (trovato in {0}: {1})", x.wheres, x.terms) : "")};
   if ((kind === "hits" && x.source === "mail") || (kind === "doc" && x.source === "posta")) return {source: "mail", id: +x.inode, title: String(x.path).split(" › ").pop(), path: x.path, label: TF("messaggio di posta {0}", x.path)};
   if (kind === "hits" && x.source === "art") return {source: "art", id: +x.inode, title: x.name, path: x.path, label: `artefatto ${x.path}`};
@@ -4813,6 +5160,58 @@ function docExtLabel(k){
   if (k === "~senza") return T("Senza estensione");
   return "." + k + (DOCEXT_APP[k] ? " · " + DOCEXT_APP[k] : "");
 }
+// (3.0.1) sotto Audio: trascrizioni confermate dall'analista, e quelle automatiche ancora da confermare
+function trNodes(d){
+  const t = d.trascr || {}, out = [];
+  if (t.conf) out.push({id: "meta:aud:trconf", label: "✅ " + T("Trascrizioni confermate"), sec: "meta", filt: {aud: true, mtr: "conf"}, count: t.conf, kids: []});
+  if (t.auto) out.push({id: "meta:aud:trauto", label: "📝 " + T("Trascritti, da confermare"), sec: "meta", filt: {aud: true, mtr: "auto"}, count: t.auto, kids: []});
+  return out;
+}
+/* (3.0.1) trascrizione rivista dall'analista, sotto quella automatica (anteprima dell'audio e chat). La automatica non
+   cambia: ogni salvataggio è una versione nuova (bozza o confermata) con operatore, data e SHA-256 del testo, nel registro
+   del caso; le confermate vanno nei Preferiti «Trascrizioni confermate» e nell'albero sotto Audio. */
+function trAnVista(an){
+  if (!an) return "";
+  const ok = an.stato === "confermata";
+  return `<div class="tran ${ok ? "ok" : "bozza"}"><div><b>${ok ? "✅ " + T("Trascrizione confermata") : "📝 " + T("Bozza dell'analista, non confermata")}</b>
+    <span class="hint">${esc(ok ? TF("da {0} il {1}", an.operatore || "", fts(an.ts)) : fts(an.ts))}</span></div><div class="trtxt">${esc(an.testo)}</div></div>`;
+}
+function trascrEditor(box, o){
+  // o: {part, inode, auto (testo automatico), an (ultima versione dell'analista), onSaved(r)}
+  const vista = () => {
+    box.innerHTML = trAnVista(o.an) + `<div class="row" style="gap:6px;margin-top:6px;flex-wrap:wrap"><button class="btn small" data-tre="ed">✏️ ${o.an ? T("Modifica il testo") : o.auto ? T("Correggi la trascrizione") : T("Scrivi la trascrizione")}</button>${o.an && o.an.stato !== "confermata" ? `<button class="btn small primary" data-tre="ok">✓ ${T("Conferma")}</button>` : ""}</div>`;
+    box.querySelector('[data-tre="ed"]').onclick = modifica;
+    const c = box.querySelector('[data-tre="ok"]'); if (c) c.onclick = () => salva(o.an.testo, true);
+  };
+  const operatore = () => store.get("repertia_operatore", "") || (((caseInfo || {}).info || {}).operatore) || "";
+  const salva = async (testo, conferma, op) => {
+    op = op != null ? op : operatore();
+    if (conferma){
+      if (!op.trim()){ op = await chiediTesto(T("Operatore che conferma la trascrizione:"), ""); if (!op || !op.trim()) return; }
+      if (!await chiedi(T("Confermi di aver ascoltato l'audio e che il testo corrisponde al parlato? La conferma, con il tuo nome e l'impronta del testo, resta nel registro del caso e l'audio va nei Preferiti «Trascrizioni confermate»."))) return;
+      store.set("repertia_operatore", op.trim());
+    }
+    try{
+      const r = await api("/api/trascr/analista", {part: o.part, inode: o.inode, testo, conferma, operatore: op});
+      o.an = {testo: testo.trim(), stato: r.stato, operatore: r.operatore, ts: r.ts};
+      toast(conferma ? T("Trascrizione confermata: è in Preferiti › Trascrizioni confermate.") : T("Bozza salvata (non confermata)."), "good");
+      vista(); if (o.onSaved) o.onSaved(r);
+      if (typeof rtRefresh === "function") rtRefresh().catch(() => {});
+    }catch(e){ toast(e.message, "bad"); }
+  };
+  const modifica = () => {
+    box.innerHTML = `<div class="tred"><div class="hint">${T("Correggi il testo ascoltando l'audio. La trascrizione automatica resta com'è; il tuo testo si salva a parte, con la data e il tuo nome.")}</div>
+      <textarea class="pathin" rows="6" style="width:100%;resize:vertical;margin:6px 0">${esc((o.an && o.an.testo) || o.auto || "")}</textarea>
+      <div class="row" style="gap:6px;flex-wrap:wrap;align-items:center"><label class="hint">${T("Operatore")} <input class="pathin" data-tre="op" style="width:200px;margin:0" value="${esc(operatore())}"></label>
+        <span class="grow"></span><button class="btn small" data-tre="no">${T("Annulla")}</button><button class="btn small" data-tre="bz">${T("Salva come bozza")}</button><button class="btn small primary" data-tre="cf">✓ ${T("Salva e conferma")}</button></div></div>`;
+    const ta = box.querySelector("textarea"), op = box.querySelector('[data-tre="op"]');
+    ta.focus();
+    box.querySelector('[data-tre="no"]').onclick = vista;
+    box.querySelector('[data-tre="bz"]').onclick = () => salva(ta.value, false, op.value);
+    box.querySelector('[data-tre="cf"]').onclick = () => salva(ta.value, true, op.value);
+  };
+  vista();
+}
 function rtNodes(){
   const c = RTC || {}, d = RT || {}, cnt = k => c[k] == null ? null : c[k];
   const sec = (k, label, kids, extra) => ({id: k, label, sec: k, count: k === "explore" ? null : cnt(k), dis: c[k] == null && !["explore", "search", "bm"].includes(k), hide: c[k] == null && ["art", "mail", "arch", "vss", "anom"].includes(k), kids: kids || [], ...extra});
@@ -4837,9 +5236,10 @@ function rtNodes(){
     sec("meta", T("📷 Foto/Video/Audio"), [...(d.gps ? [f("meta:gps", T("Con GPS"), "meta", {gps: true}, d.gps)] : []),
       ...(d.foto ? [f("meta:foto", T("🖼 Foto"), "meta", {foto: true}, d.foto)] : []),
       ...(d.video ? [f("meta:vid", T("🎞 Video"), "meta", {vid: true}, d.video)] : []),
-      ...(d.audio ? [f("meta:aud", T("🎵 Audio"), "meta", {aud: true}, d.audio)] : [])]),
+      ...(d.audio ? [f("meta:aud", T("🎵 Audio"), "meta", {aud: true}, d.audio, trNodes(d))] : []),
+      ...(d.altri ? [f("meta:altri", T("📄 Altri file con metadati"), "meta", {altri: true}, d.altri)] : [])]),
     sec("mail", T("✉️ Posta"), (d.mail || []).map(([k, n]) => f("mail:" + k, k, "mail", {fmt: k}, n))),
-    sec("arch", T("📦 Archivi e allegati"), (d.arch || []).map(([k, n]) => f("arch:" + k, k === "allegato" ? T("Allegati di posta") : k === "miniatura" ? T("Miniature (thumbcache)") : T("Contenuto di archivi"), "arch", {xk: k}, n))),
+    sec("arch", T("📦 Archivi e allegati"), (d.arch || []).map(([k, n]) => f("arch:" + k, k === "allegato" ? T("Allegati di posta") : k === "miniatura" ? T("Miniature (thumbcache)") : k === "cache_web" ? T("Cache dei browser") : T("Contenuto di archivi"), "arch", {xk: k}, n))),
     sec("vss", T("🕘 Copie shadow"), (d.vss || []).map(([k, n]) => f("vss:" + k, k, "vss", {store: k}, n))),
     sec("carved", T("♻️ File recuperati"), (d.carved || []).map(([t, n]) => f("cv:" + t, t || T("(senza tipo)"), "carved", {type: t}, n))),
     sec("trace", T("🧩 Evidenze di interesse"), (d.trace || []).map(([k, n]) => f("tr:" + k, (FILTERS.trace[0][3].find(o => o[0] === k) || [0, k])[1], "trace", {tkind: k}, n))),
@@ -5136,16 +5536,15 @@ function pvOpen(it, sec, tab){
   else if (pvState.backTab){ pvState.tab = pvState.backTab; pvState.backTab = null; }
   pvState.it = it; pvState.sec = sec; pvState.info = null; hexState = null;
   if (!was){
-    $("pv").classList.remove("hidden"); $("pvSplit").classList.remove("hidden");
-    const w = paneStore.get("pv") || Math.round($("resView").clientWidth * 0.42);
-    $("pv").style.width = Math.max(320, Math.min(w, $("resView").clientWidth - 360)) + "px";
-    if (!$("vCase").classList.contains("noside")){ $("vCase").classList.add("noside"); pvState.hidSide = true; }
+    $("pv").classList.remove("hidden");
+    if (pvWinPref()) pvFinestra(); else pvAggancia();
   }
   $("pvTitle").textContent = base(it.path || it.name || "");
   $("pvSub").textContent = it.source === "image" ? T("Byte della copia forense all'offset indicato") : it.source === "carving" ? T("File recuperato col carving")
     : it.source === "x" ? (it.path || "") : it.source === "mail" ? T("Messaggio di posta") : it.source === "art" ? T("Artefatto di sistema") : it.source === "chat" ? T("Messaggio di una chat") : it.source === "rub" ? T("Voce della rubrica")
     : it.source === "ua" ? TF("Spazio non allocato · {0}", uaSpan(it)) : isPhone() ? TF("{0} · percorso nell'estrazione", it.path || "") : `${it.path || ""} · offset ${it.part}, inode ${it.inode}`;
   if (["x", "mail", "art", "chat", "rub"].includes(it.source)) $("pvTitle").textContent = it.source === "x" ? (it.name || base(String(it.path || "").split(" › ").pop())) : (it.title || it.path || "");
+  { const pw = pvWinOf(); if (pw){ wmTitolo(pw, pvWinTit()); if (pw.min) wmMostra(pw); } }
   $("pvActs").innerHTML = (it.source === "fs" ? T("<button class=\"btn small\" data-pa=\"tree\" title=\"Apre l'albero in una nuova scheda\">Mostra nel File System</button><button class=\"btn small\" data-pa=\"exp\">Esporta</button>") : "") +
     (it.source === "ua" ? T("<button class=\"btn small\" data-pa=\"exp\" title=\"Salva i byte del tratto in export/non_allocato con SHA-256\">Esporta</button>") : "") +
     (it.source === "x" ? T("<button class=\"btn small\" data-pa=\"xexp\">Esporta</button>") + (it.src ? T("<button class=\"btn small\" data-pa=\"src\" title=\"File della copia da cui proviene\">Contenitore</button>") : "") : "") +
@@ -5194,7 +5593,52 @@ async function similarDialog(it){
            {source: "fs", part: x.part, inode: x.inode, path: x.path, name: base(String(x.path || ""))}, pvState.sec);
   });
 }
+// pannello a destra (come prima della 3.0.1)
+function pvAggancia(){
+  $("pv").classList.remove("hidden"); $("pvSplit").classList.remove("hidden");
+  const w = paneStore.get("pv") || Math.round($("resView").clientWidth * 0.42);
+  $("pv").style.width = Math.max(320, Math.min(w, $("resView").clientWidth - 360)) + "px";
+  if (!$("vCase").classList.contains("noside")){ $("vCase").classList.add("noside"); pvState.hidSide = true; }
+}
+/* (3.0.1) ⧉ anteprima in una finestra (si sposta, si riduce nella barra, va a schermo intero; la scelta resta per le
+   anteprime successive); ⧉ nella finestra la riaggancia a destra. 📌 copia l'anteprima di adesso in una finestra a parte,
+   che resta aperta mentre si guardano altri file: per confrontarli. */
+const pvWinPref = () => { try{ return localStorage.getItem("repertia_pv_finestra") === "1"; }catch(e){ return false; } };
+const pvWinOf = () => WM.wins.find(w => w.el === $("pv"));
+const pvWinTit = () => "🔎 " + ($("pvTitle").textContent || T("Anteprima"));
+function pvFinestra(){
+  $("pvSplit").classList.add("hidden");
+  if (pvState.hidSide){ $("vCase").classList.remove("noside"); pvState.hidSide = false; }
+  $("pv").style.width = "";
+  wmApri($("pv"), {kind: "anteprima", titolo: pvWinTit(), dentro: true, chiudi: () => pvClose(), aggancia: () => pvStacca(false),
+                   agganciaTit: T("Riaggancia l'anteprima a destra"), w: .45, h: .86});
+}
+function pvStacca(si){
+  try{ localStorage.setItem("repertia_pv_finestra", si ? "1" : "0"); }catch(e){}
+  pvFull(false);
+  if (!pvOpenState()) return;
+  if (si) pvFinestra();
+  else { const w = pvWinOf(); if (w) wmChiudi(w); pvAggancia(); }
+}
+function pvCopia(){
+  if (!pvOpenState()) return;
+  const d = document.createElement("div"); d.className = "pvcopia";
+  const c = $("pvBody").cloneNode(true);
+  [c, ...c.querySelectorAll("[id]")].forEach(e => e.removeAttribute("id"));
+  d.innerHTML = `<div class="hint" style="margin-bottom:6px;word-break:break-all">${esc($("pvSub").textContent)}</div>`;
+  d.appendChild(c);
+  document.body.appendChild(d);
+  wmApri(d, {kind: "copia", titolo: "📌 " + ($("pvTitle").textContent || T("Anteprima")), dentro: true, chiudi: () => { wmChiudi(d); d.remove(); }, w: .38, h: .7});
+}
+$("pvWin").onclick = () => pvStacca(!pvWinOf());
+$("pvPin").onclick = () => pvCopia();
+setTimeout(() => {
+  $("pvWin").title = T("Apri l'anteprima in una finestra che si sposta (la scelta resta per le anteprime successive)");
+  $("pvPin").title = T("Copia questa anteprima in una finestra a parte, per confrontarla con altri file");
+}, 0);
 function pvFull(si){
+  const pw = pvWinOf();
+  if (pw){ if (si != null && pw.max !== !!si) wmMax(pw, si); return; }
   const b = $("pvFull"); $("pv").classList.toggle("pvfull", si);
   document.body.classList.toggle("vfull", si || !!TL_FULL);
   b.textContent = si ? T("✕ Riduci") : "⤢"; b.title = si ? T("Torna al pannello a destra (Esc)") : T("Apri a schermo intero");
@@ -5207,6 +5651,7 @@ document.addEventListener("keydown", e => { if (e.key === "Escape" && $("pv").cl
 $("pvActs").addEventListener("click", e => { const b = e.target.closest("[data-pa]"); if (b && !["exp", "xexp", "find", "fav"].includes(b.dataset.pa)) pvFull(false); }, true);
 function pvClose(silent){
   pvFull(false);
+  const pw = pvWinOf(); if (pw) wmChiudi(pw);
   $("pv").classList.add("hidden"); $("pvSplit").classList.add("hidden");
   pvState.it = null; hexState = null;
   if (pvState.hidSide && !silent){ $("vCase").classList.remove("noside"); }
@@ -5248,7 +5693,7 @@ function pvRenderView(v, it){
     $("pvSub").textContent = v.type === "mail" ? TF("Messaggio di posta · {0}", v.head.Fonte || "") : v.source === "chat" ? T("Messaggio di una chat") : v.source === "rub" ? T("Voce della rubrica") : T("Artefatto di sistema");
     if (v.type === "mail" && !it.src && v.part != null){ it.src = {source: "fs", part: v.part, inode: v.inode, path: (v.head.Fonte || "").split(" › ")[0]}; }
   } else
-  $("pvSub").textContent = (v.source === "carving" ? T("File recuperato col carving") : v.source === "x" ? `${v.title}` : `${v.title} · offset ${v.part}, inode ${v.inode}`) + ` · ${fsize(v.size)}` + (v.deleted ? T(" · CANCELLATO") : "");
+  $("pvSub").textContent = (v.source === "carving" ? T("File recuperato col carving") : v.source === "x" ? `${v.title}` : `${v.title} · offset ${v.part}, inode ${v.inode}`) + ` · ${fsize(v.size)}` + (v.deleted ? T(" · CANCELLATO") : "") + (v.xnote ? ` · ${v.xnote}` : "");
   const body = $("pvBody"), note = v.note ? `<div class="pvnote">${esc(v.note)}</div>` : "";
   if (v.type === "mail"){
     const h = v.head || {};
@@ -5435,6 +5880,137 @@ async function citedPreview(el, c){
 const PANES = [];
 const paneStore = {get(k){ try{ const v = +localStorage.getItem("repertia_pane:" + k); return v > 0 ? v : null; }catch(e){ return null; } },
                    set(k, v){ try{ v == null || !(v > 0) ? localStorage.removeItem("repertia_pane:" + k) : localStorage.setItem("repertia_pane:" + k, String(Math.round(v))); }catch(e){} }};
+/* (3.0.1) Finestre. Anteprima, chat, gestore dei database, mappa, guida e Timeline si aprono in finestre che si spostano
+   dalla barra del titolo, si ridimensionano dai bordi, si riducono nella barra «Finestre aperte» in basso, vanno a schermo
+   intero (⤢ o doppio clic sul titolo) e stanno una sopra l'altra secondo l'ultimo clic. Il contenuto resta l'elemento di
+   prima (stesse funzioni, stessi identificativi): o entra nella finestra (o.dentro, come l'anteprima) o resta dov'è e ne
+   segue il riquadro (elementi già sovrapposti alla pagina: chat, database, mappa, guida, Timeline).
+   Posizione e misura si ricordano per tipo (repertia_win:<tipo>); «Ripristina interfaccia» le azzera. */
+const WM = {wins: [], n: 0, task: null};
+const WM_TASK = 34, WM_Z = 31;
+function wmGeo(kind){ try{ return JSON.parse(localStorage.getItem("repertia_win:" + kind) || "null"); }catch(e){ return null; } }
+function wmSalva(w){ if (!w.max){ try{ localStorage.setItem("repertia_win:" + w.kind, JSON.stringify(w.g)); }catch(e){} } }
+const wmDi = el => el ? WM.wins.find(w => w.el === el || w.f === el || w.f.contains(el) || w.el.contains(el)) || null : null;
+// o: {kind, titolo, chiudi() (✕; senza, la finestra si chiude e basta), aggancia() e agganciaTit (⧉), dentro, w, h (frazioni
+//     della pagina o pixel), ridim() dopo ogni spostamento o cambio di misura}
+function wmApri(el, o){
+  let w = wmDi(el);
+  if (w){ wmTitolo(w, o.titolo || w.t); wmMostra(w); return w; }
+  const f = document.createElement("div"); f.className = "wm-win";
+  f.innerHTML = `<div class="wm-bar"><span class="wm-t"></span><button data-wm="min" title="${esc(T("Riduci nella barra delle finestre"))}">—</button>`
+    + `<button data-wm="max" title="${esc(T("Schermo intero (doppio clic sul titolo)"))}">⤢</button>`
+    + (o.aggancia ? `<button data-wm="dock" title="${esc(o.agganciaTit || T("Riaggancia al suo posto nella pagina"))}">⧉</button>` : "")
+    + `<button data-wm="x" class="x" title="${esc(T("Chiudi"))}">✕</button></div><div class="wm-body"></div>`
+    + ["n", "s", "e", "w", "ne", "nw", "se", "sw"].map(d => `<div class="wm-rz ${d}" data-rz="${d}"></div>`).join("");
+  document.body.appendChild(f);
+  w = {id: ++WM.n, el, f, o, kind: o.kind, body: f.querySelector(".wm-body"), min: false, max: false, t: ""};
+  const vw = innerWidth, vh = innerHeight - WM_TASK, dim = (v, tot, def) => v == null ? def : v <= 1 ? Math.round(v * tot) : v;
+  const ww = Math.min(vw - 16, dim(o.w, vw, Math.round(vw * .6))), hh = Math.min(vh - 16, dim(o.h, vh, Math.round(vh * .75)));
+  const altre = WM.wins.filter(x => x.kind === o.kind).length, g0 = wmGeo(o.kind);
+  w.g = g0 && !altre ? g0 : {x: Math.round((vw - ww) / 2) + altre * 28, y: Math.max(8, Math.round((vh - hh) / 2)) + altre * 28, w: ww, h: hh};
+  if (o.dentro){ w.home = {parent: el.parentNode, next: el.nextSibling}; w.body.appendChild(el); }
+  else el.classList.add("wm-segue");
+  WM.wins.push(w);
+  wmTitolo(w, o.titolo || "");
+  const bar = f.querySelector(".wm-bar");
+  bar.querySelectorAll("[data-wm]").forEach(b => b.onclick = e => {
+    e.stopPropagation();
+    const a = b.dataset.wm;
+    if (a === "min") wmRiduci(w);
+    else if (a === "max") wmMax(w, !w.max);
+    else if (a === "dock") o.aggancia();
+    else if (o.chiudi) o.chiudi(); else wmChiudi(w);
+  });
+  bar.ondblclick = e => { if (!e.target.closest("button")) wmMax(w, !w.max); };
+  const trascina = (e, muovi) => {
+    if (e.button !== 0) return;
+    e.preventDefault(); wmFocus(w);
+    const x0 = e.clientX, y0 = e.clientY, g0 = {...w.g}, el2 = e.currentTarget;
+    try{ el2.setPointerCapture(e.pointerId); }catch(x){}
+    document.body.classList.add("wm-drag");
+    const mv = ev => { muovi(ev.clientX - x0, ev.clientY - y0, g0); wmPos(w); };
+    const up = () => { el2.removeEventListener("pointermove", mv); el2.removeEventListener("pointerup", up); el2.removeEventListener("pointercancel", up);
+      document.body.classList.remove("wm-drag"); wmSalva(w); wmRidim(w); };
+    el2.addEventListener("pointermove", mv); el2.addEventListener("pointerup", up); el2.addEventListener("pointercancel", up);
+  };
+  bar.onpointerdown = e => { if (w.max || e.target.closest("button")) return wmFocus(w); trascina(e, (dx, dy, g) => { w.g.x = g.x + dx; w.g.y = g.y + dy; }); };
+  f.querySelectorAll("[data-rz]").forEach(r => r.onpointerdown = e => trascina(e, (dx, dy, g) => {
+    const d = r.dataset.rz, MW = 320, MH = 180;
+    if (d.includes("e")) w.g.w = Math.max(MW, g.w + dx);
+    if (d.includes("s")) w.g.h = Math.max(MH, g.h + dy);
+    if (d.includes("w")){ const nw = Math.max(MW, g.w - dx); w.g.x = g.x + g.w - nw; w.g.w = nw; }
+    if (d.includes("n")){ const nh = Math.max(MH, g.h - dy); w.g.y = g.y + g.h - nh; w.g.h = nh; }
+  }));
+  const fuoco = () => { if (WM.wins[WM.wins.length - 1] !== w || !f.classList.contains("attiva")) wmFocus(w); };
+  f.addEventListener("pointerdown", fuoco, true);
+  if (!o.dentro) el.addEventListener("pointerdown", w.fuoco = fuoco, true);
+  if (o.max) w.max = true;
+  wmPos(w); wmFocus(w); wmTask(); wmRidim(w);
+  return w;
+}
+function wmTitolo(w, t){ w.t = t; w.f.querySelector(".wm-t").textContent = t; w.f.querySelector(".wm-t").title = t; wmTask(); }
+function wmPos(w){
+  const vw = innerWidth, vh = innerHeight - WM_TASK, g = w.g;
+  let r;
+  if (w.max) r = {x: 0, y: 0, w: vw, h: vh};
+  else {
+    g.w = Math.min(g.w, vw); g.h = Math.min(g.h, vh);
+    // ai lati può uscire in parte (resta visibile la barra del titolo); in basso resta sopra la barra delle finestre
+    g.x = Math.max(120 - g.w, Math.min(g.x, vw - 120)); g.y = Math.max(0, Math.min(g.y, vh - g.h));
+    r = g;
+  }
+  Object.assign(w.f.style, {left: r.x + "px", top: r.y + "px", width: r.w + "px", height: r.h + "px"});
+  w.f.classList.toggle("wm-max", w.max);
+  const mb = w.f.querySelector('[data-wm="max"]'); mb.textContent = w.max ? "⤡" : "⤢";
+  mb.title = w.max ? T("Torna alla misura di prima (doppio clic sul titolo)") : T("Schermo intero (doppio clic sul titolo)");
+  if (!w.o.dentro){
+    const b = w.body.getBoundingClientRect(), st = w.el.style;
+    for (const [k, v] of [["position", "fixed"], ["left", b.left + "px"], ["top", b.top + "px"], ["width", b.width + "px"], ["height", b.height + "px"], ["right", "auto"], ["bottom", "auto"], ["inset", "auto"]])
+      if (k !== "inset") st.setProperty(k, v, "important");
+  }
+}
+function wmRidim(w){ requestAnimationFrame(() => { window.dispatchEvent(new Event("resize")); if (w.o.ridim) try{ w.o.ridim(); }catch(e){} }); }
+function wmFocus(w){
+  if (w.min) return wmMostra(w);
+  WM.wins = WM.wins.filter(x => x !== w).concat([w]);
+  WM.wins.forEach((x, i) => {
+    x.f.style.zIndex = WM_Z + 2 * i;
+    if (!x.o.dentro) x.el.style.setProperty("z-index", String(WM_Z + 2 * i + 1), "important");
+    x.f.classList.toggle("attiva", x === w);
+  });
+  wmTask();
+}
+function wmMax(w, si){ w.max = !!si; if (w.min) wmMostra(w); wmPos(w); wmRidim(w); }
+function wmRiduci(w){
+  w.min = true; w.f.classList.add("wm-nascosto"); w.el.classList.add("wm-nascosto");
+  const vis = WM.wins.filter(x => !x.min); if (vis.length) wmFocus(vis[vis.length - 1]); else wmTask();
+}
+function wmMostra(w){ w.min = false; w.f.classList.remove("wm-nascosto"); w.el.classList.remove("wm-nascosto"); wmPos(w); wmFocus(w); wmRidim(w); }
+// toglie la cornice (senza chiamare o.chiudi): l'elemento torna al suo posto, com'era
+function wmChiudi(x){
+  const w = x && x.f ? x : wmDi(x);
+  if (!w) return;
+  WM.wins = WM.wins.filter(y => y !== w);
+  w.el.classList.remove("wm-nascosto", "wm-segue");
+  if (w.o.dentro && w.home){ const h = w.home; if (h.parent && h.parent.isConnected) h.parent.insertBefore(w.el, h.next && h.next.parentNode === h.parent ? h.next : null); }
+  if (!w.o.dentro){ ["position", "left", "top", "width", "height", "right", "bottom", "z-index"].forEach(k => w.el.style.removeProperty(k)); if (w.fuoco) w.el.removeEventListener("pointerdown", w.fuoco, true); }
+  w.f.remove();
+  const vis = WM.wins.filter(y => !y.min); if (vis.length) wmFocus(vis[vis.length - 1]); else wmTask();
+  window.dispatchEvent(new Event("resize"));
+}
+function wmTask(){
+  let t = WM.task;
+  if (!WM.wins.length){ if (t){ t.remove(); WM.task = null; document.body.style.removeProperty("--wmh"); window.dispatchEvent(new Event("resize")); } return; }
+  if (!t){ t = WM.task = document.createElement("div"); t.id = "wmTask"; document.body.appendChild(t); document.body.style.setProperty("--wmh", WM_TASK + "px"); window.dispatchEvent(new Event("resize")); }
+  const top = WM.wins.filter(x => !x.min).pop();
+  t.innerHTML = `<span class="lbl">${T("Finestre aperte:")}</span>` + [...WM.wins].sort((a, b) => a.id - b.id).map(x =>
+    `<button data-w="${x.id}" class="${x === top ? "on" : ""} ${x.min ? "min" : ""}" title="${esc(x.t + (x.min ? " · " + T("ridotta: clic per riaprirla") : x === top ? " · " + T("clic per ridurla") : ""))}">${esc(x.t)}</button>`).join("");
+  t.querySelectorAll("[data-w]").forEach(b => b.onclick = () => {
+    const x = WM.wins.find(y => y.id === +b.dataset.w); if (!x) return;
+    if (x.min) wmMostra(x); else if (x === top) wmRiduci(x); else wmFocus(x);
+  });
+}
+window.addEventListener("resize", () => WM.wins.forEach(w => { if (!w.min) wmPos(w); }));
 // o: {key, el: riquadro che cambia larghezza, dir: 1 se il riquadro è a sinistra del divisore, -1 se a destra,
 //     set(w | null), min, max() (px), after()}
 function paneSplit(sp, o){
@@ -5449,7 +6025,7 @@ function paneSplit(sp, o){
     e.preventDefault();
     const x0 = e.clientX, w0 = o.el().getBoundingClientRect().width;
     sp.classList.add("on"); document.body.classList.add("dragging");
-    const mv = ev => o.set(clamp(w0 + o.dir * (ev.clientX - x0)));
+    const mv = ev => { if (!(ev.buttons & 1)) return up(); o.set(clamp(w0 + o.dir * (ev.clientX - x0))); };
     const up = () => { document.removeEventListener("mousemove", mv); document.removeEventListener("mouseup", up);
       sp.classList.remove("on"); document.body.classList.remove("dragging");
       paneStore.set(o.key, o.el().getBoundingClientRect().width); if (o.after) o.after();
@@ -5490,7 +6066,7 @@ function hsplit(sp, o){
     let coll = sp.classList.contains("coll");
     const y0 = e.clientY, h0 = coll ? 0 : el.getBoundingClientRect().height;
     sp.classList.add("on"); document.body.classList.add("vdragging");
-    const mv = ev => { if (coll){ if (Math.abs(ev.clientY - y0) < 4) return; coll = false; paneStore.set("hc:" + key(), null); setC(false); } setH(clamp(h0 + (ev.clientY - y0))); };
+    const mv = ev => { if (!(ev.buttons & 1)) return up(); if (coll){ if (Math.abs(ev.clientY - y0) < 4) return; coll = false; paneStore.set("hc:" + key(), null); setC(false); } setH(clamp(h0 + (ev.clientY - y0))); };
     const up = () => { document.removeEventListener("mousemove", mv); document.removeEventListener("mouseup", up);
       sp.classList.remove("on"); document.body.classList.remove("vdragging");
       if (el.style.height) paneStore.set("h:" + key(), el.getBoundingClientRect().height);
@@ -5531,7 +6107,7 @@ document.addEventListener("keydown", e => {
   if (pvState.tab === "hex" && hexState && hexState.focus) return;
   const grid = viewOf(resSec) !== "list";
   const step = {ArrowDown: 1, ArrowUp: -1, ArrowRight: grid ? 1 : 0, ArrowLeft: grid ? -1 : 0}[e.key];
-  if (e.key === "Escape"){ pvClose(); return; }
+  if (e.key === "Escape"){ const pw = pvWinOf(); if (!pw || (!pw.min && pw.f.classList.contains("attiva"))) pvClose(); return; }      // (3.0.1) in finestra: solo se è quella attiva
   if (!step) return;
   e.preventDefault();
   let i = curRow, kind = kindOf(resSec);
@@ -5777,7 +6353,12 @@ let HISTGEN = 0;
 /* (3.0) Timeline a schermo intero: gli stessi grafico, filtri e tabella, senza l'albero delle sezioni */
 function tlFull(si){
   TL_FULL = !!si;
-  document.querySelector(".resbody").classList.toggle("tlfull", TL_FULL);
+  const rb = document.querySelector(".resbody");
+  rb.classList.toggle("tlfull", TL_FULL);
+  // (3.0.1) la Timeline a schermo intero è una finestra: si sposta, si ridimensiona, si riduce nella barra
+  if (TL_FULL) wmApri(rb, {kind: "timeline", titolo: "📈 " + T("Timeline"), chiudi: () => tlFull(false), aggancia: () => tlFull(false),
+                           agganciaTit: T("Riporta la Timeline nella pagina"), w: .96, h: .94});
+  else { const w = WM.wins.find(x => x.el === rb); if (w) wmChiudi(w); }
   document.body.classList.toggle("vfull", TL_FULL || $("pv").classList.contains("pvfull"));
   const b = $("tlFullB");
   if (b){ b.textContent = TL_FULL ? T("✕ Chiudi") : "⤢ " + T("Schermo intero"); b.title = T(TL_FULL ? "Torna alla vista normale (Esc)" : "Apri la Timeline a schermo intero"); }
@@ -5813,7 +6394,7 @@ function drawHist(){
   const compact = keys.length > 1500;
   if (compact) keys = bins.map(b => b.k);
   const picked = hist.pick && map[hist.pick] ? hist.pick : null;
-  box.innerHTML = `<button class="tlcoll" id="tlColl" title="${esc(T("Comprimi il grafico (si riapre con ▸ sotto)"))}">▾</button>` + TF("<div class=\"tlhead\"><span class=\"t\">Attività per {0}</span>\n      <div class=\"seg\">{1}</div>\n      {2}\n      {3}\n      <span class=\"grow\"></span><span class=\"hint\">{4}</span></div>\n    <div class=\"tlscroll {5}\" id=\"tlScroll\"></div><div class=\"peaks\" id=\"tlPeaks\"></div>", GRAN_L[g], ["auto", "day", "month", "year"].map(x => `<button data-g="${x}" class="${hist.gran === x ? "on" : ""}">${{auto: T("Auto"), day: T("Giorno"), month: T("Mese"), year: T("Anno")}[x]}</button>`).join(""), hist.range ? `<span class="badge">${esc(binLabel(hist.range[0]))} – ${esc(binLabel(hist.range[1]))}</span>` : "", st.start || st.end || hist.range ? T("<button class=\"btn small\" id=\"hClear\">← Tutto il periodo</button>") : "", bins.length ? (g === "day" ? T("Clicca una barra per vedere sotto gli eventi di quel giorno") : TF("Clicca un {0} per vederne gli eventi e il dettaglio per {1}", GRAN_L[g], g === "year" ? "mese" : "giorno")) + (compact ? T(" · periodi senza eventi omessi") : "") : T("Nessun evento con questi filtri"), picked ? "picked" : "");
+  box.innerHTML = `<button class="tlcoll" id="tlColl" title="${esc(T("Comprimi il grafico (si riapre con ▸ sotto)"))}">▾</button>` + TF("<div class=\"tlhead\"><span class=\"t\">Attività per {0}</span>\n      <div class=\"seg\">{1}</div>\n      {2}\n      {3}\n      <span class=\"grow\"></span><span class=\"hint\">{4}</span></div>\n    <div class=\"tlscroll {5}\" id=\"tlScroll\"></div><div class=\"peaks\" id=\"tlPeaks\"></div>", GRAN_L[g], ["auto", "day", "month", "year"].map(x => `<button data-g="${x}" class="${hist.gran === x ? "on" : ""}">${{auto: T("Auto"), day: T("Giorno"), month: T("Mese"), year: T("Anno")}[x]}</button>`).join(""), hist.range ? `<span class="badge">${esc(binLabel(hist.range[0]))} – ${esc(binLabel(hist.range[1]))}</span>` : "", st.start || st.end || hist.range ? T("<button class=\"btn small\" id=\"hClear\">← Tutto il periodo</button>") : "", bins.length ? (g === "day" ? T("Clicca una barra per vedere sotto gli eventi di quel giorno") : TF("Clicca un {0} per vederne gli eventi e il dettaglio per {1}", GRAN_L[g], g === "year" ? T("mese") : T("giorno"))) + (compact ? T(" · periodi senza eventi omessi") : "") : T("Nessun evento con questi filtri"), picked ? "picked" : "");
   box.querySelectorAll("[data-g]").forEach(b => b.onclick = () => { hist.gran = b.dataset.g; hist.pick = null; fetchHist(); });
   $("tlColl").onclick = () => HS_TL && HS_TL.toggle();
   box.querySelector(".seg").insertAdjacentHTML("afterend", `<button class="btn small" id="tlFullB" style="margin-left:6px" title="${esc(T(TL_FULL ? "Torna alla vista normale (Esc)" : "Apri la Timeline a schermo intero"))}">${TL_FULL ? T("✕ Chiudi") : "⤢ " + T("Schermo intero")}</button>`);
@@ -5912,7 +6493,7 @@ const isDark = () => (document.documentElement.dataset.theme || (matchMedia("(pr
 function applyTheme(t){
   if (t) document.documentElement.dataset.theme = t;
 function licenzaInfo(){
-  openModal(T("Licenza e informazioni legali"), `<p>${T("RepertIA, Copyright (C) 2026 silvexe. È software libero con licenza GNU Affero General Public License versione 3 o successiva (AGPL-3.0-or-later), con un permesso aggiuntivo per The Sleuth Kit descritto nel README.")}</p><p>${T("È fornito SENZA ALCUNA GARANZIA, nei limiti consentiti dalla legge.")}</p><p>${TF("Codice sorgente: {0}. Testo della licenza: {1}.", "<code>https://github.com/silvexe/RepertIA</code>", "<code>https://www.gnu.org/licenses/agpl-3.0.html</code>")}</p><p>${TF("I componenti di terze parti hanno le proprie licenze (THIRD_PARTY_LICENSES.md). Dati delle mappe: © OpenStreetMap contributors, licenza ODbL ({0}); Natural Earth, pubblico dominio.", "<code>openstreetmap.org/copyright</code>")}</p>`);
+  openModal(T("Licenza e informazioni legali"), `<p><b>${TF("Versione installata: {0}", esc(APPVER))}</b></p><p>${T("RepertIA, Copyright (C) 2026 silvexe. È software libero con licenza GNU Affero General Public License versione 3 o successiva (AGPL-3.0-or-later), con un permesso aggiuntivo per The Sleuth Kit descritto nel README.")}</p><p>${T("È fornito SENZA ALCUNA GARANZIA, nei limiti consentiti dalla legge.")}</p><p>${TF("Codice sorgente: {0}. Testo della licenza: {1}.", "<code>https://github.com/silvexe/RepertIA</code>", "<code>https://www.gnu.org/licenses/agpl-3.0.html</code>")}</p><p>${TF("I componenti di terze parti hanno le proprie licenze (THIRD_PARTY_LICENSES.md). Dati delle mappe: © OpenStreetMap contributors, licenza ODbL ({0}); Natural Earth, pubblico dominio.", "<code>openstreetmap.org/copyright</code>")}</p>`);
 }
 $("btnLic").onclick = licenzaInfo;
   $("btnTheme").textContent = isDark() ? "☀" : "☾";

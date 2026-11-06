@@ -17,7 +17,8 @@ Metodo
 - Orari in UTC. I messaggi entrano anche nella timeline (origine «chat»).
 
 Limiti dichiarati: database cifrati (es. backup WhatsApp .crypt14/.crypt15, Signal) non si leggono senza chiave;
-i messaggi cancellati ancora presenti nelle pagine libere dei database non sono recuperati in questa versione;
+i messaggi cancellati ancora presenti nei byte dei database si recuperano (3.0.1) solo per WhatsApp Android (message,
+call_log; recuperati_wa), segnati «da verificare»;
 le app non elencate sopra si vedono con iLEAPP/ALEAPP (Artefatti) e nell'albero dei file.
 """
 import datetime as dt
@@ -35,7 +36,19 @@ import forense_mobile_chiamate as fmca  # noqa: E402
 
 PREF_CHAT_MAX = 2000           # (2.21) messaggi di ogni chat dei Preferiti scritti nel report
 APP_LBL = {"imessage": "iMessage/SMS", "whatsapp": "WhatsApp", "sms": "SMS/MMS",
-           "whatsapp_backup": "WhatsApp (backup decifrato)"}
+           "whatsapp_backup": "WhatsApp (backup decifrato)", "whatsapp_business": "WhatsApp Business",
+           "whatsapp_business_backup": "WhatsApp Business (backup decifrato)"}
+WA_APPS = ("whatsapp", "whatsapp_business")
+# (3.0.1) WhatsApp Business ha cartelle sue: com.whatsapp.w4b (Android) e «WhatsApp Business» nella memoria condivisa;
+# su iOS il gruppo di app condiviso group.net.whatsapp.WhatsAppSMB.shared (dal file di metadati del contenitore)
+WA_BUSINESS_RE = re.compile(r"(^|/)(com\.whatsapp\.w4b|WhatsApp Business)/")
+
+
+def wa_app(case, part, path, backup=False):
+    """App di un database WhatsApp: «whatsapp» o «whatsapp_business» (con «_backup» per i backup decifrati)."""
+    import forense_mobile as fm
+    b = bool(WA_BUSINESS_RE.search(path or "")) or "whatsappsmb" in (fm.contenitore_ios(case, part, path) or "").lower()
+    return ("whatsapp_business" if b else "whatsapp") + ("_backup" if backup else "")
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS chat_threads(id INTEGER PRIMARY KEY, app TEXT, key TEXT, title TEXT, participants TEXT,
     is_group INTEGER, n_msg INTEGER, first_ts TEXT, last_ts TEXT, part INTEGER, inode TEXT, src_path TEXT, local TEXT);
@@ -201,6 +214,55 @@ class WorkDB:
             self.db.close()
         finally:
             shutil.rmtree(self.tmp, ignore_errors=True)
+
+
+# (3.0.1) record cancellati di msgstore.db (messaggi e chiamate) letti dai byte della copia di lavoro con forense_recupero:
+# record «integri» (cella completa) e «testa» (primo record di uno spazio libero: rowid perso, valori letti con i conti delle
+# lunghezze che tornano; su una copia del msgstore pubblico di Android 14 con 12 messaggi cancellati a mano, i 4 letti erano
+# uguali agli originali); mai gli «ambigui». Sempre segnati «da verificare». Una volta per database e preparazione: li usano
+# sia le chat sia le Chiamate.
+_RECUPERO = {}
+TABELLE_RECUPERO = ("message", "call_log")
+NOTA_RECUPERO = N_("record cancellato, recuperato dai byte del database (pagine libere, spazio libero o WAL): da verificare")
+
+
+def _val_rec(v):
+    t, x = v[0], v[1]
+    try:
+        return int(x) if t == "i" else float(x) if t == "r" else x if t == "t" else None
+    except ValueError:
+        return None
+
+
+def recuperati_wa(w, src):
+    """{tabella: [(riga come dict, informazioni sul recupero)]} dei record cancellati di message e call_log. `w` = WorkDB
+    aperta (il -wal accanto non è ancora unito), `src` = (part, inode, path) del database nell'estrazione."""
+    if not hasattr(w, "tmp") or not getattr(w, "file", None):
+        return {}
+    k = (str(w.tmp.parent), str(src[0]), str(src[1]))
+    if k not in _RECUPERO:
+        import forense_recupero as fr
+        out = {}
+        try:
+            r = fr.recupera(str(w.file))
+        except Exception as e:                      # database danneggiato o formato inatteso: nessun recupero
+            print(tr("  Record cancellati di {path}: non letti ({e})").format(path=src[2], e=e), flush=True)
+            r = {"record": [], "nomi": {}}
+        for x in r["record"]:
+            if x["livello"] not in ("integra", "testa") or x["tabella"] not in TABELLE_RECUPERO:
+                continue
+            d = dict(zip(r["nomi"][x["tabella"]], (_val_rec(v) for v in x["valori"])))
+            info = {"livello": x["livello"], "fonte": x["fonte"], "file": x["file"], "offset": x["offset"], "pagina": x["pagina"], "rowid": x["rowid"],
+                    "troncato": any(len(v) > 2 and v[2] for v in x["valori"])}
+            out.setdefault(x["tabella"], []).append((d, info))
+        _RECUPERO[k] = out
+    return _RECUPERO[k]
+
+
+def rif_recupero(tabella, rec):
+    """Tabella del riferimento di un record recuperato: con la riga se il rowid c'è, altrimenti con l'offset nel file."""
+    return f"{tabella} ({tr('record cancellato')}, " + (tr("riga") if rec.get("rowid") is not None else
+                                                     ("WAL " if rec.get("file") == "wal" else "") + "offset") + ")"
 
 
 class FileWorkDB(WorkDB):
@@ -485,7 +547,8 @@ def lid_applica(con):
     n = 0
     nome = lambda nums, nm: next((nm[norm_number(x)] for x in nums if nm.get(norm_number(x))), "")
     nm = name_map(con)
-    for i, key, title, parts in con.execute("SELECT id, key, title, participants FROM chat_threads WHERE app = 'whatsapp'").fetchall():
+    for i, key, title, parts in con.execute("SELECT id, key, title, participants FROM chat_threads "
+                                            "WHERE app IN ('whatsapp', 'whatsapp_business')").fetchall():
         try:
             pl = json.loads(parts or "[]")
         except ValueError:
@@ -603,17 +666,17 @@ def identita(case, part):
                     w.close()
             if "telefono" in out:
                 break
-        for i, path in files("%com.whatsapp/shared_prefs/com.whatsapp_preferences_light.xml",
-                             "%com.whatsapp/shared_prefs/startup_prefs.xml"):
-            try:
-                root = ET.fromstring(_leggi(case, part, i))
-            except Exception:
-                continue
-            kv = {e.get("name"): (e.text or "") for e in root if e.get("name")}
-            num = ("+" + kv["cc"] + kv["ph"]) if kv.get("cc") and kv.get("ph") else show_id(kv.get("registration_jid"))
-            if num:
-                out["whatsapp"] = {"id": num, "nome": kv.get("push_name") or None, "fonte": path}
-                break
+        for chiave, pk in (("whatsapp", "com.whatsapp"), ("whatsapp_business", "com.whatsapp.w4b")):
+            for i, path in files(f"%{pk}/shared_prefs/{pk}_preferences_light.xml", f"%{pk}/shared_prefs/startup_prefs.xml"):
+                try:
+                    root = ET.fromstring(_leggi(case, part, i))
+                except Exception:
+                    continue
+                kv = {e.get("name"): (e.text or "") for e in root if e.get("name")}
+                num = ("+" + kv["cc"] + kv["ph"]) if kv.get("cc") and kv.get("ph") else show_id(kv.get("registration_jid"))
+                if num:
+                    out[chiave] = {"id": num, "nome": kv.get("push_name") or None, "fonte": path}
+                    break
         return out
     finally:
         m.close()
@@ -714,7 +777,7 @@ def read_imessage(case, con, part, inode, path, names):
 
 def read_whatsapp_ios(case, con, part, inode, path, names):
     w = WorkDB(case, part, inode, path, con)
-    W = Writer(con, "whatsapp", part, inode, path)
+    W = Writer(con, wa_app(case, part, path), part, inode, path)
     try:
         t = w.tables()
         if not {"zwamessage", "zwachatsession"} <= t:
@@ -829,6 +892,7 @@ def _wa_ios_chiamate(case, con, part, W, names=None):
     try:
         dbs = [(i, p) for i, p in m.execute("SELECT id, path FROM mobile_files WHERE part=? AND isdir=0 AND "
                                             "path LIKE '%/CallHistory.sqlite'", (part,)) if fmca.FONTI["wa_ios"].search(p)]
+        dbs = [(i, p) for i, p in dbs if wa_app(case, part, p) == W.app]      # (3.0.1) WhatsApp e WhatsApp Business
     finally:
         m.close()
     for inode, path in dbs:
@@ -838,7 +902,7 @@ def _wa_ios_chiamate(case, con, part, W, names=None):
         finally:
             wc.close()
         if recs:
-            W2 = Writer(con, "whatsapp", part, inode, path)
+            W2 = Writer(con, W.app, part, inode, path)
             W2.threads = W.threads
             W.n_msg += fmca.nella_chat(W2, recs, "ZWACDCALLEVENT", names)
 
@@ -846,10 +910,11 @@ def _wa_ios_chiamate(case, con, part, W, names=None):
 # ------------------------------------------------------------------------ WhatsApp Android
 
 class BackupWriter(Writer):
-    """(2.20) Conversazioni di un backup decifrato: app «whatsapp_backup», chiave con il nome del backup davanti."""
+    """(2.20) Conversazioni di un backup decifrato: app «whatsapp_backup» (o «whatsapp_business_backup»), chiave con il
+    nome del backup davanti."""
 
-    def __init__(self, con, part, inode, src_path, nome):
-        super().__init__(con, "whatsapp_backup", part, inode, src_path)
+    def __init__(self, con, part, inode, src_path, nome, app="whatsapp_backup"):
+        super().__init__(con, app, part, inode, src_path)
         self.nome = nome
 
     def thread(self, key, title, participants=None, is_group=False):
@@ -860,7 +925,8 @@ def read_whatsapp_android(case, con, part, inode, path, names, backup=None):
     """`backup` (2.20): {"file": database decifrato nel caso, "nome": nome del backup}; part/inode/path sono allora quelli
     del file .crypt14 nell'estrazione (la fonte)."""
     w = WorkDB(case, part, inode, path, con) if backup is None else FileWorkDB(case, backup["file"])
-    W = Writer(con, "whatsapp", part, inode, path) if backup is None else BackupWriter(con, part, inode, path, backup["nome"])
+    W = Writer(con, wa_app(case, part, path), part, inode, path) if backup is None else \
+        BackupWriter(con, part, inode, path, backup["nome"], wa_app(case, part, path, backup=True))
     try:
         t = w.tables()
         res = Resolver(case, part, ["WhatsApp/Media/", "WhatsApp Business/Media/"])
@@ -925,8 +991,13 @@ def read_whatsapp_android(case, con, part, inode, path, names, backup=None):
                 for r in w.db.execute("SELECT group_jid_row_id g, user_jid_row_id u FROM group_participant_user"):
                     gparts.setdefault(r["g"], []).append(jid.get(r["u"]))
             mc = w.cols("message")
-            for r in w.db.execute("SELECT * FROM message ORDER BY timestamp"):
-                d = dict(r)
+            vivi = set()
+
+            def uno(d, rec=None):
+                # rec (3.0.1): record cancellato recuperato; il suo _id può essere stato riusato da un messaggio nuovo, quindi
+                # nessun collegamento per _id (allegati, posizione, ricevute, chiamata, avviso)
+                if rec is None:
+                    vivi.add(d.get("key_id"))
                 c = chats.get(d.get("chat_row_id")) or {}
                 cj = jid.get(c.get("jid_row_id"), "") or ""
                 is_group = cj.endswith("@g.us")
@@ -938,29 +1009,35 @@ def read_whatsapp_android(case, con, part, inode, path, names, backup=None):
                 sender = "" if frm else (jid.get(d.get("sender_jid_row_id")) or cj) if is_group else ("" if frm else cj)
                 mt = d.get("message_type") or 0
                 kind, tipo = fmw.classifica("android", mt)
-                cl = cl90.get(d.get("_id")) if mt == 90 else None
+                cl = cl90.get(d.get("_id")) if mt == 90 and rec is None else None
                 if cl:              # chiamata: tipo, durata ed esito dalla riga di call_log (verificato su Android 14)
                     cl_usate.add(cl["_id"])
                     dur = cl.get("duration")
                     esito_cl = cl.get("call_result")
                     tipo.update(tipo=fmca.etichetta_chiamata(tr("video") if cl.get("video_call") else tr("voce"),
-                                                             "out" if frm else "in", dur),
-                                durata_s=dur, risposta=True if esito_cl == 5 else None,
+                                                             "out" if frm else "in", dur,
+                                                             tr(fmca.WA_AND_ESITO[esito_cl]) if esito_cl in (2, 4) else None),
+                                durata_s=dur, risposta=True if esito_cl == 5 else False if esito_cl in (2, 4) else None,
                                 fonte_chiamata=f"msgstore.db · message + call_log #{cl['_id']}")
                 st = d.get("status")
                 av = mt == 7          # (2.20) avviso di WhatsApp: mai «inviato», anche se il database lo segna from_me = 1
                 if av:
                     sender = ""
                     tipo.update(tipo=tr(fmw.AVVISO), from_me=d.get("from_me"))
-                    if d.get("_id") in avvisi:
+                    if d.get("_id") in avvisi and rec is None:
                         tipo["avviso"] = avvisi[d["_id"]]
+                if rec is not None:
+                    tipo.update(recuperato=rec, nota_recupero=tr(NOTA_RECUPERO))
                 mid = W.message(th, _iso_ms(d.get("timestamp")), "sys" if av else "out" if frm else "in", sender,
-                                d.get("text_data"), kind, "message", d.get("_id"),
+                                d.get("text_data"), kind, "message" if rec is None else rif_recupero("message", rec),
+                                d.get("_id") if rec is None else rec["rowid"] if rec.get("rowid") is not None else rec["offset"],
                                 status=(tr("letto") if frm and not av and st == 13 else tr("consegnato") if frm and not av and st in (4, 5) else None),
                                 service="WhatsApp", sender_name=None if frm else names.get(norm_number(sender)),
                                 extra={**tipo, "key_id": d.get("key_id"),
                                        "ricevuto": _iso_ms(d.get("received_timestamp")) if "received_timestamp" in mc else None,
                                        "preferito": bool(d.get("starred"))})
+                if rec is not None:
+                    return
                 if not av:
                     fmr.android(R, mid, d, ru.get(d.get("_id"), []), rd.get(d.get("_id"), []), rjid)
                 m = media.get(d.get("_id"))
@@ -976,8 +1053,16 @@ def read_whatsapp_android(case, con, part, inode, path, names, backup=None):
                 if lc:
                     W.attachment(mid, lc.get("place_name") or tr("posizione"), None, None, None, None,
                                  lc.get("latitude"), lc.get("longitude"))
-            fmca.nella_chat(W, [r for r in fmca.wa_android(w, (part, str(inode), path))
-                                if r["fonti"][0]["riga"] not in cl_usate], "call_log", names)
+            for r in w.db.execute("SELECT * FROM message ORDER BY timestamp"):
+                uno(dict(r))
+            if backup is None:          # (3.0.1) messaggi cancellati ancora nei byte del database (non già tra i vivi)
+                for d, info in recuperati_wa(w, (part, str(inode), path)).get("message", []):
+                    if d.get("timestamp") and d.get("key_id") and d["key_id"] not in vivi:
+                        vivi.add(d["key_id"])       # stesso messaggio in più punti del file (pagina libera e WAL): una volta
+                        uno(d, info)
+            fmca.nella_chat(W, [r for r in fmca.wa_android(w, (part, str(inode), path), recupero=backup is None)
+                                if r.get("recuperato") or r["fonti"][0]["riga"] not in cl_usate], "call_log", names,
+                            solo_chiamate=backup is None)
             return W
         if "messages" in t:                                         # schema precedente (e di passaggio 2020-2021)
             mm = {}
@@ -1018,7 +1103,7 @@ def read_whatsapp_android(case, con, part, inode, path, names, backup=None):
                     W.attachment(mid, name, m.get("mime_type") or d.get("media_mime_type"), size, fp or None, fd["found"],
                                  d.get("latitude") or None, d.get("longitude") or None, metodo=fd["metodo"], sha256=sha,
                                  verifica=fd["verifica"], thumb=thumb)
-            fmca.nella_chat(W, fmca.wa_android(w, (part, str(inode), path)), "call_log", names)
+            fmca.nella_chat(W, fmca.wa_android(w, (part, str(inode), path)), "call_log", names, solo_chiamate=backup is None)
             return W
         return None
     finally:
@@ -1133,6 +1218,7 @@ def run(case, con, chiamate=True):
     import forense_agent as fa
     import forense_mobile as fm
     import forense_estesa as fe
+    _RECUPERO.clear()
     ensure_schema(con)
     for tb in ("chat_threads", "chat_messages", "chat_attachments", "chat_contacts", "chat_lid"):
         con.execute(f"DELETE FROM {tb}")
@@ -1208,8 +1294,9 @@ def run(case, con, chiamate=True):
     # questo telefono nelle conversazioni senza un numero proprio: WhatsApp Android dalle shared_prefs, SMS e iMessage
     # dal numero della SIM (WhatsApp iOS: il numero non è in chiaro nell'estrazione → «questo dispositivo»)
     prop = out["proprietario"]
-    if prop.get("whatsapp") and plat == "android":
-        con.execute("UPDATE chat_threads SET local=? WHERE app='whatsapp' AND local IS NULL", (prop["whatsapp"]["id"],))
+    for k in WA_APPS:
+        if prop.get(k) and plat == "android":
+            con.execute("UPDATE chat_threads SET local=? WHERE app=? AND local IS NULL", (prop[k]["id"], k))
     if prop.get("telefono") and not prop["telefono"].get("piu_sim"):
         con.execute("UPDATE chat_threads SET local=? WHERE app IN ('sms', 'imessage') AND local IS NULL",
                     (prop["telefono"]["id"],))
@@ -1264,7 +1351,7 @@ def leggi_backup(case, con, part, names, out):
                     (json.dumps(list(W.threads.values())),))
         con.execute("UPDATE chat_messages SET extra = json_set(coalesce(extra, '{}'), '$.backup', ?) WHERE thread IN "
                     "(SELECT value FROM json_each(?))", (nome, json.dumps(list(W.threads.values()))))
-        a = out["app"].setdefault("whatsapp_backup", {"conversazioni": 0, "messaggi": 0, "allegati": 0, "fonti": []})
+        a = out["app"].setdefault(W.app, {"conversazioni": 0, "messaggi": 0, "allegati": 0, "fonti": []})
         a["conversazioni"] += len(W.threads)
         a["messaggi"] += W.n_msg
         a["allegati"] += W.n_att
@@ -1275,13 +1362,14 @@ def leggi_backup(case, con, part, names, out):
 
 def segna_backup(con):
     """(2.20) Messaggi dei backup che NON sono nel database attuale (stesso key_id assente dai messaggi WhatsApp letti
-    da msgstore.db): extra.solo_nel_backup = true. Restituisce quanti sono."""
-    con.execute("UPDATE chat_messages SET extra = json_set(extra, '$.solo_nel_backup', json('true')) WHERE app='whatsapp_backup' "
-                "AND json_extract(extra, '$.key_id') IS NOT NULL AND json_extract(extra, '$.key_id') NOT IN "
-                "(SELECT json_extract(extra, '$.key_id') FROM chat_messages WHERE app='whatsapp' "
-                "AND json_extract(extra, '$.key_id') IS NOT NULL)")
+    da msgstore.db): extra.solo_nel_backup = true. (3.0.1) WhatsApp Business con il suo database. Restituisce quanti sono."""
+    for app in WA_APPS:
+        con.execute("UPDATE chat_messages SET extra = json_set(extra, '$.solo_nel_backup', json('true')) WHERE app=? "
+                    "AND json_extract(extra, '$.key_id') IS NOT NULL AND json_extract(extra, '$.key_id') NOT IN "
+                    "(SELECT json_extract(extra, '$.key_id') FROM chat_messages WHERE app=? "
+                    "AND json_extract(extra, '$.key_id') IS NOT NULL)", (app + "_backup", app))
     con.commit()
-    return con.execute("SELECT COUNT(*) FROM chat_messages WHERE app='whatsapp_backup' AND "
+    return con.execute("SELECT COUNT(*) FROM chat_messages WHERE app IN ('whatsapp_backup', 'whatsapp_business_backup') AND "
                        "json_extract(extra, '$.solo_nel_backup')").fetchone()[0]
 
 
@@ -1619,7 +1707,8 @@ def report_md(case):
                      f"{cell(', '.join(a.get('fonti') or []))} |")
         prop = c.get("proprietario") or {}
         L.append("")
-        for k, lbl in (("telefono", tr("Numero del telefono analizzato")), ("whatsapp", tr("Numero registrato in WhatsApp"))):
+        for k, lbl in (("telefono", tr("Numero del telefono analizzato")), ("whatsapp", tr("Numero registrato in WhatsApp")),
+                       ("whatsapp_business", tr("Numero registrato in WhatsApp Business"))):
             if prop.get(k):
                 L.append(f"- {lbl}: {prop[k]['id']}" + (f" ({prop[k]['nome']})" if prop[k].get("nome") else "")
                          + " — " + tr("fonte: {f}").format(f=prop[k].get("fonte")))
@@ -1691,8 +1780,8 @@ def report_md(case):
           tr("- Si vede solo quello che c'è nell'estrazione: un'estrazione non completa (logica, backup) non contiene i "
              "database delle app."),
           tr("- Database cifrati (es. backup di WhatsApp .crypt14/.crypt15, Signal) non si leggono senza la chiave."),
-          tr("- I messaggi cancellati ancora presenti nelle pagine libere dei database non sono recuperati da RepertIA "
-             "in questa versione (iLEAPP/ALEAPP ne segnalano alcuni)."),
+          tr("- I messaggi cancellati ancora presenti nei byte dei database sono recuperati da RepertIA solo per WhatsApp "
+             "Android (messaggi e chiamate, segnati «da verificare»); per le altre app no (iLEAPP/ALEAPP ne segnalano alcuni)."),
           tr("- Le date DOS degli zip non hanno fuso: sono convertite con il fuso del dispositivo e dichiarate."), ""]
     return L
 
@@ -1787,6 +1876,10 @@ def prompt_extra(case):
                     "(anche per periodo), search_messages cerca nel testo dei messaggi, find_contact trova un contatto "
                     "nelle rubriche. Ogni messaggio cita database, tabella e riga di origine: citali.").format(
             app=", ".join(f"{APP_LBL.get(k, k)} {v['messaggi']}" for k, v in c["app"].items())))
+        L.append(tr("- Sotto i messaggi, le righe «✓» danno l'ora di lettura su questo telefono (messaggi ricevuti) e le ricevute "
+                    "di consegna e lettura (messaggi inviati), con la fonte. Senza «letto» non si può concludere che il messaggio "
+                    "non sia stato letto: le conferme di lettura si possono disattivare. Se una ricevuta è «significato non "
+                    "verificato», dillo."))
     if m.get("leapp"):
         L.append(tr("- Artefatti di iLEAPP/ALEAPP importati: query_artifacts con categoria «leapp»."))
     L.append(tr("- DOVE CERCARE su iPhone: private/var/mobile/Library (SMS, AddressBook, CallHistoryDB, Safari), "
@@ -1808,12 +1901,35 @@ def agent_tools(case):
         return f"[{(ts or '?').replace('T', ' ')} UTC] {who} {text or '[' + fmw.etichetta(kind, extra) + ']'}" + (
             f" (+{n_att} " + tr("allegati") + ")" if n_att else "") + f"  ⟨msg {mid}; {src} {table}#{row}⟩"
 
+    def _stati(con, ids):
+        """(3.0.1) Righe di stato per messaggio: lettura su questo telefono (ricevuti) e ricevute di consegna e lettura
+        (inviati, tabella chat_receipts), con la fonte e «non verificato» dove il significato non è verificato."""
+        out = {}
+        if not ids:
+            return out
+        for mid, rts, fonte in con.execute(
+                "SELECT id, read_ts, json_extract(extra, '$.letto_fonte') FROM chat_messages WHERE direction = 'in' AND "
+                "read_ts IS NOT NULL AND id IN (SELECT value FROM json_each(?))", (json.dumps(ids),)):
+            out.setdefault(mid, []).append(tr("letto su questo telefono: {ts} UTC").format(ts=rts.replace("T", " "))
+                                           + (f" ({fonte})" if fonte else ""))
+        for mid, liv in con.execute(            # (3.0.1) messaggi e chiamate cancellati recuperati dai byte del database
+                "SELECT id, json_extract(extra, '$.recuperato.livello') FROM chat_messages WHERE json_extract(extra, '$.recuperato') "
+                "IS NOT NULL AND id IN (SELECT value FROM json_each(?))", (json.dumps(ids),)):
+            out.setdefault(mid, []).append(tr(NOTA_RECUPERO))
+        for mid, rs in fmr.per_messaggi(con, ids).items():
+            for x in rs:
+                out.setdefault(mid, []).append(
+                    x["etichetta"] + (f": {x['ts'].replace('T', ' ')} UTC" if x["ts"] else "")
+                    + (" " + tr("destinatario {d}").format(d=x["destinatario"]) if x["destinatario"] else "")
+                    + f" ({x['fonte']}" + ("" if x["verificato"] else "; " + tr("significato non verificato")) + ")")
+        return out
+
     def list_chats(app: str = "", contains: str = "", limit: int = 100, offset: int = 0) -> str:
         """Elenca le conversazioni delle chat del telefono con partecipanti, numero di messaggi e periodo. Le app presenti
         si vedono con count_messages(by='app').
 
         Args:
-            app: nome dell'app, es. 'whatsapp', 'imessage', 'sms', 'telegram'; vuoto per tutte
+            app: nome dell'app, es. 'whatsapp', 'whatsapp_business', 'imessage', 'sms', 'telegram'; vuoto per tutte
             contains: testo nel titolo o nei partecipanti (nome o numero)
             limit: numero massimo di conversazioni (max 500)
             offset: righe da saltare, per proseguire dopo una risposta incompleta
@@ -1869,8 +1985,10 @@ def agent_tools(case):
                 att.setdefault(mid, []).append(f"{name or ''}" + (f" [{path}]" if path else tr(" [file non presente "
                                                                                                 "nell'estrazione]"))
                                                + (f" GPS {lat},{lon}" if lat else ""))
+        st = _stati(con, ids)
         con.close()
-        return fa.pagina(["\n".join([_fmt(r)] + ["    📎 " + x for x in att.get(r[7], [])]) for r in rows], tot, offset)
+        return fa.pagina(["\n".join([_fmt(r)] + ["    📎 " + x for x in att.get(r[7], [])] + ["    ✓ " + x for x in st.get(r[7], [])])
+                          for r in rows], tot, offset)
 
     def read_message(message_id: int) -> str:
         """Un messaggio dal suo numero (quello che location_points indica come «c|N»), con la conversazione.
@@ -1883,9 +2001,11 @@ def agent_tools(case):
             r = con.execute("SELECT m.ts, m.direction, m.sender, m.sender_name, m.text, m.kind, m.n_att, m.id, m.src_table, m.src_row, "
                             "t.src_path, m.extra, t.title FROM chat_messages m JOIN chat_threads t ON t.id = m.thread WHERE m.id=?",
                             (int(message_id),)).fetchone()
+            st = _stati(con, [int(message_id)]) if r else {}
         finally:
             con.close()
-        return f"{r[12]}: {_fmt(r[:12])}" if r else tr("Messaggio {id} non trovato.").format(id=message_id)
+        return "\n".join([f"{r[12]}: {_fmt(r[:12])}"] + ["    ✓ " + x for x in st.get(r[7], [])]) if r \
+            else tr("Messaggio {id} non trovato.").format(id=message_id)
 
     def search_messages(text: str, app: str = "", contact: str = "", start: str = "", end: str = "",
                         limit: int = 100, offset: int = 0) -> str:
@@ -1893,7 +2013,7 @@ def agent_tools(case):
 
         Args:
             text: parola o frase da cercare
-            app: nome dell'app, es. 'whatsapp', 'imessage', 'sms', 'telegram'; vuoto per tutte
+            app: nome dell'app, es. 'whatsapp', 'whatsapp_business', 'imessage', 'sms', 'telegram'; vuoto per tutte
             contact: nome o numero del mittente o della conversazione, facoltativo
             start: data iniziale ISO, facoltativa
             end: data finale ISO, facoltativa
@@ -1920,8 +2040,10 @@ def agent_tools(case):
                            "m.src_row, t.src_path, t.id, t.title, m.extra FROM chat_messages m JOIN chat_threads t ON t.id=m.thread "
                            "WHERE " + " AND ".join(w) + " ORDER BY m.ts, m.id LIMIT ? OFFSET ?",
                            a + [max(1, min(int(limit), 500)), max(0, int(offset))]).fetchall()
+        st = _stati(con, [r[7] for r in rows])
         con.close()
-        return fa.pagina([f"chat #{r[11]} «{r[12]}»: " + _fmt(r[:11] + (r[13],)) for r in rows], tot, offset)
+        return fa.pagina(["\n".join([f"chat #{r[11]} «{r[12]}»: " + _fmt(r[:11] + (r[13],))] + ["    ✓ " + x for x in st.get(r[7], [])])
+                          for r in rows], tot, offset)
 
     def count_messages(by: str = "app", app: str = "", contains: str = "", start: str = "", end: str = "") -> str:
         """Conta i messaggi delle chat senza leggerli: da usare per primo quando sono molti.

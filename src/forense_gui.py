@@ -25,6 +25,11 @@ import forense_lingua as lg  # noqa: E402
 from forense_lingua import tr, N_  # noqa: E402
 
 TOKEN = secrets.token_urlsafe(24)
+
+
+def tok_ok(t):
+    """(3.0.1) Confronto del token a tempo costante."""
+    return isinstance(t, str) and secrets.compare_digest(t.encode(), TOKEN.encode())
 IS_MAC = platform.system() == "Darwin"
 IS_WIN = platform.system() == "Windows"
 LOCK = threading.Lock()
@@ -727,7 +732,7 @@ def counts(case):
             "file": n_files,
             "timeline": one("SELECT COUNT(*) FROM events"),
             "doc": one("SELECT COUNT(*) FROM doc_text") if has("doc_text") else None,
-            "meta": one("SELECT COUNT(*) FROM meta") if has("meta") else None,
+            "meta": one("SELECT COUNT(*) FROM " + media_tutti_from(bool(media_contenuto(case, con))) + " AS meta") if has("meta") else None,
             "carved": one("SELECT COUNT(*) FROM carved") if has("carved") and
             (case.meta.get("carving") or {}).get("photorec") else None,
             "trace": one("SELECT COUNT(*) FROM features") if has("features") and
@@ -1040,29 +1045,54 @@ def _results(case, q, ids=None, limit=PAGE, full=False):
                     for r, p, k, s, pt, i, d, sn, sz, mt, ct in rows]
         elif kind == "meta":
             aud = yes(q.get("aud"))             # (2.20) solo gli audio (dall'elenco dei file)
+            mf = media_contenuto(case, con)     # (3.0.1) foto, video e audio riconosciuti dal contenuto
             if text:
                 w.append("(data LIKE ? ESCAPE '\\' OR path LIKE ? ESCAPE '\\')"); a += [L(text)] * 2
             if yes(q.get("gps")):
                 w.append("lat IS NOT NULL")
             if yes(q.get("vid")) and not aud:    # (2.20) solo i video (per estensione)
-                w.append(video_where()); a += video_args()
+                w.append(mf.filtro("video", col_source="source") if mf else video_where()); a += [] if mf else video_args()
             if yes(q.get("foto")) and not aud:   # (2.20) solo le foto (per estensione)
-                w.append(photo_where()); a += photo_args()
+                w.append(mf.filtro("foto", col_source="source") if mf else photo_where()); a += [] if mf else photo_args()
+            if yes(q.get("altri")) and not aud:  # (3.0.1) gli altri file con metadati
+                w.append(altri_where(mf)); a += [] if mf else altri_args()
+            if mf and q.get("mapp") == "~carving":     # (3.0.1) memorie di massa: recuperati dal carving
+                w.append("source = 'carving'")
+            elif mf and q.get("mapp"):             # (3.0.1) app o cartella a cui appartiene il file (cache a parte)
+                w.append("(part, inode) IN (SELECT part, inode FROM media_file WHERE app = ?"
+                         + (" AND area = 'cache'" if yes(q.get("mcache")) else "") + ")"); a.append(q["mapp"])
+            elif mf and yes(q.get("mcache")):
+                w.append("(part, inode) IN (SELECT part, inode FROM media_file WHERE area = 'cache')")
+            if q.get("mtr") in ("conf", "auto"):   # (3.0.1) trascrizioni confermate dall'analista / automatiche da confermare
+                w.append(trascr_where(con, q["mtr"]))
             if q.get("orig") and fa.is_mobile(case):    # (2.20) telefoni: solo i file allegati alle chat
                 import forense_mobile_gui as fmg
                 fmg.meta_filter(con, q, w, a)
             fd = file_dati(con, nav_attach(con, case), "meta")
             cf_apply(q, {**CF_META, **cf_file_dati(fd)}, w, a)
-            total, rows = page(audio_from() + " AS meta" if aud else "meta", "path, make, model, taken, lat, lon, author, source, "
+            base = audio_from(bool(mf)) + " AS meta" if aud else "meta" if yes(q.get("foto")) or yes(q.get("vid")) or yes(q.get("altri")) \
+                else media_tutti_from(bool(mf)) + " AS meta"         # (3.0.1) voce principale: anche gli audio
+            total, rows = page(base, "path, make, model, taken, lat, lon, author, source, "
                                f"part, inode, deleted, {fd['size']}, {fd['mtime']}, {fd['crtime']}",
                                "path" if aud else "taken IS NULL, taken")
             data = [dict(zip(("id", "path", "make", "model", "taken", "lat", "lon", "author",
                               "source", "part", "inode", "deleted", "size", "mtime", "crtime"), r)) for r in rows]
+            xs = [d["inode"] for d in data if d["source"] == "x"]
+            if xs and fa.table_exists(con, "xitems"):     # (3.0.1) estratti (cache dei browser): nome, file d'origine e nota
+                info = {str(r[0]): r[1:] for r in con.execute(
+                    "SELECT id, name, part, inode, src_path, note FROM xitems WHERE id IN (SELECT value FROM json_each(?))",
+                    (json.dumps([int(x) for x in xs if str(x).isdigit()]),))}
+                for d in data:
+                    e = info.get(str(d["inode"])) if d["source"] == "x" else None
+                    if e:
+                        d.update(xname=e[0], xpart=e[1], xinode=e[2], xsrc=e[3], xnote=e[4])
             for d in data:
                 d["taken_tz"] = taken_tz_text(d.get("taken"))
             if fa.is_mobile(case):           # (2.20) app delle chat in cui il file è allegato
                 import forense_mobile_gui as fmg
                 fmg.meta_origini(con, data)
+            if mf:                           # (3.0.1) tipo dal contenuto e app o cartella del file
+                mf.righe(con, data)
         elif kind == "carved":
             if text:
                 w.append("name LIKE ? ESCAPE '\\'"); a.append(L(text))
@@ -2460,12 +2490,54 @@ def audio_where(col="path"):
     return "(" + " OR ".join(f"lower({col}) LIKE '%{e}'" for e in AUDIO_EXT) + ")"
 
 
-def audio_from():
-    """Righe «come meta» dei file audio: dalla tabella files, con i metadati se l'indicizzazione li ha letti."""
+def audio_from(contenuto=False):
+    """Righe «come meta» dei file audio: dalla tabella files, con i metadati se l'indicizzazione li ha letti.
+    `contenuto` (3.0.1, telefoni): gli audio riconosciuti dal contenuto (tabella media_file) invece che per estensione."""
+    import forense_mobile_media as fmm
     return ("(SELECT f.rowid AS rowid, COALESCE(m.source, 'fs') AS source, f.part AS part, f.inode AS inode, "
             "f.deleted AS deleted, f.path AS path, m.make AS make, m.model AS model, m.taken AS taken, m.lat AS lat, "
             "m.lon AS lon, m.author AS author, m.data AS data FROM files f LEFT JOIN meta m "
-            "ON m.part = f.part AND m.inode = f.inode WHERE f.type LIKE '%/r' AND " + audio_where("f.path") + ")")
+            "ON m.part = f.part AND m.inode = f.inode WHERE f.type LIKE '%/r' AND "
+            + (fmm.filtro("audio", "f.part", "f.inode") if contenuto else audio_where("f.path")) + ")")
+
+
+def altri_where(mf=None):
+    """(3.0.1) Righe di meta che non sono foto, video o audio (con `mf` riconosciuti dal contenuto, altrimenti per estensione;
+    parametri da altri_args() solo senza `mf`)."""
+    if mf:
+        return "NOT " + mf.filtro("foto", col_source="source") + " AND NOT " + mf.filtro("video", col_source="source") \
+            + " AND NOT " + mf.filtro("audio", col_source="source")
+    return "NOT " + photo_where() + " AND NOT " + video_where() + " AND NOT " + audio_where()
+
+
+def altri_args():
+    return photo_args() + video_args()
+
+
+def media_tutti_from(contenuto=False):
+    """(3.0.1) Voce principale di Foto/Video/Audio: le righe di meta (foto, video e gli altri file con metadati) più gli audio
+    che non vi sono già, così il numero accanto alla voce è quello dei file che apre e comprende le sottovoci. Gli audio presi
+    dall'elenco dei file hanno l'id negativo (rowid di files) per non confondersi con quelli di meta."""
+    cols = "source, part, inode, deleted, path, make, model, taken, lat, lon, author, data"
+    return (f"(SELECT rowid AS rowid, {cols} FROM meta UNION ALL SELECT -a.rowid AS rowid, {cols} FROM "
+            + audio_from(contenuto) + " AS a WHERE NOT EXISTS (SELECT 1 FROM meta m2 WHERE m2.part = a.part AND m2.inode = a.inode))")
+
+
+def trascr_where(con, mtr):
+    """(3.0.1) Condizione SQL (colonne part, inode) per le trascrizioni confermate o automatiche ancora da confermare."""
+    import forense_trascrizione as ftr
+    conf = ftr.confermate_sql() if fa.table_exists(con, "trascrizioni_analista") else "0"
+    if mtr == "conf":
+        return conf
+    auto = "(part, inode) IN (SELECT part, inode FROM trascrizioni)" if fa.table_exists(con, "trascrizioni") else "0"
+    return f"({auto} AND NOT {conf})"
+
+
+def media_contenuto(case, con):
+    """(3.0.1) Il modulo forense_mobile_media se il caso (telefono o memoria di massa) ha l'elenco di foto, video e audio
+    riconosciuti dal contenuto (indicizzazione dalla 3.0.1); altrimenti None e le sezioni restano per estensione."""
+    import forense_mobile_media as fmm
+    return fmm if fmm.presente(con) else None
 TEXT_LIKE = set(fa.TEXT_EXT) | {".ini", ".cfg", ".conf", ".yaml", ".yml", ".js", ".py", ".sh",
                                 ".bat", ".ps1", ".vbs", ".sql", ".tsv", ".srt", ".vcf", ".ics",
                                 ".plist", ".reg", ".inf", ".css", ".php", ".c", ".h", ".java",
@@ -3080,10 +3152,17 @@ def to_jpeg(src, out, size):
 
 
 def make_thumb(case, it, f, size, out):
-    ext = it["ext"]
     head = open(f, "rb").read(16)
+    ext = ext_contenuto(it["ext"], head)
     with tempfile.TemporaryDirectory(dir=cache_dir(case, "tmp")) as td:
         td = Path(td)
+        if ext != it["ext"]:            # (3.0.1) formato dal contenuto: collegamento con l'estensione giusta, come per i video sotto
+            vf = td / ("m" + ext)
+            try:
+                os.link(f, vf)
+            except OSError:
+                shutil.copyfile(f, vf)
+            f = vf
         if ext in IMG_ALL or sniff_mime(head):
             if to_jpeg(f, out, size):
                 return True
@@ -3315,6 +3394,16 @@ def media_url(kind, it, **extra):
     return f"/api/{kind}?" + urlencode(q)
 
 
+def ext_contenuto(ext, head):
+    """(3.0.1) Estensione dal contenuto (foto, video, audio) per i file senza l'estensione di un formato multimediale, come
+    le cache delle app («.0», «.cnt», senza estensione); altrimenti l'estensione del nome."""
+    if ext in RAW_MIME or ext in IMG_ALL or ext in VIDEO_OTHER or ext in AUDIO_EXT:
+        return ext
+    import forense_mobile_media as fmm
+    f = fmm.firma(head)
+    return "." + f[1] if f else ext
+
+
 def view_info(case, b):
     """Come mostrare un file nel riquadro di anteprima."""
     if b.get("source") == "mail":
@@ -3334,10 +3423,13 @@ def view_info(case, b):
     if f:
         with open(f, "rb") as fh:
             head = fh.read(8192)
+        ext = ext_contenuto(ext, head)
     base = {"title": it["path"], "name": it["name"], "size": size, "deleted": it["deleted"],
             "ext": ext, "source": it["source"], "part": it["part"], "inode": it["inode"],
             "carved_name": it["name"] if it["source"] == "carving" else None,
             "id": it.get("id"), "magic": head[:16].hex(" ")}
+    if it["source"] == "x" and (it["rec"].get("kind") == "cache_web"):    # (3.0.1) indirizzo web e offset nella voce di cache
+        base["xnote"] = it["rec"].get("note")
     if it["source"] == "x" and not f:
         return {**base, "type": "none", "note": tr("File non estratto: ") + (it["rec"].get("note") or tr("contenuto non disponibile"))}
     if it["source"] == "ua":
@@ -3790,6 +3882,45 @@ def bm_add(case, b):
     return {"cid": cid, "name": name, "added": total - before, "total": total, "skipped": skipped}
 
 
+def trascr_categoria(case, r, part, inode):
+    """(3.0.1) Categoria dei Preferiti «Trascrizioni confermate»: il messaggio della chat a cui l'audio è allegato (o il
+    file, se non è allegato a una chat), con il testo confermato nella nota; una bozza successiva lo toglie."""
+    import forense_trascrizione as ftr
+    name = tr(ftr.CAT_CONF)
+    items = [{"source": "chat", "id": m} for m in r["messaggi"][:20]] or [{"source": "fs", "part": int(part), "inode": str(inode), "path": r["path"]}]
+    if r["stato"] == "confermata":
+        nota = tr("Trascrizione confermata da {o} il {t} (SHA-256 del testo {h})").format(o=r["operatore"], t=r["ts"], h=r["testo_sha256"][:16])
+        for it in items:
+            bm_add(case, {"cat": name, "item": it, "note": nota[:2000]})
+        con = search_db(case)
+        try:
+            con.execute("UPDATE bm_cat SET note = ? WHERE name = ? COLLATE NOCASE AND IFNULL(note, '') = ''",
+                        (tr("Audio con la trascrizione rivista e confermata dall'analista (il testo è nell'anteprima dell'audio)."), name))
+            cid = con.execute("SELECT cid FROM bm_cat WHERE name = ? COLLATE NOCASE", (name,)).fetchone()[0]
+            for it in items:
+                k = (str(it["id"]),) if it["source"] == "chat" else (str(it["inode"]),)
+                con.execute("UPDATE bm SET note = ? WHERE cid = ? AND source = ? AND inode = ?" + ("" if it["source"] == "chat" else " AND part = ?"),
+                            (nota[:2000], cid, it["source"], *k) + (() if it["source"] == "chat" else (int(part),)))
+            con.commit()
+        finally:
+            con.close()
+        return
+    con = search_db(case)
+    try:
+        c = con.execute("SELECT cid FROM bm_cat WHERE name = ? COLLATE NOCASE", (name,)).fetchone()
+        if c:
+            n = 0
+            for it in items:
+                n += con.execute("DELETE FROM bm WHERE cid = ? AND source = ? AND inode = ?" + ("" if it["source"] == "chat" else " AND part = ?"),
+                                 (c[0], it["source"], str(it.get("id") if it["source"] == "chat" else it["inode"]))
+                                 + (() if it["source"] == "chat" else (int(part),))).rowcount
+            con.commit()
+            if n:
+                case.log("preferiti_tolti", {"categoria": name, "tolti": n, "motivo": tr("trascrizione tornata in bozza")})
+    finally:
+        con.close()
+
+
 def bm_list(case, q, ids=None, limit=PAGE):
     con = search_db(case)
     off = int(q.get("offset", 0))
@@ -4209,12 +4340,29 @@ def res_tree(case):
                "foto": con.execute("SELECT COUNT(*) FROM meta WHERE " + photo_where(), photo_args()).fetchone()[0]
                if has("meta") else 0,
                "audio": con.execute("SELECT COUNT(*) FROM files WHERE type LIKE '%/r' AND " + audio_where()).fetchone()[0]}
+        mf = media_contenuto(case, con) if has("meta") else None
+        if mf:                                   # (3.0.1) riconosciuti dal contenuto, per app, programma o cartella
+            out["video"] = con.execute("SELECT COUNT(*) FROM meta WHERE " + mf.filtro("video", col_source="source")).fetchone()[0]
+            out["foto"] = con.execute("SELECT COUNT(*) FROM meta WHERE " + mf.filtro("foto", col_source="source")).fetchone()[0]
+            out["audio"] = con.execute("SELECT COUNT(*) FROM files WHERE type LIKE '%/r' AND " + mf.filtro("audio")).fetchone()[0]
+            out["mediaapp"] = mf.per_app(con)
+        if has("meta"):                          # (3.0.1) gli altri file con metadati (PDF, documenti…): sottovoce propria
+            out["altri"] = con.execute("SELECT COUNT(*) FROM meta WHERE " + altri_where(mf), [] if mf else altri_args()).fetchone()[0]
+        if has("trascrizioni") or has("trascrizioni_analista"):    # (3.0.1) voci delle trascrizioni sotto Audio
+            af = audio_from(bool(mf)) + " AS meta WHERE "
+            out["trascr"] = {k: con.execute("SELECT COUNT(*) FROM " + af + trascr_where(con, k)).fetchone()[0] for k in ("conf", "auto")}
         if has("meta") and fa.is_mobile(case):   # (2.20) foto, video e audio allegati alle chat (in tutto e per tipo)
             import forense_mobile_gui as fmg
             out["chatmedia"] = fmg.meta_counts(con)
-            out["chatmedia"]["foto"] = fmg.media_counts(con, "meta", photo_where(), photo_args())
-            out["chatmedia"]["vid"] = fmg.media_counts(con, "meta", video_where(), video_args())
-            out["chatmedia"]["aud"] = fmg.media_counts(con, "files", "type LIKE '%/r' AND " + audio_where(), [])
+            if mf:
+                out["chatmedia"]["foto"] = fmg.media_counts(con, "meta", mf.filtro("foto"), [], mf.filtro("foto", "t.part", "t.inode"))
+                out["chatmedia"]["vid"] = fmg.media_counts(con, "meta", mf.filtro("video"), [], mf.filtro("video", "t.part", "t.inode"))
+                out["chatmedia"]["aud"] = fmg.media_counts(con, "files", "type LIKE '%/r' AND " + mf.filtro("audio"), [],
+                                                           "t.type LIKE '%/r' AND " + mf.filtro("audio", "t.part", "t.inode"))
+            else:
+                out["chatmedia"]["foto"] = fmg.media_counts(con, "meta", photo_where(), photo_args())
+                out["chatmedia"]["vid"] = fmg.media_counts(con, "meta", video_where(), video_args())
+                out["chatmedia"]["aud"] = fmg.media_counts(con, "files", "type LIKE '%/r' AND " + audio_where(), [])
     finally:
         con.close()
     out["searches"] = [{"sid": s["sid"], "title": s["title"], "total": s["total"]} for s in search_list(case)]
@@ -4671,8 +4819,8 @@ def ext_counts(case, con):
     return {
         "art": one("SELECT COUNT(*) FROM artifacts") if has("artifacts") and "artefatti" in est else None,
         "mail": one("SELECT COUNT(*) FROM mail") if has("mail") and "archivi" in est else None,
-        "arch": one("SELECT COUNT(*) FROM xitems WHERE kind IN ('archivio','allegato','miniatura')") if has("xitems") and (
-            "archivi" in est or "artefatti" in est) else None,
+        "arch": one("SELECT COUNT(*) FROM xitems WHERE kind IN ('archivio','allegato','miniatura','cache_web')") if has("xitems") and (
+            "archivi" in est or "artefatti" in est or one("SELECT COUNT(*) FROM xitems WHERE kind = 'cache_web'")) else None,
         "vss": one("SELECT COUNT(*) FROM xitems WHERE kind='vss'") if has("xitems") and "vss" in est else None,
         "anom": one("SELECT COUNT(*) FROM anomalies") if has("anomalies") and (
             "anomalie" in est or case.meta.get("liste_hash") or case.meta.get("volumi_cifrati")) else None,
@@ -4710,7 +4858,8 @@ def ext_results(case, q, ids=None, limit=PAGE):
                          "detail": ("detail", "t"), "src_path": ("src_path", "t"),
                          "verso": (f"CASE json_extract(CASE WHEN json_valid(data) THEN data END, '$.verso') {versi} ELSE {_sql_lit(tr('verso non indicato'))} END", "t"),
                          "contatto": ("TRIM(COALESCE(json_extract(CASE WHEN json_valid(data) THEN data END, '$.nome_rubrica'), json_extract(CASE WHEN json_valid(data) THEN data END, '$.nome_app'), '') || ' ' || "
-                                      "COALESCE(json_extract(CASE WHEN json_valid(data) THEN data END, '$.numero'), ''))", "t"),
+                                      "COALESCE(json_extract(CASE WHEN json_valid(data) THEN data END, '$.numero'), '') || ' ' || "
+                                      "COALESCE(json_extract(CASE WHEN json_valid(data) THEN data END, '$.lid'), ''))", "t"),
                          "app": ("json_extract(CASE WHEN json_valid(data) THEN data END, '$.app_lbl')", "t"),
                          "durata": ("json_extract(CASE WHEN json_valid(data) THEN data END, '$.durata_s')", "n"),
                          "risposta": ("CASE json_extract(CASE WHEN json_valid(data) THEN data END, '$.risposta') WHEN 1 THEN "
@@ -4745,7 +4894,7 @@ def ext_results(case, q, ids=None, limit=PAGE):
                 if q.get("store"):
                     w.append("store = ?"); a.append(q["store"])
             else:
-                w.append("kind IN ('archivio','allegato','miniatura')")
+                w.append("kind IN ('archivio','allegato','miniatura','cache_web')")
                 if q.get("xk"):
                     w.append("kind = ?"); a.append(q["xk"])
             if text:
@@ -4879,7 +5028,7 @@ def ext_tree(case):
         if fa.table_exists(con, "anomalies"):
             out["anom"] = con.execute("SELECT kind, COUNT(*) FROM anomalies GROUP BY kind ORDER BY MAX(sev) DESC").fetchall()
         if fa.table_exists(con, "xitems"):
-            out["arch"] = con.execute("SELECT kind, COUNT(*) FROM xitems WHERE kind IN ('archivio','allegato','miniatura') "
+            out["arch"] = con.execute("SELECT kind, COUNT(*) FROM xitems WHERE kind IN ('archivio','allegato','miniatura','cache_web') "
                                       "GROUP BY kind").fetchall()
             out["vss"] = con.execute("SELECT store, COUNT(*) FROM xitems WHERE kind='vss' GROUP BY store ORDER BY store").fetchall()
         if fa.table_exists(con, "mail"):
@@ -4934,7 +5083,8 @@ def phash_simili(case, b):
 
 
 X_KIND_LBL = {"archivio": N_("contenuto di un archivio"), "allegato": N_("allegato di posta"), "vss": N_("copia shadow"),
-              "miniatura": N_("miniatura della cache di Esplora file (thumbcache)")}
+              "miniatura": N_("miniatura della cache di Esplora file (thumbcache)"),
+              "cache_web": N_("foto o video dalla cache di un browser (Chrome, Samsung Internet, Edge, …)")}
 
 
 def x_details(case, it, tz=None):
@@ -5020,6 +5170,38 @@ def art_view(case, b):
         cited = {"fonte": cited_ref(c["fonte"], mobile), "file": [cited_ref(x, mobile) for x in c["file"]]}
     except (ValueError, sqlite3.Error, OSError):
         pass
+    title, rows, segreti = _art_campi(case, b, r)
+    h = "<table style='border-collapse:collapse;font:13px/1.5 -apple-system,Segoe UI,sans-serif;width:100%'>" + "".join(
+        f"<tr><th style='text-align:left;vertical-align:top;padding:5px 10px;border-bottom:1px solid #ddd;white-space:nowrap'>"
+        f"{html_mod.escape(k)}</th><td style='padding:5px 10px;border-bottom:1px solid #ddd;word-break:break-word'>"
+        f"{html_mod.escape(str(v or ''))}</td></tr>" for k, v in rows) + "</table>"
+    return {"type": "html", "title": title, "name": title, "source": "art", "id": aid, "size": 0, "deleted": 0,
+            "part": part, "inode": inode, "magic": "", "html": CSP_DOC + h, "src_path": src, "cited": cited,
+            "segreti": segreti, "chat": chat}
+
+
+def art_campi(case, b):
+    """(3.0.1) Titolo, campi e conversazione di un artefatto, come nel pannello di dettaglio (per il report illustrato)."""
+    con = fa.db_ro(case)
+    try:
+        r = con.execute("SELECT id, cat, ts, title, detail, user, src_path, part, inode, data FROM artifacts WHERE id=?",
+                        (int(b.get("id") or b.get("inode") or 0),)).fetchone()
+    finally:
+        con.close()
+    if not r:
+        raise ValueError(tr("Artefatto non trovato."))
+    title, rows, _seg = _art_campi(case, b, r)
+    chat = None
+    if r[1] == "messaggi" and r[9]:
+        try:
+            chat = (json.loads(r[9]) or {}).get("chat_thread")
+        except (ValueError, AttributeError):
+            pass
+    return title, [(k, v) for k, v in rows if v not in (None, "")], chat
+
+
+def _art_campi(case, b, r):
+    aid, cat, ts, title, detail, user, src, part, inode, data = r
     fe = fe_mod()
     segreti = None
     rows = [(tr("Categoria"), tr(fe.ART_CATS.get(cat, cat))), (tr("Data ({v1})").format(v1=tz_label(case, b.get('tz'))), fmt_ts(case, b.get("tz"), ts)), (tr("Elemento"), title),
@@ -5044,13 +5226,7 @@ def art_view(case, b):
                     rows.append((k.replace("_", " "), ", ".join(map(str, v)) if isinstance(v, list) else str(v)))
     except ValueError:
         pass
-    h = "<table style='border-collapse:collapse;font:13px/1.5 -apple-system,Segoe UI,sans-serif;width:100%'>" + "".join(
-        f"<tr><th style='text-align:left;vertical-align:top;padding:5px 10px;border-bottom:1px solid #ddd;white-space:nowrap'>"
-        f"{html_mod.escape(k)}</th><td style='padding:5px 10px;border-bottom:1px solid #ddd;word-break:break-word'>"
-        f"{html_mod.escape(str(v or ''))}</td></tr>" for k, v in rows) + "</table>"
-    return {"type": "html", "title": title, "name": title, "source": "art", "id": aid, "size": 0, "deleted": 0,
-            "part": part, "inode": inode, "magic": "", "html": CSP_DOC + h, "src_path": src, "cited": cited,
-            "segreti": segreti, "chat": chat}
+    return title, rows, segreti
 
 
 def sqlite_view(f, copia=False):
@@ -5727,14 +5903,35 @@ def hits_list(case, q, ids=None, limit=PAGE):
             "rows": [dict(zip(HIT_COLS, r)) for r in rows]}
 
 
+def _occupato(e):
+    """(3.0.1) Errore di SQLite perché un'analisi sta scrivendo nel caso: passa da solo, si riprova."""
+    return isinstance(e, sqlite3.OperationalError) and ("locked" in str(e) or "busy" in str(e))
+
+
 def fast_search(case, q):
-    """(2.20) Ricerca veloce nei risultati del caso (forense_ricerca_veloce): stato dell'indice o risultati raggruppati."""
+    """(2.20) Ricerca veloce nei risultati del caso (forense_ricerca_veloce): stato dell'indice o risultati raggruppati.
+    (3.0.1) Se il caso è occupato da un'analisi che sta scrivendo, «occupato» (l'interfaccia riprova da sola)."""
+    try:
+        return _fast_search(case, q)
+    except sqlite3.OperationalError as e:
+        if _occupato(e):
+            return {"stato": "occupato"}
+        raise
+
+
+def _fast_search(case, q):
     import forense_ricerca_veloce as rv
     con = fa.db_ro(case)
+    con.execute("PRAGMA busy_timeout = 3000")     # caso occupato: l'avviso compare subito e l'interfaccia riprova
     try:
         if not rv.aggiornato(case, con):
             st = rv.stato(case)
             if not st or "fine" in st:
+                if st and st.get("errore") and ("locked" in st["errore"] or "busy" in st["errore"]) and not q.get("riprova"):
+                    if time.time() - st.get("fine", 0) < 5:           # indice fallito perché il caso era occupato: si riprova da soli
+                        return {"stato": "occupato"}
+                    st = rv.avvia(case, fa.db_ro)
+                    return {"stato": "costruzione", "fatte": 0, "totale": 0, "secondi": 0}
                 if st and st.get("errore") and not q.get("riprova"):
                     return {"stato": "errore", "errore": st["errore"]}
                 st = rv.avvia(case, fa.db_ro)
@@ -5968,6 +6165,50 @@ def senza_caso():
         raise ValueError(tr("Con un caso aperto non si va in rete: chiudi il caso e riprova dalla pagina iniziale."))
 
 
+def aggiornamenti_stato():
+    """(3.0.1) Impostazione e ultimo esito del controllo delle versioni (nessuna richiesta in rete)."""
+    import forense_aggiornamenti as fag
+    a = fag.stato(fa._raw_settings())
+    return {"modo": a["modo"], "chiesto": bool(a.get("chiesto")), "ultimo": a.get("ultimo"), "saltata": a.get("saltata"),
+            "mostra": fag.da_mostrare(a), "attuale": fa.APP_VERSION, "pagina": fag.PAGINA,
+            "pacchetto": fag.pacchetto_sistema()}
+
+
+def aggiornamenti_post(b):
+    """(3.0.1) azione «modo» (mano|avvio|mai), «controlla» (auto: solo in modo avvio, una volta al giorno; mai con un caso
+    aperto), «salta» (non avvisare più per quella versione), «rimanda» (non mostrare l'avviso per un giorno)."""
+    import datetime as dt
+    import forense_aggiornamenti as fag
+    st = fa._raw_settings()
+    a = fag.stato(st)
+    az = b.get("azione")
+    if az == "modo":
+        if b.get("modo") not in fag.MODI:
+            raise ValueError(tr("Scelta non valida."))
+        a["modo"], a["chiesto"] = b["modo"], True
+    elif az == "controlla":
+        if a["modo"] == "mai":
+            if b.get("auto"):
+                return aggiornamenti_stato()
+            raise ValueError(tr("Il controllo degli aggiornamenti è disattivato: cambia la scelta per usarlo."))
+        if b.get("auto") and not fag.da_controllare_all_avvio(a):
+            return aggiornamenti_stato()
+        senza_caso()
+        a["ultimo"] = fag.controlla(fa.APP_VERSION)
+        fd.evento("aggiornamenti", esito=a["ultimo"].get("esito"), versione=a["ultimo"].get("versione"),
+                  motivo=a["ultimo"].get("motivo"))
+    elif az == "salta":
+        a["saltata"] = str(b.get("versione") or "")[:20]
+    elif az == "rimanda":
+        a["rimanda_fino"] = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=1)).replace(microsecond=0).isoformat()
+    else:
+        raise ValueError(tr("Azione sconosciuta."))
+    st = fa._raw_settings()
+    st["aggiornamenti"] = a
+    fa.save_settings(st)
+    return aggiornamenti_stato()
+
+
 def run_task(name, fn, with_progress=False):
     """Operazione lunga in background; lo stato si legge con /api/task?name=..."""
     if SES.tasks.get(name, {}).get("done") is False:
@@ -5998,7 +6239,7 @@ MAPPA_FILE = {"maplibre-gl.mjs": "text/javascript", "maplibre-gl-worker.mjs": "t
 
 # Richieste che producono testi del caso (report, esportazioni, riscontri, verifiche): nella lingua del caso,
 # scelta alla sua creazione; tutte le altre nella lingua dell'interfaccia.
-CASE_LANG_PATHS = {"/api/report", "/api/report_export", "/api/export", "/api/export_x", "/api/portable", "/api/mobile/export_chat",
+CASE_LANG_PATHS = {"/api/report", "/api/report_export", "/api/relazione", "/api/relazione_opzioni", "/api/export", "/api/export_x", "/api/portable", "/api/mobile/export_chat",
                    "/api/riscontro", "/api/verify", "/api/finding", "/api/case_info_set", "/api/hashlist_compare"}
 
 
@@ -6029,6 +6270,9 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", ctype + "; charset=utf-8")
         self.send_header("Content-Length", str(len(data)))
         self.send_header("Cache-Control", "no-store")
+        # (3.0.1) le pagine del programma non si incorniciano in siti esterni (clickjacking); la guida resta nel riquadro interno
+        self.send_header("X-Frame-Options", "SAMEORIGIN")
+        self.send_header("Content-Security-Policy", "frame-ancestors 'self'")
         self.end_headers()
         self.wfile.write(data)
 
@@ -6057,7 +6301,7 @@ class Handler(BaseHTTPRequestHandler):
             if (HERE / "forense_mobile.html").exists():      # parte smartphone (2.20), se inclusa nel pacchetto
                 import forense_mobile_gui as fmg
                 html = html.replace("<!--REPERTIA_MOBILE-->", fmg.fragment())
-            return self._send(200, html.replace("__TOKEN__", TOKEN).replace("__LINGUA__", lingua_js()), "text/html")
+            return self._send(200, html.replace("__TOKEN__", TOKEN).replace("__VERSIONE__", fa.APP_VERSION).replace("__LINGUA__", lingua_js()), "text/html")
         q = {k: v[0] for k, v in parse_qs(u.query).items()}
         if u.path == "/guida/guida.html":       # (3.0) guida in italiano e inglese, nessun dato del caso
             f = HERE / "guida" / "guida.html"
@@ -6080,7 +6324,7 @@ class Handler(BaseHTTPRequestHandler):
         if u.path in BIN_PATHS:
             # immagini e media: <img>/<video> non possono mandare intestazioni, il codice
             # arriva nell'indirizzo (resta comunque solo su 127.0.0.1)
-            if q.get("t") != TOKEN and self.headers.get("X-Token") != TOKEN:
+            if not (tok_ok(q.get("t")) or tok_ok(self.headers.get("X-Token"))):
                 return self._send(403, "vietato", "text/plain")
             try:
                 return self.binary(u.path, q)
@@ -6088,7 +6332,7 @@ class Handler(BaseHTTPRequestHandler):
                 return
             except Exception as e:
                 return self._send(404, str(e), "text/plain")
-        if self.headers.get("X-Token") != TOKEN:
+        if not tok_ok(self.headers.get("X-Token")):
             return self._send(403, tr("token mancante"), "text/plain")
         if self._caso_cambiato(u.path):
             return
@@ -6156,7 +6400,7 @@ class Handler(BaseHTTPRequestHandler):
                 raise ValueError(tr("File troppo grande per l'anteprima."))
             data_head = open(f, "rb").read(16)
             # mai HTML/SVG/script: solo immagini e media dichiarati per tipo
-            ctype = RAW_MIME.get(it["ext"]) or sniff_mime(data_head) or \
+            ctype = RAW_MIME.get(ext_contenuto(it["ext"], data_head)) or sniff_mime(data_head) or \
                 VIDEO_MIME.get(video_brand(it["ext"], data_head) or "") or "application/octet-stream"
             start, end = 0, size - 1
             m = re.match(r"bytes=(\d*)-(\d*)", self.headers.get("Range") or "")
@@ -6193,7 +6437,7 @@ class Handler(BaseHTTPRequestHandler):
         raise ValueError(tr("percorso sconosciuto"))
 
     def do_POST(self):
-        if not self._allowed() or self.headers.get("X-Token") != TOKEN:
+        if not self._allowed() or not tok_ok(self.headers.get("X-Token")):
             return self._send(403, "vietato", "text/plain")
         n = int(self.headers.get("Content-Length") or 0)
         u = urlparse(self.path)
@@ -6237,6 +6481,8 @@ class Handler(BaseHTTPRequestHandler):
         if path.startswith("/api/mobile/"):           # casi smartphone (2.20)
             import forense_mobile_gui as fmg
             return fmg.get(sys.modules[__name__], path, q)
+        if path == "/api/aggiornamenti":
+            return aggiornamenti_stato()
         if path == "/api/home":
             st = fa._raw_settings()
             return {"req": requirements(),
@@ -6262,7 +6508,8 @@ class Handler(BaseHTTPRequestHandler):
             import forense_trascrizione as ftr
             if not SES.case:
                 raise ValueError(tr("Nessun caso aperto."))
-            return {"trascrizioni": ftr.segmenti(SES.case, q.get("part"), q.get("inode"))}
+            return {"trascrizioni": ftr.segmenti(SES.case, q.get("part"), q.get("inode")),
+                    "analista": ftr.analista_storico(SES.case, q.get("part"), q.get("inode"))}
         if path == "/api/results":
             if not SES.case:
                 raise ValueError(tr("Nessun caso aperto."))
@@ -6314,6 +6561,8 @@ class Handler(BaseHTTPRequestHandler):
         if path.startswith("/api/mobile/"):           # casi smartphone (2.20)
             import forense_mobile_gui as fmg
             return fmg.post(sys.modules[__name__], path, b)
+        if path == "/api/aggiornamenti":          # (3.0.1) avviso di nuove versioni: solo lettura dell'ultima release
+            return aggiornamenti_post(b)
         if path == "/api/choose":
             p = choose_file()
             return {"path": p} if p else {"cancelled": True}
@@ -6346,9 +6595,25 @@ class Handler(BaseHTTPRequestHandler):
             p = choose_file(tr("Scegli il file del modello (ggml-….bin)"), kind="any")
             if not p:
                 return {"cancelled": True}
-            case = SES.case
-            run_task("trascr_modello", lambda progress: ftr.importa(p, progress, case), True)
+            case, mid, sha, dich = SES.case, b.get("modello"), b.get("sha256"), b.get("dichiarato")
+            run_task("trascr_modello", lambda progress: ftr.importa(p, progress, case, mid, sha, dich), True)
             return {"ok": True, "path": p}
+        if path == "/api/trascr/analista":     # (3.0.1) trascrizione rivista dall'analista: bozza o confermata
+            import forense_trascrizione as ftr
+            case = SES.case
+            if not case:
+                raise ValueError(tr("Nessun caso aperto."))
+            r = ftr.salva_analista(case, b.get("part"), b.get("inode"), b.get("testo"), b.get("conferma") is True, b.get("operatore"))
+            trascr_categoria(case, r, b.get("part"), b.get("inode"))
+            return r
+        if path == "/api/trascr/dichiarato":   # (3.0.1) SHA-256 che Hugging Face dichiara ora per il modello (solo senza caso)
+            import forense_trascrizione as ftr
+            senza_caso()
+            try:
+                d = ftr.dichiarato(b.get("modello"))
+            except Exception as e:
+                return {"errore": str(e)[:200]}
+            return {**d, "uguale": d["sha256"] == ftr.BY_ID[b.get("modello")]["sha256"]}
         if path == "/api/trascr/cartella":     # (2.20) apre la cartella dei modelli nel Finder / Esplora risorse
             import forense_trascrizione as ftr
             reveal(ftr.models_dir())
@@ -6791,6 +7056,18 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/finding_confirm":       # (2.20.1) «Confermo, verificato»: operatore e data nel registro
             fa.confirm_finding(SES.case, b.get("n"), b.get("operatore"))
             return {"findings": SES.case.findings()}
+        if path == "/api/relazione_opzioni":        # (3.0.1) report illustrato: cosa si può scegliere
+            import forense_relazione as frl
+            return frl.opzioni(SES.case)
+        if path == "/api/relazione_elementi":
+            import forense_relazione as frl
+            return {"elementi": frl.elementi_categoria(SES.case, b.get("cid"))}
+        if path == "/api/relazione":
+            import forense_relazione as frl
+            o = {k: b.get(k) for k in ("titolo", "autore", "tz", "formati", "sezioni", "preferiti", "tutto", "originali",
+                                       "originali_tutti", "chat_da", "chat_a", "dfmt")}
+            run_task("relazione", lambda progress: frl.crea(SES.case, o, progress), True)
+            return {"ok": True}
         if path == "/api/portable":
             import forense_portatile as fp
             opts = {k: b.get(k) for k in ("contenuto", "cancellati", "testi", "plaso", "tracce", "zip",
@@ -6811,6 +7088,23 @@ class Handler(BaseHTTPRequestHandler):
                 raise ValueError(tr("Report non trovato."))
             import webbrowser
             webbrowser.open(target.as_uri())
+            return {"ok": True}
+        if path == "/api/open_relazione":           # (3.0.1) report illustrato: si apre con il programma predefinito
+            rel = Path(b.get("rel") or "")
+            nome = b.get("file") if b.get("file") in ("report.html", "report.pdf", "report.docx") else "report.html"
+            target = (SES.case.root / rel / nome).resolve()
+            if (SES.case.export_dir.resolve() not in target.parents or not target.parent.name.startswith("report_")
+                    or not target.exists()):
+                raise ValueError(tr("Report non trovato."))
+            if nome == "report.html":
+                import webbrowser
+                webbrowser.open(target.as_uri())
+            elif IS_MAC:
+                subprocess.Popen(["open", str(target)])
+            elif IS_WIN:
+                os.startfile(str(target))
+            elif shutil.which("xdg-open"):
+                subprocess.Popen(["xdg-open", str(target)])
             return {"ok": True}
         if path == "/api/reveal_path":
             rel = Path(b.get("rel") or "")

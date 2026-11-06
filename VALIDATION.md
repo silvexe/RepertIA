@@ -2,7 +2,7 @@
 
 *Translation of [VALIDAZIONE.md](VALIDAZIONE.md); the Italian text prevails.*
 
-Program version: 3.0.0 · Document updated on 01/11/2026
+Program version: 3.0.1 · Document updated on 05/11/2026
 
 This document describes **how RepertIA was verified, with which data, with which results and with which known
 limitations**. It is meant for those who use the program in an expert examination and need to state the reliability of
@@ -67,6 +67,8 @@ volume (plist, sqlite with WAL, bookmarks); APFS (dfvfs) unencrypted and encrypt
 | 2.21.0 | Author's Windows (final package) | passed (reported by the author) |
 | 3.0.0 | Author's Mac, from the assembled Mac package (568/568 from source too) | 568/568 in Italian and 568/568 in English, 77/77 on public images; navigation 410/410 in Italian and in English (Chromium) |
 | 3.0.0 | Author's Windows (final package) | passed (as reported by the author) |
+| 3.0.1 | Author's Mac, from the assembled Mac package (iLEAPP 2026.4.6, ALEAPP 2026.4.5) | 660/660 in Italian and 660/660 in English, 79/79 on public images; navigation 410/410 in Italian and in English (Chromium); the 92 new checks cover the illustrated report (HTML, PDF and Word created, SHA-256 of every file in impronte.csv, no scripts in the pages, every chat message as a bubble, attached photo shown and copied original identical, removed item absent, “all photos” also without an extension, “1 of N” numbering per section, log event), the new-version notice (with a local fake GitHub), photos/videos/audio recognised by content and assigned to apps on phones and to programs or folders on disks (DFTT 8: a JPEG with a .dat extension and a deleted JPEG with a made-up extension), WhatsApp Business, Telegram calls, photos inside Chromium browser caches (built entries: offset, length, address, 20-byte header, truncated entry, HTML page excluded, file name), WhatsApp calls (call_log outcomes 2 and 4, LID translated into the number, sub-items by outcome and voice/video, “calls only” conversations not for groups and backups) and deleted WhatsApp messages and calls recovered from the bytes of msgstore.db (built copy). Tested separately, outside the acceptance test: photos and videos from browser caches on Hickman's Android 14 (4,226 extracted, 30 random entries re-read from the zip with identical bytes) and on a FAT disk built with Chrome and Edge caches; illustrated report of all chats and the 21,295 photos of Hickman's Android 14 (6 minutes), Word opened in LibreOffice, portable report in the browser (chats in the New report, side panel, arrow keys); archives with paths that leave the folder (built image), corrected and confirmed transcriptions and the model download (fake server) |
+| 3.0.1 | Author's Windows 11, from the Windows package | 660 of 664: the 4 failures came from the acceptance test itself (report.docx left open, which Windows does not let delete at the end of the test), fixed in the rebuilt package; every illustrated-report check passed, 79/79 on public images |
 
 Carving DFTT 11: 2 files out of 15 (enterprise.wav, haxor2.jpg) are not recovered by PhotoRec: this is a limitation of
 PhotoRec, declared as a "measurement" and not as a requirement.

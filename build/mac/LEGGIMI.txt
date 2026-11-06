@@ -1,4 +1,4 @@
-RepertIA 3.0.0 - By silvexe (Mac Apple Silicon)
+RepertIA 3.0.1 - By silvexe (Mac Apple Silicon)
 Analisi forense di copie di dischi, estrazioni di smartphone e registri di volo dei droni con un modello linguistico (LLM) locale.
 
 LINGUA
@@ -14,9 +14,11 @@ iLEAPP e ALEAPP (licenza MIT) sono inclusi in strumenti/ileapp e strumenti/aleap
 
 INSTALLAZIONE
 1. Trascina RepertIA.app nella cartella Applicazioni (o dove preferisci).
-2. Primo avvio: tasto destro su RepertIA.app > Apri > Apri. Se macOS lo blocca comunque,
-   vai in Impostazioni di Sistema > Privacy e sicurezza e premi "Apri comunque".
-   (L'app non è firmata con un certificato Apple.)
+2. Primo avvio (l'app non è firmata con un certificato Apple): doppio clic su RepertIA.app e,
+   all'avviso, premi "Fine" (non "Sposta nel Cestino"); vai in Impostazioni di Sistema >
+   Privacy e sicurezza, sezione Sicurezza, premi "Apri comunque" e conferma; poi di nuovo
+   doppio clic e "Apri comunque". Su macOS 15 e successivi "tasto destro > Apri" non basta più.
+   In alternativa, nel Terminale: xattr -dr com.apple.quarantine /Applications/RepertIA.app
 3. Si apre il Terminale: al primo avvio installa con Homebrew (serve internet)
    Sleuth Kit, libewf, exiftool, poppler, PhotoRec, bulk_extractor e Tesseract (OCR).
    Poi si apre il browser.

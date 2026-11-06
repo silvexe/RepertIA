@@ -239,6 +239,22 @@ def lp(p):
     return str(p)
 
 
+def dentro(base, p):
+    """(3.0.1) La voce estratta resta nella cartella dell'archivio: niente «../» né collegamenti che portano fuori.
+    Il percorso viene dall'archivio (dato della copia, quindi ostile): senza controllo si leggerebbe e si sposterebbe
+    nel caso un file del computer dell'analista."""
+    b = os.path.normcase(os.path.abspath(str(base)))
+    q = os.path.normcase(os.path.abspath(str(p)))
+    if not q.startswith(b + os.sep):
+        return False
+    try:
+        rb = os.path.normcase(os.path.realpath(lp(base)))
+        rq = os.path.normcase(os.path.realpath(lp(p)))
+    except (OSError, ValueError):
+        return False
+    return rq.startswith(rb + os.sep) and not os.path.islink(lp(p))
+
+
 def hashes_of(path):
     with open(path, "rb") as fh:
         n, md5, sha1, sha256 = fa.hash_stream(iter(lambda: fh.read(1 << 20), b""))
@@ -470,12 +486,12 @@ def py_list_extract(f, dest, do_extract):
                 res.append({"path": m.name, "size": m.size, "dir": m.isdir(), "encrypted": False,
                             "mtime": unixtime(m.mtime)})
             if do_extract:
-                try:
-                    t.extractall(dest, filter="data")
-                except TypeError:
-                    t.extractall(dest)
-                except Exception:
-                    pass
+                # (3.0.1) una voce per volta: una voce rifiutata dal filtro («../», collegamento esterno) non ferma le altre
+                for m in t.getmembers():
+                    try:
+                        t.extract(m, dest, filter="data")
+                    except Exception:
+                        pass
         return res, 0
     except (tarfile.TarError, OSError):
         return [], 1
@@ -572,6 +588,8 @@ def process_archive(ctx, f, disp, origin, depth, parent):
             note = tr("protetto da password")
         elif not extract:
             note = tr("non estratto (archivio troppo grande o spazio insufficiente)")
+        elif not dentro(out, p):
+            note = tr("non estratto (percorso che esce dall'archivio o collegamento)")
         elif not os.path.isfile(lp(p)):
             note = tr("non estratto (errore di 7-Zip o percorso non valido)")
         elif os.path.getsize(lp(p)) > ENTRY_MAX:
@@ -5945,19 +5963,20 @@ def agent_tools(case):
         return fa.clip(txt)
 
     def list_extracted(contains: str = "", kind: str = "", limit: int = 100, offset: int = 0) -> str:
-        """File estratti da archivi (ZIP, RAR, 7z...), allegati di posta e copie shadow:
-        percorso, dimensione, data, cifratura, hash. Leggili con read_extracted.
+        """File estratti da archivi (ZIP, RAR, 7z...), allegati di posta, copie shadow e foto/video
+        dalla cache dei browser (con l'indirizzo web d'origine nella nota): percorso, dimensione, data,
+        cifratura, hash. Leggili con read_extracted.
 
         Args:
-            contains: testo da cercare nel percorso
-            kind: archivio, allegato o vss; vuoto per tutti
+            contains: testo da cercare nel percorso o nella nota (es. un indirizzo web)
+            kind: archivio, allegato, vss o cache_web; vuoto per tutti
             limit: righe massime (max 300)
             offset: righe da saltare, per proseguire dopo una risposta incompleta
         """
         con = _db()
         w, a = ["1=1"], []
         if contains:
-            w.append("path LIKE ? ESCAPE '\\'"); a.append(fa.like(contains))
+            w.append("(path LIKE ? ESCAPE '\\' OR note LIKE ? ESCAPE '\\')"); a += [fa.like(contains)] * 2
         if kind:
             w.append("kind = ?"); a.append(kind)
         try:
@@ -5971,7 +5990,7 @@ def agent_tools(case):
         return fa.pagina(out, tot, offset)
 
     def read_extracted(item_id: int, max_chars: int = 8000) -> str:
-        """Testo di un file estratto (da archivio, allegato o copia shadow).
+        """Testo di un file estratto (da archivio, allegato, copia shadow o cache dei browser).
 
         Args:
             item_id: id del file estratto (da list_extracted o read_email)
@@ -6022,11 +6041,25 @@ def agent_tools(case):
         tools += [query_artifacts, count_artifacts]
     if "archivi" in est:
         tools += [search_emails, read_email]
-    if "archivi" in est or "vss" in est:
+    # (3.0.1) secondo i dati presenti: anche gli estratti dalla cache dei browser («Testo e media») e le anomalie scritte
+    # senza l'analisi «anomalie» (es. volume BitLocker alla preparazione)
+    if "archivi" in est or "vss" in est or _righe(case, "xitems"):
         tools += [list_extracted, read_extracted]
-    if "anomalie" in est or case.meta.get("liste_hash"):
+    if "anomalie" in est or case.meta.get("liste_hash") or _righe(case, "anomalies"):
         tools.append(list_anomalies)
     return tools
+
+
+def _righe(case, tabella):
+    """Numero di righe di una tabella del caso (0 se manca)."""
+    try:
+        con = fa.db_ro(case)
+        try:
+            return con.execute(f"SELECT COUNT(*) FROM {tabella}").fetchone()[0] if fa.table_exists(con, tabella) else 0
+        finally:
+            con.close()
+    except sqlite3.Error:
+        return 0
 
 
 def prompt_extra(case):
@@ -6043,8 +6076,22 @@ def prompt_extra(case):
                       "(list_extracted, read_extracted).").format(v1=a.get('messaggi', 0), v2=a.get('archivi', 0), v3=a.get('file in archivi', 0)))
     if "vss" in est:
         out.append(tr("- Copie shadow: {v1} file cancellati o in versione precedente (list_extracted kind='vss').").format(v1=est['vss'].get('file', 0)))
-    if "anomalie" in est:
+    if "anomalie" in est or _righe(case, "anomalies"):
         out.append(tr("- Anomalie (estensioni false, file e volumi cifrati): list_anomalies."))
+    if "archivi" not in est and "vss" not in est and _righe(case, "xitems"):
+        out.append(tr("- File estratti: list_extracted, read_extracted."))
+    try:
+        con = fa.db_ro(case)
+        try:
+            n_cw = con.execute("SELECT COUNT(*) FROM xitems WHERE kind = 'cache_web'").fetchone()[0] \
+                if fa.table_exists(con, "xitems") else 0
+        finally:
+            con.close()
+    except sqlite3.Error:
+        n_cw = 0
+    if n_cw:
+        out.append(tr("- Foto e video estratti dalla cache dei browser: {n} (list_extracted kind='cache_web'); la nota dà "
+                      "l'indirizzo web d'origine e l'offset nel file di cache.").format(n=n_cw))
     if case.meta.get("volumi_cifrati"):
         out.append(tr("- ATTENZIONE: volumi cifrati presenti: ") + ", ".join(tr("{tipo} all'offset {offset}").format(tipo=v['tipo'], offset=v['offset'])
                                                                     for v in case.meta["volumi_cifrati"]))

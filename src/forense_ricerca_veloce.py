@@ -133,37 +133,48 @@ def _righe(con):
         yield _piega(_spazi(tx)), tel, fonte, i
 
 
+def _blocchi(con, cols, tab, n=2000):
+    """(3.0.1) Righe di una tabella a blocchi di `n` per id: tra un blocco e l'altro caso.sqlite resta libero, così
+    un'analisi o la conferma di una trascrizione possono scrivere mentre l'indice si costruisce (prima una sola lettura
+    di minuti sui casi grandi le bloccava fino a «database is locked»)."""
+    ultimo = None
+    while True:
+        rows = con.execute(f"SELECT id, {cols} FROM {tab}" + (" WHERE id > ?" if ultimo is not None else "") +
+                           " ORDER BY id LIMIT ?", ((ultimo, n) if ultimo is not None else (n,))).fetchall()
+        if not rows:
+            return
+        yield from rows
+        ultimo = rows[-1][0]
+
+
 def _righe_grezze(con):
     t = _tabelle(con)
     if "artifacts" in t:
         # titolo e valori dei campi (i «Dettagli» ripetono gli stessi valori; il percorso della fonte, uguale su migliaia
         # di righe, raddoppierebbe l'indice senza servire alla ricerca)
-        for i, title, user, data in con.execute("SELECT id, title, user, data FROM artifacts"):
+        for i, title, user, data in _blocchi(con, "title, user, data", "artifacts"):
             tx = _testo_art(title, user, data)
             yield tx, _tel(tx), "art", i
     if "chat_messages" in t:
         alleg = {}
         if "chat_attachments" in t:     # nome e percorso degli allegati: si trovano dal messaggio che li porta
-            for msg, n, dp, p in con.execute("SELECT msg, name, device_path, path FROM chat_attachments"):
+            for _i, msg, n, dp, p in _blocchi(con, "msg, name, device_path, path", "chat_attachments"):
                 alleg.setdefault(msg, []).extend(x for x in (n, dp, p) if x)
-        for i, text, snd, sname, extra in con.execute(
-                "SELECT id, text, sender, sender_name, extra FROM chat_messages"):
+        for i, text, snd, sname, extra in _blocchi(con, "text, sender, sender_name, extra", "chat_messages"):
             tx = " ".join(x for x in (text, snd, sname, *alleg.get(i, ())) if x)
             if extra and '"avviso"' in extra:
                 tx += " " + _valori(extra)
             yield tx, _tel(tx), "msg", i
     if "chat_threads" in t:
-        for i, title, key, parts, local in con.execute(
-                "SELECT id, title, key, participants, local FROM chat_threads"):
+        for i, title, key, parts, local in _blocchi(con, "title, key, participants, local", "chat_threads"):
             tx = " ".join(x for x in (title, key, _valori(parts) if parts and parts[:1] in "[{" else parts, local) if x)
             yield tx, _tel(tx), "thr", i
     if "chat_contacts" in t:
-        for i, src, name, value in con.execute("SELECT id, source, name, value FROM chat_contacts"):
+        for i, src, name, value in _blocchi(con, "source, name, value", "chat_contacts"):
             tx = " ".join(x for x in (name, value, src) if x)
             yield tx, _tel(tx), "rub", i
     if "mail" in t:
-        for i, snd, rcp, cc, subj, folder in con.execute(
-                "SELECT id, sender, recipients, cc, subject, folder FROM mail"):
+        for i, snd, rcp, cc, subj, folder in _blocchi(con, "sender, recipients, cc, subject, folder", "mail"):
             tx = " ".join(x for x in (subj, snd, rcp, cc, folder) if x)
             yield tx, _tel(tx), "mail", i
 
