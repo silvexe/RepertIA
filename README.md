@@ -11,6 +11,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0--or--later-blue" alt="license: AGPL-3.0-or-later"></a>
   <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey" alt="platform: Windows, macOS, Linux">
   <img src="https://img.shields.io/badge/AI-local%20%26%20offline-0e6b6b" alt="AI">
+  <a href="#tested-against-public-reference-data"><img src="https://img.shields.io/badge/tested%20on-NIST%20%26%20public%20reference%20data-2e7d32" alt="tested on NIST and public reference data"></a>
 </p>
 
 🇮🇹 **Versione italiana: [README.it.md](README.it.md)**
@@ -35,6 +36,20 @@ inodes.
 **RepertIA works completely WITHOUT artificial intelligence.** The local AI model is **not included** in the packages:
 it is an optional choice of the user (LM Studio, llama-server or Ollama), which can be used or not. Without a model all
 analyses, searches and reports work just the same.
+
+## Tested against public reference data
+
+RepertIA has been tested on public images prepared by others, with the expected answers written by their authors. We ran
+the tests ourselves and publish data, method and [scripts](tools/prove/) so that anyone can repeat them.
+
+| Test | Reference data | Result |
+|---|---|---|
+| **Deleted file recovery** | 90 NIST CFTT "Deleted File Recovery" images | Complete and correct files: **first or tied for first** against the published reports, on FAT, exFAT, NTFS and ext. On exFAT **all of them** (273/273 and 376/376) → [details](docs/prove/nist-dfr-carving.md) |
+| **Image carving** | 26 NIST CFTT "Graphic File Carving" images (2014 and 2023) | Whole files, also not aligned to sectors: **equal to the best published result**, zero false positives. Fragmented files (2014): **below** the best → [details](docs/prove/nist-dfr-carving.md) |
+| **Full case** | NIST CFReDS "Data Leakage" (PC, USB stick, CD-R), 60 questions with official answers | **53 questions checked on the images: answers identical to NIST's**, except a few explained differences where the NIST answer is inaccurate (and one e-mail in the unused space of the OST, which RepertIA does not read); the other 7 are analyst reasoning. Seven defects found and fixed → [details](docs/prove/nist-data-leakage.md) |
+| **Smartphones** | Joshua Hickman's Android 14 and iOS 17, with the diary of actions | **All 262 actions present in the phones' data** found, with the right details even where the diary has the wrong direction, time or number (5 cases). The other 2 in the diary are not in the phone's log → [details](docs/prove/smartphone-hickman.md) |
+
+This is not a certification: NIST and Joshua Hickman did not test RepertIA. We used their public data.
 
 ## Screenshots
 
@@ -130,20 +145,6 @@ created).
 
 Full documentation: [docs/MANUAL.md](docs/MANUAL.md) (Italian original: [src/README.md](src/README.md)). Method, tests
 and known limitations: [VALIDATION.md](VALIDATION.md) (Italian original: [VALIDAZIONE.md](VALIDAZIONE.md)).
-
-## Tested against public reference data
-
-RepertIA has been tested on public images prepared by others, with the expected answers written by their authors. We ran
-the tests ourselves and publish data, method and [scripts](tools/prove/) so that anyone can repeat them.
-
-| Test | Reference data | Result |
-|---|---|---|
-| **Deleted file recovery** | 90 NIST CFTT "Deleted File Recovery" images | Complete and correct files: **first or tied for first** against the published reports, on FAT, exFAT, NTFS and ext. On exFAT **all of them** (273/273 and 376/376) → [details](docs/prove/nist-dfr-carving.md) |
-| **Image carving** | 26 NIST CFTT "Graphic File Carving" images (2014 and 2023) | Whole files, also not aligned to sectors: **equal to the best published result**, zero false positives. Fragmented files (2014): **below** the best → [details](docs/prove/nist-dfr-carving.md) |
-| **Full case** | NIST CFReDS "Data Leakage" (PC, USB stick, CD-R), 60 questions with official answers | **53 questions checked on the images: answers identical to NIST's**, except a few explained differences where the NIST answer is inaccurate (and one e-mail in the unused space of the OST, which RepertIA does not read); the other 7 are analyst reasoning. Seven defects found and fixed → [details](docs/prove/nist-data-leakage.md) |
-| **Smartphones** | Joshua Hickman's Android 14 and iOS 17, with the diary of actions | **All 262 actions present in the phones' data** found, with the right details even where the diary has the wrong direction, time or number (5 cases). The other 2 in the diary are not in the phone's log → [details](docs/prove/smartphone-hickman.md) |
-
-This is not a certification: NIST and Joshua Hickman did not test RepertIA. We used their public data.
 
 ## Download and installation
 

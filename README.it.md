@@ -11,6 +11,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0--or--later-blue" alt="license: AGPL-3.0-or-later"></a>
   <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey" alt="platform: Windows, macOS, Linux">
   <img src="https://img.shields.io/badge/AI-local%20%26%20offline-0e6b6b" alt="AI">
+  <a href="#provato-su-dati-di-riferimento-pubblici"><img src="https://img.shields.io/badge/provato%20su-NIST%20e%20dati%20di%20riferimento%20pubblici-2e7d32" alt="provato su NIST e dati di riferimento pubblici"></a>
 </p>
 
 🇬🇧 **English version: [README.md](README.md)**
@@ -35,6 +36,20 @@ computer dell'analista (facoltativo) risponde a domande in italiano o in inglese
 **RepertIA funziona completamente SENZA intelligenza artificiale.** Il modello IA locale **non è incluso** nei
 pacchetti: è una scelta facoltativa dell'utente (LM Studio, llama-server od Ollama), che si può usare o meno. Senza
 modello tutte le analisi, le ricerche e i report funzionano lo stesso.
+
+## Provato su dati di riferimento pubblici
+
+RepertIA è stato messo alla prova su immagini pubbliche preparate da altri, con le risposte attese scritte da chi le ha
+create. Le prove le abbiamo fatte noi, e pubblichiamo dati, metodo e [script](tools/prove/) perché chiunque possa rifarle.
+
+| Prova | Dati di riferimento | Risultato |
+|---|---|---|
+| **Recupero dei file cancellati** | 90 immagini NIST CFTT «Deleted File Recovery» | File completi e giusti: **primo o pari al primo** rispetto ai rapporti pubblicati, su FAT, exFAT, NTFS ed ext. Su exFAT **tutti** (273/273 e 376/376) → [dettagli](docs/prove/nist-dfr-carving.it.md) |
+| **Carving di immagini** | 26 immagini NIST CFTT «Graphic File Carving» (2014 e 2023) | File interi, anche non allineati ai settori: **pari al miglior risultato pubblicato**, zero falsi positivi. File frammentati del 2014: **sotto** il migliore → [dettagli](docs/prove/nist-dfr-carving.it.md) |
+| **Caso completo** | NIST CFReDS «Data Leakage» (PC, chiavetta, CD-R), 60 domande con le risposte ufficiali | **53 domande verificate sulle immagini: risposte uguali a quelle NIST**, salvo poche differenze spiegate in cui è la risposta NIST a essere imprecisa (e un messaggio di posta nello spazio non usato dell'OST, che RepertIA non legge); le altre 7 sono di ragionamento dell'analista. Sette difetti trovati e corretti → [dettagli](docs/prove/nist-data-leakage.it.md) |
+| **Smartphone** | Android 14 e iOS 17 di Joshua Hickman, con il diario delle azioni | **Tutte le 262 azioni presenti nei dati dei telefoni** ritrovate, con i dati giusti anche dove il diario sbaglia verso, ora o numero (5 casi). Le altre 2 annotate nel diario non sono nel registro del telefono → [dettagli](docs/prove/smartphone-hickman.it.md) |
+
+Non è una certificazione: NIST e Joshua Hickman non hanno provato RepertIA. Abbiamo usato i loro dati pubblici.
 
 ## Schermate
 
@@ -129,20 +144,6 @@ Interfaccia, report e testi dei casi **in italiano o in inglese** (la lingua di 
 
 Documentazione completa: [src/README.md](src/README.md) (in inglese: [docs/MANUAL.md](docs/MANUAL.md)). Metodo, collaudi e limiti
 noti: [VALIDAZIONE.md](VALIDAZIONE.md) (in inglese: [VALIDATION.md](VALIDATION.md)).
-
-## Provato su dati di riferimento pubblici
-
-RepertIA è stato messo alla prova su immagini pubbliche preparate da altri, con le risposte attese scritte da chi le ha
-create. Le prove le abbiamo fatte noi, e pubblichiamo dati, metodo e [script](tools/prove/) perché chiunque possa rifarle.
-
-| Prova | Dati di riferimento | Risultato |
-|---|---|---|
-| **Recupero dei file cancellati** | 90 immagini NIST CFTT «Deleted File Recovery» | File completi e giusti: **primo o pari al primo** rispetto ai rapporti pubblicati, su FAT, exFAT, NTFS ed ext. Su exFAT **tutti** (273/273 e 376/376) → [dettagli](docs/prove/nist-dfr-carving.it.md) |
-| **Carving di immagini** | 26 immagini NIST CFTT «Graphic File Carving» (2014 e 2023) | File interi, anche non allineati ai settori: **pari al miglior risultato pubblicato**, zero falsi positivi. File frammentati del 2014: **sotto** il migliore → [dettagli](docs/prove/nist-dfr-carving.it.md) |
-| **Caso completo** | NIST CFReDS «Data Leakage» (PC, chiavetta, CD-R), 60 domande con le risposte ufficiali | **53 domande verificate sulle immagini: risposte uguali a quelle NIST**, salvo poche differenze spiegate in cui è la risposta NIST a essere imprecisa (e un messaggio di posta nello spazio non usato dell'OST, che RepertIA non legge); le altre 7 sono di ragionamento dell'analista. Sette difetti trovati e corretti → [dettagli](docs/prove/nist-data-leakage.it.md) |
-| **Smartphone** | Android 14 e iOS 17 di Joshua Hickman, con il diario delle azioni | **Tutte le 262 azioni presenti nei dati dei telefoni** ritrovate, con i dati giusti anche dove il diario sbaglia verso, ora o numero (5 casi). Le altre 2 annotate nel diario non sono nel registro del telefono → [dettagli](docs/prove/smartphone-hickman.it.md) |
-
-Non è una certificazione: NIST e Joshua Hickman non hanno provato RepertIA. Abbiamo usato i loro dati pubblici.
 
 ## Scaricare e installare
 
