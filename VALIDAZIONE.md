@@ -136,10 +136,10 @@ dell'utente). Esempi documentati:
   confrontate col documento NIST dei contenuti («Test Images layout», 2012). Ogni settore dei file di prova porta il
   nome del file: si controlla che i cancellati con metadati siano elencati e, settore per settore, che il contenuto
   restituito sia quello del file. **Esito: 835 asserzioni, 643 uguali al riferimento, 179 limiti noti e spiegati, 13
-  in cui il riferimento NIST è smentito dall'immagine grezza, nessuna aperta.** Limiti: ext3/ext4 azzerano i puntatori ai
+  in cui l'immagine grezza mostra una situazione diversa dal riferimento NIST, nessuna aperta.** Limiti: ext3/ext4 azzerano i puntatori ai
   blocchi (contenuto non recuperabile dai metadati); su FAT la catena dei cluster è azzerata, quindi un file frammentato
   non torna intatto (su exFAT, dove Sleuth Kit legge i cancellati come contigui, RepertIA segue la catena rimasta nella
-  FAT: tutti intatti); Sleuth Kit non recupera i cancellati HFS+. Riferimento smentito: schede MFT riusate da file creati
+  FAT: tutti intatti); Sleuth Kit non recupera i cancellati HFS+. Differenze dal riferimento: schede MFT riusate da file creati
   dopo (nessun record MFT contiene più il nome, controllato senza Sleuth Kit), file mai cancellati elencati tra i
   cancellati, un nome scritto in modo diverso, un file che la stessa «Layout History» di NIST mostra sovrascritto. Le ultime sei
   aperte sono state chiuse: file in cartelle cancellate su ext3/ext4 (ora ritrovati dai blocchi di cartella rimasti

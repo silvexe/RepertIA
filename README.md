@@ -18,12 +18,12 @@
 
 ![RepertIA: a simulated demo flight animated on the local map](docs/media/repertia-demo.gif)
 
-🎬 **Watch the demo** (test data from a public image by Josh Hickman and a simulated flight, declared in the video). Download: [English](https://github.com/silvexe/RepertIA/releases/download/v3.0.1/RepertIA-demo-3.0.1-en.mp4) · [Italian](https://github.com/silvexe/RepertIA/releases/download/v3.0.1/RepertIA-demo-3.0.1-it.mp4)
+🎬 **Watch the demo** (test data from a public image by Josh Hickman and a simulated flight, declared in the video). Download: [English](https://github.com/silvexe/RepertIA/releases/download/v3.0.2/RepertIA-demo-3.0.2-en.mp4) · [Italian](https://github.com/silvexe/RepertIA/releases/download/v3.0.2/RepertIA-demo-3.0.2-it.mp4)
 
 https://github.com/user-attachments/assets/f5e79cc8-14cd-4164-b6d9-e10e3cde26e1
 
 
-📘 **Illustrated guide:** [Italian and English, one page](https://github.com/silvexe/RepertIA/releases/download/v3.0.1/RepertIA-guida-3.0.1.html)
+📘 **Illustrated guide:** [Italian and English, one page](https://github.com/silvexe/RepertIA/releases/download/v3.0.2/RepertIA-guida-3.0.2.html)
 
 RepertIA analyses forensic images (E01, raw/dd, dmg), from 2.20 full file system extractions of iPhones and Android
 phones, from 3.0 drone flight logs and, from 3.0.2, logical sources (zip, tar, 7z and rar archives, FTK Imager AD1
@@ -47,7 +47,7 @@ the tests ourselves and publish data, method and [scripts](tools/prove/) so that
 |---|---|---|
 | **Deleted file recovery** | 90 NIST CFTT "Deleted File Recovery" images | Complete and correct files: **first or tied for first** against the published reports, on FAT, exFAT, NTFS and ext. On exFAT **all of them** (273/273 and 376/376) → [details](docs/prove/nist-dfr-carving.md) |
 | **Image carving** | 26 NIST CFTT "Graphic File Carving" images (2014 and 2023) | Whole files, also not aligned to sectors: **equal to the best published result**, zero false positives. Fragmented files (2014): **below** the best → [details](docs/prove/nist-dfr-carving.md) |
-| **Full case** | NIST CFReDS "Data Leakage" (PC, USB stick, CD-R), 60 questions with official answers | **53 questions checked on the images: answers identical to NIST's**, except a few explained differences where the NIST answer is inaccurate (and one e-mail in the unused space of the OST, which RepertIA does not read); the other 7 are analyst reasoning. Seven defects found and fixed → [details](docs/prove/nist-data-leakage.md) |
+| **Full case** | NIST CFReDS "Data Leakage" (PC, USB stick, CD-R), 60 questions with official answers | **53 questions checked on the images: answers identical to NIST's**, except a few explained differences between the data in the images and the NIST answers (and one e-mail in the unused space of the OST, which RepertIA does not read); the other 7 are analyst reasoning. Seven defects found and fixed → [details](docs/prove/nist-data-leakage.md) |
 | **Smartphones** | Joshua Hickman's Android 14 and iOS 17, with the diary of actions | **All 262 actions present in the phones' data** found, with the right details even where the diary has the wrong direction, time or number (5 cases). The other 2 in the diary are not in the phone's log → [details](docs/prove/smartphone-hickman.md) |
 
 This is not a certification: NIST and Joshua Hickman did not test RepertIA. We used their public data.
@@ -102,14 +102,14 @@ From 3.0.2 also **🗂️ Logical source**: files already collected by others (z
 
 | System | File |
 |---|---|
-| Windows (installer) | [RepertIA-3.0.1-Setup.exe](https://github.com/silvexe/RepertIA/releases/download/v3.0.1/RepertIA-3.0.1-Setup.exe) |
-| Windows (portable) | [RepertIA-3.0.1-Windows.zip](https://github.com/silvexe/RepertIA/releases/download/v3.0.1/RepertIA-3.0.1-Windows.zip) |
-| Mac (Apple Silicon) | [RepertIA-3.0.1-Mac.zip](https://github.com/silvexe/RepertIA/releases/download/v3.0.1/RepertIA-3.0.1-Mac.zip) |
-| Linux x86_64 (experimental) | [RepertIA-3.0.1-Linux.tar.gz](https://github.com/silvexe/RepertIA/releases/download/v3.0.1/RepertIA-3.0.1-Linux.tar.gz) |
-| Acceptance test (*collaudo*) | [RepertIA-collaudo.zip](https://github.com/silvexe/RepertIA/releases/download/v3.0.1/RepertIA-collaudo.zip) |
-| SHA-256 checksums | [SHA256SUMS.txt](https://github.com/silvexe/RepertIA/releases/download/v3.0.1/SHA256SUMS.txt) |
-| Checksum signature | [SHA256SUMS.txt.minisig](https://github.com/silvexe/RepertIA/releases/download/v3.0.1/SHA256SUMS.txt.minisig) |
-| Illustrated guide (HTML) | [Italian and English](https://github.com/silvexe/RepertIA/releases/download/v3.0.1/RepertIA-guida-3.0.1.html) |
+| Windows (installer) | [RepertIA-3.0.2-Setup.exe](https://github.com/silvexe/RepertIA/releases/download/v3.0.2/RepertIA-3.0.2-Setup.exe) |
+| Windows (portable) | [RepertIA-3.0.2-Windows.zip](https://github.com/silvexe/RepertIA/releases/download/v3.0.2/RepertIA-3.0.2-Windows.zip) |
+| Mac (Apple Silicon) | [RepertIA-3.0.2-Mac.zip](https://github.com/silvexe/RepertIA/releases/download/v3.0.2/RepertIA-3.0.2-Mac.zip) |
+| Linux x86_64 (experimental) | [RepertIA-3.0.2-Linux.tar.gz](https://github.com/silvexe/RepertIA/releases/download/v3.0.2/RepertIA-3.0.2-Linux.tar.gz) |
+| Acceptance test (*collaudo*) | [RepertIA-collaudo.zip](https://github.com/silvexe/RepertIA/releases/download/v3.0.2/RepertIA-collaudo.zip) |
+| SHA-256 checksums | [SHA256SUMS.txt](https://github.com/silvexe/RepertIA/releases/download/v3.0.2/SHA256SUMS.txt) |
+| Checksum signature | [SHA256SUMS.txt.minisig](https://github.com/silvexe/RepertIA/releases/download/v3.0.2/SHA256SUMS.txt.minisig) |
+| Illustrated guide (HTML) | [Italian and English](https://github.com/silvexe/RepertIA/releases/download/v3.0.2/RepertIA-guida-3.0.2.html) |
 
 All versions: <https://github.com/silvexe/RepertIA/releases>
 

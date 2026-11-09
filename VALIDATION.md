@@ -137,11 +137,11 @@ Documented examples:
   recovery tools (FAT12/16/32, exFAT, NTFS, ext2/3/4, HFS+), prepared by RepertIA from sources on Windows and compared
   with the NIST content document («Test Images layout», 2012). Every sector of the test files carries the file name:
   the check is that deleted files with metadata are listed and, sector by sector, that the returned content is the
-  file's own. **Result: 835 assertions, 643 equal to the reference, 179 known and explained limits, 13 where the NIST
-  reference is contradicted by the raw image, none open.** Limits: ext3/ext4 zero the block pointers (content not
+  file's own. **Result: 835 assertions, 643 equal to the reference, 179 known and explained limits, 13 where the raw image
+  shows a situation different from the NIST reference, none open.** Limits: ext3/ext4 zero the block pointers (content not
   recoverable from metadata); on FAT the cluster chain is zeroed, so a fragmented file does not come back
   intact (on exFAT, where Sleuth Kit reads deleted files as contiguous, RepertIA follows the chain left in the FAT:
-  all intact); Sleuth Kit does not recover deleted HFS+ files. Reference contradicted: MFT records reused by files
+  all intact); Sleuth Kit does not recover deleted HFS+ files. Differences from the reference: MFT records reused by files
   created later (no MFT record still holds the name, checked without Sleuth Kit), never-deleted files listed as deleted,
   a name spelled differently, a file that NIST's own «Layout History» shows overwritten. The last six open ones were
   closed: files in deleted folders on ext3/ext4 (now found from the folder blocks left free), two names left without

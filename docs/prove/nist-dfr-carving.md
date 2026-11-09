@@ -76,8 +76,9 @@ only one of the tools tested flags some of them.
 
 **Overall check.** Besides the comparison with the reports, we checked every file of every image against the NIST
 document that describes how they were built: **835 checks, none open**. 643 give the expected result; 179 are known
-file system limits, explained (like the two above); in 13 cases the NIST document is contradicted by the image itself
-(for example a file that NIST lists as intact but that its own history shows as overwritten).
+file system limits, explained (like the two above); in 13 cases the image shows a situation different from the one
+described in the NIST document (for example a file described as intact that the image shows as partly overwritten by
+later operations).
 
 ## 2. Rebuilding images from free space (carving)
 
@@ -87,8 +88,8 @@ out in increasingly difficult ways: one from 2014 (nine tools tested, 2014-2015 
 tools tested, 2024-2025 reports).
 
 **How we measured.** For RepertIA we used a **stricter** yardstick than the reports: a file counts as recovered only if
-it is **byte-for-byte identical** to the original. The NIST reports instead judge by eye whether the image looks
-complete.
+it is **byte-for-byte identical** to the original. The NIST reports instead assess visually whether the recovered
+image is complete.
 
 2014 set: files recovered complete.
 
@@ -136,7 +137,7 @@ To be fair:
   those years; today's versions may do better. For carving we also used the 2024-2025 reports, on recent versions.
 - This is not a certification: NIST did not test RepertIA. We used its public images and its method, and we publish
   everything so that anyone can repeat the measurements.
-- RepertIA's yardstick (byte-for-byte identity) is stricter than the reports' judgement by eye: where they differ, it
+- RepertIA's yardstick (byte-for-byte identity) is stricter than the visual assessment used in the reports: where they differ, it
   is to RepertIA's disadvantage.
 
 ## 4. Sources and how to repeat the tests

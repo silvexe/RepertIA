@@ -13,8 +13,8 @@ We opened the images with RepertIA and compared the results with the answers, qu
 
 - **53 questions can be checked on the images, and RepertIA's answers are NIST's.** There is one limit: an e-mail left
   in the unused space of the Outlook archive, which RepertIA does not read yet.
-- **In some points it is the NIST answer that is inaccurate,** and we checked it on the data: an event with the wrong
-  number, two swapped dates, a file name that does not exist in Windows 7, two tables one hour off.
+- **In some points the data in the images differ from the NIST answers,** and we checked this: the number of an event,
+  two swapped dates, the name of a Windows 7 file, two tables one hour apart.
 - **The other 7 questions are analyst reasoning** (why, how, the overall timeline). RepertIA provides the facts to reason
   on, but the conclusion is the analyst's.
 - **The test revealed seven defects or gaps in RepertIA, all fixed in 3.0.2.**
@@ -60,19 +60,20 @@ NIST.
 
 **Total: 53 questions checked on the images, 7 reasoning questions.**
 
-## Where the NIST answer is inaccurate
+## Where the data differ from the NIST answers
 
 We point them out so that whoever repeats the test does not mistake these differences for tool errors.
 
 - **Accounts and installed programs (questions 6 and 10): one hour off.** The times of these two tables match standard
   time, while all the other answers match daylight saving time, which was already in force in New York. We also reread
   the account registry without RepertIA's code, with independent libraries, and the raw values are RepertIA's.
-- **Question 6:** for one account NIST does not give the last failed logon attempt, which is in the registry.
-- **Question 33:** the Windows event of the burning has number **133**, not 113.
-- **Question 30:** the table swaps the modification dates of two files. The Google Drive log and answer 49 give
-  RepertIA's dates.
-- **Question 38:** NIST names the file `thumbcache_64`, which does not exist in Windows 7. The thumbnails are in
-  `thumbcache_256`.
+- **Question 6:** for one account the registry also holds the last failed logon attempt, which the NIST answer does not
+  list.
+- **Question 33:** in the images the Windows event of the burning has number **133** (113 in the NIST answer).
+- **Question 30:** in the table the modification dates of two files are swapped compared with the Google Drive log,
+  which agrees with answer 49 and with RepertIA.
+- **Question 38:** the NIST answer mentions `thumbcache_64`; in Windows 7 the thumbnail caches are `_32`, `_96`, `_256` and
+  `_1024`, and the case's thumbnails are in `thumbcache_256`.
 
 ## Defects of RepertIA found with this test, and fixed
 

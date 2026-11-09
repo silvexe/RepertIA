@@ -78,8 +78,9 @@ Sulle immagini NIST **tutti** questi casi sono dichiarati (FAT 40 su 40, exFAT 1
 
 **Verifica complessiva.** Oltre al confronto con i rapporti, abbiamo controllato ogni file di ogni immagine contro il
 documento NIST che descrive come sono state costruite: **835 verifiche, nessuna aperta**. 643 danno il risultato atteso;
-179 sono limiti noti dei file system, spiegati (come i due sopra); in 13 casi è il documento NIST a essere smentito
-dall'immagine stessa (per esempio un file che NIST dà come intatto ma che la sua stessa cronologia mostra sovrascritto).
+179 sono limiti noti dei file system, spiegati (come i due sopra); in 13 casi l'immagine mostra una situazione
+diversa da quella descritta nel documento NIST (per esempio un file indicato come intatto che nell'immagine risulta in
+parte sovrascritto da operazioni successive).
 
 ## 2. Ricostruzione di immagini dallo spazio libero (carving)
 
@@ -89,8 +90,8 @@ HEIC) disposte in modi via via più difficili: una del 2014 (nove strumenti prov
 (tredici strumenti provati, rapporti 2024-2025).
 
 **Come abbiamo misurato.** Per RepertIA abbiamo usato un metro **più severo** di quello dei rapporti: un file conta come
-recuperato solo se è **identico byte per byte** all'originale. I rapporti NIST invece giudicano a occhio se l'immagine
-si vede completa.
+recuperato solo se è **identico byte per byte** all'originale. I rapporti NIST invece valutano visivamente se l'immagine
+recuperata è completa.
 
 Serie 2014: file recuperati completi.
 
@@ -141,7 +142,7 @@ Per correttezza:
   versioni recenti.
 - Non è una certificazione: NIST non ha provato RepertIA. Abbiamo usato le sue immagini pubbliche e il suo metodo, e
   pubblichiamo tutto perché chiunque possa rifare le misure.
-- Il metro di RepertIA (identità byte per byte) è più severo del giudizio a occhio dei rapporti: dove c'è differenza, è
+- Il metro di RepertIA (identità byte per byte) è più severo della valutazione visiva usata nei rapporti: dove c'è differenza, è
   a sfavore di RepertIA.
 
 ## 4. Fonti e come rifare le prove

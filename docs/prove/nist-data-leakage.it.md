@@ -13,8 +13,8 @@ Abbiamo aperto le immagini con RepertIA e confrontato i risultati con le rispost
 
 - **53 domande si verificano sulle immagini, e le risposte di RepertIA sono quelle di NIST.** Su un punto c'è un
   limite: un messaggio di posta rimasto nello spazio non usato dell'archivio di Outlook, che RepertIA non legge ancora.
-- **In alcuni punti è la risposta NIST a essere imprecisa,** e lo abbiamo verificato sui dati: un evento con un numero
-  sbagliato, due date scambiate, un nome di file che in Windows 7 non esiste, due tabelle con un'ora di differenza.
+- **In alcuni punti i dati delle immagini differiscono dalle risposte NIST,** e lo abbiamo verificato: il numero di un
+  evento, due date invertite, il nome di un file di Windows 7, due tabelle con un'ora di differenza.
 - **Le altre 7 domande sono di ragionamento** dell'analista (perché, come, la cronologia complessiva). RepertIA fornisce i
   fatti su cui ragionare, ma la conclusione resta all'analista.
 - **La prova ha fatto emergere sette difetti o lacune di RepertIA, tutti corretti nella 3.0.2.**
@@ -61,19 +61,21 @@ NIST.
 
 **Totale: 53 domande verificate sulle immagini, 7 di ragionamento.**
 
-## Dove è la risposta NIST a essere imprecisa
+## Dove i dati differiscono dalle risposte NIST
 
 Lo segnaliamo perché chi rifà la prova non scambi queste differenze per errori dello strumento.
 
-- **Account e programmi installati (domande 6 e 10): un'ora di differenza.** Le ore di queste due tabelle tornano con
-  l'ora solare, mentre tutte le altre risposte tornano con l'ora legale, che a New York era già in vigore. Abbiamo
+- **Account e programmi installati (domande 6 e 10): un'ora di differenza.** Le ore di queste due tabelle corrispondono
+  all'ora solare, mentre tutte le altre risposte corrispondono all'ora legale, che a New York era già in vigore. Abbiamo
   riletto il registro degli account anche senza il codice di RepertIA, con librerie indipendenti, e i valori grezzi sono
   quelli di RepertIA.
-- **Domanda 6:** per un account NIST non indica l'ultimo tentativo di accesso fallito, che però è nel registro.
-- **Domanda 33:** l'evento di Windows della masterizzazione ha numero **133**, non 113.
-- **Domanda 30:** la tabella scambia le date di modifica di due file. Il registro di Google Drive e la risposta 49 danno
-  le date di RepertIA.
-- **Domanda 38:** NIST indica il file `thumbcache_64`, che in Windows 7 non esiste. Le miniature sono in `thumbcache_256`.
+- **Domanda 6:** per un account il registro contiene anche l'ultimo tentativo di accesso fallito, che la risposta NIST non
+  riporta.
+- **Domanda 33:** nelle immagini l'evento di Windows della masterizzazione ha numero **133** (nella risposta NIST 113).
+- **Domanda 30:** nella tabella le date di modifica di due file risultano invertite rispetto al registro di Google Drive,
+  che concorda con la risposta 49 e con RepertIA.
+- **Domanda 38:** la risposta NIST cita `thumbcache_64`; in Windows 7 le cache delle miniature sono `_32`, `_96`, `_256` e
+  `_1024`, e le miniature del caso sono in `thumbcache_256`.
 
 ## Difetti di RepertIA trovati con questa prova, e corretti
 
