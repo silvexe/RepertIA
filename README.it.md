@@ -26,8 +26,9 @@ https://github.com/user-attachments/assets/eb54cda4-cf47-44b3-af0c-3108f07cf84b
 📘 **Guida illustrata:** [italiano e inglese, un'unica pagina](https://github.com/silvexe/RepertIA/releases/download/v3.0.1/RepertIA-guida-3.0.1.html)
 
 RepertIA analizza copie forensi (E01, raw/dd, dmg), dalla 2.20 estrazioni del file system completo di iPhone e telefoni
-Android e, dalla 3.0, registri di volo dei droni da un'unica interfaccia web locale, su Mac Apple Silicon, Windows o
-Linux (sperimentale).
+Android, dalla 3.0 registri di volo dei droni e, dalla 3.0.2, sorgenti logiche (archivi zip, tar, 7z e rar, immagini
+logiche AD1 di FTK Imager, immagini di CD/DVD ISO e UDF o una cartella) da un'unica interfaccia web locale, su Mac
+Apple Silicon, Windows o Linux (sperimentale).
 Usa strumenti forensi riconosciuti (The Sleuth Kit, libewf, plaso, PhotoRec, bulk_extractor, ExifTool, libyal) e ne
 raccoglie i risultati in un caso consultabile con filtri, timeline e anteprime. Un modello linguistico che gira sul
 computer dell'analista (facoltativo) risponde a domande in italiano o in inglese citando file, offset e inode.
