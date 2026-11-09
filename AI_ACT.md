@@ -7,7 +7,7 @@
 > responsabile della protezione dei dati e il proprio ufficio legale, e controllare eventuali modifiche successive del
 > Regolamento e delle norme nazionali.
 
-Versione del programma a cui si riferisce: **3.0.1**.
+Versione del programma a cui si riferisce: **3.0.2**.
 
 ## 1. Che cosa fa RepertIA e dove c'è l'IA
 

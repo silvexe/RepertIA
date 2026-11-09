@@ -95,7 +95,9 @@ ART_CATS = {"sistema": N_("Sistema"), "utenti": N_("Account utente"), "usb": N_(
             "permessi": N_("Permessi alle app (TCC)"), "uso": N_("Uso delle app"), "dispositivi": N_("Dispositivi e volumi"),
             "backup": N_("Backup (Time Machine)"), "cartelle": N_("Cartelle aperte (ShellBags)"),
             "journal": N_("Journal NTFS (creati, cancellati, rinominati)"), "eventi": N_("Eventi di sistema"),
-            "leapp": N_("Artefatti iLEAPP/ALEAPP (smartphone)"), "chiamate": N_("Chiamate (smartphone)")}
+            "leapp": N_("Artefatti iLEAPP/ALEAPP (smartphone)"), "chiamate": N_("Chiamate (smartphone)"),
+            "cloud": N_("Servizi cloud (Google Drive)"), "indice": N_("Indice di Ricerca di Windows"),
+            "note": N_("Note (Sticky Notes)")}
 ANOM_KINDS = {"volume": N_("Volume cifrato"), "estensione": N_("Estensione falsa"),
               "cifrato": N_("File protetto da password"), "contenitore": N_("Possibile contenitore cifrato"),
               "segnalato": N_("Hash in lista da segnalare")}
@@ -161,7 +163,7 @@ def unixtime(n):
         if n <= 0:
             return None
         return iso(dt.datetime(1970, 1, 1) + dt.timedelta(seconds=n))
-    except (ValueError, OverflowError):
+    except (ValueError, OverflowError, TypeError):      # (3.0.2) anche None
         return None
 
 
@@ -181,7 +183,7 @@ def decode_bytes(b):
 def html_to_text(h):
     h = re.sub(r"(?is)<(script|style|head)\b.*?</\1>", " ", h or "")
     h = re.sub(r"(?i)<br\s*/?>|</p>|</div>|</tr>|</li>", "\n", h)
-    t = html.unescape(re.sub(r"<[^>]+>", " ", h))
+    t = html.unescape(re.sub(r"<[^<>]+>", " ", h))
     return re.sub(r"[ \t\r\f\v]+", " ", re.sub(r"\n\s*\n+", "\n\n", t)).strip()
 
 
@@ -416,6 +418,15 @@ def zip_dates(f):
     return out
 
 
+def z_scarto():
+    """Secondi da togliere alle date di «7z l» per averle in UTC. Su Mac e Linux basta TZ=UTC (0); su Windows 7-Zip
+    ignora TZ e converte con FileTimeToLocalFileTime, cioè con lo scarto ATTUALE del computer (ora legale compresa,
+    anche per date di un'altra stagione): si toglie lo stesso scarto. Le date DOS dei RAR 4 escono invece invariate."""
+    if os.name != "nt":
+        return 0
+    return int(dt.datetime.now().astimezone().utcoffset().total_seconds())
+
+
 def z_list(exe, f):
     """Elenco tecnico (7z l -slt): [{path, size, mtime, encrypted, dir}], codice, errore."""
     try:
@@ -424,6 +435,8 @@ def z_list(exe, f):
                             timeout=900, stdin=subprocess.DEVNULL, env=dict(os.environ, TZ="UTC"))
     except subprocess.TimeoutExpired:
         return [], 1, tr("tempo scaduto")
+    with open(f, "rb") as fh:
+        scarto = 0 if fh.read(7) == b"Rar!\x1a\x07\x00" else z_scarto()
     out = fa.dec(cp.stdout)
     items, cur = [], {}
     for line in out.splitlines() + [""]:
@@ -444,8 +457,10 @@ def z_list(exe, f):
         except ValueError:
             size = 0
         m = (e.get("Modified") or "").strip()
-        res.append({"path": p, "size": size, "dir": isdir, "encrypted": e.get("Encrypted") == "+",
-                    "mtime": m[:19].replace(" ", "T") if re.match(r"\d{4}-\d\d-\d\d \d\d:\d\d:\d\d", m) else None})
+        mt = m[:19].replace(" ", "T") if re.match(r"\d{4}-\d\d-\d\d \d\d:\d\d:\d\d", m) else None
+        if mt and scarto:
+            mt = (dt.datetime.strptime(mt, "%Y-%m-%dT%H:%M:%S") - dt.timedelta(seconds=scarto)).strftime("%Y-%m-%dT%H:%M:%S")
+        res.append({"path": p, "size": size, "dir": isdir, "encrypted": e.get("Encrypted") == "+", "mtime": mt})
     if zipfile.is_zipfile(f):          # per gli ZIP la data DOS è ora locale senza fuso: la libreria la distingue
         zd = zip_dates(f)
         for r in res:
@@ -515,7 +530,7 @@ def archive_by_content(name, head):
     if len(head) >= 262 and head[257:262] == b"ustar":
         return tr("archivio tar")
     fam, label = detect_sig(head[:4096])
-    if fam in ARCH_FAM and ext not in FAMILY_EXT.get(fam, set()) and not (fam == "zip" and ext in KNOWN_EXT - {"jpg", "jpeg", "png", "gif", "pdf", "txt", "dat", "bin"}):
+    if fam in ARCH_FAM and ext not in FAMILY_EXT.get(fam, set()) and not (fam == "zip" and ext in KNOWN_EXT - {"jpg", "jpeg", "png", "gif", "pdf", "txt", "dat", "bin", "amr", "3ga", "svg"}):
         return label
     return None
 
@@ -653,8 +668,8 @@ def addr_list(v):
 
 
 def add_message(ctx, origin, parent, fmt, folder, disp, sender, to, cc, subject, date, body,
-                html_body, headers, attachments, depth):
-    """Registra un messaggio con i suoi allegati: [(nome, bytes)]."""
+                html_body, headers, attachments, depth, consegna=None):
+    """Registra un messaggio con i suoi allegati: [(nome, bytes)]. `consegna`: ora di consegna, se diversa da `date`."""
     con, case = ctx.con, ctx.case
     subject = (subject or "").strip() or tr("(senza oggetto)")
     mid = con.execute("INSERT INTO mail(part, inode, src_path, xid, fmt, folder, sender, recipients, "
@@ -664,7 +679,9 @@ def add_message(ctx, origin, parent, fmt, folder, disp, sender, to, cc, subject,
                        len(attachments), (headers or "")[:20000])).lastrowid
     mpath = f"{disp} › {folder + ' › ' if folder else ''}{subject[:100]}"
     txt = (f"Da: {sender}\nA: {to}\n" + (f"Cc: {cc}\n" if cc else "") +
-           tr("Oggetto: {subject}\nData: {v1}\n\n{v2}").format(subject=subject, v1=date or '', v2=body or ''))
+           tr("Oggetto: {subject}\nData: {v1}\n\n{v2}").format(
+               subject=subject, v1=(date or '') + (tr(" (consegnato {v1})").format(v1=consegna) if consegna else ''),
+               v2=body or ''))
     fa.store_text(con, mpath, txt, "posta", None, str(mid), 0, "email")
     ctx.c["messaggi"] += 1
     for name, data in attachments:
@@ -854,7 +871,10 @@ def process_pst(ctx, f, disp, origin, depth, parent):
                     sender = (addr_list(hp["from"]) if hp is not None and hp["from"] else "") or (m.sender_name or "")
                     to = (addr_list(hp["to"]) if hp is not None and hp["to"] else "") or pff_recipients(m)
                     cc = addr_list(hp["cc"]) if hp is not None and hp["cc"] else ""
-                    date = iso(m.delivery_time) or iso(m.client_submit_time) or iso(m.creation_time)
+                    # (3.0.2) data = ora di invio (come l'intestazione Date e le risposte NIST); l'ora di consegna va nel
+                    # testo: per i messaggi inviati Outlook la registra al minuto (es. 18:44:00 per un invio alle 18:44:31)
+                    date = iso(m.client_submit_time) or iso(m.delivery_time) or iso(m.creation_time)
+                    consegna = iso(m.delivery_time)
                     body, htm = pff_text(m)
                     atts = []
                     for k in range(m.number_of_attachments):
@@ -867,7 +887,8 @@ def process_pst(ctx, f, disp, origin, depth, parent):
                             continue
                     folder = re.sub(r"^Top of (Outlook data file|Personal Folders)/?", "", path) or path
                     add_message(ctx, origin, parent, "PST/OST", folder, disp, sender, to, cc,
-                                m.subject, date, body, htm, headers, atts, depth)
+                                m.subject, date, body, htm, headers, atts, depth,
+                                consegna=consegna if consegna and consegna != date else None)
                     n += 1
                 except Exception:
                     ctx.c["messaggi non leggibili"] += 1
@@ -1117,6 +1138,8 @@ SIGS = [
     (b"LUKS\xba\xbe", 0, "luks", N_("contenitore cifrato LUKS")), (b"EVF\x09\x0d\x0a\xff\x00", 0, "e01", N_("immagine forense E01")),
     (b"encrcdsa", 0, "dmgenc", N_("immagine disco Apple cifrata")), (b"bplist00", 0, "plist", N_("property list Apple")),
     (b"BZh", 0, "bz2", N_("archivio bzip2")),
+    # (3.0.2) audio AMR (note vocali): senza, un documento rinominato .amr non era segnalato (caso NIST «Data Leakage»)
+    (b"#!AMR", 0, "amr", N_("audio AMR")),
 ]
 FAMILY_EXT = {
     "jpg": "jpg jpeg jpe jfif jif", "png": "png", "gif": "gif", "pdf": "pdf ai",
@@ -1134,12 +1157,13 @@ FAMILY_EXT = {
     "3gp": "3gp 3g2 mp4", "mkv": "mkv webm mka", "tif": "tif tiff dng cr2 nef arw srw pef 3fr",
     "cab": "cab msu", "psd": "psd psb", "vhd": "vhd", "vhdx": "vhdx", "vmdk": "vmdk", "luks": "luks img",
     "e01": "e01", "dmgenc": "dmg", "plist": "plist", "macho": "dylib bundle jnilib kext so o",
+    "amr": "amr 3ga",
 }
 FAMILY_EXT = {k: set(v.split()) for k, v in FAMILY_EXT.items()}
 KNOWN_EXT = set().union(*FAMILY_EXT.values()) | {"txt", "csv", "html", "htm", "xml", "json", "log",
-                                                   "ini", "md", "eml", "vcf", "ics", "bmp", "ico"}
+                                                   "ini", "md", "eml", "vcf", "ics", "bmp", "ico", "svg"}
 MEDIA_FAM = {"jpg", "png", "gif", "tif", "psd", "webp", "heic", "mp3", "ogg", "flac", "wav", "avi",
-             "mov", "mp4", "m4a", "3gp", "mkv"}
+             "mov", "mp4", "m4a", "3gp", "mkv", "amr"}
 DOC_FAM = {"pdf", "zip", "ole", "rtf"}
 OOXML = {"docx", "docm", "dotx", "xlsx", "xlsm", "xltx", "pptx", "pptm", "potx", "ppsx"}
 SUSPECT_EXT = {"", "dat", "bin", "tc", "hc", "vc", "img", "raw", "tmp", "bak", "dmp", "enc", "crypt",
@@ -1421,30 +1445,35 @@ class HeadReader:
             self.pytsk3 = None
         self.img = None
 
+    def _img(self):
+        """Immagine aperta con pytsk3 (E01 tramite pyewf), per leggere byte grezzi o aprire una partizione."""
+        if self.img is None:
+            pt = self.pytsk3
+            if fa.is_e01(self.case.image):
+                import pyewf
+                h = pyewf.handle()
+                h.open(pyewf.glob(self.case.image))
+
+                class EwfImg(pt.Img_Info):
+                    def __init__(s, hh):
+                        s._h = hh
+                        super().__init__(url="", type=pt.TSK_IMG_TYPE_EXTERNAL)
+
+                    def read(s, off, size):
+                        s._h.seek(off)
+                        return s._h.read(size)
+
+                    def get_size(s):
+                        return s._h.get_media_size()
+                self.img = EwfImg(h)
+            else:
+                self.img = pt.Img_Info(self.case.image)
+        return self.img
+
     def _fs(self, part):
         if part not in self.fs:
             try:
-                pt = self.pytsk3
-                if fa.is_e01(self.case.image):
-                    import pyewf
-                    h = pyewf.handle()
-                    h.open(pyewf.glob(self.case.image))
-
-                    class EwfImg(pt.Img_Info):
-                        def __init__(s, hh):
-                            s._h = hh
-                            super().__init__(url="", type=pt.TSK_IMG_TYPE_EXTERNAL)
-
-                        def read(s, off, size):
-                            s._h.seek(off)
-                            return s._h.read(size)
-
-                        def get_size(s):
-                            return s._h.get_media_size()
-                    img = EwfImg(h)
-                else:
-                    img = pt.Img_Info(self.case.image)
-                self.fs[part] = pt.FS_Info(img, offset=part * 512)
+                self.fs[part] = self.pytsk3.FS_Info(self._img(), offset=part * 512)
             except Exception:
                 self.fs[part] = None
         return self.fs[part]
@@ -2219,7 +2248,7 @@ def fetch_hive(A, ctx, part, inode, path):
     f = fetch(ctx, part, inode, path)
     if not f:
         return f
-    deleted = bool(ctx.con.execute("SELECT 1 FROM files WHERE part=? AND inode=? AND deleted=1", (part, str(inode))).fetchone())
+    deleted = bool(ctx.con.execute("SELECT 1 FROM files WHERE part=? AND inode=? AND deleted>=1", (part, str(inode))).fetchone())
     if deleted:
         with open(f, "rb") as fh:
             head = fh.read(4096 + 4)
@@ -2318,6 +2347,12 @@ def win_system(A, ctx, part, users):
     tzn = rv(tz, "TimeZoneKeyName") or rv(tz, "StandardName")
     if tzn:
         A.add("sistema", None, tr("Fuso orario: {v1}").format(v1=sz(tzn)), tr("scostamento {v1} minuti").format(v1=rv(tz, 'Bias')), "", src)
+    # (3.0.2) servizio di Ricerca di Windows (WSearch): indicizzazione attiva se l'avvio è automatico (NIST, domanda 42)
+    ws = rv(rk(root, f"{cs}\\Services\\WSearch"), "Start")
+    if isinstance(ws, int):
+        A.add("sistema", None, tr("Servizio Ricerca di Windows (WSearch): {v1}").format(
+            v1={2: tr("avvio automatico"), 3: tr("avvio manuale"), 4: tr("disattivato")}.get(ws, tr("avvio {v1}").format(v1=ws))),
+            tr("indicizzazione dei file attiva") if ws == 2 else "", "", src, {"servizio": "WSearch", "start": ws})
     sd = rv(rk(root, f"{cs}\\Control\\Windows"), "ShutdownTime")
     if isinstance(sd, bytes) and len(sd) >= 8:
         A.add("sistema", filetime(struct.unpack("<Q", sd[:8])[0]), tr("Ultimo spegnimento registrato"), "", "", src)
@@ -2436,11 +2471,20 @@ def win_software(A, ctx, part, users):
                 continue
             seen.add(name.lower())
             d = sz(rv(k, "InstallDate"))
-            ts = f"{d[:4]}-{d[4:6]}-{d[6:8]}T00:00:00" if re.fullmatch(r"\d{8}", d or "") else lw(k)
+            data_inst = f"{d[:4]}-{d[4:6]}-{d[6:8]}" if re.fullmatch(r"\d{8}", d or "") else None
+            # (3.0.2) InstallDate ha solo la data (locale); l'ora viene dall'ultima scrittura della chiave (UTC), che
+            # di solito è l'installazione: si usa quando cade entro un giorno da InstallDate, ed è sempre indicata
+            scritta = lw(k)
+            vicina = bool(data_inst and scritta) and abs((dt.date.fromisoformat(scritta[:10]) -
+                                                          dt.date.fromisoformat(data_inst)).days) <= 1
+            ts = scritta if vicina or not data_inst else f"{data_inst}T00:00:00"
             A.add("programmi", ts, name, "; ".join(x for x in (
                 f"versione {sz(rv(k, 'DisplayVersion'))}" if rv(k, "DisplayVersion") else "",
-                sz(rv(k, "Publisher")), f"in {sz(rv(k, 'InstallLocation'))}" if rv(k, "InstallLocation") else "") if x),
-                  "", src, {"versione": sz(rv(k, "DisplayVersion")), "editore": sz(rv(k, "Publisher"))})
+                sz(rv(k, "Publisher")), f"in {sz(rv(k, 'InstallLocation'))}" if rv(k, "InstallLocation") else "",
+                tr("data di installazione {v1} (InstallDate, ora locale)").format(v1=data_inst) if data_inst else "",
+                tr("chiave scritta {v1} (UTC)").format(v1=scritta.replace('T', ' ')) if scritta else "") if x),
+                  "", src, {"versione": sz(rv(k, "DisplayVersion")), "editore": sz(rv(k, "Publisher")),
+                            "installato": data_inst, "chiave_scritta": scritta})
     for base, lbl in (("Microsoft\\Windows\\CurrentVersion\\Run", "Run"),
                       ("Microsoft\\Windows\\CurrentVersion\\RunOnce", "RunOnce"),
                       ("WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Run", "Run (32 bit)")):
@@ -2662,11 +2706,13 @@ def win_sam(A, ctx, part, users):
     hv, root = open_hive(f)
     src = (part, inode, path)
     names = {}
+    creati = {}                 # (3.0.2) RID -> ultima scrittura di Names\<nome>: la creazione dell'account (come RegRipper)
     for k in subkeys(rk(root, "SAM\\Domains\\Account\\Users\\Names")):
         try:
             v = k.get_value_by_name("") or (k.get_value(0) if k.number_of_values else None)
             if v is not None:
                 names[v.type] = k.name
+                creati[v.type] = lw(k)
         except Exception:
             pass
     msid = sam_machine_sid(root)
@@ -2747,6 +2793,8 @@ def win_sam(A, ctx, part, users):
                   tr("accessi falliti 4625: {n}, ultimo {v1}").format(n=fail['n'], v1=fail['ultimo'].replace('T', ' ')) if fail.get("n") else "",
                   tr("password impostata {v1}").format(v1=pwd.replace('T', ' ')) if pwd else "",
                   tr("ultimo tentativo fallito {v1}").format(v1=failed.replace('T', ' ')) if failed else "",
+                  tr("account creato {v1} (ultima scrittura della chiave del nome nel SAM)").format(
+                      v1=creati[rid].replace('T', ' ')) if creati.get(rid) else "",
                   f"SID {sid}" if sid else "",
                   "disabilitato" if acb & 1 else "attivo") if x), name, src,
               {"rid": rid, "sid": sid, "accessi": n_tot, "accessi_sam": logins, "accessi_eventi": n_ev,
@@ -2755,7 +2803,8 @@ def win_sam(A, ctx, part, users):
                "ultimo_accesso": last or ultimo_ev, "ultimo_accesso_sam": last, "ultimo_accesso_eventi": ultimo_ev,
                "account_microsoft": ms or None, "profilo_caricato": loaded, "profilo_scaricato": unloaded,
                "password_errate": bad, "accessi_falliti": fail.get("n", 0), "periodo_eventi": fonti or None,
-               "disabilitato": bool(acb & 1)})
+               "disabilitato": bool(acb & 1), "password_impostata": pwd, "ultimo_tentativo_fallito": failed,
+               "creato": creati.get(rid)})
     hv.close()
 
 
@@ -4223,6 +4272,453 @@ def win_activities(A, ctx, part):
             db.close()
 
 
+# (3.0.2) Google Drive per Windows (Backup and Sync / Drive legacy): NIST Data Leakage, domande 29-31 e 48-49
+GDRIVE_LOG_RE = re.compile(r"^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d),\d+ ([+-]\d{4}) ")
+GDRIVE_EV_RE = re.compile(r"RawEvent\((CREATE|DELETE|MOVE|MODIFY), path=u?['\"](.*?)['\"],(.*)")
+GDRIVE_DIR_RE = re.compile(r"\bis_dir=(True|False)")
+GDRIVE_SIZE_RE = re.compile(r"\bsize=(\d+)")
+GDRIVE_MTIME_RE = re.compile(r"\bmtime=([\d.]+)")
+GDRIVE_MAIL_RE = re.compile(r"Initializing User instance with new credentials\.?\s*([\w.+-]+@[\w-]+(?:\.[\w-]+)+)")
+GDRIVE_MAX = 5000
+GDRIVE_CONFIG = ("user_email", "local_sync_root_path", "highest_app_version", "upgrade_number", "selective_sync")
+
+
+def _gdrive_ora(data, off):
+    """Ora del registro di Google Drive (locale con scostamento, es. -0400) in UTC."""
+    try:
+        t = dt.datetime.strptime(data, "%Y-%m-%d %H:%M:%S")
+        m = (1 if off[0] == "+" else -1) * (int(off[1:3]) * 60 + int(off[3:5]))
+        return iso(t - dt.timedelta(minutes=m))
+    except (ValueError, IndexError):
+        return None
+
+
+def _gdrive_val(q):
+    try:
+        return int(q[1]) if q[0] == "i" else float(q[1]) if q[0] == "r" else q[1] if q[0] == "t" else None
+    except (ValueError, TypeError, IndexError):
+        return None
+
+
+def win_gdrive(A, ctx, part):
+    """Google Drive per Windows (versione «Backup and Sync»): account e cartella da sync_config.db, file del cloud da
+    snapshot.db (anche i record cancellati, letti dai byte e segnati da verificare), file creati e cancellati nella
+    cartella sincronizzata da sync_log.log (ora locale con scostamento, convertita in UTC). I file cancellati del disco
+    si provano lo stesso: se il contenuto è sovrascritto non si aprono e lo si dichiara. Le versioni nelle copie shadow
+    si leggono con gdrive_vss dopo l'analisi delle copie shadow."""
+    trovati, visti = 0, set()
+    for nome in ("sync_config.db", "snapshot.db", "sync_log.log"):
+        for p, inode, cancellato, path in find_files(ctx.con, part, "%/google/drive/user_default/" + nome, True)[:20]:
+            trovati += 1
+            user, src = user_of(path), (p, inode, path)
+            canc = tr(" (file cancellato)") if cancellato else ""
+            if nome == "sync_log.log":
+                f = fetch(ctx, p, inode, path, 200 << 20)
+                if not f:
+                    A.add("cloud", None, tr("Google Drive: {name} non leggibile{c}").format(name=nome, c=canc), "", user, src)
+                    continue
+                _gdrive_log(A, f, user, src, canc, visti, {})
+                continue
+            db, _wal = fetch_sqlite(ctx, p, inode, path)
+            if db is None:
+                A.add("cloud", None, tr("Google Drive: {name} non leggibile{c}").format(name=nome, c=canc),
+                      tr("il contenuto non è un database SQLite (file cancellato e sovrascritto?)") if cancellato else "", user, src)
+                continue
+            _gdrive_db(A, nome, db, ctx.tmp / f"db_{p}_{safe_name(str(inode), 40)}" / "db.sqlite", user, src, canc, {})
+    return trovati
+
+
+def gdrive_vss(case, con, ctx):
+    """(3.0.2) Google Drive nelle copie shadow: le versioni di sync_config.db, snapshot.db e sync_log.log estratte da
+    run_vss (NIST Data Leakage, domande 48-49: nel disco attuale i due database sono cancellati e sovrascritti)."""
+    con.execute("DELETE FROM artifacts WHERE cat='cloud' AND data LIKE '%\"copia_shadow\"%'")
+    righe = con.execute("SELECT id, part, inode, src_path, store, relpath FROM xitems WHERE kind='vss' AND relpath IS NOT NULL "
+                        "AND lower(src_path) LIKE '%/google/drive/user_default/%'").fetchall()
+    per = {(st, sp.lower()): (xid, rp) for xid, _p, _i, sp, st, rp in righe}
+    A, visti, n = Art(ctx), set(), 0
+    for xid, part, inode, sp, store, rel in righe:
+        nome = Path(sp).name.lower()
+        if nome not in ("sync_config.db", "snapshot.db", "sync_log.log"):
+            continue
+        n += 1
+        f = case.root / rel                 # relpath comprende già «estratti/»
+        user, src = user_of(sp), (part, inode, sp)
+        canc = tr(" (copia shadow: {store})").format(store=store)
+        extra = {"copia_shadow": store}
+        if nome == "sync_log.log":
+            _gdrive_log(A, f, user, src, canc, visti, extra)
+            continue
+        d = ctx.tmp / f"gdvss_{xid}"
+        d.mkdir(exist_ok=True)
+        main = d / "db.sqlite"
+        shutil.copyfile(f, main)
+        for suf in ("-wal", "-journal"):
+            w = per.get((store, sp.lower() + suf))
+            if w:
+                wf = case.root / w[1]
+                if wf.exists():
+                    shutil.copyfile(wf, d / ("db.sqlite" + suf))
+        try:
+            db = sqlite3.connect(str(main))
+            db.execute("SELECT count(*) FROM sqlite_master").fetchone()
+        except sqlite3.Error:
+            A.add("cloud", None, tr("Google Drive: {name} non leggibile{c}").format(name=nome, c=canc), "", user, src, extra)
+            continue
+        _gdrive_db(A, nome, db, main, user, src, canc, extra)
+    con.commit()
+    return n
+
+
+def _gdrive_log(A, f, user, src, canc, visti, extra):
+    n, prec = 0, ""
+    for riga in open(f, "r", encoding="utf-8", errors="replace"):
+        m = GDRIVE_LOG_RE.match(riga)
+        if not m:
+            if prec and GDRIVE_MAIL_RE.search(prec + " " + riga.strip()):     # indirizzo sulla riga dopo
+                riga, m = prec + " " + riga.strip(), GDRIVE_LOG_RE.match(prec)
+            else:
+                continue
+        prec = riga.rstrip() if "new credentials" in riga and not GDRIVE_MAIL_RE.search(riga) else ""
+        ts = _gdrive_ora(m.group(1), m.group(2))
+        e = GDRIVE_MAIL_RE.search(riga)
+        if e:
+            if ("mail", ts, e.group(1)) in visti:
+                continue
+            visti.add(("mail", ts, e.group(1)))
+            A.add("cloud", ts, tr("Google Drive: accesso con l'account {v1}").format(v1=e.group(1)),
+                  tr("sync_log.log{c}: «Initializing User instance with new credentials»").format(c=canc), user, src,
+                  {"fonte": "Google Drive sync_log.log", "account": e.group(1), **extra})
+            continue
+        e = GDRIVE_EV_RE.search(riga)
+        if not e or n >= GDRIVE_MAX:
+            continue
+        az, perc, resto = e.groups()
+        chiave = (ts, az, perc)          # lo stesso evento è scritto più volte (aggregator, change_buffer) e nelle copie
+        if chiave in visti:
+            continue
+        visti.add(chiave)
+        n += 1
+        q = GDRIVE_DIR_RE.search(resto)
+        cart = q.group(1) if q else None
+        q = GDRIVE_SIZE_RE.search(resto)
+        size = q.group(1) if q else None
+        q = GDRIVE_MTIME_RE.search(resto)
+        mt = q.group(1) if q else None
+        perc = perc.replace("\\\\", "\\")
+        perc = perc[4:] if perc.startswith("\\\\?\\") else perc
+        cosa = {"CREATE": tr("creato"), "DELETE": tr("cancellato"), "MOVE": tr("spostato"), "MODIFY": tr("modificato")}[az]
+        A.add("cloud", ts, tr("Google Drive: {v1} {v2}").format(v1=(tr("cartella") if cart == "True" else tr("file")) + " " + cosa,
+                                                                  v2=perc.replace("\\", "/").rsplit("/", 1)[-1]),
+              "; ".join(x for x in (perc, tr("{v1} byte").format(v1=size) if size else "",
+                                    tr("modificato il {v1}").format(v1=unixtime(mt).replace("T", " ")) if mt and unixtime(mt) else "",
+                                    tr("sync_log.log{c}, ora locale {v1} {v2} convertita in UTC").format(c=canc, v1=m.group(1), v2=m.group(2))) if x),
+              user, src, {"fonte": "Google Drive sync_log.log", "azione": az, "percorso": perc, "size": size,
+                          "mtime": unixtime(mt) if mt else None, **extra})
+
+
+def _gdrive_db(A, nome, db, main, user, src, canc, extra):
+    try:
+        tabs = {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        if nome == "sync_config.db" and "data" in tabs:
+            # chiave in entry_key, valore con data_key «value»; solo le voci utili: altre (tango_storage) contengono gettoni
+            kv = {str(k): v for k, dk, v in db.execute("SELECT entry_key, data_key, data_value FROM data")
+                  if dk == "value" and k in GDRIVE_CONFIG}
+            if kv:
+                A.add("cloud", None, tr("Google Drive: account {v1}").format(v1=kv.get("user_email") or "?"),
+                      "; ".join(x for x in (tr("cartella sincronizzata {v1}").format(v1=kv["local_sync_root_path"])
+                                            if kv.get("local_sync_root_path") else "",
+                                            tr("versione {v1}").format(v1=kv["highest_app_version"]) if kv.get("highest_app_version") else "",
+                                            f"sync_config.db{canc}") if x), user, src,
+                      {"fonte": "Google Drive sync_config.db", **{k: str(v)[:300] for k, v in kv.items()}, **extra})
+        if nome == "snapshot.db" and "cloud_entry" in tabs:
+            cols = [c[1] for c in db.execute("PRAGMA table_info(cloud_entry)")]
+            righe = [(dict(zip(cols, r)), None) for r in db.execute("SELECT * FROM cloud_entry LIMIT ?", (GDRIVE_MAX,))]
+            try:
+                import forense_recupero as fr
+                rec = fr.recupera(str(main))
+                for x in rec["record"]:
+                    if x["tabella"] == "cloud_entry" and x["livello"] in ("integra", "testa"):
+                        v = [_gdrive_val(q) for q in x["valori"]]
+                        righe.append((dict(zip(rec["nomi"]["cloud_entry"], v)), x))
+            except Exception as e:
+                A.add("cloud", None, tr("Google Drive: record cancellati di snapshot.db non letti"), f"{type(e).__name__}: {e}", user, src, extra)
+            for r, x in righe:
+                if r.get("doc_type") == 0 and not r.get("filename"):
+                    continue
+                rec_txt = (tr(" (record cancellato, da verificare)") if x else "")
+                A.add("cloud", unixtime(r.get("modified")),
+                      tr("Google Drive (cloud): {v1}").format(v1=r.get("filename") or "?") + rec_txt,
+                      "; ".join(y for y in (tr("creato {v1}").format(v1=unixtime(r["created"]).replace("T", " ")) if unixtime(r.get("created")) else "",
+                                            tr("{v1} byte").format(v1=r["size"]) if r.get("size") else "",
+                                            tr("RIMOSSO dal cloud") if r.get("removed") else "",
+                                            tr("condiviso") if r.get("shared") else "",
+                                            f"doc_id {r['doc_id']}" if r.get("doc_id") else "",
+                                            f"MD5 {r['checksum']}" if r.get("checksum") else "",
+                                            (tr("snapshot.db{c}, record cancellato a offset {o} ({l})").format(c=canc, o=x["offset"], l=x["livello"])
+                                             if x else f"snapshot.db{canc}")) if y), user, src,
+                      {"fonte": "Google Drive snapshot.db", "recuperato": bool(x), **{k: (str(v)[:300] if v is not None else None)
+                                                                                     for k, v in r.items()}, **extra})
+    except sqlite3.Error as e:
+        A.add("cloud", None, tr("Google Drive: {name} non leggibile{c}").format(name=nome, c=canc), f"{type(e).__name__}: {e}", user, src, extra)
+    finally:
+        db.close()
+
+
+# (3.0.2) Indice di Ricerca di Windows, cronologia di Internet Explorer 10/11 (WebCache) e Sticky Notes: NIST Data Leakage,
+# domande 13-15 e 40-46. I database ESE si leggono con forense_ese (pyesedb), senza applicare i loro log.
+WS_EDB = "programdata/microsoft/search/data/applications/windows/windows.edb"
+WS_SID_RE = re.compile(r"\{(S-1-[\d-]+)\}")
+WS_UTENTE_RE = re.compile(r"(?i)^[a-z]:\\(?:users|documents and settings)\\([^\\]+)\\")
+
+
+def _ws_utente(r, users):
+    m = WS_UTENTE_RE.match(r.get("System_ItemPathDisplay") or "")
+    if m:
+        return m.group(1)
+    m = WS_SID_RE.search(r.get("System_ItemUrl") or "")
+    return users.get(m.group(1), m.group(1)) if m else ""
+
+
+def _ws_persona(nome, indirizzo):
+    if nome and indirizzo and nome != indirizzo:
+        return f"{nome} <{indirizzo}>"
+    return nome or indirizzo or ""
+
+
+def win_ricerca(A, ctx, part, users):
+    """Indice di Ricerca di Windows (Windows.edb): file e cartelle indicizzati (restano anche dopo la cancellazione),
+    cronologia di Internet Explorer, posta di Outlook con un riassunto del testo, Sticky Notes. Una riga di riepilogo in
+    «Sistema» dice che l'indicizzazione era attiva e che cosa conteneva l'indice."""
+    rows = fw(ctx, part, WS_EDB) or fw(ctx, part, WS_EDB, deleted_ok=True)
+    if not rows:
+        return 0
+    try:
+        import forense_ese as fz
+        import pyesedb  # noqa: F401
+    except ImportError:
+        A.add("sistema", None, tr("Indice di Ricerca di Windows non letto"), tr("manca il modulo pyesedb (libesedb)"), "", None)
+        return 0
+    n = 0
+    for p, inode, cancellato, path in rows[:3]:
+        src = (p, inode, path)
+        f = fetch(ctx, p, inode, path, 8 << 30)
+        if not f:
+            A.add("sistema", None, tr("Indice di Ricerca di Windows non leggibile"), path, "", src)
+            continue
+        try:
+            righe, avvisi = fz.windows_search(f)
+        except Exception as e:
+            A.add("sistema", None, tr("Indice di Ricerca di Windows non leggibile"), f"{type(e).__name__}: {e}", "", src)
+            continue
+        conta = Counter()
+        for r in righe:
+            store = r.get("System_Search_Store") or ""
+            conta[store or "?"] += 1
+            user = _ws_utente(r, users)
+            percorso = r.get("System_ItemPathDisplay") or r.get("System_ItemName") or ""
+            dati = {"fonte": "Windows Search", "store": store, "percorso": percorso,
+                    "creato": r.get("System_DateCreated"), "modificato": r.get("System_DateModified"),
+                    "accesso": r.get("System_DateAccessed"), "indicizzato": r.get("System_Search_GatherTime"),
+                    "dimensione": r.get("System_Size"), "tipo": r.get("System_ItemTypeText") or r.get("System_KindText")}
+            date = "; ".join(x for x in (
+                tr("creato {v1}").format(v1=dati["creato"].replace("T", " ")) if dati["creato"] else "",
+                tr("modificato {v1}").format(v1=dati["modificato"].replace("T", " ")) if dati["modificato"] else "",
+                tr("indicizzato {v1}").format(v1=dati["indicizzato"].replace("T", " ")) if dati["indicizzato"] else "") if x)
+            if store == "iehistory" or r.get("Microsoft_IE_TargetUrl"):
+                url = r.get("Microsoft_IE_TargetUrl") or percorso
+                dati.update(url=url, visite=r.get("Microsoft_IE_VisitCount"), titolo=r.get("Microsoft_IE_Title"))
+                A.add("indice", r.get("System_DateModified"), url,
+                      "; ".join(x for x in (tr("Internet Explorer (indice di Ricerca di Windows)"),
+                                            tr("{n} visite").format(n=dati["visite"]) if dati["visite"] else "",
+                                            r.get("Microsoft_IE_Title") or "", date) if x), user, src, dati)
+            elif store.startswith("mapi"):
+                ts = r.get("System_Message_DateReceived") or r.get("System_Message_DateSent") or r.get("System_DateModified")
+                testo = r.get("System_Search_AutoSummary") or ""
+                da = _ws_persona(r.get("System_Message_FromName"), r.get("System_Message_FromAddress"))
+                a = _ws_persona(r.get("System_Message_ToName"), r.get("System_Message_ToAddress"))
+                dati.update(oggetto=r.get("System_Subject"), cartella=r.get("System_ItemFolderPathDisplay"), da=da, a=a,
+                            inviato=r.get("System_Message_DateSent"), ricevuto=r.get("System_Message_DateReceived"),
+                            allegati=r.get("System_Message_AttachmentNames"), testo=testo[:4000])
+                A.add("indice", ts, r.get("System_Subject") or percorso,
+                      "; ".join(x for x in (tr("Posta (indice di Ricerca di Windows)"), r.get("System_ItemFolderPathDisplay") or "",
+                                            tr("da {v1}").format(v1=da) if da else "", tr("a {v1}").format(v1=a) if a else "",
+                                            tr("allegati: {v1}").format(v1=dati["allegati"]) if dati["allegati"] else "",
+                                            tr("testo: {v1}").format(v1=testo[:1500]) if testo else "") if x), user, src, dati)
+            elif store.lower() == "stickynotes":
+                testo = r.get("System_ItemName") or r.get("System_Search_AutoSummary") or ""
+                if r.get("System_Kind") == "folder":
+                    continue
+                dati.update(testo=testo[:4000])
+                A.add("indice", r.get("System_DateModified"), (testo or percorso)[:200],
+                      "; ".join(x for x in (tr("Sticky Notes (indice di Ricerca di Windows)"), percorso, date) if x), user, src, dati)
+            else:
+                A.add("indice", r.get("System_DateModified"), percorso,
+                      "; ".join(x for x in (tr("{v1} (indice di Ricerca di Windows)").format(v1=dati["tipo"] or store or tr("elemento")),
+                                            tr("dimensione {v1}").format(v1=_nb(dati["dimensione"])) if dati["dimensione"] else "",
+                                            date) if x), user, src, dati)
+            n += 1
+        A.add("sistema", None, tr("Ricerca di Windows: indice presente ({n} elementi)").format(n=len(righe)),
+              "; ".join(x for x in (path + (tr(" (file cancellato)") if cancellato else ""),
+                                    ", ".join(f"{k} {v}" for k, v in conta.most_common()),
+                                    tr("log del database non applicati: le ultime modifiche possono mancare"), *avvisi) if x),
+              "", src, {"fonte": "Windows Search", "elementi": len(righe), "contenuti": dict(conta), "avvisi": avvisi})
+    return n
+
+
+MOTORI_RICERCA = (("bing.", "q"), ("google.", "q"), ("yahoo.", "p"), ("duckduckgo.", "q"), ("yandex.", "text"),
+                  ("baidu.", "wd"), ("ask.com", "q"), ("ecosia.", "q"))
+
+
+def termine_ricerca(url):
+    """(3.0.2) Parole cercate in un indirizzo di un motore di ricerca (anche nel frammento «#q=» di Google), o None."""
+    import urllib.parse as up
+    try:
+        u = up.urlsplit(url)
+    except ValueError:
+        return None
+    host = (u.hostname or "").lower()
+    par = next((p for m, p in MOTORI_RICERCA if m in host), None)
+    if not par or not any(s in u.path.lower() for s in ("search", "/s", "webhp", "/web")) and u.path not in ("", "/"):
+        return None
+    for parte in (u.fragment, u.query):           # il frammento vince: è la ricerca fatta nella pagina già aperta
+        v = up.parse_qs(parte).get(par)
+        if v and v[-1].strip():
+            return v[-1].strip()[:300]
+    return None
+
+
+def win_webcache(A, ctx, part):
+    """Cronologia di Internet Explorer 10/11 ed Edge legacy (WebCacheV01.dat): contenitori «History» (ultima visita,
+    prima visita e numero di visite) e «MSHist01…» (una riga per giorno o settimana). Ore in UTC (AccessedTime)."""
+    rows = find_files(ctx.con, part, "%/appdata/local/microsoft/windows/webcache/webcachev01.dat")
+    if not rows:
+        return 0
+    try:
+        import forense_ese as fz
+        import pyesedb  # noqa: F401
+    except ImportError:
+        A.add("web", None, tr("Cronologia di Internet Explorer non letta"), tr("manca il modulo pyesedb (libesedb)"), "", None)
+        return 0
+    n = 0
+    for p, inode, _, path in rows[:50]:
+        src, user = (p, inode, path), user_of(path)
+        f = fetch(ctx, p, inode, path, 4 << 30)
+        if not f:
+            continue
+        try:
+            visite, avvisi = fz.webcache(f)
+        except Exception as e:
+            A.add("web", None, tr("Cronologia di Internet Explorer non leggibile"), f"{type(e).__name__}: {e}", user, src)
+            continue
+        cercati = set()
+        for v in visite:
+            term = termine_ricerca(v["url"])
+            if term and (term, v["ultima"]) not in cercati:      # (3.0.2) parole cercate, come per Chrome
+                cercati.add((term, v["ultima"]))
+                A.add("ricerche", v["ultima"], term, tr("{br}: ricerca web ({v1})").format(
+                    br="Internet Explorer/Edge", v1=v["url"][:200]), user, src,
+                      {"browser": "Internet Explorer/Edge", "url": v["url"], "fonte": "WebCacheV01.dat"})
+            A.add("web", v["ultima"], v["url"],
+                  "; ".join(x for x in (tr("Internet Explorer/Edge: {url}").format(url=v["url"]),
+                                        tr("{n} visite").format(n=v["visite"]) if v["visite"] else "",
+                                        tr("prima visita {v1}").format(v1=v["prima"].replace("T", " ")) if v["prima"] else "",
+                                        tr("contenitore {v1}").format(v1=v["contenitore"])) if x), user, src,
+                  {"browser": "Internet Explorer/Edge", "url": v["url"], "visite": v["visite"], "prima": v["prima"],
+                   "contenitore": v["contenitore"], "fonte": "WebCacheV01.dat"})
+            n += 1
+        for a in avvisi:
+            A.add("web", None, tr("Cronologia di Internet Explorer: {v1}").format(v1=a), "", user, src)
+    return n
+
+
+def _plum_ora(v):
+    """Ora di plum.sqlite (Sticky Notes di Windows 10/11): tick .NET da 100 ns dall'anno 1."""
+    try:
+        v = int(v)
+        return iso(dt.datetime(1, 1, 1) + dt.timedelta(microseconds=v // 10)) if v > 0 else None
+    except (ValueError, TypeError, OverflowError):
+        return None
+
+
+def _plum_testo(t):
+    # ogni riga comincia con «\id=<guid> »: si toglie
+    return "\n".join(re.sub(r"^\\id=[0-9a-fA-F-]+\s?", "", r) for r in str(t or "").splitlines()).strip()
+
+
+def win_sticky(A, ctx, part):
+    """Sticky Notes: StickyNotes.snt (Windows 7-10 fino alla 1511, file OLE con una sotto-cartella per nota: testo nel
+    flusso «3», RTF nel flusso «0», date della sotto-cartella) e plum.sqlite (Windows 10 dalla 1607 e 11, tabella Note)."""
+    n = 0
+    for p, inode, cancellato, path in find_files(ctx.con, part, "%/appdata/roaming/microsoft/sticky notes/stickynotes.snt", True)[:20]:
+        src, user = (p, inode, path), user_of(path)
+        canc = tr(" (file cancellato)") if cancellato else ""
+        f = fetch(ctx, p, inode, path, 64 << 20)
+        try:
+            import pyolecf
+            of = pyolecf.file()
+            of.open(str(f))
+        except Exception as e:
+            A.add("note", None, tr("Sticky Notes: StickyNotes.snt non leggibile{c}").format(c=canc),
+                  f"{type(e).__name__}: {e}" if f else "", user, src)
+            continue
+        try:
+            for i in range(of.root_item.number_of_sub_items):
+                it = of.root_item.get_sub_item(i)
+                flussi = {it.get_sub_item(j).name: it.get_sub_item(j) for j in range(it.number_of_sub_items)}
+                if "3" not in flussi and "0" not in flussi:
+                    continue
+                testo = ""
+                if "3" in flussi:
+                    testo = flussi["3"].read().decode("utf-16-le", "replace").replace("\x00", "").strip()
+                if not testo and "0" in flussi:
+                    rtf = flussi["0"].read().decode("latin-1", "replace")
+                    testo = re.sub(r"\\[a-z]+-?\d* ?|[{}]", "", rtf).strip()
+                mod = cre = None
+                try:
+                    mod = iso(it.get_modification_time())
+                    cre = iso(it.get_creation_time())
+                except Exception:
+                    pass
+                A.add("note", mod, testo[:200] or it.name,
+                      "; ".join(x for x in (tr("Sticky Notes: nota {v1}{c}").format(v1=it.name, c=canc),
+                                            tr("creata {v1}").format(v1=cre.replace("T", " ")) if cre else "",
+                                            tr("modificata {v1}").format(v1=mod.replace("T", " ")) if mod else "",
+                                            testo[:1500]) if x), user, src,
+                      {"fonte": "StickyNotes.snt", "nota": it.name, "testo": testo[:4000], "creata": cre, "modificata": mod})
+                n += 1
+        finally:
+            of.close()
+    for p, inode, cancellato, path in find_files(ctx.con, part, "%/appdata/local/packages/microsoft.microsoftstickynotes_%/localstate/plum.sqlite", True)[:20]:
+        src, user = (p, inode, path), user_of(path)
+        db, _wal = fetch_sqlite(ctx, p, inode, path)
+        if db is None:
+            A.add("note", None, tr("Sticky Notes: plum.sqlite non leggibile"), "", user, src)
+            continue
+        try:
+            cols = {c[1] for c in db.execute("PRAGMA table_info(Note)")}
+            if "Text" not in cols:
+                continue
+            sel = [c for c in ("Id", "Text", "CreatedAt", "UpdatedAt", "DeletedAt", "IsOpen") if c in cols]
+            for r in db.execute(f"SELECT {', '.join(sel)} FROM Note"):
+                x = dict(zip(sel, r))
+                testo, cre, mod = _plum_testo(x.get("Text")), _plum_ora(x.get("CreatedAt")), _plum_ora(x.get("UpdatedAt"))
+                canc = _plum_ora(x.get("DeletedAt"))
+                A.add("note", mod or cre, testo[:200] or str(x.get("Id") or ""),
+                      "; ".join(y for y in (tr("Sticky Notes (plum.sqlite)"),
+                                            tr("creata {v1}").format(v1=cre.replace("T", " ")) if cre else "",
+                                            tr("modificata {v1}").format(v1=mod.replace("T", " ")) if mod else "",
+                                            tr("cancellata {v1}").format(v1=canc.replace("T", " ")) if canc else "",
+                                            testo[:1500]) if y), user, src,
+                      {"fonte": "plum.sqlite", "nota": x.get("Id"), "testo": testo[:4000], "creata": cre, "modificata": mod,
+                       "cancellata": canc})
+                n += 1
+        except sqlite3.Error as e:
+            A.add("note", None, tr("Sticky Notes: plum.sqlite non leggibile"), f"{type(e).__name__}: {e}", user, src)
+        finally:
+            db.close()
+    return n
+
+
 def _ole_date(b):
     try:
         v = struct.unpack("<d", b[:8])[0]
@@ -4336,16 +4832,28 @@ def win_srum(A, ctx, part, users):
 
 
 EVTX_USERDATA_RE = re.compile(r"<UserData>(.*?)</UserData>", re.S)
+EVTX_DATA_NONAME_RE = re.compile(r"<Data>([^<]*)</Data>")
 EVTX_LEAF_RE = re.compile(r"<(\w+)>([^<]*)</\1>")
 EVT_LOGS = "windows/system32/winevt/logs/"
 # (file, {id: (categoria, descrizione)}, provider richiesto o None)
 EVT_RULES = [
-    ("security.evtx", {1102: ("eventi", N_("registro di sicurezza CANCELLATO"))}, None),
+    ("security.evtx", {1102: ("eventi", N_("registro di sicurezza CANCELLATO")),
+                       # (3.0.2) avvio e chiusura dal registro di sicurezza, uscite degli utenti (NIST Data Leakage, domanda 12)
+                       4608: ("eventi", N_("avvio di Windows")),
+                       1100: ("eventi", N_("chiusura del servizio registro eventi (spegnimento)")),
+                       4634: ("eventi", N_("uscita dalla sessione")),
+                       4647: ("eventi", N_("uscita richiesta dall'utente"))}, None),
     ("system.evtx", {104: ("eventi", N_("registro eventi cancellato")), 7045: ("eventi", N_("servizio installato")),
                      6005: ("eventi", N_("avvio del servizio registro eventi (accensione)")),
                      6006: ("eventi", N_("arresto del servizio registro eventi (spegnimento)")),
                      1074: ("eventi", N_("spegnimento o riavvio richiesto")),
-                     6008: ("eventi", N_("spegnimento imprevisto"))}, None),
+                     6008: ("eventi", N_("spegnimento imprevisto")),
+                     # (3.0.2) driver di dispositivi installati (UserPnp: chiavette, dischi, lettori) e unità CD/DVD
+                     # usata per masterizzare con Windows (cdrom 133: le risposte NIST scrivono 113, ma sul PC del caso
+                     # gli eventi sono 133, uno per masterizzazione, agli orari indicati da NIST): domande 22 e 32-33
+                     20001: ("usb", N_("driver di un dispositivo installato")),
+                     20003: ("usb", N_("servizio di un dispositivo aggiunto")),
+                     133: ("dispositivi", N_("unità CD/DVD: evento registrato durante la masterizzazione"))}, None),
     ("microsoft-windows-terminalservices-localsessionmanager\\%4operational.evtx",
      {21: ("eventi", N_("sessione aperta (anche Desktop remoto)")), 24: ("eventi", N_("sessione disconnessa")),
       25: ("eventi", N_("sessione riconnessa"))}, None),
@@ -4360,6 +4868,8 @@ EVT_RULES = [
 
 def evtx_fields(xml):
     d = {k: html.unescape(v) for k, v in EVTX_DATA_RE.findall(xml)}
+    for i, v in enumerate(EVTX_DATA_NONAME_RE.findall(xml), 1):      # (3.0.2) campi senza nome (es. cdrom 133)
+        d.setdefault(f"Data{i}", html.unescape(v))
     m = EVTX_USERDATA_RE.search(xml)
     if m:
         for k, v in EVTX_LEAF_RE.findall(m.group(1)):
@@ -4404,10 +4914,18 @@ def win_eventi(A, ctx, part):
             d = evtx_fields(xml)
             cat, desc = rules[eid]
             desc = tr(desc)
-            if eid in (6005, 6006, 104) and "eventlog" not in prov.lower():
+            if eid in (6005, 6006, 104, 1100) and "eventlog" not in prov.lower():
                 continue
             if eid == 1074 and "user32" not in prov.lower():
                 continue
+            if eid in (4608, 4634, 4647) and "security-auditing" not in prov.lower():
+                continue
+            if eid in (20001, 20003) and "userpnp" not in prov.lower():
+                continue
+            if eid == 133 and "cdrom" not in prov.lower():
+                continue
+            if eid == 4634 and d.get("LogonType") not in ("2", "7", "10", "11"):
+                continue        # uscite delle sessioni di rete e di servizio: migliaia, non sono uscite di una persona
             ts = filetime(t)
             if eid == 7045:
                 title = tr("Servizio installato: {v1}").format(v1=d.get('ServiceName', '?'))
@@ -4416,6 +4934,19 @@ def win_eventi(A, ctx, part):
                 title = tr("Spegnimento/riavvio richiesto")
                 det = "; ".join(x for x in (d.get("param1"), d.get("param3"), d.get("param5"), d.get("param7"),
                                             d.get("param6")) if x)
+            elif eid in (4634, 4647):
+                title = tr("Uscita: {v1}").format(v1=d.get("TargetUserName", "?"))
+                det = "; ".join(x for x in (tr("tipo di accesso {v1}").format(v1=d["LogonType"]) if d.get("LogonType") else "",
+                                            tr("dominio {v1}").format(v1=d["TargetDomainName"]) if d.get("TargetDomainName") else "",
+                                            tr("sessione {v1}").format(v1=d["TargetLogonId"]) if d.get("TargetLogonId") else "") if x)
+            elif eid in (20001, 20003):
+                dev = d.get("DeviceInstanceID") or d.get("DeviceInstanceId") or "?"
+                title = (tr("Driver installato: {v1}") if eid == 20001 else tr("Servizio del dispositivo aggiunto: {v1}")).format(v1=dev)
+                det = "; ".join(f"{k} {d[k]}" for k in ("DriverName", "DriverVersion", "DriverProvider", "SetupClass", "ServiceName",
+                                                         "DriverFileName", "InstallStatus", "AddServiceStatus") if d.get(k))
+            elif eid == 133:
+                title = tr("Unità CD/DVD usata per masterizzare")
+                det = "; ".join(v for k, v in d.items() if v)[:300]
             elif eid in (21, 24, 25):
                 title = tr("Sessione {v1}: {v2}").format(v1=d.get('User', '?'), v2=desc.split(' (')[0].replace(tr('sessione '), ''))
                 det = tr("indirizzo {v1} · sessione {v2}").format(v1=d.get('Address', ''), v2=d.get('SessionID', ''))
@@ -4578,6 +5109,10 @@ def usn_to_artifacts(A, ctx, part, runs, size, read, progress=None, limit=500000
                     old[r["file"]] = (r["nome"], r["padre"])
                 if r["reason"] & 0x80000000 and r["reason"] & USN_KEEP:
                     st["totale"] += 1
+                    # (3.0.2) il nome vecchio di QUESTA rinomina (l'ultimo visto prima del record di chiusura): un file
+                    # rinominato più volte prendeva per tutte le rinomine il nome vecchio dell'ultima
+                    if r["reason"] & 0x2000:
+                        r["vecchio"] = old.get(r["file"])
                     rows.append(r)
             pos += n
             done += n
@@ -4592,7 +5127,7 @@ def usn_to_artifacts(A, ctx, part, runs, size, read, progress=None, limit=500000
         if r["reason"] & 0x200:
             what.append("cancellato")
         if r["reason"] & 0x2000:
-            o = old.get(r["file"])
+            o = r.get("vecchio")
             if o:
                 b = resolve(o[1])
             what.append("rinominato" + (tr(" (prima: {v1})").format(v1=(b + '/' if b else '') + o[0]) if o else ""))
@@ -4801,8 +5336,10 @@ def run_artefatti(case, con):
                     con.commit()
                 users_all.update(users)
             ctx.win_root, ctx.win_inst = "", ""
-            print(tr("Artefatti: collegamenti, jump list, cestino, Cronologia attività, miniature..."), flush=True)
-            for fn, args in ((win_lnk, ()), (win_recycle, (users_all,)), (win_activities, ()), (win_thumbcache, ())):
+            print(tr("Artefatti: collegamenti, jump list, cestino, Cronologia attività, miniature, Ricerca di Windows, "
+                     "Internet Explorer, Sticky Notes..."), flush=True)
+            for fn, args in ((win_lnk, ()), (win_recycle, (users_all,)), (win_activities, ()), (win_thumbcache, ()),
+                             (win_gdrive, ()), (win_ricerca, (users_all,)), (win_webcache, ()), (win_sticky, ())):
                 try:
                     fn(A, ctx, part, *args)
                 except Exception as e:
@@ -4834,6 +5371,12 @@ def run_artefatti(case, con):
         except Exception as e:
             print(tr("  browser: {vname}: {e}").format(vname=type(e).__name__, e=e), flush=True)
         con.commit()
+    # (3.0.2) gli artefatti rifatti dopo le copie shadow: Google Drive delle copie si rilegge dai file già estratti
+    if con.execute("SELECT 1 FROM xitems WHERE kind='vss' AND lower(src_path) LIKE '%/google/drive/user_default/%' LIMIT 1").fetchone():
+        try:
+            gdrive_vss(case, con, ctx)
+        except Exception as e:
+            print(f"  gdrive_vss: {type(e).__name__}: {e}", flush=True)
     ctx.close()
     res = dict(A.n)
     res["ts"] = now()
@@ -5032,6 +5575,12 @@ def run_vss(case, con):
         stores_found += snap.get("snapshot", 0)
         files_found += snap.get("file", 0)
         report += snap.get("dettaglio", [])
+    try:                    # (3.0.2) Google Drive nelle copie shadow
+        n_gd = gdrive_vss(case, con, ctx)
+        if n_gd:
+            print(tr("Copie shadow: Google Drive letto da {n} file delle copie (Servizi cloud)").format(n=n_gd), flush=True)
+    except Exception as e:
+        print(tr("Copie shadow: Google Drive non letto ({vname}: {e})").format(vname=type(e).__name__, e=e), flush=True)
     ctx.close()
     print(tr("Copie shadow: {stores_found} copie, {files_found} file recuperati o in versione precedente").format(stores_found=stores_found, files_found=files_found), flush=True)
     return {"copie": stores_found, "file": files_found, "dettaglio": report, "ts": now(),

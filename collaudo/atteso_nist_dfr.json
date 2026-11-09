@@ -1,0 +1,200 @@
+{
+  "set": "NIST CFTT – Deleted File Recovery (cfreds-archive.nist.gov/dfr-test-images.html)",
+  "fonte": "documento NIST «Test Images layout» (setup-july-10-2012.pdf): file cancellati con i metadati e dimensioni; SHA-256 pubblicati da NIST (SHA256SUMS.txt); etichetta NIST in ogni settore dei file di prova",
+  "indipendente": true,
+  "nota": "Le immagini NIST CFTT DFR (opera del governo degli Stati Uniti, pubblico dominio) sono nella cartella nist/ così come scaricate (.dd.bz2): il collaudo le estrae e controlla lo SHA-256 pubblicato. Se mancano, si scaricano da https://cfreds-archive.nist.gov/dfr-images/ e si mettono, senza estrarle, nella cartella nist/. Validazione completa sulle 90 immagini: lavoro/prove/valida_nist_dfr.py del progetto.",
+  "prove": [
+    {
+      "nome": "NIST_DFR_01_ntfs",
+      "tipo": "dfr",
+      "immagine": "_estratte/dfr-01-ntfs.dd.bz2/dfr-01-ntfs.dd",
+      "opzioni": [
+        "--no-indice",
+        "--fuso",
+        "America/New_York"
+      ],
+      "scarica": "https://cfreds-archive.nist.gov/dfr-images/",
+      "descrizione": "NTFS, file cancellati semplici con i metadati nella MFT.",
+      "atteso": {
+        "sha256_archivio": {
+          "dfr-01-ntfs.dd.bz2": "9625d8946bc7712953d0ca7e73e4eaeff26381006951d3f7603d1797b50d19e0"
+        },
+        "cancellati_elencati": [
+          "Bunda.txt"
+        ],
+        "contenuto": [
+          {
+            "nome": "Bunda.txt",
+            "byte": 4296,
+            "etichetta": "Bunda.txt"
+          }
+        ]
+      }
+    },
+    {
+      "nome": "NIST_DFR_04_ntfs",
+      "tipo": "dfr",
+      "immagine": "_estratte/dfr-04-ntfs.dd.bz2/dfr-04-ntfs.dd",
+      "opzioni": [
+        "--no-indice",
+        "--fuso",
+        "America/New_York"
+      ],
+      "scarica": "https://cfreds-archive.nist.gov/dfr-images/",
+      "descrizione": "NTFS, nomi in molte lingue e scritture (cinese, giapponese, arabo, russo, «Gefäß»…): su Windows fls.exe li altera, RepertIA li rilegge con pytsk3 (3.0.2).",
+      "atteso": {
+        "sha256_archivio": {
+          "dfr-04-ntfs.dd.bz2": "ea057626bfbd419f52b743763ad52c82c4b16bfaecc53b12dc9f0219cedae931"
+        },
+        "cancellati_elencati": [
+          "Gefäß.txt",
+          "чай.txt",
+          "חומוס.txt",
+          "پکوڑا.txt",
+          "گردو.txt",
+          "नान.txt",
+          "みつびし.txt",
+          "ミツビシ.txt",
+          "北京.txt",
+          "東京.txt",
+          "서울.txt"
+        ],
+        "contenuto": [
+          {
+            "nome": "Gefäß.txt",
+            "byte": 2048,
+            "etichetta": "Vessel.txt"
+          },
+          {
+            "nome": "чай.txt",
+            "byte": 2048,
+            "etichetta": "Tea.txt"
+          },
+          {
+            "nome": "חומוס.txt",
+            "byte": 2048,
+            "etichetta": "Hummus.txt"
+          },
+          {
+            "nome": "پکوڑا.txt",
+            "byte": 2048,
+            "etichetta": "Pakora.txt"
+          },
+          {
+            "nome": "گردو.txt",
+            "byte": 2048,
+            "etichetta": "Walnut.txt"
+          },
+          {
+            "nome": "नान.txt",
+            "byte": 2048,
+            "etichetta": "Naan.txt"
+          },
+          {
+            "nome": "みつびし.txt",
+            "byte": 2048,
+            "etichetta": "Mitsubishi-h.txt"
+          },
+          {
+            "nome": "ミツビシ.txt",
+            "byte": 2048,
+            "etichetta": "Mitsubishi-k.txt"
+          },
+          {
+            "nome": "北京.txt",
+            "byte": 2048,
+            "etichetta": "BeiJing.txt"
+          },
+          {
+            "nome": "東京.txt",
+            "byte": 2048,
+            "etichetta": "Tokyo.txt"
+          },
+          {
+            "nome": "서울.txt",
+            "byte": 2048,
+            "etichetta": "Seoul.txt"
+          }
+        ]
+      }
+    },
+    {
+      "nome": "NIST_DFR_05_braid_xfat",
+      "tipo": "dfr",
+      "immagine": "_estratte/dfr-05-braid-xfat.dd.bz2/dfr-05-braid-xfat.dd",
+      "opzioni": [
+        "--no-indice",
+        "--fuso",
+        "America/New_York"
+      ],
+      "scarica": "https://cfreds-archive.nist.gov/dfr-images/",
+      "descrizione": "exFAT, due file cancellati frammentati e intrecciati: Sleuth Kit li legge come contigui, RepertIA segue la catena rimasta nella FAT (3.0.2).",
+      "atteso": {
+        "sha256_archivio": {
+          "dfr-05-braid-xfat.dd.bz2": "c4f01410d6f0a7f759f867eb6ca7945d550e624cb421edd91d478c35c470b855"
+        },
+        "cancellati_elencati": [
+          "Betelgeuse.txt",
+          "Capella.txt"
+        ],
+        "contenuto": [
+          {
+            "nome": "Betelgeuse.txt",
+            "byte": 8192,
+            "etichetta": "Betelgeuse.txt"
+          },
+          {
+            "nome": "Capella.txt",
+            "byte": 8192,
+            "etichetta": "Capella.txt"
+          }
+        ]
+      }
+    },
+    {
+      "nome": "NIST_DFR_12_xfat",
+      "tipo": "dfr",
+      "immagine": "_estratte/dfr-12-xfat.dd.bz2/dfr-12-xfat.dd",
+      "opzioni": [
+        "--no-indice",
+        "--fuso",
+        "America/New_York"
+      ],
+      "scarica": "https://cfreds-archive.nist.gov/dfr-images/",
+      "descrizione": "exFAT, file frammentati cancellati e file rimasti dentro cartelle cancellate (catena nella FAT, 3.0.2).",
+      "atteso": {
+        "sha256_archivio": {
+          "dfr-12-xfat.dd.bz2": "8a84d6a8152cfe0a414a744ec47b445586ed728adbd56752f50301b8b06b6301"
+        },
+        "cancellati_elencati": [
+          "Alcor.txt",
+          "Betelguese.txt",
+          "Dubhe.txt",
+          "Mintaka.txt",
+          "Mizar.txt",
+          "Rastaban.txt",
+          "Rigel.txt",
+          "Thuban.txt",
+          "Tyl.txt"
+        ],
+        "contenuto": [
+          {
+            "nome": "Rastaban.txt",
+            "byte": 8192,
+            "etichetta": "Rastaban.txt"
+          },
+          {
+            "nome": "Thuban.txt",
+            "byte": 8192,
+            "etichetta": "Thuban.txt"
+          },
+          {
+            "nome": "Tyl.txt",
+            "byte": 8192,
+            "etichetta": "Tyl.txt"
+          }
+        ]
+      }
+    }
+  ]
+}

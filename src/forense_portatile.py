@@ -526,7 +526,7 @@ def istat_text(case, it):
     try:
         cmd = ["istat", *fa.tsk_tz(case), "-o", str(it["part"]), case.image, it["inode"]]
         cp = subprocess.run(cmd, capture_output=True, timeout=120, env=fa.tsk_env(case, cmd))
-        return g.istat_tokens(case, fa.istat_zona(case, it["part"], fa.dec(cp.stdout))[:20000])
+        return g.istat_tokens(case, fa.istat_zona(case, it["part"], fa.dec(cp.stdout), it["inode"])[:20000])
     except (OSError, subprocess.TimeoutExpired):
         return ""
 

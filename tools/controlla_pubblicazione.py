@@ -33,6 +33,8 @@ ALLOW = [
     r"10\.0\.0\.\d{1,3}",
     r"10\.1\.2\.3", r"172\.16\.0\.5", r"172\.31\.255\.1",   # indirizzi di prova del collaudo (server LLM, 2.20.1)
     r"^/Users/mario$", r"^/Volumes/Reperti",          # utente di fantasia dei dati di collaudo, esempio nell'interfaccia
+    # (3.0.2) scenario di fantasia del caso pubblico NIST CFReDS «Data Leakage»: utente, posta e rete del laboratorio NIST
+    r"(?i)Users\\{0,2}/?informant$", r"iaman\.informant", r"spy\.conspirator@nist\.gov", r"^10\.11\.11\.\d{1,3}$",
 ]
 SKIP_DIRS = {".git", "__pycache__", "node_modules"}
 TEXT_EXT = {".py", ".html", ".md", ".txt", ".json", ".nsi", ".bat", ".command", ".plist", ".cfg", ".toml", ".yml",

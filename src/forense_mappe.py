@@ -330,22 +330,91 @@ def _kml(dati):
     return {"type": "FeatureCollection", "features": fe}
 
 
+def _gpx(dati):
+    """(3.0.2) GPX: punti (wpt) e tracce/percorsi (trkseg/rte) come linee; stesse cautele del KML."""
+    if b"<!DOCTYPE" in dati[:4096].upper() or b"<!ENTITY" in dati.upper():
+        raise ValueError(tr("GPX non accettato: contiene dichiarazioni DOCTYPE o ENTITY."))
+    try:
+        rad = ET.fromstring(dati)
+    except ET.ParseError as e:
+        raise ValueError(tr("GPX non leggibile: {e}").format(e=e))
+    ns = rad.tag.split("}")[0] + "}" if rad.tag.startswith("{") else ""
+
+    def pt(e):
+        try:
+            lo, la = float(e.get("lon")), float(e.get("lat"))
+        except (TypeError, ValueError):
+            return None
+        return [lo, la] if -180 <= lo <= 180 and -90 <= la <= 90 else None
+    fe = []
+    for w in rad.iter(ns + "wpt"):
+        c = pt(w)
+        if c:
+            fe.append({"type": "Feature", "properties": {"nome": (w.findtext(ns + "name") or "")[:200]},
+                       "geometry": {"type": "Point", "coordinates": c}})
+    for cont, seg, p in (("trk", "trkseg", "trkpt"), ("rte", None, "rtept")):
+        for t in rad.iter(ns + cont):
+            nome = (t.findtext(ns + "name") or "")[:200]
+            for s in (t.iter(ns + seg) if seg else [t]):
+                c = [x for x in (pt(q) for q in s.iter(ns + p)) if x]
+                if c:
+                    fe.append({"type": "Feature", "properties": {"nome": nome}, "geometry":
+                               {"type": "LineString", "coordinates": c} if len(c) > 1 else {"type": "Point", "coordinates": c[0]}})
+    if not fe:
+        raise ValueError(tr("Nessun elemento geografico nel file."))
+    return {"type": "FeatureCollection", "features": fe}
+
+
+def _livello(case, nome_file, dati, rif=None):
+    """Livello della mappa da un KML o GPX (dati in byte): GeoJSON nella cartella del caso, SHA-256, voce nel registro.
+    rif: (3.0.2) file trovato dentro la sorgente del caso (percorso e voce), non scelto dall'analista."""
+    gpx = nome_file.lower().endswith(".gpx") or b"<gpx" in dati[:2048].lower()
+    geo = _gpx(dati) if gpx else _kml(dati)
+    sha = hashlib.sha256(dati).hexdigest()
+    st = _stato(case)
+    nome = f"livello_{len(st.get('kml', [])) + 1}.geojson"
+    (_cartella(case) / nome).write_text(json.dumps(geo, ensure_ascii=False), encoding="utf-8")
+    voce = {"nome": Path(nome_file).name, "file": nome, "sha256": sha, "elementi": len(geo["features"])}
+    if rif:
+        voce.update({"dalla_sorgente": True, "percorso": rif["percorso"], "part": rif["part"], "inode": rif["inode"]})
+    st.setdefault("kml", []).append(voce)
+    _salva(case, st)
+    case.log("mappa_kml_sorgente" if rif else "mappa_kml", {"file": Path(nome_file).name, "percorso": rif["percorso"] if rif
+                                                             else nome_file, "sha256": sha, "elementi": len(geo["features"])})
+    return voce
+
+
 def importa_kml(case, path):
     f = Path(str(path or ""))
     if not f.is_file():
         raise ValueError(tr("File non trovato."))
     if f.stat().st_size > MAX_KML:
         raise ValueError(tr("File troppo grande."))
-    dati = f.read_bytes()
-    geo = _kml(dati)
-    sha = hashlib.sha256(dati).hexdigest()
-    st = _stato(case)
-    nome = f"livello_{len(st.get('kml', [])) + 1}.geojson"
-    (_cartella(case) / nome).write_text(json.dumps(geo, ensure_ascii=False), encoding="utf-8")
-    st.setdefault("kml", []).append({"nome": f.name, "file": nome, "sha256": sha, "elementi": len(geo["features"])})
-    _salva(case, st)
-    case.log("mappa_kml", {"file": f.name, "percorso": str(f), "sha256": sha, "elementi": len(geo["features"])})
+    _livello(case, str(f), f.read_bytes())
     return livelli(case)
+
+
+def livelli_dalla_sorgente(case, say=print, limite=50):
+    """(3.0.2) Sorgente logica: i KML e GPX che contiene diventano livelli della mappa da soli (con percorso e SHA-256)."""
+    import forense_mobile as fm
+    m = fm.mx(case)
+    try:
+        righe = m.execute("SELECT part, id, path FROM mobile_files WHERE isdir=0 AND size > 0 AND size <= ? AND "
+                          "(lower(path) LIKE '%.kml' OR lower(path) LIKE '%.gpx') ORDER BY path LIMIT ?",
+                          (MAX_KML, limite)).fetchall()
+    finally:
+        m.close()
+    fatti, scartati = 0, []
+    for part, ino, path in righe:
+        try:
+            _livello(case, path, b"".join(fm.stream(case, part, ino)), {"percorso": path, "part": part, "inode": ino})
+            fatti += 1
+        except Exception as e:
+            scartati.append(f"{path}: {e}")
+    if righe:
+        say(tr("Mappa: {n} file KML/GPX della sorgente aggiunti come livelli{s}.").format(
+            n=fatti, s=(" " + tr("({k} non leggibili)").format(k=len(scartati))) if scartati else ""))
+    return fatti, scartati
 
 
 def livello_kml(case, n):

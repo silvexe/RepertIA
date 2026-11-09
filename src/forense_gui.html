@@ -749,7 +749,8 @@ th.srt .sa{margin-left:5px;color:var(--accent);font-size:11px}
       <div class="kindrow">
         <button class="kindbtn" id="kindDisk"><span class="ico">💽</span><b>Memorie di massa</b><small>Copie di dischi, SSD, pendrive e schede: E01, dd/raw, img, dmg</small></button>
         <button class="kindbtn" id="kindPhone"><span class="ico">📱</span><b>Smartphone</b><small>iPhone e Android: estrazioni del file system completo (Cellebrite, GrayKey, altri) in zip, tar o cartella</small></button>
-        <button class="kindbtn kindmid" id="kindDrone"><span class="ico">🚁</span><b>Droni</b><small>Registri di volo (DJI, Autel, PX4, ArduPilot), sottotitoli e foto da una cartella, uno zip o un tar: voli sulla mappa</small></button>
+        <button class="kindbtn" id="kindDrone"><span class="ico">🚁</span><b>Droni</b><small>Registri di volo (DJI, Autel, PX4, ArduPilot), sottotitoli e foto da una cartella, uno zip o un tar: voli sulla mappa</small></button>
+        <button class="kindbtn" id="kindLogica"><span class="ico">🗂️</span><b>Sorgente logica</b><small>File già raccolti: archivi zip, tar, tar.gz, 7z, rar, immagini logiche AD1 di FTK, immagini di CD/DVD o una cartella</small></button>
       </div>
       <div style="margin-top:12px"><button class="btn small" id="homeDiag" title="Prepara un file con gli errori tecnici del programma, senza dati dei casi">Esporta log diagnostici</button> <button class="btn small" id="homeMappe" title="Si scarica solo da qui, senza un caso aperto">🗺 Scarica mappe</button> <button class="btn small" id="homeModelli" title="Si scarica solo da qui o all'avvio dell'analisi, senza un caso aperto">🎙 Modelli di trascrizione</button> <button class="btn small" id="homeGuida" title="Guida illustrata in italiano e in inglese, in un unico file">📖 Guida</button> <button class="btn small" id="homeAgg" title="Controlla se è uscita una versione nuova di RepertIA: solo lettura da GitHub, nessun dato dei casi, senza un caso aperto">🔄 Aggiornamenti</button></div>
     </div>
@@ -1129,7 +1130,7 @@ async function loadHome(){
   if (!h.cases.length){ list.innerHTML = T('<div class="empty">Nessun caso ancora. Inizia scegliendo una copia forense.</div>'); return; }
   list.innerHTML = h.cases.map(c => `
     <div class="case" data-root="${esc(c.root)}">
-      <div class="grow"><div class="t"><span title="${esc(c.drone ? T("Drone") : c.tipo_caso === "smartphone" ? T("Smartphone") : T("Memoria di massa"))}">${c.drone ? "🚁" : c.tipo_caso === "smartphone" ? "📱" : "💽"}</span> ${esc((c.info || {}).nome || c.name)}</div>
+      <div class="grow"><div class="t"><span title="${esc(c.drone ? T("Drone") : c.logica ? T("Sorgente logica") : c.tipo_caso === "smartphone" ? T("Smartphone") : T("Memoria di massa"))}">${c.drone ? "🚁" : c.logica ? "🗂️" : c.tipo_caso === "smartphone" ? "📱" : "💽"}</span> ${esc((c.info || {}).nome || c.name)}</div>
         <div class="s">${esc(c.disk_type_vis || T("preparazione incompleta"))} · ${when(c.created)} · <span title="${esc(T("Lingua dei testi del caso"))}">${esc((c.lingua || "it").toUpperCase())}</span>${(c.info || {}).operatore ? " · " + esc(c.info.operatore) : ""}${(c.info || {}).reperto ? " · " + esc(c.info.reperto) : ""}</div></div>
       ${c.evidence_ok ? "" : T('<span class="badge warn" title="Disco o file non raggiungibile">copia non collegata</span>')}
       <span class="badge">${TF("{0} reperti", c.findings)}</span>
@@ -1146,6 +1147,7 @@ function homeKind(which){
 $("kindDisk").onclick = () => homeKind("disk");
 $("homeDiskBack").onclick = () => homeKind();
 $("kindDrone").onclick = () => { if (window.RM){ homeKind("phone"); RM.droneMode(true); RM.home(); } };
+$("kindLogica").onclick = () => { if (window.RM){ homeKind("phone"); RM.logicaMode(true); RM.home(); } };
 $("kindPhone").onclick = () => window.RM ? (homeKind("phone"), RM.droneMode(false), RM.home()) :
   toast(T("La parte per gli smartphone non è inclusa in questa versione di RepertIA: usa il pacchetto «RepertIA Mobile» (vedi la pagina del progetto su GitHub)."), "bad");
 $("btnAddHome").onclick = async () => {
@@ -2990,7 +2992,7 @@ async function mapManager(ritorno){
       <label class="flab">${T("Dal")}</label><input type="date" id="mapDa" class="pathin" style="margin:2px 0 6px"><label class="flab">${T("Al")}</label><input type="date" id="mapAl" class="pathin" style="margin:2px 0 8px">
       <div class="row" style="gap:6px;margin-bottom:4px"><button class="btn small" id="mapAll">${T("Tutti")}</button><button class="btn small" id="mapNone">${T("Nessuno")}</button></div>
       <label style="display:flex;gap:6px;padding:4px 0 6px" title="${esc(T("Con ★ nella tabella Posizioni scegli i punti da tenere: si vedono tutti, di qualunque voce, e sono anche nei Preferiti del caso"))}"><input type="checkbox" id="mapSoloPref" ${soloPref ? "checked" : ""}><span>★ ${T("Solo i punti preferiti")} <span class="hint" id="mapPrefN">${pref.size.toLocaleString(LOC)}</span></span></label>
-      ${d.livelli.kml.length ? `<div style="border:1px solid var(--line,#8884);border-radius:8px;margin:6px 0;padding:6px 8px"><b>${T("Livelli importati")}</b> <span class="hint">${T("dell'analista, non del caso")}</span>${d.livelli.kml.map((k, i) => `<div><label style="display:flex;gap:6px"><input type="checkbox" class="mapK" data-i="${i}"><span>${esc(k.nome)} <span class="hint">${k.elementi}</span></span></label></div>`).join("")}</div>` : ""}
+      ${d.livelli.kml.length ? `<div style="border:1px solid var(--line,#8884);border-radius:8px;margin:6px 0;padding:6px 8px"><b>${T("Livelli importati")}</b> ${d.livelli.kml.some(k => k.dalla_sorgente) ? "" : `<span class="hint">${T("dell'analista, non del caso")}</span>`}${d.livelli.kml.map((k, i) => `<div><label style="display:flex;gap:6px"><input type="checkbox" class="mapK" data-i="${i}"><span>${esc(k.nome)} <span class="hint">${k.elementi}${k.dalla_sorgente ? " · " + esc(TF("file del caso: {0}", k.percorso || "")) : " · " + T("dell'analista")}</span></span></label></div>`).join("")}</div>` : ""}
       ${d.categorie.map((c, i) => `<label style="display:flex;gap:6px;padding:2px 0"><input type="checkbox" class="mapC" data-i="${i}" ${attivi.has(i) ? "checked" : ""}><span style="word-break:break-word">${esc(c.nome)} <span class="hint">${c.punti.toLocaleString(LOC)}</span></span></label>`).join("") || `<div class="hint">${T("Nessun punto con coordinate in questo caso.")}</div>`}`;
     // comandi nella barra in alto, sempre visibili anche con molte categorie
     $("mapTools").innerHTML = `<label class="hint" for="mapSf" style="margin-left:8px">${T("Sfondo")}</label><select id="mapSf" class="pathin" style="width:auto;max-width:min(260px,100%);margin:0"><option value="">${T("Natural Earth (nel programma)")}</option>${d.livelli.estratti.map(e => `<option value="${esc(e.id)}" ${e.id === estratto ? "selected" : ""} ${e.ok ? "" : "disabled"}>${esc(e.nome)}${e.maxzoom ? " z" + e.maxzoom : ""}${e.data ? " · " + esc(e.data) : ""}${e.ok ? "" : " – " + T("non raggiungibile")}</option>`).join("")}</select>
@@ -3545,7 +3547,8 @@ const SECTIONS = [
 const VIEWABLE = new Set(["explore", "file", "doc", "meta", "carved", "hits", "arch", "vss"]);
 const ART_LBL = {sistema: T("Sistema"), utenti: T("Account utente"), usb: T("Dispositivi USB"), programmi: T("Programmi installati"), esecuzioni: T("Programmi eseguiti"),
   recenti: T("File e cartelle recenti"), reti: T("Reti"), cestino: T("Cestino"), web: T("Cronologia web"), download: T("Download"), ricerche: T("Ricerche"), comandi: T("Comandi (shell)"), messaggi: T("Messaggi (iMessage/SMS)"), avvio: T("Avvio automatico"), permessi: T("Permessi alle app (TCC)"), uso: T("Uso delle app"), dispositivi: T("Dispositivi e volumi"), backup: T("Backup (Time Machine)"),
-  cartelle: T("Cartelle aperte (ShellBags)"), journal: T("Journal NTFS (creati, cancellati, rinominati)"), eventi: T("Eventi di sistema")};
+  cartelle: T("Cartelle aperte (ShellBags)"), journal: T("Journal NTFS (creati, cancellati, rinominati)"), eventi: T("Eventi di sistema"),
+  cloud: T("Servizi cloud (Google Drive)"), indice: T("Indice di Ricerca di Windows"), note: T("Note (Sticky Notes)")};
 const ANOM_LBL = {volume: T("Volume cifrato"), estensione: T("Estensione falsa"), cifrato: T("Protetto da password"), contenitore: T("Possibile contenitore cifrato"), segnalato: T("Hash da segnalare")};
 const FILTERS = {
   search: [], bm: [],
@@ -3805,7 +3808,11 @@ function paintRes(r, sec, st, kind){
     $("pgNum").onfocus = e => e.target.select();
   }
 }
-const delTag = d => d ? T(' <span class="del">CANCELLATO</span>') : "";
+// (3.0.2) deleted 2: nome cancellato con l'inode riassegnato a un altro file: il contenuto non è suo
+const RIASS = () => T("Nome cancellato con l'inode riassegnato a un altro file (Sleuth Kit: «realloc»): il contenuto che si legge è del file che ora usa quell'inode, non di questo.");
+const cancTxt = d => d === 2 ? T(", cancellato, inode riassegnato a un altro file (contenuto non suo)") : d === 3 ? T(", cancellato, blocchi riusati da altri file (contenuto in parte non suo)") : d ? T(", cancellato") : "";
+const RIUS = () => T("File cancellato con blocchi dei dati oggi assegnati a un altro file: il contenuto che si legge è, almeno in parte, di altri file.");
+const delTag = d => d === 2 ? ` <span class="del" title="${esc(RIASS())}">${T("CANCELLATO · INODE RIASSEGNATO")}</span>` : d === 3 ? ` <span class="del" title="${esc(RIUS())}">${T("CANCELLATO · BLOCCHI RIUSATI")}</span>` : d ? T(' <span class="del">CANCELLATO</span>') : "";
 const ref = x => x.source === "carving" ? TF("recuperato: {0}", x.inode) : `offset ${x.part}, inode ${x.inode}`;
 function hlSnip(s){ return esc(s).replace(/«/g, '<span class="hl">').replace(/»/g, "</span>").replace(/\[/g, '<span class="hl">').replace(/\]/g, "</span>"); }
 const plink = (x, i, text) => TF("<a class=\"plink\" data-loc=\"{0}\" title=\"Mostra nel File System (in una nuova scheda)\">{1}</a>", i, esc(text));
@@ -4287,7 +4294,7 @@ function renderGrid(r, big){
         <input type="checkbox" data-ck="${i}" ${isSel(sec, x.id) ? "checked" : ""}>
         <div class="thumb"><span class="ficon">${fileIcon(kind, x)}</span>${th}${!dir && extOf(nm) ? `<span class="extb">${esc(extOf(nm))}</span>` : ""}</div>
         <div class="tname">${dir && kind === "explore" ? `<span class="dirlink" data-dir="${i}">${esc(nm)}</span>` : esc(nm)}</div>
-        <div class="tmeta">${x.deleted ? T('<span class="del">CANCELLATO</span> ') : ""}${esc(sub || "")}</div>
+        <div class="tmeta">${x.deleted === 2 || x.deleted === 3 ? delTag(x.deleted) + " " : x.deleted ? T('<span class="del">CANCELLATO</span> ') : ""}${esc(sub || "")}</div>
         ${kind !== "explore" && kind !== "carved" && x.source !== "carving" && x.inode && x.part != null ? `<a class="plink tloc" data-loc="${i}" title="${T("Mostra nel File System (nuova scheda)")}">📁</a>` : ""}
       </div>`; }).join(""));
   cfNoteBind($("resTable"), sec);
@@ -4329,7 +4336,7 @@ function baseActions(kind, x){
 const isPhone = () => (caseInfo || {}).tipo_caso === "smartphone";
 function fsLab(path, part, inode, deleted){
   return isPhone() ? TF("{0} (percorso nell'estrazione)", path || "")
-    : `${path || ""} (offset ${part}${inode ? ", inode " + inode : ""}${deleted ? T(", cancellato") : ""})`;
+    : `${path || ""} (offset ${part}${inode ? ", inode " + inode : ""}${cancTxt(deleted)})`;
 }
 function itemRef(kind, x){
   if (kind === "timeline" && x.origin === "evidenze")
@@ -4338,7 +4345,7 @@ function itemRef(kind, x){
   if (kind === "hits") return x.source === "carving"
     ? {source: "carving", name: x.name, path: x.name, label: TF("file recuperato {0} (trovato in {1}: {2})", x.name, x.wheres, x.terms)}
     : {source: "fs", part: x.part, inode: x.inode, path: x.path, label: isPhone() ? TF("{0} (percorso nell'estrazione{1}; trovato in {2}: {3})", x.path, x.sha256 ? ", SHA-256 " + x.sha256 : "", x.wheres, x.terms)
-      : TF("{0} (offset {1}, inode {2}{3}{4}; trovato in {5}: {6})", x.path, x.part, x.inode, x.deleted ? T(", cancellato") : "", x.sha256 ? ", SHA-256 " + x.sha256 : "", x.wheres, x.terms)};
+      : TF("{0} (offset {1}, inode {2}{3}{4}; trovato in {5}: {6})", x.path, x.part, x.inode, cancTxt(x.deleted), x.sha256 ? ", SHA-256 " + x.sha256 : "", x.wheres, x.terms)};
   if (kind === "carved") return {source: "carving", name: x.name, path: x.name, label: TF("file recuperato {0} (offset {1} nell'immagine, SHA-256 {2})", x.name, x.img_offset, x.sha256)};
   if ((kind === "doc" || kind === "meta") && x.source === "carving") return {source: "carving", name: x.inode, path: x.inode, label: TF("file recuperato {0}", x.inode)};
   if (kind === "trace") return {label: TF("evidenza di interesse {0} \"{1}\" all'offset {2} dell'immagine", x.tkind, x.feature, x.offset)};
@@ -4396,12 +4403,12 @@ async function resolveItem(kind, x){
   const lab = itemRef(kind, x).label;
   if (kind === "timeline"){
     const r = await api("/api/tl_resolve", {path: x.path});
-    return {source: "fs", part: r.part, inode: r.inode, path: r.path, label: r.label ? TF("{0} — file {1}", lab, r.label) : TF("{0} — file {1} (offset {2}, inode {3}{4})", lab, r.path, r.part, r.inode, r.deleted ? T(", cancellato") : "")};
+    return {source: "fs", part: r.part, inode: r.inode, path: r.path, label: r.label ? TF("{0} — file {1}", lab, r.label) : TF("{0} — file {1} (offset {2}, inode {3}{4})", lab, r.path, r.part, r.inode, cancTxt(r.deleted))};
   }
   const r = await api("/api/trace_locate", {offset: x.offset});
   if (!r.found) return {none: true, message: r.message, offset: r.offset};
   return {source: "fs", part: r.part, inode: r.inode, path: r.path, at: r.file_offset, len: new TextEncoder().encode(x.feature || "").length || 1, find: r.file_offset == null ? x.feature : null,
-    label: TF("{0} — nel file {1} (offset {2}, inode {3}{4}{5})", lab, r.path, r.part, r.inode, r.deleted ? T(", cancellato") : "", r.file_offset != null ? ", byte " + r.file_offset + T(" del file") : "")};
+    label: TF("{0} — nel file {1} (offset {2}, inode {3}{4}{5})", lab, r.path, r.part, r.inode, cancTxt(r.deleted), r.file_offset != null ? ", byte " + r.file_offset + T(" del file") : "")};
 }
 function imageItem(x){
   const off = parseInt(String(x.offset), 10) || 0;
@@ -5693,7 +5700,7 @@ function pvRenderView(v, it){
     $("pvSub").textContent = v.type === "mail" ? TF("Messaggio di posta · {0}", v.head.Fonte || "") : v.source === "chat" ? T("Messaggio di una chat") : v.source === "rub" ? T("Voce della rubrica") : T("Artefatto di sistema");
     if (v.type === "mail" && !it.src && v.part != null){ it.src = {source: "fs", part: v.part, inode: v.inode, path: (v.head.Fonte || "").split(" › ")[0]}; }
   } else
-  $("pvSub").textContent = (v.source === "carving" ? T("File recuperato col carving") : v.source === "x" ? `${v.title}` : `${v.title} · offset ${v.part}, inode ${v.inode}`) + ` · ${fsize(v.size)}` + (v.deleted ? T(" · CANCELLATO") : "") + (v.xnote ? ` · ${v.xnote}` : "");
+  $("pvSub").textContent = (v.source === "carving" ? T("File recuperato col carving") : v.source === "x" ? `${v.title}` : `${v.title} · offset ${v.part}, inode ${v.inode}`) + ` · ${fsize(v.size)}` + (v.deleted === 2 ? " · " + T("CANCELLATO · INODE RIASSEGNATO") + " — " + RIASS() : v.deleted === 3 ? " · " + T("CANCELLATO · BLOCCHI RIUSATI") + " — " + RIUS() : v.deleted ? T(" · CANCELLATO") : "") + (v.xnote ? ` · ${v.xnote}` : "");
   const body = $("pvBody"), note = v.note ? `<div class="pvnote">${esc(v.note)}</div>` : "";
   if (v.type === "mail"){
     const h = v.head || {};

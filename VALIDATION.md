@@ -2,7 +2,7 @@
 
 *Translation of [VALIDAZIONE.md](VALIDAZIONE.md); the Italian text prevails.*
 
-Program version: 3.0.1 · Document updated on 05/11/2026
+Program version: 3.0.2 (in preparation) · Document updated on 09/11/2026
 
 This document describes **how RepertIA was verified, with which data, with which results and with which known
 limitations**. It is meant for those who use the program in an expert examination and need to state the reliability of
@@ -13,6 +13,12 @@ known result, automatic comparison, repeatable report).
 > RepertIA is a personal project, neither certified nor accredited. This document does not replace the validation by
 > the laboratory that uses it: it provides the basis and explains how to repeat it. For the decisive results of each
 > case a **cross-check with a second tool** remains recommended (section 4).
+
+**Tests against public reference data (3.0.2).** Besides the acceptance test, RepertIA was compared with results
+published by others: the NIST CFTT "Deleted File Recovery" and "Graphic File Carving" images, the NIST CFReDS "Data
+Leakage" case with its 60 answers and Joshua Hickman's Android 14 and iOS 17 smartphones. Results, method and limits, in a
+form readable by non-specialists too: [docs/prove](docs/prove/README.md); measuring scripts:
+[tools/prove](tools/prove/README.md). The technical details remain in the sections below.
 
 ## 1. What the method guarantees
 
@@ -38,6 +44,20 @@ DFTT 5 (FAT12, dates with daylight saving time), 6 (FAT16, truncated image), 7 (
 extension), 9/10 (keyword search), 11 (carving: offsets of the published files). The images are recognised by their
 published MD5. Checks: MD5 of the files, deleted files, files extracted from archives, dates in the device's time zone,
 carving (MD5 and start sector).
+
+**NIST CFReDS «Data Leakage» case (from 3.0.2)** (cfreds-archive.nist.gov/data_leakage_case, public domain): the «RM#3»
+CD-R (2352-byte BIN, UDF 2.01 with 9 VATs) is in the test data as published by NIST, recognised by the published SHA-1.
+The expected values are the official NIST answers (questions 34, 56, 57, 59): files present at the end (Koala.jpg,
+Penguins.jpg, Tulips.jpg), the 17 files copied and then deleted, found in the previous VATs with the names of question
+34, burned on 24/03/2015 between 16:54 and 16:58 (UTC-4).
+
+**NIST CFTT «Deleted File Recovery» (from 3.0.2)** (cfreds-archive.nist.gov/dfr-test-images.html, public domain): four
+of the 90 DFR images, as published (5 MB), recognised by the NIST SHA-256: DFR-01 NTFS, DFR-04 NTFS (11 names in many
+languages and scripts), DFR-05-braid and DFR-12 exFAT (fragmented files, also inside deleted folders). Expected values
+only from the NIST content document: the deleted files with metadata are listed as deleted with the name intact and,
+for the 17 not overwritten, the content has the NIST size and in every sector the tag NIST wrote in the file, in order.
+Negative test: with Sleuth Kit's contiguous reading the two DFR-05-braid files come out with 8 own sectors out of 16
+and the check fails.
 
 **Images built for the test** (known result because they were built): ext4 in E01 with deleted files; E01 with 4
 altered bytes (must turn out DIFFERENT from the acquisition hash); FAT USB drive with an FTK Imager hash list; Mac Data
@@ -69,6 +89,7 @@ volume (plist, sqlite with WAL, bookmarks); APFS (dfvfs) unencrypted and encrypt
 | 3.0.0 | Author's Windows (final package) | passed (as reported by the author) |
 | 3.0.1 | Author's Mac, from the assembled Mac package (iLEAPP 2026.4.6, ALEAPP 2026.4.5) | 660/660 in Italian and 660/660 in English, 79/79 on public images; navigation 410/410 in Italian and in English (Chromium); the 92 new checks cover the illustrated report (HTML, PDF and Word created, SHA-256 of every file in impronte.csv, no scripts in the pages, every chat message as a bubble, attached photo shown and copied original identical, removed item absent, “all photos” also without an extension, “1 of N” numbering per section, log event), the new-version notice (with a local fake GitHub), photos/videos/audio recognised by content and assigned to apps on phones and to programs or folders on disks (DFTT 8: a JPEG with a .dat extension and a deleted JPEG with a made-up extension), WhatsApp Business, Telegram calls, photos inside Chromium browser caches (built entries: offset, length, address, 20-byte header, truncated entry, HTML page excluded, file name), WhatsApp calls (call_log outcomes 2 and 4, LID translated into the number, sub-items by outcome and voice/video, “calls only” conversations not for groups and backups) and deleted WhatsApp messages and calls recovered from the bytes of msgstore.db (built copy). Tested separately, outside the acceptance test: photos and videos from browser caches on Hickman's Android 14 (4,226 extracted, 30 random entries re-read from the zip with identical bytes) and on a FAT disk built with Chrome and Edge caches; illustrated report of all chats and the 21,295 photos of Hickman's Android 14 (6 minutes), Word opened in LibreOffice, portable report in the browser (chats in the New report, side panel, arrow keys); archives with paths that leave the folder (built image), corrected and confirmed transcriptions and the model download (fake server) |
 | 3.0.1 | Author's Windows 11, from the Windows package | 660 of 664: the 4 failures came from the acceptance test itself (report.docx left open, which Windows does not let delete at the end of the test), fixed in the rebuilt package; every illustrated-report check passed, 79/79 on public images |
+| 3.0.2 (from sources, before the packages) | Author's Windows 11, sources with the Python of the 3.0.1 Windows package and dissect.evidence 3.13 | 754/754 in Italian and 754/754 in English, 128/128 on public images; navigation 525/525 in Italian and English (Chromium). The new checks cover the logical source (zip, tar.gz, 7z, RAR 4 and 5, AD1 with its hashes, UDF and ISO CD/DVD, chats of a handed-over archive without the phone structure, KML/GPX), events and Google Drive on the NIST model, the Windows Search index and Internet Explorer (real values of the NIST Windows.edb and built tables), the NIST StickyNotes.snt and the NIST RM#3 CD-R. The first run on Windows gave 671/674: 7z, RAR 5, UDF and ISO dates one hour ahead, a real defect fixed before the run reported here. After the package acceptance test, 9 November: fixed the truncated titles of iLEAPP/ALEAPP artefacts (now with “…”), the report dialog on disk cases, the alignment and navigation of the HTML report, and iMessages in “Recently Deleted”, now marked as deleted (new check, one for each of the six smartphone cases: from 748 to 754). Also fixed: AD1 files listed by FTK without data (now reported instead of raising an error) and PhotoRec on Windows, which recovered nothing when the case folder was on a different drive from the program. Acceptance test of the Mac package (Apple Silicon) after the fixes: 754/754, 128/128 on public images |
 
 Carving DFTT 11: 2 files out of 15 (enterprise.wav, haxor2.jpg) are not recovered by PhotoRec: this is a limitation of
 PhotoRec, declared as a "measurement" and not as a requirement.
@@ -96,6 +117,52 @@ Documented examples:
   network paths, network computers, known folders); ShimCache 479 entries, BAM 51; NTFS journal 170,642 operations over
   a period of a few months, path rebuilt for all but one, only the 33 MB of real data read out of 52 GB logical; 1,313
   thumbnails extracted, all openable; perceptual hashes on 1,293 (20 uniform images excluded).
+- 3.0.2, **NIST CFReDS «Data Leakage» case** (public images of the Windows 7 PC with its shadow copy, the RM#2 USB
+  drive and the RM#3 CD-R, SHA-1 equal to those published by NIST): RepertIA compared with the official NIST answers
+  (document rev. 1.32) on **all the 53 questions that are not pure reasoning**, with 56 automatic checks
+  (`valida_nist_leakage.py`, times converted to UTC): hashes, partitions, system, time zone, accounts, programs,
+  executions, power on and logoffs, browsers and search terms, Outlook mail, USB drives, renames in the NTFS journal,
+  folders and files opened from the USB drive, the CD-R and the network drive, Google Drive (also from the shadow copy),
+  disc burning, XPS printing, Thumbcache, Sticky Notes, Windows Search index, shadow copy, Recycle Bin, deleted files and
+  false formats on the USB drive, CD-R VATs. **Result: 56 out of 56 match the NIST answers**, after
+  seven fixes that came out of the comparison (see CHANGELOG 3.0.2: previous name in journal renames, .amr and .svg
+  extensions, sending time of messages, Internet Explorer search terms, installation time of programs, account creation,
+  MD5/SHA-1 of 2352-byte CDs). Limit: a message that NIST recovers from the unused area of the OST is not read.
+  Explained differences, which are not RepertIA defects: the NIST tables of questions 6 and 10 use UTC-5 instead of
+  UTC-4 (the SAM re-read separately with pyewf, pytsk3 and pyregf gives RepertIA's values); NIST omits a failed attempt
+  of the ITechTeam account that is in the SAM; the burning event is cdrom 133, not 113; the table of question 30 swaps
+  the dates of two files; in Windows 7 the thumbnail cache is thumbcache_96, not _64. Question-by-question detail in the
+  project log. This is validation against independent reference data, not a certification.
+- 3.0.2, **NIST CFTT «Deleted File Recovery» (DFR-01…17)**: the 90 public images NIST uses to test deleted-file
+  recovery tools (FAT12/16/32, exFAT, NTFS, ext2/3/4, HFS+), prepared by RepertIA from sources on Windows and compared
+  with the NIST content document («Test Images layout», 2012). Every sector of the test files carries the file name:
+  the check is that deleted files with metadata are listed and, sector by sector, that the returned content is the
+  file's own. **Result: 835 assertions, 643 equal to the reference, 179 known and explained limits, 13 where the NIST
+  reference is contradicted by the raw image, none open.** Limits: ext3/ext4 zero the block pointers (content not
+  recoverable from metadata); on FAT the cluster chain is zeroed, so a fragmented file does not come back
+  intact (on exFAT, where Sleuth Kit reads deleted files as contiguous, RepertIA follows the chain left in the FAT:
+  all intact); Sleuth Kit does not recover deleted HFS+ files. Reference contradicted: MFT records reused by files
+  created later (no MFT record still holds the name, checked without Sleuth Kit), never-deleted files listed as deleted,
+  a name spelled differently, a file that NIST's own «Layout History» shows overwritten. The last six open ones were
+  closed: files in deleted folders on ext3/ext4 (now found from the folder blocks left free), two names left without
+  metadata (now listed), a FAT file fragmented around another (a FAT limit, the same for every CFTT tool). **Real defect found and fixed:** on Windows non-ASCII file names
+  (Chinese, Japanese, Arabic, Russian, but also «Gefäß») came out altered («??.txt»), because fls.exe writes them in
+  the system code page; after the fix the names of the DFR-04 images are all intact. **Comparison with the tools tested by NIST CFTT** (reports published by DHS on FTK 3.3, EnCase 6.18, X-Ways 16.0, ILooKIX 2.2.3, SMART and TSK/Autopsy 3.2.2, same images and same columns, measured with the NIST sector tags): complete and correct files on exFAT 273/273 without overwrites and 376/376 with, the best result (X-Ways 270 and 370); on FAT and NTFS equal to the best (807 and 885, 273 and 374); on ext 273 and 373, equal to the best and, with overwrites, the first (372). RepertIA is therefore first or level with the first on all four file systems. The comparison found two defects, fixed: Sleuth Kit 4.15 no longer listed as orphans the ext2 files left in deleted folders (now found with `ils`), and a deleted name whose inode was reassigned to an active file («realloc») showed that file's content without saying so (now marked «inode reassigned»); in addition a deleted file with blocks now assigned to another file is marked «blocks reused». So all the objects with data of active files are declared (FAT 40, exFAT 11, NTFS 24, ext 330), without touching the correct files; of the other tools only EnCase declares part of them. On the other items of the reports RepertIA is complete and correct everywhere: active files and folders of DFR-16 and DFR-17 all listed (on ext EnCase, ILooKIX, SMART and TSK lose a third), MAC times equal to the NIST table on NTFS, FAT, exFAT and ext2, non-Latin names intact on every file system, Recycle Bin, compressed NTFS and files inside the MFT. exFAT dates were 9 hours ahead as in EnCase and ILooKIX (UTC offset of the entry ignored): fixed. On ext3/ext4 no tool recovers the content from metadata: the journal of the NIST images only holds inode copies already zeroed. Summary in [docs/prove](docs/prove/nist-dfr-carving.md); the full tables are rebuilt with `tools/prove/confronto_cftt_dfr.py`.
+- 3.0.2, **NIST CFTT graphic file carving**: the 8 public images (GIF, BMP, PNG, JPG, TIFF and EXIF thumbnails;
+  contiguous, fragmented in order and out of order, incomplete, braided, not aligned to sectors), RepertIA's carving with
+  PhotoRec measured byte by byte against the NIST originals and compared with the DHS reports on PhotoRec 7.0, X-Ways
+  17.6, FTK 4.1, EnCase 6.18 and 7.09, Scalpel 2.0, R-Studio 6.2, Recover My Files 5.2 and Adroit 3.1d. Contiguous files:
+  47 out of 47 and not aligned to sectors 47 out of 47, like X-Ways, the best; fragmented in order 17 out of 47, out of
+  order 6, braided 13 out of 23 (like PhotoRec); no false positives. The comparison found two defects, fixed: RepertIA
+  switched on every PhotoRec type and the noisy signatures split BMP and TIFF files (39 out of 47; now default types, as
+  in the NIST tests), and files not aligned to sectors were not found (0 out of 47; now a byte-level search after
+  PhotoRec, with the end worked out from the structure of the format). On the 2023 NIST set too (18 images, HEIC, PNG, JPG, BMP, TIFF and GIF), compared with
+  the 13 DHS reports of 2024-2025 (PhotoRec 7.2, X-Ways 20.9, FTK 8.0, Autopsy 4.21, Magnet Axiom 7.5, Cellebrite PA,
+  Forensic Explorer, DC3 Advanced Carver, R-Studio 9.3, Scalpel 1.60, Recover My Files 6.4, File Juicer, Belkasoft):
+  contiguous and not aligned to sectors 36 out of 36 plus the 3 EXIF thumbnails, like X-Ways, the best
+  (PhotoRec 11, Autopsy, R-Studio and Recover My Files 0); fragmented only the thumbnails, like almost all; no false
+  positives. Summary in [docs/prove](docs/prove/nist-dfr-carving.md); the full tables are
+  rebuilt with `tools/prove/confronto_cftt_carving.py`.
 
 ## 4. Cross-check with a second tool (for every case)
 
@@ -178,6 +245,12 @@ offset, inode, registry key).
   re-checked.
 - **Photo GPS coordinates**: up to 2.21.0 the sign of South and West was lost; fixed in 3.0, in existing cases too. Reports produced earlier with coordinates in those areas must be redone.
 - **Deleted records (3.0)**: partial recovery, to be verified on the bytes shown. In the test on schemas not used for tuning, about 55% of deleted rows were recovered exactly, with no wrong value detected; records that do not resemble a known deleted row cannot be verified. Deletions in the test were made with SQLite, not by the apps. `-journal` files are not read by the recovery; limit of 20,000 records per database.
+- **Logical source (3.0.2)**: EnCase L01 files are not read; for AD1 FTK's overall hash cannot be recalculated (the
+  MD5/SHA-1 of every file are checked); RAR 4 dates are in local time and depend on the time zone chosen for the case. The
+  UDF with VAT reader is tested on a single real CD-R (NIST RM#3) and on built images.
+- **Windows Search, Internet Explorer, Sticky Notes (3.0.2)**: the Windows 11 `Windows.db` is not read; IE downloads and
+  unapplied WebCacheV01.dat logs are not read; `plum.sqlite` (Windows 10/11 Sticky Notes) is tested only on built files.
+  Tested on a single real PC (Windows 7, NIST case).
 - **Drones (3.0)**: no real Autel log available, reader tested on built files (v3 same as autel-logger, v1 and v2 from published sizes only); DJI from version 13 not read because encrypted; `.DAT` and Betaflight not read; SRT and CSV only on built examples. tlog, ULog and DataFlash same as pymavlink and pyulog on a few public files (DataFlash: 5 positions). A track says what the file reports, not who was flying.
 - **Map (3.0)**: a point is a datum from the source, not proof that the device was there; dates are not converted between time zones, so different sources may be out of order in the tables and in the animation, which does not show real speed.
 - **Language model**: the answers are not literally reproducible and are not a result: every statement must be

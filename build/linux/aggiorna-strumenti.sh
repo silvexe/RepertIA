@@ -11,7 +11,8 @@ versioni() {
   echo "  exiftool:   $(exiftool -ver 2>/dev/null || echo 'non installato')"
   echo "  pdftotext:  $(pdftotext -v 2>&1 | head -1 || echo 'non installato')"
   echo "  PhotoRec:   $(photorec /version 2>/dev/null | grep -m1 '^Version' || echo 'non installato')"
-  echo "  bulk_extr.: $(bulk_extractor -V 2>/dev/null || echo 'non installato')"
+  BE="$(command -v bulk_extractor || { [ -x "$DIR/strumenti/bulk_extractor/bulk_extractor" ] && echo "$DIR/strumenti/bulk_extractor/bulk_extractor"; })"
+  echo "  bulk_extr.: $([ -n "$BE" ] && echo "$("$BE" -V 2>&1 | head -1) ($BE)" || echo 'non trovato (facoltativo: vedi LEGGIMI.txt)')"
   echo "  tesseract:  $(tesseract --version 2>/dev/null | head -1 || echo 'non installato')"
   echo "  7-Zip:      $("$DIR/strumenti/7zip/7zz" 2>/dev/null | grep -m1 7-Zip || echo 'non incluso')"
   echo "  plaso:      $("$DIR/python/bin/python3" -m plaso.scripts.log2timeline --version 2>&1 | tail -1) (incluso)"
@@ -19,8 +20,13 @@ versioni() {
 echo "== RepertIA - Aggiornamento strumenti =="
 echo "Versioni attuali:"; versioni; echo
 if command -v apt-get >/dev/null 2>&1; then
-  sudo apt-get update && sudo apt-get install --only-upgrade -y sleuthkit libewf-tools testdisk poppler-utils \
-       libimage-exiftool-perl tesseract-ocr tesseract-ocr-ita bulk-extractor 2>/dev/null
+  # (3.0.2) solo i pacchetti installati: uno assente o con un altro nome non deve bloccare gli altri
+  sudo apt-get update
+  SU=""
+  for p in sleuthkit ewf-tools testdisk poppler-utils libimage-exiftool-perl tesseract-ocr tesseract-ocr-ita bulk-extractor; do
+    dpkg-query -W -f='${Status}' "$p" 2>/dev/null | grep -q "ok installed" && SU="$SU $p"
+  done
+  [ -n "$SU" ] && sudo apt-get install --only-upgrade -y $SU
   echo; echo "Versioni dopo l'aggiornamento:"; versioni
 fi
 echo

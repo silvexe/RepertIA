@@ -7,6 +7,22 @@ pubblicati da terzi) contengono i valori attesi. Le immagini stanno nell'archivi
 Releases (le immagini non vanno nel repository: sono grandi e alcune hanno licenze proprie, vedi
 THIRD_PARTY_LICENSES.md e il file `LEGGIMI.txt` dentro l'archivio).
 
+## NIST CFReDS (dalla 3.0.2)
+
+`atteso_nist.json` e la cartella `nist/` dello zip: il CD-R «RM#3» del caso «Data Leakage» di NIST CFReDS
+(https://cfreds-archive.nist.gov/data_leakage_case/, pubblico dominio), così come scaricato; il collaudo controlla lo
+SHA-1 pubblicato da NIST, estrae l'archivio col 7-Zip del programma e lo apre come sorgente logica. I valori attesi sono
+le risposte ufficiali NIST (domande 34, 56, 57, 59): file presenti alla fine, i 17 file delle VAT precedenti con i loro
+nomi, ora della masterizzazione e numero dei file cancellati.
+
+`atteso_nist_dfr.json` e quattro immagini NIST CFTT «Deleted File Recovery» nella stessa cartella `nist/`
+(https://cfreds-archive.nist.gov/dfr-test-images.html, pubblico dominio, `.dd.bz2` così come scaricati, 5 MB in tutto):
+DFR-01 NTFS, DFR-04 NTFS (nomi in molte lingue e scritture), DFR-05-braid e DFR-12 exFAT (file frammentati, anche dentro
+cartelle cancellate). Il collaudo controlla lo SHA-256 pubblicato da NIST, che i file cancellati con i metadati siano
+elencati come cancellati col nome intatto e che il contenuto di quelli non sovrascritti sia integro: dimensione del
+documento NIST e ogni settore con l'etichetta che NIST ha scritto nel file, in ordine. I valori attesi vengono solo dal
+documento NIST («Test Images layout», 2012); li scrive `lavoro/prove/genera_atteso_dfr.py` del progetto.
+
 ## Smartphone (dalla 2.20)
 
 `atteso_smartphone.json` e la cartella `smartphone/` dello zip: due estrazioni costruite con `tools/collaudo_mobile.py`

@@ -52,13 +52,14 @@ CSS = """:root{--bg:#f4f5f7;--card:#fff;--ink:#1d2330;--mut:#5b6475;--line:#d8db
 *{box-sizing:border-box}body{font:14px/1.5 -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;margin:0;background:var(--bg);color:var(--ink)}
 a{color:var(--acc)}header.top{background:#1f3a5f;color:#fff;padding:18px 24px}header.top h1{margin:0 0 4px;font-size:22px}
 header.top .meta{color:#c9d6ea;font-size:12.5px}header.top a{color:#fff}
-nav.bc{font-size:12.5px;padding:8px 24px;background:#e9edf4;border-bottom:1px solid var(--line)}
+nav.bc{font-size:12.5px;padding:8px 24px;background:#e9edf4;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5;display:flex;gap:6px 14px;align-items:center;flex-wrap:wrap}nav.bc .dx{margin-left:auto;display:flex;gap:6px 14px;flex-wrap:wrap}
+a.su{position:fixed;right:18px;bottom:18px;width:42px;height:42px;border-radius:50%;background:#1f3a5f;color:#fff;text-decoration:none;display:flex;align-items:center;justify-content:center;font-size:21px;box-shadow:0 2px 8px rgba(0,0,0,.25);z-index:6}
 main{max-width:1180px;margin:0 auto;padding:18px 16px 40px}
 section.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 18px;margin:0 0 16px}
 h2{font-size:18px;margin:0 0 10px;color:#1f3a5f}h3{font-size:15px;margin:14px 0 6px}h4{font-size:13.5px;margin:10px 0 4px}
 .hint,.meta{color:var(--mut);font-size:12.5px}.mono{font-family:Menlo,Consolas,monospace;font-size:11.5px;word-break:break-all}
 table{border-collapse:collapse;width:100%;font-size:12.5px;margin:6px 0 10px}td,th{border:1px solid var(--line);padding:4px 7px;vertical-align:top;text-align:left;overflow-wrap:break-word;word-break:normal}
-th{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}td{white-space:pre-line}table[style] td{overflow-wrap:anywhere}
+th{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}td{white-space:pre-line}table[style] td{overflow-wrap:anywhere}table[style] th{white-space:normal;overflow-wrap:anywhere}
 th{background:#eef0f3}table.kv th{width:190px;white-space:nowrap}
 .toc{columns:2;column-gap:28px}.toc li{margin:2px 0;break-inside:avoid}
 .grid{display:flex;flex-direction:column;gap:8px}
@@ -83,7 +84,7 @@ th{background:#eef0f3}table.kv th{width:190px;white-space:nowrap}
 .pg{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}.pg a,.pg b{padding:2px 9px;border:1px solid var(--line);border-radius:6px;background:#fff;text-decoration:none}
 .mailbody{white-space:pre-wrap;background:#fafbfc;border:1px solid var(--line);border-radius:6px;padding:8px;font-size:12.5px;max-height:none}
 footer{max-width:1180px;margin:0 auto 30px;padding:0 16px;font-size:11.5px;color:var(--mut)}
-@media print{body{background:#fff}nav.bc,.pg{display:none}section.card,.el,.b{break-inside:avoid}header.top{background:#fff;color:#000}header.top .meta{color:#333}}"""
+@media print{body{background:#fff}nav.bc,.pg,a.su{display:none}section.card,.el,.b{break-inside:avoid}header.top{background:#fff;color:#000}header.top .meta{color:#333}}"""
 
 
 def E(x):
@@ -147,8 +148,10 @@ def opzioni(case):
                 tutto.append({"k": "art:" + cat, "lab": tr("Artefatti: {c}").format(c=tr(fe.ART_CATS.get(cat, cat))), "n": n,
                               "g": tr("Artefatti"), "nome": tr(fe.ART_CATS.get(cat, cat))})
             # (3.0.1) «g», «sg» e «nome»: gruppi da aprire e chiudere nella finestra (sottogruppo = categoria di iLEAPP/ALEAPP)
-            for a, sg, n in con.execute("SELECT json_extract(data, '$.artefatto') a, MIN(grp), COUNT(*) FROM artifacts WHERE cat='leapp' "
-                                        "AND json_valid(data) GROUP BY a ORDER BY MIN(grp) COLLATE NOCASE, a COLLATE NOCASE"):
+            # (3.0.2) la colonna grp c'è solo nei casi smartphone: nei casi disco «no such column: grp» bloccava la finestra
+            grp = "grp" if "grp" in {r[1] for r in con.execute("PRAGMA table_info(artifacts)")} else "NULL"
+            for a, sg, n in con.execute(f"SELECT json_extract(data, '$.artefatto') a, MIN({grp}), COUNT(*) FROM artifacts WHERE cat='leapp' "
+                                        f"AND json_valid(data) GROUP BY a ORDER BY MIN({grp}) COLLATE NOCASE, a COLLATE NOCASE"):
                 if a:
                     tutto.append({"k": "leapp:" + a, "lab": tr("iLEAPP/ALEAPP: {c}").format(c=a), "n": n,
                                   "g": "iLEAPP/ALEAPP", "sg": sg or tr("Altro"), "nome": a})
@@ -384,7 +387,7 @@ def el_mail(L, mid, nota=""):
     _id, date, snd, to, cc, subj, body, htm, src, folder, fmt = r
     testo = body or ""
     if not testo and htm:            # solo HTML: si mostra il testo, mai l'HTML della prova
-        testo = html.unescape(re.sub(r"(?is)<(script|style)\b.*?</\1>|<[^>]+>", " ", htm))
+        testo = html.unescape(re.sub(r"(?is)<(script|style)\b.*?</\1>|<[^<>]+>", " ", htm))
         testo = re.sub(r"[ \t]+", " ", re.sub(r"\n\s*\n+", "\n\n", testo)).strip()
     allegati = []
     for aid, nome, size, relp, sha in atts:
@@ -456,8 +459,11 @@ def el_chat(L, tid, nota="", solo_msg=None):
         aa = []
         for x in att.get(mid, []):
             aa.append(_allegato_chat(L, x))
-        meta = " · ".join(v for v in (L.ts(ts), st, svc, f"{tb} #{row}") if v)
-        out.append({"dir": cls, "del": kind == "eliminato", "who": who, "txt": txt, "corsivo": not text, "meta": meta, "att": aa})
+        # (3.0.2) iMessage in «Eliminati di recente»: fumetto come i cancellati, con la data della cancellazione
+        erc = (ex.get("eliminato_di_recente") or {}) if isinstance(ex, dict) else {}
+        canc = tr("cancellato dall'utente il {ts}: in «Eliminati di recente»").format(ts=L.ts(erc.get("cancellato"))) if erc else ""
+        meta = " · ".join(v for v in (L.ts(ts), st, svc, f"{tb} #{row}", canc) if v)
+        out.append({"dir": cls, "del": kind == "eliminato" or bool(erc), "who": who, "txt": txt, "corsivo": not text, "meta": meta, "att": aa})
     return {"t": "chat", "titolo": f"{lbl} · {title}", "righe": [(k, v) for k, v in righe if v], "msgs": out, "nota": nota,
             "parziale": solo_msg is not None}
 
@@ -823,7 +829,10 @@ def el_html(e, pre=""):
     if t == "scheda":
         return f'<section class="card"><h3>{E(e["titolo"])}</h3>{_kv_html(e["righe"])}{nota}</section>'
     if t == "tabella":
-        return ("<table><tr>" + "".join(f"<th>{E(c)}</th>" for c in e["intest"]) + "</tr>" +
+        # (3.0.2) larghezze fisse come le altre tabelle: un percorso lungo senza spazi allargava la tabella oltre il riquadro
+        # dell'intestazione della sezione; ora va a capo e la tabella resta larga quanto la pagina
+        testa_t = _colgroup([e["intest"]] + list(e["righe"])).replace("<table>", '<table style="table-layout:fixed">')
+        return (testa_t + "<tr>" + "".join(f"<th>{E(c)}</th>" for c in e["intest"]) + "</tr>" +
                 "".join("<tr>" + "".join(f"<td>{E(c)}</td>" for c in r) + "</tr>" for r in e["righe"]) + "</table>")
     if t == "mail":
         aa = "".join(_att_html(a, pre) for a in e["allegati"])
@@ -852,13 +861,18 @@ def _att_html(a, pre):
     return f'<div class="a">{img}{ICONA.get(a["tipo"], "📎")} {nome}{righe}</div>'
 
 
-def pagina(titolo, corpo, testa, pre="", bc=""):
+def pagina(titolo, corpo, testa, pre="", bc="", nav=""):
+    """(3.0.2) Barra in alto sempre visibile (indice, pagine precedente e successiva, inizio) e pulsante «↑» fisso: solo
+    collegamenti, senza script (il report vieta JavaScript e deve aprirsi offline). Né l'una né l'altro vanno in stampa."""
+    su = E(tr("Torna all'inizio"))
     return (f'<!doctype html><html lang="{E(testa["lingua"])}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
             f'<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; img-src \'self\' data: file:; style-src \'unsafe-inline\'; media-src \'self\' file:">'
             f'<title>{E(titolo)}</title><style>{CSS}</style></head><body>'
-            f'<header class="top"><h1>{E(testa["titolo"])}</h1><div class="meta">{E(testa["sotto"])}</div></header>'
-            + (f'<nav class="bc"><a href="{pre}report.html">{E(tr("Indice del report"))}</a> › {E(bc)}</nav>' if bc else "")
-            + f'<main>{corpo}</main><footer>{E(testa["piede"])}</footer></body></html>')
+            f'<header class="top" id="inizio"><h1>{E(testa["titolo"])}</h1><div class="meta">{E(testa["sotto"])}</div></header>'
+            + (f'<nav class="bc"><span><a href="{pre}report.html">{E(tr("Indice del report"))}</a> › {E(bc)}</span>'
+               f'<span class="dx">{nav}<a href="#inizio">↑ {su}</a></span></nav>' if bc else "")
+            + f'<main>{corpo}</main><footer>{E(testa["piede"])}</footer>'
+            f'<a class="su" href="#inizio" title="{su}" aria-label="{su}">↑</a></body></html>')
 
 
 # ------------------------------------------------------------------ PDF
@@ -1523,7 +1537,12 @@ def crea(case, o, progress=lambda m: None):
                                                   for j in range(len(pagine))) + "</div>"
             testo = (f'<section class="card"><h2>{E(s.titolo)} ({n_el})</h2>' + (f'<p class="hint">{E(s.nota)}</p>' if s.nota else "")
                      + f'{pg}</section>{corpo}{pg}')
-            (out / nomi[i]).write_text(pagina(f"{s.titolo} – {titolo}", testo, testa, "../", s.titolo), encoding="utf-8")
+            nav = ""
+            if len(pagine) > 1:
+                nav = ((f'<a href="{Path(nomi[i - 1]).name}">‹ {E(tr("Pagina precedente"))}</a>' if i else "")
+                       + f'<span>{E(tr("Pagina {a} di {b}").format(a=i + 1, b=len(pagine)))}</span>'
+                       + (f'<a href="{Path(nomi[i + 1]).name}">{E(tr("Pagina successiva"))} ›</a>' if i + 1 < len(pagine) else ""))
+            (out / nomi[i]).write_text(pagina(f"{s.titolo} – {titolo}", testo, testa, "../", s.titolo, nav), encoding="utf-8")
         conteggi["pagine"] += len(pagine)
         indice.append(("s", s, nomi[0], n_el, len(pagine)))
     # indice HTML

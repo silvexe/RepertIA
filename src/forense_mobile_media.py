@@ -529,7 +529,10 @@ def run(case, con, say=print):
             rows.clear()
     def da_cache(part, i, path, deleted, leggi, mtime=None):
         """Voce della cache di un browser Chromium con una foto o un video: riga dell'estratto (part -1)."""
-        v = cw.voce(part, i, path, deleted, leggi, mtime)
+        try:
+            v = cw.voce(part, i, path, deleted, leggi, mtime)
+        except Exception:               # (3.0.2) voce illeggibile (es. AD1 con tabella dei blocchi non valida): si salta
+            return False
         if not v:
             return False
         app = proprietario(case, part, path, plat)[0] if fa.is_mobile(case) else proprietario_disco(path)[0]
@@ -663,7 +666,10 @@ def metadati(case, con, say=print):
         mapping.clear()
     try:
         for k, (part, inode, path, fmt, _tipo, canc) in enumerate(todo, 1):
-            data = fa.icat_read(case, part, inode, fa.MAX_EXTRACT)
+            try:
+                data = fa.icat_read(case, part, inode, fa.MAX_EXTRACT)
+            except Exception:           # (3.0.2) file illeggibile dall'immagine: niente metadati, si va avanti
+                continue
             if not data:
                 continue
             f = tmp / f"{part}_{inode}.{fmt}"

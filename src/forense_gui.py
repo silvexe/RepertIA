@@ -435,13 +435,22 @@ FILE_FILTERS = {
 
 
 def _ps_str(t):
-    """Stringa per PowerShell tra apici singoli (l'apostrofo si raddoppia: «Scegli l'elenco»)."""
-    return "'" + str(t).replace("'", "''") + "'"
+    """Stringa per PowerShell tra apici singoli: si raddoppia ogni carattere che PowerShell prende per apice singolo,
+    anche quelli tipografici ‘ ’ ‚ ‛ («Scegli l'elenco», «l’elenco»)."""
+    return "'" + re.sub("([\'\u2018\u2019\u201a\u201b])", r"\1\1", str(t)) + "'"
+
+
+def richiesta(d):
+    """Parametri di una richiesta del browser senza le chiavi interne (iniziano con «_», es. _spec, _cfsel): quelle le
+    aggiunge solo il server."""
+    return {k: v for k, v in d.items() if not str(k).startswith("_")}
 
 
 def _as_str(t):
-    """Stringa per AppleScript tra virgolette doppie."""
-    return '"' + str(t).replace("\\", "\\\\").replace('"', '\\"') + '"'
+    """Stringa per AppleScript tra virgolette doppie: le virgolette tipografiche “ ” „ ‟, che AppleScript può prendere
+    per virgolette, diventano dritte con la barra davanti."""
+    t = re.sub("[“”„‟]", '"', str(t))
+    return '"' + t.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
 def choose_file(prompt=None, kind="image", any_file=False):
@@ -631,7 +640,7 @@ def case_summary(c):
         "complete": "timeline" in m, "estese": m.get("estese") or {}, "volumi_cifrati": m.get("volumi_cifrati") or [],
         "decifrate": m.get("decifrate") or [], "derivata": m.get("derivata"), "liste_hash": m.get("liste_hash"),
         "apfs_bloccati": apfs_bloccati(c),
-        "tipo_caso": m.get("tipo_caso") or "disco", "drone": bool(m.get("drone")),
+        "tipo_caso": m.get("tipo_caso") or "disco", "drone": bool(m.get("drone")), "logica": bool(m.get("logica")),
         **(_mobile_summary(c) if fa.is_mobile(c) else {}),
     }
 
@@ -668,7 +677,8 @@ def addon_check(what):
     elif what == "ocr":
         if not fe_mod().tesseract():
             raise ValueError(tr("Per l'OCR serve Tesseract: ") + (tr("reinstalla RepertIA o esegui 'Aggiorna strumenti'")
-                                                             if IS_WIN else tr("in Terminale esegui brew install tesseract")))
+                                                             if IS_WIN else tr("in Terminale esegui brew install tesseract")
+                                                             if fa.IS_MAC else tr("in Terminale esegui {v1}").format(v1=fa.install_hint("tesseract"))))
     elif what == "phash":
         fe = fe_mod()
         if fe.missing_modules("phash") and not fe.bundled_python_with(["PIL"]):
@@ -982,7 +992,7 @@ def _results(case, q, ids=None, limit=PAGE, full=False):
             if text:
                 w.append("path LIKE ? ESCAPE '\\'"); a.append(L(text))
             if yes(q.get("deleted")):
-                w.append("deleted = 1")
+                w.append("deleted >= 1")
             if q.get("ext"):
                 w.append("lower(path) LIKE ?"); a.append("%." + q["ext"].lower().lstrip("."))
             # dimensione e date vengono dall'indice di navigazione (se pronto)
@@ -1966,7 +1976,7 @@ def nav_list(case, q, ids=None, limit=PAGE):
             if text:
                 w.append("name LIKE ? ESCAPE '\\'"); a.append(fa.like(text))
             if yes(q.get("deleted")):
-                w.append("deleted = 1")
+                w.append("deleted >= 1")
             cf_apply(q, {"name": ("path" if yes(q.get("sub")) else "name", "t"), "size": ("size", "n"),
                          "mtime": ("mtime", "d"), "crtime": ("crtime", "d"), "atime": ("atime", "d")},
                      w, a)
@@ -2081,6 +2091,15 @@ def selected_rows(case, b):
     return q["kind"], [x for x in r["rows"] if str(x["id"]) not in excl]
 
 
+def canc_txt(d):
+    """Indicazione «cancellato» nelle etichette dei reperti; (3.0.2) 2 = nome cancellato con l'inode riassegnato."""
+    if d == 2:
+        return tr(", cancellato, inode riassegnato a un altro file (contenuto non suo)")
+    if d == 3:
+        return tr(", cancellato, blocchi riusati da altri file (contenuto in parte non suo)")
+    return tr(", cancellato") if d else ""
+
+
 def ref_label(kind, x):
     if kind in EXT_KINDS:
         return ext_ref_label(kind, x)
@@ -2103,14 +2122,14 @@ def ref_label(kind, x):
         if x.get("source") == "carving":
             return tr("file recuperato {name} (trovato in {wheres}: {terms})").format(name=x['name'], wheres=x['wheres'], terms=x['terms'])
         return (f"{x['path']} (offset {x['part']}, inode {x['inode']}"
-                + (tr(", cancellato") if x["deleted"] else "")
+                + (canc_txt(x["deleted"]))
                 + (f", SHA-256 {x['sha256']}" if x.get("sha256") else "")
                 + tr("; trovato in {wheres}: {terms})").format(wheres=x['wheres'], terms=x['terms']))
     if kind == "explore":
         return (f"{x['path']}{'/' if x['isdir'] else ''} (offset {x['part']}"
                 + (f", inode {x['inode']}" if x.get("inode") else "")
-                + (tr(", cancellato") if x["deleted"] else "") + ")")
-    return f"{x['path']} (offset {x['part']}, inode {x['inode']}{tr(', cancellato') if x.get('deleted') else ''})"
+                + (canc_txt(x["deleted"])) + ")")
+    return f"{x['path']} (offset {x['part']}, inode {x['inode']}{canc_txt(x.get('deleted'))})"
 
 
 CSV_COLS = {
@@ -3598,7 +3617,7 @@ def file_text(case, b):
         return {"text": "\n".join(f"{k}: {x}" for k, x in h.items() if x) + "\n\n" + (body or "")}
     if b.get("source") in ("art", "chat"):
         v = view_info(case, b)
-        return {"text": v.get("headers") or re.sub(r"<[^>]+>", " ", v["html"].split("</style>")[-1])}
+        return {"text": v.get("headers") or re.sub(r"<[^<>]+>", " ", v["html"].split("</style>")[-1])}
     it = file_ident(case, b)
     if it["source"] == "x":
         return {"text": x_text(case, it)}
@@ -3932,7 +3951,7 @@ def bm_list(case, q, ids=None, limit=PAGE):
     if text:
         w.append("(bm.path LIKE ? ESCAPE '\\' OR bm.note LIKE ? ESCAPE '\\')"); a += [fa.like(text)] * 2
     if yes(q.get("deleted")):
-        w.append("bm.deleted = 1")
+        w.append("bm.deleted >= 1")
     cf_apply(q, cf_hits(True), w, a)
     cond = " WHERE " + " AND ".join(w)
     try:
@@ -4329,7 +4348,7 @@ def res_tree(case):
         out = {"tl": dict(q("SELECT origin, COUNT(*) FROM events GROUP BY 1")),
                "plaso": q("SELECT source, COUNT(*) FROM events WHERE origin='plaso' GROUP BY 1 "
                           "ORDER BY 2 DESC LIMIT 40"),
-               "deleted": con.execute("SELECT COUNT(*) FROM files WHERE deleted=1").fetchone()[0],
+               "deleted": con.execute("SELECT COUNT(*) FROM files WHERE deleted>=1").fetchone()[0],
                "trace": q("SELECT kind, COUNT(*) FROM features GROUP BY 1 ORDER BY 2 DESC") if has("features") else [],
                "carved": q("SELECT type, COUNT(*) FROM carved GROUP BY 1 ORDER BY 2 DESC LIMIT 40") if has("carved") else [],
                "doc": q("SELECT kind, COUNT(*) FROM doc_text GROUP BY 1 ORDER BY 2 DESC LIMIT 20") if has("doc_text") else [],
@@ -5490,7 +5509,7 @@ def search_universe(case, f):
     con = nav_db(case)
     w, a = ["isdir = 0", "inode IS NOT NULL", "type NOT LIKE 'v/%'"], []
     if f.get("deleted") == "only":
-        w.append("deleted = 1")
+        w.append("deleted >= 1")
     elif f.get("deleted") == "no":
         w.append("deleted = 0")
     exts = [e.strip().lower().lstrip(".*") for e in re.split(r"[,;\s]+", f.get("ext") or "") if e.strip()]
@@ -5887,7 +5906,7 @@ def hits_list(case, q, ids=None, limit=PAGE):
     if (q.get("term") or "").strip():
         w.append("terms LIKE ? ESCAPE '\\'"); a.append(fa.like(q["term"].strip()))
     if yes(q.get("deleted")):
-        w.append("deleted = 1")
+        w.append("deleted >= 1")
     cf_apply(q, cf_hits(), w, a)
     cond = " WHERE " + " AND ".join(w)
     try:
@@ -6302,7 +6321,7 @@ class Handler(BaseHTTPRequestHandler):
                 import forense_mobile_gui as fmg
                 html = html.replace("<!--REPERTIA_MOBILE-->", fmg.fragment())
             return self._send(200, html.replace("__TOKEN__", TOKEN).replace("__VERSIONE__", fa.APP_VERSION).replace("__LINGUA__", lingua_js()), "text/html")
-        q = {k: v[0] for k, v in parse_qs(u.query).items()}
+        q = richiesta({k: v[0] for k, v in parse_qs(u.query).items()})
         if u.path == "/guida/guida.html":       # (3.0) guida in italiano e inglese, nessun dato del caso
             f = HERE / "guida" / "guida.html"
             if not f.is_file():
@@ -6463,12 +6482,14 @@ class Handler(BaseHTTPRequestHandler):
                 if n <= 0 or n > (2 << 20):
                     raise ValueError(tr("Miniatura non valida."))
                 data = self.rfile.read(n)
-                q = {k: v[0] for k, v in parse_qs(u.query).items()}
+                q = richiesta({k: v[0] for k, v in parse_qs(u.query).items()})
                 return self._json({"ok": True, "salvata": thumb_put(SES.case, q, data)})
             except Exception as e:
                 return self._json({"error": str(e)}, 400)
         try:
             body = json.loads(self.rfile.read(n) or b"{}")
+            if isinstance(body, dict):
+                body = richiesta(body)
             path = urlparse(self.path).path
             with lg.usa(lg.lingua_caso(SES.case) if SES.case and path in CASE_LANG_PATHS else lg.lingua()):
                 self._json(self.post(path, body))
@@ -6689,7 +6710,8 @@ class Handler(BaseHTTPRequestHandler):
             if missing:
                 raise ValueError(tr("Manca The Sleuth Kit: ")
                                  + (tr("reinstalla RepertIA") if IS_WIN
-                                    else tr("in Terminale esegui brew install sleuthkit libewf")))
+                                    else tr("in Terminale esegui brew install sleuthkit libewf") if fa.IS_MAC
+                                    else tr("in Terminale esegui {v1}").format(v1=fa.install_hint("sleuthkit libewf"))))
             if not dest:
                 fa.CASES_HOME.mkdir(parents=True, exist_ok=True)
             if b.get("plaso"):

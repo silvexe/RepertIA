@@ -85,7 +85,8 @@ SKIP_EXT = (".json", ".md", ".txt", ".zip", ".bz2", ".gz", ".log", ".pdf", ".htm
 def prepare_public(base):
     """Estrae gli zip/bz2/gz scaricati (nella cartella di collaudo o in pubbliche/) in _estratte/."""
     out = base / "_estratte"
-    for arc in sorted(set(base.glob("*.zip")) | set(base.glob("pubbliche/*")) | set(base.glob("*.bz2")) | set(base.glob("*.gz"))):
+    for arc in sorted(set(base.glob("*.zip")) | set(base.glob("pubbliche/*")) | set(base.glob("*.bz2")) | set(base.glob("*.gz"))
+                      | set(base.glob("nist/*.bz2"))):       # (3.0.2) immagini NIST CFTT DFR (.dd.bz2)
         if not arc.is_file():
             continue
         dest = out / arc.name
@@ -108,6 +109,24 @@ def prepare_public(base):
                     shutil.copyfileobj(src, dst, 8 << 20)
         except Exception as e:
             print(tr("  non riesco a estrarre {name}: {e}").format(name=arc.name, e=e), flush=True)
+    # (3.0.2) immagini NIST CFReDS così come pubblicate (7z): estratte con il 7-Zip del programma
+    for arc in sorted(base.glob("nist/*.7z")):
+        dest = out / arc.name
+        if dest.exists():
+            continue
+        import forense_estesa as fx
+        exe = fx.seven_zip()
+        if not exe:
+            print(tr("  non riesco a estrarre {name}: {e}").format(name=arc.name, e=tr("7-Zip non trovato")), flush=True)
+            continue
+        tmp = out / (arc.name + ".parziale")
+        shutil.rmtree(tmp, ignore_errors=True)
+        cp = subprocess.run([exe, "x", "-y", f"-o{tmp}", "-bso0", "-bsp0", str(arc)], capture_output=True,
+                            stdin=subprocess.DEVNULL, timeout=3600)
+        if cp.returncode == 0:
+            tmp.rename(dest)
+        else:
+            print(tr("  non riesco a estrarre {name}: {e}").format(name=arc.name, e=fa.dec(cp.stderr)[-300:]), flush=True)
 
 
 class Finder:
@@ -163,12 +182,13 @@ def find(con, path):
 def run_test(t, img, out):
     case_dir = out / t["nome"]
     if case_dir.exists():
-        shutil.rmtree(case_dir)
+        fa.rmtree_force(case_dir)          # copie derivate in sola lettura: su Windows rmtree non le toglie
     env = dict(os.environ, **{k: str(v) for k, v in (t.get("ambiente") or {}).items()})
     env.pop("FORENSE_DA_GUI", None)
-    prog = ["forense_mobile.py", "prepara"] if t.get("tipo") == "smartphone" else ["forense_agent.py", "prepara"]
+    mob = t.get("tipo") in ("smartphone", "logica")
+    prog = ["forense_mobile.py", "prepara"] if mob else ["forense_agent.py", "prepara"]
     cmd = [sys.executable, str(HERE / prog[0]), prog[1], "--image", str(img), "--case", str(case_dir),
-           "--lingua", lg.lingua(), *t.get("opzioni", [])]
+           "--lingua", lg.lingua(), *(["--logica"] if t.get("tipo") == "logica" else []), *t.get("opzioni", [])]
     if t.get("portachiavi"):            # (2.20) portachiavi finto accanto all'estrazione di prova
         cmd += ["--keychain", str(Path(str(img)[:-len(t["immagine"])]) / t["portachiavi"])]
     for sd in t.get("sysdiagnose") or []:   # (2.20) sysdiagnose di prova accanto all'estrazione
@@ -215,7 +235,10 @@ def run_test(t, img, out):
         check(tr("SHA-256 di {path}").format(path=path), got == want, tr("atteso {want}, letto {got}").format(want=want, got=got))
     for path in a.get("file_cancellati", []):
         r = find(con, path)
-        check(tr("{path} riconosciuto come cancellato").format(path=path), bool(r) and r[2] == 1, tr("presente e segnato cancellato") if r and r[2]
+        # (3.0.2) 2 = cancellato con l'inode riassegnato a un altro file (es. ext4 di prova: f1.jpg, inode ora della cartella etc)
+        check(tr("{path} riconosciuto come cancellato").format(path=path), bool(r) and r[2] in (1, 2, 3),
+              (tr("presente e segnato cancellato, inode riassegnato a un altro file") if r[2] == 2 else
+               tr("presente e segnato cancellato")) if r and r[2]
               else (tr("presente ma non segnato cancellato") if r else tr("non trovato")))
     if "fuso" in a:
         fz = (m.get("fuso_dispositivo") or {})
@@ -318,6 +341,10 @@ def run_test(t, img, out):
                   + (f" — {it['nota']}" if it.get("nota") else ""), it.get("misura", True))
     if t.get("tipo") == "smartphone":
         controlli_smartphone(t, img, case, con, a, check)
+    elif t.get("tipo") == "logica":
+        controlli_logica_nist(t, img, case, con, a, check)
+    elif t.get("tipo") == "dfr":
+        controlli_dfr(t, img, case, con, a, check)
     elif fa.table_exists(con, "meta"):         # (3.0.1) memorie di massa: foto, video e audio riconosciuti dal contenuto
         controlli_media(case, con, check)
         controlli_media_dftt8(t, con, check)
@@ -372,7 +399,7 @@ def controlli_relazione(case, con, check):
     import xml.dom.minidom as _md
     mob = fa.is_mobile(case)
     chat = None
-    if fa.table_exists(con, "chat_threads"):
+    if fa.table_exists(con, "chat_threads") and fa.table_exists(con, "artifacts"):   # sorgente logica: niente artefatti
         chat = con.execute("SELECT a.id, t.id, (SELECT COUNT(*) FROM chat_messages m WHERE m.thread = t.id) FROM artifacts a JOIN chat_threads t "
                            "ON t.id = json_extract(a.data, '$.chat_thread') WHERE a.cat='messaggi' AND json_valid(a.data) AND EXISTS "
                            "(SELECT 1 FROM chat_attachments x JOIN chat_messages m ON m.id = x.msg WHERE m.thread = t.id AND x.inode IS NOT NULL "
@@ -408,8 +435,9 @@ def controlli_relazione(case, con, check):
         o = {"formati": ["html", "pdf", "docx"], "sezioni": ["caso", "reperti"], "tz": "utc",
              "preferiti": {str(cat["cid"]): {"on": 1, "esclusi": [tolto["id"]] if tolto else []}},
              "tutto": (["foto"] if foto and n_foto <= 400 else [])
-             + [f"art:{x[0]}" for x in con.execute("SELECT cat FROM artifacts WHERE cat NOT IN ('messaggi', 'leapp') GROUP BY cat "
-                                                   "HAVING COUNT(*) <= 2000 ORDER BY COUNT(*) LIMIT 1")]}
+             + [f"art:{x[0]}" for x in (con.execute("SELECT cat FROM artifacts WHERE cat NOT IN ('messaggi', 'leapp') GROUP BY cat "
+                                                    "HAVING COUNT(*) <= 2000 ORDER BY COUNT(*) LIMIT 1")
+                                        if fa.table_exists(con, "artifacts") else [])]}       # sorgente logica: niente artefatti
         r = frl.crea(c, o, lambda *_: None)
         out = Path(r["path"])
         pagine = [out / "report.html"] + sorted((out / "pagine").glob("*.html"))
@@ -999,6 +1027,643 @@ def controlli_droni(check):
           and ug["punti"] == [[12.5, 41.9, 5.0, "2023-11-14 22:13:20"]] and fdr.leggi_binario("x.bin", b"MZ" + bytes(99)) is None,
           f"{au['punti'][:1]} {tl['punti']} {df['punti']} {ug['punti']}"[:120], interno=True)
 
+
+def controlli_sorgente_logica(check):
+    """(3.0.2) Sorgente logica: zip, tar.gz, 7z, RAR 4, RAR 5 e AD1 preparati come casi; contenuto, date (UTC) e loro
+    fonte uguali a quelli noti; hash registrati nell'AD1 verificati; GPX come livelli della mappa; chat WhatsApp lette da
+    una consegna con e senza la struttura del telefono; 7z, rar e AD1 rifiutati come estrazioni di telefoni."""
+    import base64
+    import contextlib
+    import io
+    import tarfile
+    import types
+    import forense_estesa as fx
+    import forense_mobile as fm
+    import forense_mobile_gui as fmg
+    tmp = Path(tempfile.mkdtemp(prefix="collaudo_logica_"))
+
+    def prepara(img, no_hash=True, logica=True, chat=False):
+        a = types.SimpleNamespace(case=str(tmp / "casi" / img.name), image=str(img), no_hash=no_hash, no_indice=True,
+                                  hash_file=False, chat=chat, leapp=False, drone=False, logica=logica,
+                                  decomprimi=img.name.endswith(".tar.gz"), info=None, lingua=None, fuso="Europe/Rome",
+                                  keychain=None, sysdiagnose=None, wa_backup=False, trascrizione=None)
+        with contextlib.redirect_stdout(io.StringIO()):
+            fm.cmd_prepara(a)
+        case = fa.Case(a.case)
+        m = fm.mx(case)
+        rows = {r[0]: r[1:] for r in m.execute("SELECT path, id, mtime, datesrc FROM mobile_files WHERE isdir=0")}
+        m.close()
+        return case, rows
+
+    def leggi(case, rows, path):
+        r = rows.get(path)
+        return (b"".join(fm.stream(case, fm.part_key(0), r[0])), r[1], r[2]) if r else (None, None, None)
+
+    try:
+        src = tmp / "src" / "docs"
+        (src / "sotto").mkdir(parents=True)
+        (src / "contratto.txt").write_bytes(b"contratto Rossi 2024\n")
+        (src / "sotto" / "nota.txt").write_bytes(b"nota segreta\n")
+        for p in (src / "contratto.txt", src / "sotto" / "nota.txt"):
+            os.utime(p, (1704205800, 1704205800))                      # 2024-01-02 14:30:00 UTC
+        arch = {}
+        z = arch["zip"] = tmp / "prova.zip"
+        with zipfile.ZipFile(z, "w") as zf:                             # solo data DOS: ora locale (15:30 a Roma)
+            for rel in ("docs/contratto.txt", "docs/sotto/nota.txt"):
+                zf.writestr(zipfile.ZipInfo(rel, (2024, 1, 2, 15, 30, 0)), (tmp / "src" / rel).read_bytes())
+            zf.writestr("posizioni/giro.gpx", GPX_PROVA)
+        with tarfile.open(tmp / "prova.tar.gz", "w:gz") as tf:
+            tf.add(src, arcname="docs")
+        arch["tar.gz"] = tmp / "prova.tar.gz"
+        exe = fx.seven_zip()
+        if exe:
+            subprocess.run([exe, "a", "-bso0", "-bsp0", str(tmp / "prova.7z"), str(src)], capture_output=True, timeout=120,
+                           stdin=subprocess.DEVNULL)
+            arch["7z"] = tmp / "prova.7z"
+        esiti, attesi, lv = [], [], None
+        for fmt, f in arch.items():
+            case, rows = prepara(f)
+            if fmt == "zip":
+                import forense_mappe as fmp
+                lv = [(k.get("nome"), k.get("elementi"), k.get("dalla_sorgente"), k.get("percorso")) for k in fmp.livelli(case)["kml"]]
+            esiti.append((fmt, leggi(case, rows, "docs/contratto.txt"), leggi(case, rows, "docs/sotto/nota.txt")[0]))
+            attesi.append((fmt, (b"contratto Rossi 2024\n", "2024-01-02T14:30:00",
+                                 {"zip": "dos", "tar.gz": "utc", "7z": "archivio"}[fmt]), b"nota segreta\n"))
+        check(tr("Sorgente logica: zip, tar.gz e 7z con lo stesso contenuto e la stessa data UTC (zip DOS convertito col fuso)"),
+              bool(exe) and esiti == attesi, str(esiti if esiti != attesi else len(esiti))[:160] if exe else tr("7-Zip non trovato"),
+              interno=True)
+        import forense_mappe as fmp
+        import forense_mobile_chat as fmc
+        g = fmp._gpx(GPX_PROVA.encode())
+        try:
+            fmp._gpx(b'<!DOCTYPE x [<!ENTITY a "b">]><gpx/>')
+            dtd = False
+        except ValueError:
+            dtd = True
+        geo = [(f["geometry"]["type"], f["geometry"]["coordinates"]) for f in g["features"]]
+        check(tr("Sorgente logica: KML/GPX contenuti diventano livelli della mappa (punti e tracce giusti, DOCTYPE rifiutato)"),
+              lv == [("giro.gpx", 2, True, "posizioni/giro.gpx")] and dtd and
+              geo == [("Point", [12.4964, 41.9028]), ("LineString", [[12.49, 41.9], [12.5, 41.91], [12.51, 41.92]])],
+              f"{lv} {geo}"[:160], interno=True)
+        import sqlite3
+        mm = sqlite3.connect(":memory:")
+        fm.ensure_schema(mm)
+        for i, pth in enumerate(("consegna/WhatsApp/msgstore.db", "consegna/WhatsApp/wa.db", "iphone/sms.db", "note/appunti.db"), 1):
+            mm.execute(fm.INSERT_MF, (i, 7, pth, 0, 1, 0, None, None, None, None, "utc", "zip", 0, 1, 0, None))
+        sì, no = fmc.trova_db(mm, 7, logica=True)[0], fmc.trova_db(mm, 7)[0]
+        check(tr("Sorgente logica: database di telefoni riconosciuti dal nome anche fuori dalla struttura del telefono"),
+              sorted(sì) == ["imessage", "wa_contacts_android", "whatsapp_android"] and not no, f"{sorted(sì)} {sorted(no)}",
+              interno=True)
+        # chat lette davvero da una consegna senza la struttura del telefono (e, a confronto, con la struttura)
+        wadb = tmp / "wadb"
+        wadb.mkdir()
+        db = sqlite3.connect(str(wadb / "msgstore.db"))
+        db.executescript("""
+            CREATE TABLE jid(_id INTEGER PRIMARY KEY, user TEXT, server TEXT, raw_string TEXT);
+            CREATE TABLE chat(_id INTEGER PRIMARY KEY, jid_row_id INTEGER, subject TEXT);
+            CREATE TABLE message(_id INTEGER PRIMARY KEY, chat_row_id INTEGER, from_me INTEGER, key_id TEXT,
+                sender_jid_row_id INTEGER, status INTEGER, timestamp INTEGER, received_timestamp INTEGER,
+                message_type INTEGER, text_data TEXT, starred INTEGER);
+            INSERT INTO jid VALUES (1, '390000000009', 's.whatsapp.net', '390000000009@s.whatsapp.net');
+            INSERT INTO chat VALUES (1, 1, NULL);
+            INSERT INTO message VALUES (1, 1, 0, 'L1', NULL, 0, 1704205800000, 1704205801000, 0, 'ciao dalla consegna', 0);
+            INSERT INTO message VALUES (2, 1, 1, 'L2', NULL, 13, 1704205860000, 1704205861000, 0, 'ricevuto', 0);""")
+        db.commit()
+        db.close()
+        db = sqlite3.connect(str(wadb / "wa.db"))
+        db.executescript("""CREATE TABLE wa_contacts(_id INTEGER PRIMARY KEY, jid TEXT, display_name TEXT, wa_name TEXT, number TEXT);
+            INSERT INTO wa_contacts VALUES (1, '390000000009@s.whatsapp.net', 'Anna Verdi', 'Anna', '+39 000 000 0009');""")
+        db.commit()
+        db.close()
+        chat_esiti = []
+        for nome, cart in (("consegna_wa.zip", "consegna/WhatsApp_Database"),
+                           ("struttura_wa.zip", "data/data/com.whatsapp/databases")):
+            with zipfile.ZipFile(tmp / nome, "w") as zf:
+                for f in ("msgstore.db", "wa.db"):
+                    zf.write(wadb / f, f"{cart}/{f}")
+            cw, _rw = prepara(tmp / nome, chat=True)
+            tel = cw.meta.get("logica_telefono") or {}
+            cc = sqlite3.connect(str(cw.root / "caso.sqlite"))
+            try:
+                thr = cc.execute("SELECT app, title, n_msg, src_path FROM chat_threads").fetchall()
+                txt = [r[0] for r in cc.execute("SELECT text FROM chat_messages ORDER BY ts")]
+            finally:
+                cc.close()
+            chat_esiti.append((tel.get("piattaforma"), sorted(tel.get("database") or {}), tel.get("struttura_telefono"),
+                               thr, txt))
+        att = [("android", ["wa_contacts_android", "whatsapp_android"], s,
+                [("whatsapp", "Anna Verdi", 2, f"{c}/msgstore.db")], ["ciao dalla consegna", "ricevuto"])
+               for s, c in ((False, "consegna/WhatsApp_Database"), (True, "data/data/com.whatsapp/databases"))]
+        check(tr("Sorgente logica: chat WhatsApp e rubrica lette da una consegna anche senza la struttura del telefono "
+                 "(piattaforma riconosciuta, struttura dichiarata)"), chat_esiti == att, str(chat_esiti)[:160], interno=True)
+        (tmp / "r4.rar").write_bytes(base64.b64decode("".join(LOGICA_RAR4)))
+        (tmp / "r5.rar").write_bytes(base64.b64decode("".join(LOGICA_RAR5)))
+        c4, r4 = prepara(tmp / "r4.rar")
+        c5, r5 = prepara(tmp / "r5.rar")
+        a4, a5 = leggi(c4, r4, "testdir/test.txt"), leggi(c5, r5, "helloworld.txt")
+        check(tr("Sorgente logica: RAR 4 (date in ora locale, convertite e dichiarate) e RAR 5 (UTC) letti con contenuto e date giusti"),
+              a4 == (b"test text document\r\n", "2011-06-26T12:59:07", "locale") and
+              a5 == (b"hello libarchive test suite!\n", "2018-09-26T04:43:42", "archivio"), f"{a4} {a5}"[:160], interno=True)
+        (tmp / "prova.ad1").write_bytes(base64.b64decode("".join(LOGICA_AD1)))
+        try:
+            import dissect.evidence.ad1  # noqa: F401
+            ok_ad1 = True
+        except ImportError:
+            ok_ad1 = False
+        if ok_ad1:
+            ca, ra = prepara(tmp / "prova.ad1", no_hash=False)
+            v = ca.meta.get("verifica_ad1") or {}
+            d1 = leggi(ca, ra, "E:/AD1_test/doc1.txt")
+            got = (d1, len(ra), v.get("controllati"), v.get("uguali"), len(v.get("diversi") or []))
+            check(tr("Sorgente logica: AD1 letto (contenuto e data registrata) e hash MD5/SHA-1 di FTK verificati su tutti i file"),
+                  got == ((b"Inhoud document 1", "2017-03-31T18:02:49", "ad1"), 2, 2, 2, 0), str(got)[:160], interno=True)
+        else:
+            check(tr("Sorgente logica: AD1 letto (contenuto e data registrata) e hash MD5/SHA-1 di FTK verificati su tutti i file"),
+                  False, tr("componente dissect.evidence non incluso"), interno=True)
+        import lzma
+        cd = []
+        for nome, dati in (("cd_udf.iso", LOGICA_UDF), ("cd_iso.iso", LOGICA_ISO)):
+            (tmp / nome).write_bytes(lzma.decompress(base64.b64decode("".join(dati))))
+            if exe:
+                cc, rc = prepara(tmp / nome)
+                cd.append((fm.cd_dvd(tmp / nome), leggi(cc, rc, "prezzi.txt"), leggi(cc, rc, "cartella/nota.txt")[0]))
+        check(tr("Sorgente logica: immagini di CD/DVD in UDF (non letto da Sleuth Kit) e ISO 9660 estratte con 7-Zip, "
+                 "con contenuto e date UTC giusti"),
+              bool(exe) and cd == [(t, (b"prezzi\n", "2024-03-15T09:30:00", "disco"), b"progetto segreto\n") for t in ("udf", "iso9660")],
+              str(cd)[:160] if exe else tr("7-Zip non trovato"), interno=True)
+        rif = []
+        for f in [tmp / "r5.rar", tmp / "prova.ad1", tmp / "cd_udf.iso"] + ([arch["7z"]] if "7z" in arch else []):
+            try:
+                with contextlib.redirect_stdout(io.StringIO()):
+                    fm.cmd_prepara(types.SimpleNamespace(case=str(tmp / "tel" / f.name), image=str(f), logica=False,
+                                                         lingua=None))
+                rif.append(False)
+            except SystemExit:
+                rif.append(not fmg.check(str(f))["ok"] and fmg.check(str(f), logica=True)["ok"])
+        check(tr("Sorgente logica: 7z, rar, AD1 e immagini di CD/DVD rifiutati come estrazioni di telefoni, accettati come sorgente logica"),
+              rif and all(rif), str(rif), interno=True)
+    except Exception as e:
+        check(tr("Sorgente logica: preparazione dei casi di prova"), False, f"{type(e).__name__}: {e}"[:160], interno=True)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def controlli_nist_lacune(check):
+    """(3.0.2) Lacune emerse dal caso NIST CFReDS «Data Leakage»: eventi di Windows 4608/1100/4634/4647/20001/20003/133
+    (XML sintetici passati al lettore, provider controllato, uscite di rete scartate) e Google Drive per Windows
+    (sync_config.db, snapshot.db anche con un record cancellato, sync_log.log in ora locale), costruiti sul modello delle
+    risposte NIST."""
+    import sqlite3
+    import types
+    import forense_estesa as fx
+    tmp = Path(tempfile.mkdtemp(prefix="collaudo_nist_"))
+    salva = {k: getattr(fx, k) for k in ("hive_rows", "fetch", "evtx_records", "find_files", "fetch_sqlite")}
+
+    class A0:
+        def __init__(self):
+            self.v = []
+
+        def add(self, cat, ts, title, detail="", user="", src=None, data=None):
+            self.v.append((cat, ts, title, detail, data or {}))
+    try:
+        sec = "Microsoft-Windows-Security-Auditing"
+
+        def ev(eid, prov, campi, ft):
+            return (eid, ft, prov, "<Event><EventData>" + "".join(
+                f'<Data Name="{k}">{v}</Data>' if k else f"<Data>{v}</Data>" for k, v in campi) + "</EventData></Event>", False)
+        ft0 = 130715000000000000                          # FILETIME 2015-03-23
+        eventi = {"security.evtx": [ev(4608, sec, [], ft0), ev(1100, "Microsoft-Windows-Eventlog", [], ft0 + 1),
+                                    ev(4634, sec, [("TargetUserName", "informant"), ("LogonType", "2"), ("TargetLogonId", "0x1")], ft0 + 2),
+                                    ev(4634, sec, [("TargetUserName", "informant"), ("LogonType", "3")], ft0 + 3),
+                                    ev(4647, sec, [("TargetUserName", "informant"), ("TargetLogonId", "0x1")], ft0 + 4),
+                                    ev(4608, "AltroProvider", [], ft0 + 5)],
+                  "system.evtx": [ev(20001, "Microsoft-Windows-UserPnp", [("DeviceInstanceID", "USBSTOR\\DISK&VEN_SANDISK"),
+                                                                           ("DriverName", "disk.inf")], ft0 + 6),
+                                  ev(20003, "Microsoft-Windows-UserPnp", [("DeviceInstanceID", "USBSTOR\\DISK&VEN_SANDISK"),
+                                                                           ("ServiceName", "disk")], ft0 + 7),
+                                  ev(133, "cdrom", [(None, "\\Device\\CdRom0")], ft0 + 8)]}
+        fx.hive_rows = lambda ctx, part, like: ([(0, 1, 0, like)] if like.split("/")[-1] in eventi else [])
+        fx.fetch = lambda ctx, part, inode, path, limit=0: path
+        fx.evtx_records = lambda f, ids, raw=False, stats=None: [e for e in eventi.get(str(f).split("/")[-1], []) if e[0] in ids]
+        A = A0()
+        fx.win_eventi(A, types.SimpleNamespace(), 0)
+        got = sorted((d.get("evento"), c) for c, _t, _ti, _de, d in A.v if d.get("evento"))
+        uscite = [ti for c, _t, ti, _de, d in A.v if d.get("evento") in (4634, 4647)]
+        check(tr("Eventi di Windows: avvio e chiusura (4608, 1100), uscite (4634 solo interattive, 4647), driver installati "
+                 "(20001, 20003) e masterizzazione (133), con il provider controllato"),
+              got == [(133, "dispositivi"), (1100, "eventi"), (4608, "eventi"), (4634, "eventi"), (4647, "eventi"),
+                      (20001, "usb"), (20003, "usb")] and uscite == [tr("Uscita: {v1}").format(v1="informant")] * 2,
+              f"{got} {uscite}"[:160], interno=True)
+        for k, v in salva.items():
+            setattr(fx, k, v)
+        # Google Drive: file costruiti sul modello delle risposte NIST (domande 30, 31 e 49)
+        gd = tmp / "Users/informant/AppData/Local/Google/Drive/user_default"
+        gd.mkdir(parents=True)
+        db = sqlite3.connect(str(gd / "sync_config.db"))
+        db.executescript("""CREATE TABLE data(entry_key TEXT, data_key TEXT, data_value TEXT);
+            INSERT INTO data VALUES ('user_email', 'value', 'iaman.informant.personal@gmail.com'),
+                                    ('local_sync_root_path', 'value', '\\\\?\\C:\\Users\\informant\\Google Drive'),
+                                    ('tango_storage', 'value', 'gettone-che-non-deve-entrare-nel-caso');""")
+        db.commit()
+        db.close()
+        db = sqlite3.connect(str(gd / "snapshot.db"))
+        db.executescript("""PRAGMA secure_delete = 0; PRAGMA auto_vacuum = 0;
+            CREATE TABLE cloud_entry(doc_id TEXT, filename TEXT, modified INTEGER, created INTEGER, acl_role INTEGER,
+                doc_type INTEGER, removed INTEGER, size INTEGER, checksum TEXT, shared INTEGER, resource_type TEXT, PRIMARY KEY (doc_id));
+            INSERT INTO cloud_entry VALUES ('0Bz0ye6gXtiZaTEST0000000001', 'happy_holiday.jpg', 1422636560, 1427142765, 0, 1, 0, 440517,
+                                            'aabbccddeeff00112233445566778899', 0, 'file');
+            INSERT INTO cloud_entry VALUES ('0Bz0ye6gXtiZaVl8yVU5mWHlGbWc', 'do_u_wanna_build_a_snow_man.mp3', 1422636560, 1427142765, 0, 1, 0,
+                                            6844294, '00112233445566778899aabbccddeeff', 0, 'file');""")
+        db.commit()
+        db.execute("DELETE FROM cloud_entry WHERE doc_id = '0Bz0ye6gXtiZaVl8yVU5mWHlGbWc'")
+        db.commit()
+        db.close()
+        (gd / "sync_log.log").write_text(
+            "2015-03-23 16:05:32,279 -0400 INFO pid=2576 2828:LaunchThreads common.service.user:64 Initializing User instance "
+            "with new credentials. iaman.informant.personal@gmail.com\n"
+            "2015-03-23 16:42:17,026 -0400 INFO pid=2576 4004:LocalWatcher common.aggregator:114 --------> Received event "
+            "RawEvent(DELETE, path=u'\\\\\\\\?\\\\C:\\\\Users\\\\informant\\\\Google Drive\\\\happy_holiday.jpg', time=1427143337.0, "
+            "ino=4503599627374809L, parent_ino=844424930207017L, affects_gdoc=False) None\n"
+            "2015-03-23 16:42:17,026 -0400 INFO pid=2576 4004:LocalWatcher common.change_buffer:1017 Adding event to change buffer: "
+            "RawEvent(DELETE, path=u'\\\\\\\\?\\\\C:\\\\Users\\\\informant\\\\Google Drive\\\\happy_holiday.jpg', time=1427143337.0, "
+            "ino=4503599627374809L, parent_ino=844424930207017L, affects_gdoc=False)\n",
+            encoding="utf-8")
+        righe = [(0, i, 0, f"Users/informant/AppData/Local/Google/Drive/user_default/{n}")
+                 for i, n in enumerate(("sync_config.db", "snapshot.db", "sync_log.log"), 1)]
+        fx.find_files = lambda con, part, like, deleted_ok=False: [r for r in righe if r[3].lower().endswith(like.split("/")[-1])]
+        ctx = types.SimpleNamespace(con=None, tmp=tmp / "lavoro")
+        ctx.tmp.mkdir()
+        fx.fetch = lambda ctx, part, inode, path, limit=0: tmp / path
+        import forense_agent as fag
+        lk = fag.lookup
+        fag.lookup = lambda con, part, path: None
+        try:
+            A = A0()
+            fx.win_gdrive(A, ctx, 0)
+        finally:
+            fag.lookup = lk
+        v = {(c, t, ti) for c, t, ti, _de, _d in A.v}
+        att = {("cloud", None, tr("Google Drive: account {v1}").format(v1="iaman.informant.personal@gmail.com")),
+               ("cloud", "2015-03-23T20:05:32", tr("Google Drive: accesso con l'account {v1}").format(v1="iaman.informant.personal@gmail.com")),
+               ("cloud", "2015-03-23T20:42:17", tr("Google Drive: {v1} {v2}").format(v1=tr("file") + " " + tr("cancellato"), v2="happy_holiday.jpg")),
+               ("cloud", "2015-01-30T16:49:20", tr("Google Drive (cloud): {v1}").format(v1="happy_holiday.jpg")),
+               ("cloud", "2015-01-30T16:49:20", tr("Google Drive (cloud): {v1}").format(v1="do_u_wanna_build_a_snow_man.mp3")
+                + tr(" (record cancellato, da verificare)"))}
+        dele = [d for _c, _t, _ti, _de, d in A.v if d.get("azione") == "DELETE"]
+        segreti = [1 for _c, _t, _ti, de, d in A.v if "gettone" in de + json.dumps(d)]
+        check(tr("Google Drive per Windows: account, accesso e file cancellato in UTC dal registro, file del cloud anche da un "
+                 "record cancellato di snapshot.db"),
+              v == att and len(dele) == 1 and not segreti and dele[0].get("percorso") == "C:\\Users\\informant\\Google Drive\\happy_holiday.jpg",
+              str(sorted(v ^ att, key=str))[:160], interno=True)
+    except Exception as e:
+        check(tr("Lacune NIST: eventi di Windows e Google Drive"), False, f"{type(e).__name__}: {e}"[:160], interno=True)
+    finally:
+        for k, v in salva.items():
+            setattr(fx, k, v)
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+# (3.0.2) StickyNotes.snt del PC del caso NIST CFReDS «Data Leakage» (opera del governo degli Stati Uniti, pubblico
+# dominio; SHA-256 6ccbffc4e978aafeb950ca5d87a413f96435514ca16d6be5508ed68df071b7b2), compresso con lzma
+NIST_SNT = (
+    "/Td6WFoAAATm1rRGAgAhARwAAAAQz1jM4A//ArpdAGgzvhyGMHdg9KSEKkAMHHYngvKRhtyIyirh/cWK+fpgy3DJNRrUYuGP2nim9xJii5vgHY"
+    "6sXFLCHrj6nhy74/ZRqLP6U2SuhQyLHchbSrIfFZacPOAkdeVQyXlanQm9a0cKIBDEyEWVso6gGS/3cBTvGAH4I10sKaZjqqpyuT5kJ96t/Qkw"
+    "rOWs9utlawpzd5OGS2+LJ1RqXdyMFL8e/LpLqN5wBxF9hBvmEhFXeiriPYCjxcClatcW/JexAqHf0Yn5cAMBb6jTeLB3JqJSd4Vys/187LBQgG"
+    "baO0HIqEytH4T3WyFGZRimGTX7RlYPH9NAqbqJx4VIEi4pjnzqTrjg2Z/BEFlM/BcxqfvI2+BvXkaiKHbPnqWCVsEPVRnkWxs2skO3zxL7Mdta"
+    "djqRRFs58XrNrXIG/OZgI2qfVHLljC1hExCQgpV1+ad/skYcLfMns23V6WkfeaIhZVBMJMuZvkC2Zss/84hUR0T8PhyCeVwCooUfIdDWv3gwbG"
+    "bEnanHhhtq44tNev6Sf9X6kVkVvr8VfF29fdSzpBu9onU68oTvgH5XWXPMBpv7CAnsaqfOPSX2DYOA/KIlHf5uJmM4K+BWyMpokb16xODbCEzL"
+    "2/l5WWWTRIZLgNYwYOlNzUPiAfDnzXxa6LAM2dH/bIxYYP18KBY9gETqPVdCzR6w+QvtQ416pllPKl0M4UVf+hHi86KhBbgKZ6Xq5YdDHTDdZj"
+    "6rQldacdyYxNLZjTkkJn1qv0EwxdNI5TOND0e66jFM1j3XVihIyG7edZVYX6wvS2zf38/NGhgm+UU+XBWTrXhRyCBjCPu38so4SNf+XbGUz7go"
+    "2clkBwgn/MqTe750oSyTuBqM6xlWV2EA4INZ2i1Upe+fO9++c5g7g8PoVuy1WFCpKouoztmFE0QePl4DI9gjpWbh5ZSAAAAAhI/PhCo0nOEAAd"
+    "YFgCAAAERUxhqxxGf7AgAAAAAEWVo=")
+
+
+class _EseCol:
+    def __init__(self, name, tipo):
+        self.name, self.type = name, tipo
+
+
+class _EseRec:
+    def __init__(self, valori):
+        self.v = valori
+
+    def get_value_data(self, j):
+        x = self.v[j]
+        return x if isinstance(x, bytes) or x is None else str(x).encode("utf-16-le")
+
+    def get_value_data_as_string(self, j):
+        return self.v[j]
+
+    def get_value_data_as_integer(self, j):
+        return self.v[j]
+
+
+class _EseTab:
+    """Tabella ESE costruita per il collaudo, con la stessa interfaccia di pyesedb (colonne e record)."""
+    def __init__(self, name, colonne, righe):
+        self.name, self._c = name, [_EseCol(n, t) for n, t in colonne]
+        self.number_of_columns, self.number_of_records = len(colonne), len(righe)
+        self._r = [_EseRec([r.get(n) for n, _t in colonne]) for r in righe]
+
+    def get_column(self, j):
+        return self._c[j]
+
+    def get_record(self, i):
+        return self._r[i]
+
+
+class _EseDb:
+    def __init__(self, tabelle):
+        self._t = tabelle
+        self.number_of_tables = len(tabelle)
+
+    def get_table(self, i):
+        return self._t[i]
+
+    def get_table_by_name(self, n):
+        return next((t for t in self._t if t.name == n), None)
+
+
+def controlli_nist_validazione(check):
+    """(3.0.2) Difetti trovati confrontando RepertIA con le risposte NIST del caso «Data Leakage» (domande 23 e 55):
+    nel journal NTFS un file rinominato più volte prendeva per tutte le rinomine il nome vecchio dell'ultima; i documenti
+    rinominati .amr o .svg non erano segnalati come estensione falsa. Record USN v2 costruiti come quelli del PC NIST."""
+    import sqlite3
+    import types
+    import forense_estesa as fx
+
+    def rec(usn, fref, pref, reason, attr, nome, ft):
+        n = nome.encode("utf-16-le")
+        rl = (60 + len(n) + 7) & ~7
+        b = struct.pack("<IHH", rl, 2, 0) + struct.pack("<QQQQI", fref, pref, usn, ft, reason) + \
+            struct.pack("<III", 0, 0, attr) + struct.pack("<HH", len(n), 60) + n
+        return b + bytes(rl - len(b))
+
+    class A0:
+        def __init__(self):
+            self.v = []
+
+        def add(self, cat, ts, title, detail="", user="", src=None, data=None):
+            self.v.append((title, detail))
+    ft = 130716000000000000
+    cart, file_ = (1 << 48) | 100, (1 << 48) | 200          # (sequenza 1) cartella «S data» e il file
+    buf = b"".join([rec(1, file_, cart, 0x1000, 0x20, "[secret_project]_detailed_design.pptx", ft),
+                    rec(2, file_, cart, 0x2000, 0x20, "winter_whether_advisory.zip", ft),
+                    rec(3, file_, cart, 0x80002000, 0x20, "winter_whether_advisory.zip", ft),
+                    rec(4, file_, cart, 0x1000, 0x20, "winter_whether_advisory.zip", ft + 10 ** 7),
+                    rec(5, file_, cart, 0x2000, 0x20, "winter_storm.amr", ft + 10 ** 7),
+                    rec(6, file_, cart, 0x80002000, 0x20, "winter_storm.amr", ft + 10 ** 7)])
+    con = sqlite3.connect(":memory:")
+    con.execute("CREATE TABLE files (part, inode, deleted, type, path)")
+    con.execute("INSERT INTO files VALUES (0, '100-144-1', 0, 'd/d', 'Users/informant/Desktop/S data')")
+    A = A0()
+    fx.usn_to_artifacts(A, types.SimpleNamespace(con=con), 0, [(0, len(buf))], len(buf), lambda p, n: buf[p:p + n])
+    pr = tr(" (prima: {v1})").split("{")[0].lstrip()            # «(prima: » / «(before: »: il dettaglio è tradotto
+    prima = [(t.rsplit("/", 1)[-1], d.split(pr, 1)[-1].split(")")[0].rsplit("/", 1)[-1]) for t, d in A.v
+             if pr in d]
+    check(tr("Journal NTFS: un file rinominato due volte ha per ogni rinomina il suo nome vecchio (difetto trovato con il "
+             "caso NIST «Data Leakage», domanda 23)"),
+          prima == [("winter_whether_advisory.zip", "[secret_project]_detailed_design.pptx"),
+                    ("winter_storm.amr", "winter_whether_advisory.zip")], str(prima)[:160], interno=True)
+    ole = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1" + bytes(504)
+    fam = fx.detect_sig(ole)[0]
+    check(tr("Estensioni false: un documento Office rinominato .amr o .svg è riconosciuto (audio AMR e SVG tra le "
+             "estensioni conosciute; caso NIST «Data Leakage», domanda 55)"),
+          fam == "ole" and fx.detect_sig(b"#!AMR\n" + bytes(32))[0] == "amr" and {"amr", "svg"} <= fx.KNOWN_EXT
+          and "amr" not in fx.FAMILY_EXT["ole"] and "svg" not in fx.FAMILY_EXT["ole"], fam, interno=True)
+
+
+def controlli_nist_ese(check):
+    """(3.0.2) Indice di Ricerca di Windows (Windows.edb), cronologia di Internet Explorer 11 (WebCacheV01.dat) e Sticky
+    Notes, sul modello del caso NIST «Data Leakage» (domande 13-15 e 40-46). Un database ESE non si può scrivere: si
+    usano valori grezzi veri copiati dal Windows.edb NIST (7 bit, XOR, date big endian) e tabelle costruite con la stessa
+    interfaccia di pyesedb, con i testi codificati come in Windows 7; StickyNotes.snt è il file NIST vero."""
+    import types
+    import forense_ese as fz
+    import forense_estesa as fx
+    tmp = Path(tempfile.mkdtemp(prefix="collaudo_ese_"))
+    salva = {k: getattr(fx, k) for k in ("fw", "fetch", "find_files", "fetch_sqlite")}
+    salva_z = {k: getattr(fz, k) for k in ("windows_search", "webcache")}
+
+    class A0:
+        def __init__(self):
+            self.v = []
+
+        def add(self, cat, ts, title, detail="", user="", src=None, data=None):
+            self.v.append((cat, ts, title, detail, data or {}))
+
+    def sette(s, tipo=0x13):                     # testo a 7 bit di Windows 7
+        out, acc, n = bytearray([tipo]), 0, 0
+        for ch in s.encode("ascii"):
+            acc |= ch << n
+            n += 7
+            while n >= 8:
+                out.append(acc & 0xFF)
+                acc >>= 8
+                n -= 8
+        if n:
+            out.append(acc & 0xFF)
+        return bytes(out)
+
+    def blocchi(s):                              # UTF-16 a blocchi: [quanti][byte alto][byte bassi…]
+        out, i = bytearray([0]), 0
+        while i < len(s):
+            hi, j = ord(s[i]) >> 8, i
+            while j < len(s) and ord(s[j]) >> 8 == hi and j - i < 255:
+                j += 1
+            out += bytes([j - i, hi]) + bytes(ord(c) & 0xFF for c in s[i:j])
+            i = j
+        return bytes(out)
+
+    def xor(b):                                  # maschera di Windows 7 (chiave dalla lunghezza)
+        m = 0x05000113 ^ len(b)
+        return bytes(c ^ (((m >> (8 * (k % 4))) & 0xFF) ^ (k & 0xFF)) for k, c in enumerate(b))
+
+    def ft(s):                                   # FILETIME da 'AAAA-MM-GGTHH:MM:SS' (UTC)
+        return int((dt.datetime.fromisoformat(s) - dt.datetime(1601, 1, 1)).total_seconds()) * 10 ** 7
+
+    try:
+        # 1. valori grezzi veri del Windows.edb NIST
+        vero = {"store": fz.ws_testo(b"\x14Szz\xbc\xce;\xdf\xf4\xf2\x1c"),
+                "url": fz.ws_testo(b"\x12h:\x1d\xae{\xbd\xee\xf7\xbb\xab=w\xbb\xc6\xef\xf6\xeb\xf7\x1e\xa7\xc9\xbdt\x19\r\x07"),
+                "data": fz.ws_data(b"\x01\xd0d\xb2.%\xf4`"),
+                "nota": fz.ws_testo(b"\x14\xd4w\xfb-\x97\xbf\xef.\x97\xab\xa1h(\x8a\xf6\xb2<OG\xa7\xddg\xd0=\xcdf\x83\xc4e"
+                                    b"\xd0s\xe9r\xb9\x1a\x8a\x86\x02"),
+                "riassunto": fz.ws_testo(fz.smaschera(b":TmkPvtmD&$ :\x01K|NbkbG}xu\x03osrK<|\x7f;oi\x081\n+/"))}
+        check(tr("Ricerca di Windows: valori veri del caso NIST decodificati (testo a 7 bit, data big endian, testo mascherato)"),
+              vero["store"] == "StickyNotes" and vero["url"] == "http://www.msn.com/?ocid=iehp"
+              and vero["data"] == "2015-03-22T15:09:23" and vero["nota"] == "Tomorrow...\r\n\r\nEverything will be OK..."
+              and (vero["riassunto"] or "").startswith("Tomorrow...") and "Everything will be OK" in vero["riassunto"],
+              str(vero)[:160], interno=True)
+
+        # 2. indice costruito: un file del Desktop, una mail con allegato, una visita di IE (colonne con il prefisso di Windows 10)
+        C = [("System_ItemPathDisplay", 12), ("4447-System_Search_Store", 12), ("System_DateCreated", 9),
+             ("System_DateModified", 9), ("System_Size", 9), ("System_Subject", 12), ("System_Message_FromName", 12),
+             ("System_Message_ToAddress", 12), ("System_Message_ToName", 12), ("System_Message_DateSent", 9),
+             ("System_Message_DateReceived", 9), ("System_Message_AttachmentNames", 12), ("System_Search_AutoSummary", 11),
+             ("System_ItemFolderPathDisplay", 12), ("Microsoft_IE_TargetUrl", 12), ("Microsoft_IE_VisitCount", 14)]
+        be = lambda s: ft(s).to_bytes(8, "big")
+        desk = r"C:\Users\informant\Desktop\Resignation_Letter_(Iaman_Informant).docx"
+        righe = [{"System_ItemPathDisplay": sette(desk), "4447-System_Search_Store": sette("file"),
+                  "System_DateCreated": be("2015-03-24T18:48:40"), "System_DateModified": be("2015-03-24T18:50:00"),
+                  "System_Size": (12345).to_bytes(8, "big")},
+                 {"System_ItemPathDisplay": sette("/iaman.informant@nist.gov/Sent Items/RE: Good job, buddy."),
+                  "4447-System_Search_Store": sette("mapi15", 0x11), "System_Subject": blocchi("RE: Good job, buddy."),
+                  "System_Message_FromName": sette("iaman"), "System_Message_ToAddress": sette("spy.conspirator@nist.gov"),
+                  "System_Message_ToName": sette("spy"), "System_Message_DateSent": be("2015-03-23T19:19:22"),
+                  "System_Message_DateReceived": be("2015-03-23T19:19:22"),
+                  "System_Message_AttachmentNames": sette("space_and_earth.mp4"),
+                  "System_Search_AutoSummary": xor(blocchi("This is a sample. I’ll be in touch.")),
+                  "System_ItemFolderPathDisplay": sette("/iaman.informant@nist.gov/Sent Items")},
+                 {"System_ItemPathDisplay": sette("http://www.msn.com/?ocid=iehp", 0x16), "4447-System_Search_Store": sette("iehistory", 0x16),
+                  "Microsoft_IE_TargetUrl": sette("http://www.msn.com/?ocid=iehp", 0x16),
+                  "System_DateModified": b"\x01\xd0d\xb2.%\xf4`", "Microsoft_IE_VisitCount": (2).to_bytes(4, "little")},
+                 {"System_Size": b"*" * 8}]                         # riga senza percorso: scartata
+        db_ws = _EseDb([_EseTab("MSysObjects", [("Name", 12)], []), _EseTab("SystemIndex_0A", C, righe)])
+        fz.windows_search = lambda f, max_righe=0: fz.ws_righe(db_ws)
+        fx.fw = lambda ctx, part, like, deleted_ok=False: ([(0, 1, 0, "ProgramData/Microsoft/Search/Data/Applications/Windows/Windows.edb")]
+                                                             if like.endswith("windows.edb") else [])
+        fx.fetch = lambda ctx, part, inode, path, limit=0: tmp / "x"
+        A = A0()
+        fx.win_ricerca(A, types.SimpleNamespace(), 0, {})
+        ind = {d.get("store"): (ts, ti, d) for c, ts, ti, _de, d in A.v if c == "indice"}
+        rie = [d for c, _ts, _ti, _de, d in A.v if c == "sistema" and d.get("fonte") == "Windows Search"]
+        f, m, ie = ind.get("file"), ind.get("mapi15"), ind.get("iehistory")
+        ok = (f and f[2].get("percorso") == desk and f[2].get("creato") == "2015-03-24T18:48:40" and f[2].get("dimensione") == 12345
+              and m and m[0] == "2015-03-23T19:19:22" and m[1] == "RE: Good job, buddy." and m[2].get("a") == "spy <spy.conspirator@nist.gov>"
+              and m[2].get("allegati") == "space_and_earth.mp4" and m[2].get("testo") == "This is a sample. I’ll be in touch."
+              and ie and ie[0] == "2015-03-22T15:09:23" and ie[2].get("url") == "http://www.msn.com/?ocid=iehp" and ie[2].get("visite") == 2
+              and len(rie) == 1 and rie[0].get("elementi") == 3 and rie[0].get("contenuti") == {"file": 1, "mapi15": 1, "iehistory": 1})
+        check(tr("Ricerca di Windows (Windows.edb): file del Desktop con la data di creazione, posta con destinatario, allegato e "
+                 "testo, visita di Internet Explorer, riepilogo dell'indice"), bool(ok),
+              str([(k, v[0], v[1]) for k, v in ind.items()] + rie)[:160], interno=True)
+
+        # 3. WebCache costruita: contenitore History (UTC), MSHist (ModifiedTime locale da ignorare), cache dei contenuti esclusa
+        cont = _EseTab("Containers", [("ContainerId", 4), ("Name", 12), ("Directory", 12)], [
+            {"ContainerId": 1, "Name": "History", "Directory": r"C:\Users\informant\AppData\Local\Microsoft\Windows\History\Low\History.IE5" "\\"},
+            {"ContainerId": 2, "Name": "MSHist012015032320150324", "Directory": r"C:\Users\informant\History.IE5\MSHist012015032320150324" "\\"},
+            {"ContainerId": 3, "Name": "Content", "Directory": r"C:\Users\informant\Content.IE5" "\\"}])
+        cc = [("Url", 12), ("AccessedTime", 15), ("ModifiedTime", 15), ("AccessCount", 4)]
+        tab = [cont,
+               _EseTab("Container_1", cc, [{"Url": "Visited: informant@http://go.microsoft.com/fwlink/?LinkId=69157",
+                                            "AccessedTime": ft("2015-03-23T17:27:36"), "ModifiedTime": ft("2015-03-22T15:09:01"),
+                                            "AccessCount": 2}]),
+               _EseTab("Container_2", cc, [{"Url": ":2015032320150324: informant@http://www.bing.com/news?q=sports+news&FORM=NSBABR",
+                                            "AccessedTime": ft("2015-03-23T20:55:57"), "ModifiedTime": ft("2015-03-23T16:55:57"),
+                                            "AccessCount": 1},
+                                           {"Url": ":2015032320150324: informant@:Host: www.bing.com",
+                                            "AccessedTime": ft("2015-03-23T20:55:57"), "ModifiedTime": 0, "AccessCount": 1}]),
+               _EseTab("Container_3", cc, [{"Url": "http://non.deve.comparire/immagine.jpg", "AccessedTime": ft("2015-03-23T20:00:00"),
+                                            "ModifiedTime": 0, "AccessCount": 1}])]
+        fz.webcache = lambda f, max_righe=0: fz.wc_visite(_EseDb(tab))
+        wc = "Users/informant/AppData/Local/Microsoft/Windows/WebCache/WebCacheV01.dat"
+        fx.find_files = lambda con, part, like, deleted_ok=False: [(0, 2, 0, wc)] if like.endswith("webcachev01.dat") else []
+        A = A0()
+        fx.win_webcache(A, types.SimpleNamespace(con=None), 0)
+        web = sorted((ts, d.get("url"), d.get("prima"), d.get("visite")) for c, ts, _ti, _de, d in A.v if c == "web")
+        att = [("2015-03-23T17:27:36", "http://go.microsoft.com/fwlink/?LinkId=69157", "2015-03-22T15:09:01", 2),
+               ("2015-03-23T20:55:57", "http://www.bing.com/news?q=sports+news&FORM=NSBABR", None, 1)]
+        check(tr("Internet Explorer 11 (WebCacheV01.dat): visite dei contenitori History e MSHist in UTC, prima visita, "
+                 "voci «:Host:» e cache dei contenuti escluse"), web == att, str(web)[:160], interno=True)
+
+        # 4. Sticky Notes: StickyNotes.snt vero del caso NIST
+        import base64
+        import lzma
+        snt = tmp / "StickyNotes.snt"
+        snt.write_bytes(lzma.decompress(base64.b64decode(NIST_SNT)))
+        sp = "Users/informant/AppData/Roaming/Microsoft/Sticky Notes/StickyNotes.snt"
+        fx.find_files = lambda con, part, like, deleted_ok=False: [(0, 3, 0, sp)] if like.endswith("stickynotes.snt") else []
+        fx.fetch = lambda ctx, part, inode, path, limit=0: snt
+        A = A0()
+        fx.win_sticky(A, types.SimpleNamespace(con=None), 0)
+        note = [(c, ts, d.get("testo")) for c, ts, _ti, _de, d in A.v]
+        check(tr("Sticky Notes (StickyNotes.snt del caso NIST): testo della nota e data di modifica"),
+              note == [("note", "2015-03-24T18:31:17", "Tomorrow...\r\n\r\nEverything will be OK...")], str(note)[:160], interno=True)
+    except Exception as e:
+        check(tr("Lacune NIST: Ricerca di Windows, Internet Explorer e Sticky Notes"), False, f"{type(e).__name__}: {e}"[:160],
+              interno=True)
+    finally:
+        for k, v in salva.items():
+            setattr(fx, k, v)
+        for k, v in salva_z.items():
+            setattr(fz, k, v)
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+# (3.0.2) dati di prova incorporati per la sorgente logica: AD1 compresso dei test di dissect.evidence (Fox-IT,
+# AGPL-3.0-or-later, tests/_data/ad1/compressed.ad1); RAR 4 e RAR 5 dei test di libarchive (BSD-2-Clause,
+# libarchive/test/test_read_format_rar.rar.uu e test_read_format_rar5_stored.rar.uu)
+GPX_PROVA = ('<?xml version="1.0" encoding="UTF-8"?><gpx version="1.1" xmlns="http://www.topografix.com/GPX/1/1">'
+             '<wpt lat="41.9028" lon="12.4964"><name>Roma</name></wpt><trk><name>giro</name><trkseg><trkpt lat="41.90" '
+             'lon="12.49"/><trkpt lat="41.91" lon="12.50"/><trkpt lat="41.92" lon="12.51"/></trkseg></trk></gpx>')
+LOGICA_AD1 = (
+    "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")
+# (3.0.2) immagini di CD/DVD costruite per il collaudo (hdiutil makehybrid su macOS, compresse con lzma): UDF e
+# ISO 9660 con prezzi.txt e cartella/nota.txt (15/03/2024 09:30 UTC)
+LOGICA_UDF = (
+    "/Td6WFoAAATm1rRGAgAhARwAAAAQz1jM8Nf/BGZdAABv/f//o7f/Rz5IFXI5YVG4kijmo4YH+e7kHoLTL8U6PAFLsX7JiopNL6MN2X+m44wjEV"
+    "PgWRjFdYrid/dF3wqDSd0lzkOkZMb7/GykU+G5zXr6KWg4QtDYrIBvgm1s5XpPPTTB4c8EnY1U6CaIAheQl/XMLk870P9oQE551pREtf6udvj/"
+    "yR6g50DjpoNCiPe+vWY77dq+Z9/bXmL+mphI57ZwVA4JBD0lJGPT6trFe6/uR50d0HnRRnrPBKQMvdvhLCJBJrZYSRsKPzBUomHvv2rwNDBmTN"
+    "vyQUHATmif+twESdpzsbF/viGPQyxsaZWMaJ5TNs5acyJ5ibLyj8rdt1v8f7GpHJDP/J0jdUH24XCRsIXSuXdQ2JqbDrJ7B9TccCVgqf7lVeI3"
+    "16eRLZ2gVAmugnIM/8PLSI6lMLzNJnTXJlpqdQLn1pXPAc5wahxpuRAJ21zXB1EO7snNuedezYu591Q2PToY6/SolIeOuEoBWAXEkorfjCuJBv"
+    "eaPUPVL7Z2ybq0HeZ/9eaasraYPAX9aYtCdvWIT4Q62ZvT2Cz9D0kGdUJVmcnbPa8FihZDJPFCoywMJVRdRJ3k9P/XDB1yKDrJmT3/QfHvKDFf"
+    "CfcUZuWA6Z+mi5T3i0sOdFc/8MNRxRCSuNvNnW5LlYEm8/fijsQzqVT/7wo4HB7OHTNAaYi3BhoKhLDhhUhq+zWQ2v1aaTELslaJWd2JEHC5am"
+    "u6NUMnuY7aZuFO6j2ZSRYrlflH+k7nUuKSBlYZnkSe4tLkRvTBpIa2awmYOSOrnIWIny+sF7+kByxKm94rkl2XB+d5nE0PnetjpZEITDMvWLz2"
+    "UJh991zBvsKc3aGpEG+u0/fZPPvh7g+DETifHmKsM1N5TIdLNGbBP1LeGVgrS8x6KF7c2DrP88S+3xbtUrA301VrnPbmmh+fDB0o/TC54/peeZ"
+    "PEDd0AcaHnLlF+sT8Hg7p08h1zpab7agLYFF/Jmd1INMr9PA4Q+cyTpLFJY2B50Sy7E9AKCPTUkVgxralnCb+UBz5mwsrRn4PdH3hdmzGpbhz+"
+    "Eix8M70eS1PB2wmuNYggrK1kFz5dKVKSP5LKrXBFecfA84jTTsXsMRosHSxw6CodpUSYWKfUaUy5VQtRg0C2izM8RAjqQFtePMa7wOuG0nOY2q"
+    "rzdtNNyAQFkQTcLFhgKSdTDN6euKWy/kfOnFOysR8TenGaieJGQWPIT5HeFUub+7zR0vR+BAC8s5ZIGj/PhFknaUjs+dGf8WMXxf/VOx23Moca"
+    "IFHoQrdIrVZhtWFnyC5EX4ENgo5WhkXnMofxFMD1vHDmj3i/fpYWXczFuk61DtBIcljfZkPf+1TS0VvGRQp0JQt/Cs5SaA9glwqeR4F4J+gEJS"
+    "LSPPqWVftNJSueW3NE6uNWjHAaO4FHZv5eLf8u65odus6xJxhcWYbpZlJYvul2rFnk5VsFCPnH2q38+1IrdM0eWyBC+d1TPfgpZAk7gMspK0Oo"
+    "wAAAAABQ8ERM7d7cDQABggmAsEMAkldubrHEZ/sCAAAAAARZWg==")
+LOGICA_ISO = (
+    "/Td6WFoAAATm1rRGAgAhARwAAAAQz1jM7g//A05dAABv/f//o7f/Rz5IFXI5YVG4kijmo4YH+e7kHoLTL8U6PAFLsX7JiopNL6MN2X+m44wjEV"
+    "PgWRjFdYrid/dE790OjkefKuUNGdrowmcelHU2dZCyW5owxKOVQ9hRXzInsxkkP5dyFYHZ/C3IKETEDzfOzic0KEYB/RKDASrld9e9zYFhiRJt"
+    "pJFVMIZdc7Gyq+Jc6LMhQwkIw1AN9ecbw7e5VtoUJm8JNaU7aSyZBmR+9/UP/bxUMDjiYKmVTiCA3xU4cBeEXmRxXfynK3EQJ6KUkMYOVI1o/e"
+    "GBg43stbN9k5RePqE1k7OCiLwO4GRFNWUFE9d1crFgfbamb9tl/wj1oPjze79Y1cUmzMOTz2Q+4M8pvSOE06UcEuyOYz9Bf2YAIA3XRvoz1HCk"
+    "vu119Z6yB5+9GhAa8YQCPWAPRaoYWDlsWAlfgvnJbjmkR14QwoVCjugLsr/NMpO9e2IWHtcox8r1dc763gYfbE8WU/MW46hIa7oRonMAHgyg/R"
+    "3tm6kRZeDCTu6pnsMYagiWaSUewi97d/KtcB2FE8HdGa3v6Gx8RFfngIVppob142meYcD9Tqe6cJj0XtvY5L/wQygLgYtl1HC+ws7iVfNdK41Y"
+    "lk/TRt8j9OjrGSSZIdUmTtv4bVsoo9DIcFz46ztp+j0sUWFNWGOv74ciAj/jzgkjoG5GpEY57u+bZn77FyS7GdkMDx6fJCEdgrONS24QzMPuFS"
+    "zuBB6834iimfxSaBJ7zFDxobiAo2gPQ1TbfC5wwmDxZKDOnKubW8Vt3Y6iNwZXmPlYtl4+mFE1xa/RgwGQNhNijupsJpgf4JQ4pqGDEky3cvBW"
+    "9QSb5VjxEFQ/pwVqijYVL5uE76dBRk7zAob6VOF08bMYBPI8xqd0Svj4TlBhj/JiFuYme08XYaWKKNP9N/tNOb2xHUiJpHBiLrM17suUAp1UNj"
+    "0YuSBJ2BqIGAEPa1ZEfskPsfGTVdBi9EnKwLoCxCImUUKY92z48h/ftTvwxL0uX6oPPktmQpATDv8Qk/hxeFn4C83/lShGD6n8fN77mjAuVsCP"
+    "hfODgcBlxCVT+PWRNjEFpbDub8FwTUcM0ZERqq1gHbrOsScYXFmG6WZSWL7pdqsLkCcgAAAAAAN0tBtXNXNEAAHqBoCgOAA5TnTYscRn+wIAAA"
+    "AABFla")
+LOGICA_RAR4 = (
+    "UmFyIRoHAM+QcwAADQAAAAAAAACEUnQgkDIAFAAAABQAAAADQqLIvrd22j4UMAgApIEAAHRlc3QudHh0gAi3dto+t3baPnRlc3QgdGV4dCBkb2"
+    "N1bWVudA0KnS90IJAyAAgAAAAIAAAAA3tEybbRTNg+FDAIAP+hAAB0ZXN0bGlua8AI0UzYPlBf2j50ZXN0LnR4dM3gdCCQOgAUAAAAFAAAAANC"
+    "osi+Y3faPhQwEACkgQAAdGVzdGRpclx0ZXN0LnR4dMDMY3faPmN32j50ZXN0IHRleHQgZG9jdW1lbnQNCqHIdOCQMQAAAAAAAAAAAAMAAAAAY3"
+    "faPhQwBwDtQQAAdGVzdGRpcsDMY3faPmR32j7m53TgkDYAAAAAAAAAAAADAAAAAJ2r1T4UMAwA7UEAAHRlc3RlbXB0eWRpcoDMnavVPsVd2j7E"
+    "PXsAQAcA")
+LOGICA_RAR5 = (
+    "UmFyIRoHAQAzkrXlCgEFBgAFAQGAgAA4MAZjLAIDC50ABJ0ApIMCtEOglYAAAQ5oZWxsb3dvcmxkLnR4dAoDE34Oq1tW6Q4aaGVsbG8gbGliYX"
+    "JjaGl2ZSB0ZXN0IHN1aXRlIQodd1ZRAwUEAA==")
 
 def controlli_copia_smartphone(check):
     """(3.0) Un caso smartphone collegato a una nuova posizione legge i file da lì, anche se collegato con la 2.21."""
@@ -1889,6 +2554,25 @@ def controlli_recupero_wa(check):
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def controlli_eliminati_recenti(check):
+    """(3.0.2) iMessage cancellati dall'utente ma ancora in «Eliminati di recente» (sms.db di iOS 16 e successivi): riconosciuti
+    da chat_recoverable_message_join, con la conversazione e la data della cancellazione; i messaggi normali no."""
+    import sqlite3
+    import forense_mobile_chat as fmc
+    db = sqlite3.connect(":memory:")
+    db.executescript("""CREATE TABLE message(ROWID INTEGER PRIMARY KEY, text TEXT);
+        CREATE TABLE chat_message_join(chat_id INTEGER, message_id INTEGER);
+        CREATE TABLE chat_recoverable_message_join(chat_id INTEGER, message_id INTEGER, delete_date INTEGER, ck_sync_state INTEGER);
+        INSERT INTO message VALUES (1, 'normale'), (2, 'cancellato');
+        INSERT INTO chat_message_join VALUES (7, 1);
+        INSERT INTO chat_recoverable_message_join VALUES (7, 2, 743872096906034048, 0);""")
+    r = fmc.eliminati_recenti(db)
+    vuoto = sqlite3.connect(":memory:")
+    vuoto.execute("CREATE TABLE message(ROWID INTEGER PRIMARY KEY)")
+    check(tr("iMessage in «Eliminati di recente»: riconosciuti con conversazione e data della cancellazione"),
+          r == {2: (7, "2024-07-28T15:08:16")} and fmc.eliminati_recenti(vuoto) == {}, str(r), interno=True)
+
+
 def controlli_gps_segno(check):
     """(3.0) Il segno di latitudine e longitudine viene dalla direzione: Ovest e Sud sono negativi."""
     con_c = {"GPS:GPSLatitude": 35.6, "GPS:GPSLatitudeRef": "S", "GPS:GPSLongitude": 78.8, "GPS:GPSLongitudeRef": "W",
@@ -2123,6 +2807,98 @@ def controlli_crypt15(case, check):
           bool(k) and fmwb.chiave_digitata(" ".join(k.hex()[i:i + 4] for i in range(0, 64, 4))) == k, "", interno=True)
 
 
+def controlli_logica_nist(t, img, case, con, a, check):
+    """(3.0.2) Sorgente logica su un'immagine pubblica NIST (CD-R RM#3 del «Data Leakage Case»): archivio uguale a quello
+    pubblicato (SHA-1 NIST), file finali e file delle VAT precedenti con i nomi e gli orari delle risposte ufficiali."""
+    import forense_mobile as fm
+    arc = Path(img).parents[2] / "nist" / Path(img).parent.name
+    for nome, sha1 in (a.get("sha1_archivio") or {}).items():
+        h = hashlib.sha1()
+        try:
+            with open(arc.parent / nome, "rb") as f:
+                while c := f.read(8 << 20):
+                    h.update(c)
+            got = h.hexdigest()
+        except OSError:
+            got = None
+        check(tr("SHA-1 dell'archivio {nome} uguale a quello pubblicato da NIST").format(nome=nome), got == sha1.lower(),
+              tr("atteso {want}, letto {got}").format(want=sha1.lower(), got=got))
+    m = fm.mx(case)
+    try:
+        righe = m.execute("SELECT path, crtime FROM mobile_files WHERE isdir=0").fetchall()
+    finally:
+        m.close()
+    if "radice" in a:
+        got = sorted(p for p, _c in righe if "/" not in p)
+        check(tr("file presenti alla fine sul disco: {v1}").format(v1=", ".join(a["radice"])), got == sorted(a["radice"]),
+              ", ".join(got)[:300] + (f" — {a['nota_radice']}" if a.get("nota_radice") else ""))
+    prec = {p.split("/", 1)[1]: c for p, c in righe if p.startswith("[") and "/" in p}
+    if "vat_precedenti" in a:
+        want = set(a["vat_precedenti"])
+        check(tr("{n} file recuperati dalle VAT precedenti, con i nomi pubblicati").format(n=len(want)), set(prec) == want,
+              (tr("differenze: {v1}").format(v1=sorted(set(prec) ^ want)) if set(prec) != want else str(len(prec)))[:300]
+              + (f" — {a['nota_vat']}" if a.get("nota_vat") else ""))
+    if "vat_creati_tra" in a:
+        da, a_ = a["vat_creati_tra"]
+        ore = sorted(c for c in prec.values() if c)
+        check(tr("file delle VAT precedenti masterizzati tra {da} e {a} UTC").format(da=da, a=a_),
+              len(ore) == len(prec) > 0 and ore[0] >= da and ore[-1] <= a_, f"{ore[:1]} … {ore[-1:]}"
+              + (f" — {a['nota_ore']}" if a.get("nota_ore") else ""))
+    if "cancellati_vat" in a:
+        n = con.execute("SELECT count(*) FROM files WHERE deleted=1 AND type='r/r'").fetchone()[0]
+        check(tr("file delle VAT precedenti segnati come cancellati"), n == a["cancellati_vat"],
+              tr("attesi {v1}, trovati {v2}").format(v1=a["cancellati_vat"], v2=n))
+
+
+DFR_TAG = re.compile(rb"\nDFR\n(?:File (?P<f1>\S+) path|Block (?P<b>\d+) Segment \d+ file (?P<f2>\S+) path)")
+
+
+def controlli_dfr(t, img, case, con, a, check):
+    """(3.0.2) Immagini NIST CFTT «Deleted File Recovery»: archivio uguale a quello pubblicato (SHA-256 NIST), file
+    cancellati con i metadati elencati come cancellati e, per quelli non sovrascritti, contenuto letto come
+    nell'interfaccia (icat_stream) uguale al file: dimensione NIST e ogni settore pieno con l'etichetta NIST del file,
+    in ordine (primo settore «File <nome>», poi «Block 1, 2, …»), nessun settore di un altro file."""
+    arc = Path(img).parents[2] / "nist" / Path(img).parent.name
+    for nome, want in (a.get("sha256_archivio") or {}).items():
+        h = hashlib.sha256()
+        try:
+            with open(arc.parent / nome, "rb") as f:
+                while c := f.read(8 << 20):
+                    h.update(c)
+            got = h.hexdigest()
+        except OSError:
+            got = None
+        check(tr("SHA-256 dell'archivio {nome} uguale a quello pubblicato da NIST").format(nome=nome), got == want.lower(),
+              tr("atteso {want}, letto {got}").format(want=want.lower()[:16], got=(got or "-")[:16]))
+    voci = con.execute("SELECT part, inode, type, path FROM files WHERE deleted>=1").fetchall()
+
+    def cerca(nome):
+        return [(p, i) for p, i, ty, pa in voci if (pa == nome or pa.endswith("/" + nome)) and ty.endswith("r")]
+    if "cancellati_elencati" in a:
+        manca = [f for f in a["cancellati_elencati"] if not cerca(f)]
+        check(tr("{n} file cancellati con i metadati elencati come cancellati, con il nome intatto").format(
+            n=len(a["cancellati_elencati"])), not manca,
+            tr("mancano: {v1}").format(v1=", ".join(manca))[:300] if manca else ", ".join(a["cancellati_elencati"])[:300])
+    for it in a.get("contenuto", []):
+        data = b""
+        for p, i in cerca(it["nome"]):
+            data = fa.icat_read(case, p, i, it["byte"] + (1 << 20))
+            if data:
+                break
+        st = []
+        for k in range(0, len(data) // 512 * 512, 512):
+            m = DFR_TAG.match(data[k:k + 512])
+            st.append(None if not m else ((m.group("f1") or m.group("f2")).decode("latin-1"),
+                                          0 if m.group("f1") else int(m.group("b"))))
+        pieni = it["byte"] // 512
+        propri = [x[1] for x in st if x and x[0] == it["etichetta"]]
+        altri = sorted({x[0] for x in st if x and x[0] != it["etichetta"]})
+        check(tr("{nome}: contenuto del file cancellato integro ({n} byte, settori in ordine)").format(
+            nome=it["nome"], n=it["byte"]), len(data) == it["byte"] and propri == list(range(pieni)) and not altri,
+            tr("{v1} byte, settori propri {v2}/{v3}").format(v1=len(data), v2=len(propri), v3=pieni)
+            + (tr(", di altri file {v1}").format(v1=altri) if altri else ""))
+
+
 def controlli_smartphone(t, img, case, con, a, check):
     """Controlli delle prove «smartphone» (2.20): estrazione, sistema, chat (numero, orari, testi, mittenti), allegati,
     iLEAPP/ALEAPP. Gli orari attesi sono confrontati come impronta SHA-256 dell'elenco ordinato."""
@@ -2199,6 +2975,7 @@ def controlli_smartphone(t, img, case, con, a, check):
     controlli_chiamate_wa(check)
     controlli_solo_chiamate(check)
     controlli_recupero_wa(check)
+    controlli_eliminati_recenti(check)
     controlli_portatile_timeline(case, con, check)
     controlli_preferiti_chat(case, con, check)
     if a.get("posizione"):
@@ -2236,6 +3013,10 @@ def controlli_smartphone(t, img, case, con, a, check):
         controlli_aggiornamenti(check)
         controlli_telegram_chiamate(check)
         controlli_droni(check)
+        controlli_sorgente_logica(check)
+        controlli_nist_lacune(check)
+        controlli_nist_ese(check)
+        controlli_nist_validazione(check)
     if a.get("leapp_righe_min") or a.get("sysdiagnose"):
         import forense_mobile_leapp as fml
         n = fml.righe_vuote(con)

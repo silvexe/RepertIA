@@ -136,6 +136,12 @@ def lava_meta(out_dir):
     return fonti, viste
 
 
+def _corto(s, n):
+    """(3.0.2) Accorcia per il titolo segnando il taglio con «…»: un valore tagliato in silenzio sembrava un altro
+    (es. un nome di pacchetto di 81 caratteri mostrato con un «_» in meno). Il valore intero resta nei dati della riga."""
+    return s if len(s) <= n else s[:n - 1] + "…"
+
+
 def _detail(rec, limit=2000):
     """Campi della riga come JSON valido entro `limit` caratteri (valori lunghi accorciati): la colonna Dettagli
     e il report portatile lo mostrano come tabella «campo: valore»; il campo intero resta nei dati della riga."""
@@ -213,16 +219,16 @@ def import_tsv(con, out_dir, tool, part, sysd=None):
                 if sysd:
                     rec = {tr("Origine"): tr("da sysdiagnose {n}").format(n=sysd["nome"]), **rec}
                 vals = [str(v) for k, v in rec.items() if not TS_HEAD.search(k) and not (sysd and k == tr("Origine"))][:3]
-                title = f"{name}: " + " · ".join(v[:80] for v in vals) if vals else name
+                title = f"{name}: " + " · ".join(_corto(v, 80) for v in vals) if vals else name
                 if sysd:
-                    title = title[:180] + " · " + tr("da sysdiagnose {n}").format(n=sysd["nome"])
+                    title = _corto(title, 180) + " · " + tr("da sysdiagnose {n}").format(n=sysd["nome"])
                 src = rec.get("Source File Located") or rec.get("Source") or ""
                 data = {"leapp": tool, "categoria": cat, "artefatto": name, "date": dates, "campi": rec}
                 if sysd:
                     data.update({"sysdiagnose": sysd["nome"], "sysdiagnose_sha256": sysd["sha256"]})
                 if seg:
                     data["segreti"] = [k for k, _v in seg]
-                row_ = ("leapp", ts, title[:300], _detail(rec), "", src or (sysd["nome"] if sysd else name), None if sysd else part, None,
+                row_ = ("leapp", ts, _corto(title, 300),_detail(rec), "", src or (sysd["nome"] if sysd else name), None if sysd else part, None,
                         json.dumps(data, ensure_ascii=False), sysdiag_grp if sysd else cat, name)
                 if seg:                     # riga con segreti: inserita subito per averne l'id
                     con.executemany(sql, batch)
@@ -307,7 +313,11 @@ def run(case, con, say=print):
     src = fm.sorgenti(case)[0]
     part = int(src["offset"])
     img = src["mobile"]["file"]
-    t = {"zip": "zip", "tar": "tar", "cartella": "fs"}[src["mobile"]["formato"]]
+    if src["mobile"]["formato"] not in ("zip", "tar", "cartella", "estratto"):
+        say(tr("iLEAPP/ALEAPP: non leggono questo formato ({f}); estrai i file in una cartella e crea un nuovo caso.").format(
+            f=src["mobile"]["formato"]))
+        return False
+    t = {"zip": "zip", "tar": "tar", "cartella": "fs", "estratto": "fs"}[src["mobile"]["formato"]]
     base = case.root / "leapp"
     base.mkdir(exist_ok=True)
     stamp = dt.datetime.now().strftime("%Y%m%d_%H%M%S")

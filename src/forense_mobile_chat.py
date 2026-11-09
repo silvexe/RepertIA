@@ -18,7 +18,8 @@ Metodo
 
 Limiti dichiarati: database cifrati (es. backup WhatsApp .crypt14/.crypt15, Signal) non si leggono senza chiave;
 i messaggi cancellati ancora presenti nei byte dei database si recuperano (3.0.1) solo per WhatsApp Android (message,
-call_log; recuperati_wa), segnati «da verificare»;
+call_log; recuperati_wa), segnati «da verificare»; (3.0.2) gli iMessage cancellati ma ancora in «Eliminati di recente»
+(chat_recoverable_message_join di sms.db) sono segnati «cancellato dall'utente» con la data della cancellazione;
 le app non elencate sopra si vedono con iLEAPP/ALEAPP (Artefatti) e nell'albero dei file.
 """
 import datetime as dt
@@ -75,6 +76,21 @@ DB_PATTERNS = {
     "wa_contacts_android": re.compile(r"(^|/)com\.whatsapp(\.w4b)?/databases/wa\.db$"),
     "wa_contacts_ios": re.compile(r"(^|/)Shared/AppGroup/[^/]+/ContactsV2\.sqlite$"),
 }
+# (3.0.2) sorgente logica: le cartelle consegnate spesso non hanno la struttura del telefono; i database si riconoscono
+# dal nome del file (il lettore controlla poi le tabelle: un file omonimo di un'altra app non dà messaggi)
+DB_PATTERNS_LOGICA = {
+    "imessage": re.compile(r"(^|/)sms\.db$"),
+    "whatsapp_ios": re.compile(r"(^|/)ChatStorage\.sqlite$"),
+    "whatsapp_android": re.compile(r"(^|/)msgstore\.db$"),
+    "sms_android": re.compile(r"(^|/)mmssms\.db$"),
+    "ab_ios": re.compile(r"(^|/)AddressBook\.sqlitedb$"),
+    "contacts_android": re.compile(r"(^|/)contacts2\.db$"),
+    "wa_contacts_android": re.compile(r"(^|/)wa\.db$"),
+    "wa_contacts_ios": re.compile(r"(^|/)ContactsV2\.sqlite$"),
+}
+DB_PIATTAFORMA = {"imessage": "ios", "whatsapp_ios": "ios", "ab_ios": "ios", "wa_contacts_ios": "ios",
+                  "whatsapp_android": "android", "sms_android": "android", "contacts_android": "android",
+                  "wa_contacts_android": "android"}
 ENCRYPTED_RE = re.compile(r"(^|/)(msgstore[^/]*\.db\.crypt\d+|signal\.db|.*\.crypt1[245])$", re.I)
 WA_IOS_TYPES = {0: N_("testo"), 1: N_("immagine"), 2: N_("video"), 3: N_("audio"), 4: N_("contatto"),
                 5: N_("posizione"), 6: N_("evento del gruppo"), 7: N_("link"), 8: N_("documento"), 10: N_("chiamata"),
@@ -601,7 +617,7 @@ def lid_ripara(case):
             for p in fm.sorgenti(case):
                 part = int(p["offset"])
                 m = fm.mx(case)
-                found, _c = trova_db(m, part)
+                found, _c = trova_db(m, part, bool(case.meta.get("logica")))
                 m.close()
                 lid_leggi(case, con, part, [(k, x) for k, xs in found.items() for x in xs])
             n = lid_applica(con)
@@ -690,6 +706,23 @@ def _account(v):
 
 # ------------------------------------------------------------------------ iMessage/SMS (iOS)
 
+NOTA_ELIMINATO_RECENTE = N_("cancellato dall'utente il {ts} UTC: ancora in «Eliminati di recente» di Messaggi (iOS lo "
+                            "conserva per circa 30 giorni, poi lo elimina)")
+
+
+def eliminati_recenti(db):
+    """(3.0.2) iMessage cancellati dall'utente ma ancora in «Eliminati di recente» (iOS 16 e successivi):
+    {ROWID del messaggio: (chat_id, data della cancellazione ISO UTC)} da chat_recoverable_message_join. Il messaggio resta
+    nella tabella message ma esce da chat_message_join: senza questo segno sembrava un messaggio qualsiasi."""
+    try:
+        if not db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='chat_recoverable_message_join'").fetchone():
+            return {}
+        return {r[1]: (r[0], _iso_apple(r[2])) for r in
+                db.execute("SELECT chat_id, message_id, delete_date FROM chat_recoverable_message_join")}
+    except sqlite3.Error:
+        return {}
+
+
 def read_imessage(case, con, part, inode, path, names):
     import forense_estesa as fe
     w = WorkDB(case, part, inode, path, con)
@@ -711,6 +744,9 @@ def read_imessage(case, con, part, inode, path, names):
         if "chat_message_join" in t:
             for r in w.db.execute("SELECT chat_id, message_id FROM chat_message_join"):
                 msg_chat[r["message_id"]] = r["chat_id"]
+        recenti = eliminati_recenti(w.db)          # (3.0.2) «Eliminati di recente»: la conversazione è in questa tabella
+        for mid_, (cid_, _ts) in recenti.items():
+            msg_chat.setdefault(mid_, cid_)
         atts = {}
         if {"attachment", "message_attachment_join"} <= t:
             for r in w.db.execute("SELECT j.message_id m, a.* FROM message_attachment_join j JOIN attachment a ON "
@@ -759,7 +795,10 @@ def read_imessage(case, con, part, inode, path, names):
             mid = W.message(th, _iso_apple(d.get("date")), "out" if frm else "in", "" if frm else who,
                             text, kind, "message", d["rowid"], status=status, read_ts=_iso_apple(d.get("date_read")),
                             service=d.get("service"), sender_name=None if frm else names.get(norm_number(who)),
-                            extra={"guid": d.get("guid"), "chat": ch.get("chat_identifier")})
+                            extra={"guid": d.get("guid"), "chat": ch.get("chat_identifier"),
+                                   **({"eliminato_di_recente": {"cancellato": recenti[d["rowid"]][1],
+                                                                "fonte": "chat_recoverable_message_join"}}
+                                      if d["rowid"] in recenti else {})})
             # numero o account di questo telefono usato nella conversazione
             W.see_local(th, d.get("destination_caller_id") or ch.get("last_addressed_handle") or _account(ch.get("account_login")))
             for a in atts.get(d["rowid"], []):
@@ -1188,12 +1227,13 @@ def _sha_db(case, part, inode):
     return h.hexdigest()
 
 
-def trova_db(con, part):
+def trova_db(con, part, logica=False):
     found, encrypted = {}, []
+    pats = DB_PATTERNS_LOGICA if logica else DB_PATTERNS
     for i, path in con.execute("SELECT id, path FROM mobile_files WHERE part=? AND isdir=0 AND ("
                                "path LIKE '%.db' OR path LIKE '%.sqlite' OR path LIKE '%.sqlitedb' OR path LIKE '%crypt%')",
                                (part,)):
-        for kind, rx in DB_PATTERNS.items():
+        for kind, rx in pats.items():
             if rx.search(path):
                 found.setdefault(kind, []).append((str(i), path))
         if ENCRYPTED_RE.search(path):
@@ -1238,7 +1278,7 @@ def run(case, con, chiamate=True):
         except Exception as e:
             out["avvisi"].append(tr("Numero del telefono non letto ({vname}: {e})").format(vname=type(e).__name__, e=e))
         m = fm.mx(case)
-        found, encrypted = trova_db(m, part)
+        found, encrypted = trova_db(m, part, bool(case.meta.get("logica")))
         m.close()
         out["cifrati"] += encrypted
         print(tr("Rubriche e contatti…"), flush=True)
@@ -1515,8 +1555,10 @@ def summary_md(case, what="all"):
     """Righe del riepilogo (chat e iLEAPP/ALEAPP) mostrato nella conversazione all'apertura del caso."""
     m = case.meta
     L, Q = [], []
+    if m.get("logica") and not ((m.get("chat") or {}).get("app") or m.get("leapp")):
+        return L, Q                     # (3.0.2) sorgente logica senza database di telefoni letti
     mob = m.get("mobile") or {}
-    if what == "all":
+    if what == "all" and not m.get("logica"):
         L.append(tr("#### Smartphone"))
         si = mob.get("sistema") or {}
         L.append("- " + (valore(m.get("disk_type")) or "") + (f" ({si.get('modello')})" if si.get("modello") else "")
@@ -1782,6 +1824,8 @@ def report_md(case):
           tr("- Database cifrati (es. backup di WhatsApp .crypt14/.crypt15, Signal) non si leggono senza la chiave."),
           tr("- I messaggi cancellati ancora presenti nei byte dei database sono recuperati da RepertIA solo per WhatsApp "
              "Android (messaggi e chiamate, segnati «da verificare»); per le altre app no (iLEAPP/ALEAPP ne segnalano alcuni)."),
+          tr("- iMessage/SMS di iOS: i messaggi cancellati dall'utente da meno di circa 30 giorni restano in «Eliminati di "
+             "recente» e sono segnati «cancellato dall'utente», con la data della cancellazione."),
           tr("- Le date DOS degli zip non hanno fuso: sono convertite con il fuso del dispositivo e dichiarate."), ""]
     return L
 
@@ -1912,6 +1956,10 @@ def agent_tools(case):
                 "read_ts IS NOT NULL AND id IN (SELECT value FROM json_each(?))", (json.dumps(ids),)):
             out.setdefault(mid, []).append(tr("letto su questo telefono: {ts} UTC").format(ts=rts.replace("T", " "))
                                            + (f" ({fonte})" if fonte else ""))
+        for mid, quando in con.execute(          # (3.0.2) iMessage in «Eliminati di recente»
+                "SELECT id, json_extract(extra, '$.eliminato_di_recente.cancellato') FROM chat_messages WHERE "
+                "json_extract(extra, '$.eliminato_di_recente') IS NOT NULL AND id IN (SELECT value FROM json_each(?))", (json.dumps(ids),)):
+            out.setdefault(mid, []).append(tr(NOTA_ELIMINATO_RECENTE).format(ts=(quando or "?").replace("T", " ")))
         for mid, liv in con.execute(            # (3.0.1) messaggi e chiamate cancellati recuperati dai byte del database
                 "SELECT id, json_extract(extra, '$.recuperato.livello') FROM chat_messages WHERE json_extract(extra, '$.recuperato') "
                 "IS NOT NULL AND id IN (SELECT value FROM json_each(?))", (json.dumps(ids),)):

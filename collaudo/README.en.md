@@ -7,6 +7,22 @@ parties) contain the expected values. The images are in the **RepertIA-collaudo.
 not in the repository: they are large and some have their own licenses, see THIRD_PARTY_LICENSES.en.md and the
 `LEGGIMI.txt` file inside the archive).
 
+## NIST CFReDS (from 3.0.2)
+
+`atteso_nist.json` and the `nist/` folder of the zip: the «RM#3» CD-R of the NIST CFReDS «Data Leakage» case
+(https://cfreds-archive.nist.gov/data_leakage_case/, public domain), as downloaded; the test checks the SHA-1 published
+by NIST, extracts the archive with the program's 7-Zip and opens it as a logical source. The expected values are the
+official NIST answers (questions 34, 56, 57, 59): files present at the end, the 17 files of the previous VATs with their
+names, burning time and number of deleted files.
+
+`atteso_nist_dfr.json` and four NIST CFTT «Deleted File Recovery» images in the same `nist/` folder
+(https://cfreds-archive.nist.gov/dfr-test-images.html, public domain, `.dd.bz2` as downloaded, 5 MB in all): DFR-01
+NTFS, DFR-04 NTFS (names in many languages and scripts), DFR-05-braid and DFR-12 exFAT (fragmented files, also inside
+deleted folders). The test checks the SHA-256 published by NIST, that the deleted files with metadata are listed as
+deleted with the name intact and that the content of those not overwritten is intact: size from the NIST document and
+every sector with the tag NIST wrote in the file, in order. The expected values come only from the NIST document («Test
+Images layout», 2012); they are written by the project's `lavoro/prove/genera_atteso_dfr.py`.
+
 ## Smartphones (from 2.20)
 
 `atteso_smartphone.json` and the `smartphone/` folder of the zip: two extractions built with `tools/collaudo_mobile.py`

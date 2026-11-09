@@ -28,12 +28,15 @@ def fragment():
 
 def summary(case):
     """Campi del riepilogo del caso (case_summary) per i casi smartphone."""
+    import forense_mobile as fm
     import forense_mobile_leapp as fml
     m = case.meta
     import forense_mobile_portachiavi as fmk
     import forense_mobile_sysdiagnose as fms
     out = {"tipo_caso": m.get("tipo_caso"), "mobile": m.get("mobile"), "chat": m.get("chat"), "leapp": m.get("leapp"),
            "decompressa": m.get("decompressa"), "portachiavi": m.get("portachiavi"),
+           "estratta": m.get("estratta"), "verifica_ad1": m.get("verifica_ad1"), "logica_telefono": m.get("logica_telefono"),
+           "db_lbl": {k: tr(v) for k, v in fm.DB_LBL.items()},
            "portachiavi_testo": fmk.testo_esito((m.get("leapp") or {}).get("portachiavi")),
            "sysdiagnose": fms.summary(case), "righe_vuote_windows": _righe_vuote_windows(case),
            "leapp_disponibile": bool(fml.tool_dir((m.get("mobile") or {}).get("piattaforma") or "ios")
@@ -88,22 +91,36 @@ def _con(case):
     return fa.db_ro(case)
 
 
-def check(path, dest=None):
-    """Estrazione scelta: formato, dimensione, caso esistente, spazio per l'eventuale copia decompressa."""
+def check(path, dest=None, logica=False):
+    """Estrazione scelta: formato, dimensione, caso esistente, spazio per l'eventuale copia decompressa.
+    (3.0.2) logica=True: sorgente logica, accetta anche 7z, rar, AD1 e immagini di CD/DVD."""
     import forense_agent as fa
     import forense_mobile as fm
     p = Path(path or "").expanduser()
     if not str(path or "").strip() or not p.exists():
         return {"ok": False, "error": tr("File o cartella non trovati. Controlla che il disco sia collegato.")}
     kind = fm.formato(p)
+    if logica and kind is None:
+        return {"ok": False, "error": tr("Formato non riconosciuto: scegli uno zip, tar, tar.gz, 7z, rar, un'immagine AD1 "
+                                        "(il primo segmento, .ad1), un'immagine di CD/DVD (ISO 9660 o UDF) oppure una cartella.")}
+    if kind in fm.LOGICI and not logica:
+        return {"ok": False, "error": tr("7z, rar, AD1 e immagini di CD/DVD si aprono come «Sorgente logica» (nella Home), "
+                                        "non come estrazione di un telefono.")}
+    if kind == "ad1":
+        try:
+            import dissect.evidence.ad1  # noqa: F401
+        except ImportError:
+            return {"ok": False, "error": tr("Per leggere gli AD1 manca il componente dissect.evidence nel pacchetto.")}
     if kind is None:
         return {"ok": False, "error": tr("Formato non riconosciuto: scegli lo zip o il tar dell'estrazione del file "
                                         "system (anche .tar.gz), oppure la cartella già estratta. Per un'acquisizione "
                                         "UFDR o XRY vedi il manuale.")}
     root, exists = fa.case_for_image(p, dest or None)
-    size = p.stat().st_size if p.is_file() else None
+    size = (sum(q.stat().st_size for q in fm.ad1_segmenti(p)) if kind == "ad1" else
+            p.stat().st_size if p.is_file() else None)
     return {"ok": True, "path": str(p.resolve()), "formato": kind, "size": size, "case_root": str(root),
-            "case_exists": exists, "free": fa.free_bytes(dest or fa.CASES_HOME), "decomprimere": kind == "targz"}
+            "case_exists": exists, "free": fa.free_bytes(dest or fa.CASES_HOME), "decomprimere": kind == "targz",
+            "estrarre": kind in fm.ESTRATTI, "segmenti": len(fm.ad1_segmenti(p)) if kind == "ad1" else None}
 
 
 def start(G, root, args, add=None, wa_chiave=None):
@@ -128,7 +145,9 @@ def start(G, root, args, add=None, wa_chiave=None):
 
 # (3.0.1) filtro «cancellati»: messaggi e chiamate recuperati dai byte del database, o presenti solo in un backup decifrato
 CANC_SQL = {"rec": "({x} LIKE '%\"recuperato\"%' AND json_extract({x}, '$.recuperato') IS NOT NULL)",
-            "bkp": "({x} LIKE '%\"solo_nel_backup\"%' AND json_extract({x}, '$.solo_nel_backup'))"}
+            "bkp": "({x} LIKE '%\"solo_nel_backup\"%' AND json_extract({x}, '$.solo_nel_backup'))",
+            # (3.0.2) iMessage cancellati dall'utente ma ancora in «Eliminati di recente»
+            "erc": "({x} LIKE '%\"eliminato_di_recente\"%' AND json_extract({x}, '$.eliminato_di_recente') IS NOT NULL)"}
 
 
 def threads(case, q):
@@ -1013,7 +1032,8 @@ def post(G, path, b):
         if b.get("folder"):
             p = G.choose_folder(tr("Scegli la cartella con l'estrazione del telefono"))
         else:
-            p = G.choose_file(tr("Scegli l'estrazione del telefono (zip, tar, tar.gz)"), kind="any", any_file=True)
+            p = G.choose_file(tr("Scegli l'archivio o il primo segmento dell'AD1") if b.get("logica") else
+                              tr("Scegli l'estrazione del telefono (zip, tar, tar.gz)"), kind="any", any_file=True)
         return {"path": p} if p else {"cancelled": True}
     if path == "/api/mobile/choose_keychain":
         p = G.choose_file(tr("Scegli il portachiavi (keychain) acquisito a parte"), kind="any", any_file=True)
@@ -1074,14 +1094,14 @@ def post(G, path, b):
         dest = G.clean_path(b.get("dest")) if b.get("dest") else None
         if dest:
             G.check_dest(dest, create=False)
-        return check(G.clean_path(b.get("path")), dest)
+        return check(G.clean_path(b.get("path")), dest, bool(b.get("logica")))
     if path == "/api/mobile/prepare":
         if G.PREP.running:
             raise ValueError(tr("Una preparazione è già in corso."))
         dest = None
         if b.get("dest"):
             dest, _free = G.check_dest(b.get("dest"))
-        info = check(G.clean_path(b.get("path")), str(dest) if dest else None)
+        info = check(G.clean_path(b.get("path")), str(dest) if dest else None, bool(b.get("logica")))
         if not info["ok"]:
             raise ValueError(info["error"])
         if info["case_exists"]:
@@ -1121,7 +1141,8 @@ def post(G, path, b):
         tro = G.trascr_check(b.get("trascrizione"))         # (2.20) trascrizione scelta alla creazione del caso
         args += (["--trascrizione", json.dumps(tro)] if tro else [])
         args += (["--no-hash"] if b.get("no_hash") else []) + (["--hash-file"] if b.get("hash_file") else []) + \
-                (["--drone"] if b.get("drone") else []) + (["--leapp"] if b.get("leapp") else []) + (["--decomprimi"] if info["decomprimere"] else []) + \
+                (["--drone"] if b.get("drone") else []) + (["--logica"] if b.get("logica") else []) + \
+                (["--leapp"] if b.get("leapp") and not b.get("logica") else []) + (["--decomprimi"] if info["decomprimere"] else []) + \
                 (["--fuso", fuso] if fuso else []) + (["--keychain", kc] if kc else []) + \
                 (["--wa-backup"] if b.get("wa_backup") or wk else []) + \
                 [y for x in sds for y in ("--sysdiagnose", x)]

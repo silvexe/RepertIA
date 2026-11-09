@@ -55,11 +55,27 @@ CREATE TABLE IF NOT EXISTS mobile_files(id INTEGER PRIMARY KEY, part INTEGER, pa
     size INTEGER, mode INTEGER, mtime TEXT, atime TEXT, ctime TEXT, crtime TEXT, datesrc TEXT,
     kind TEXT, loc INTEGER, csize INTEGER, method INTEGER, link TEXT);
 CREATE INDEX IF NOT EXISTS idx_mf_path ON mobile_files(part, path);
+CREATE TABLE IF NOT EXISTS logica_hash(id INTEGER PRIMARY KEY, md5 TEXT, sha1 TEXT);
 """
-FORMATI = {"zip": N_("zip"), "tar": N_("tar"), "cartella": N_("cartella già estratta")}
+FORMATI = {"zip": N_("zip"), "tar": N_("tar"), "cartella": N_("cartella già estratta"),
+           "7z": N_("7z"), "rar": N_("rar"), "estratto": N_("copia estratta dall'archivio"),
+           "ad1": N_("AD1, immagine logica di FTK"), "targz": N_("tar.gz"),
+           "iso": N_("immagine di CD/DVD ISO 9660 o UDF")}
+DB_LBL = {"imessage": N_("iMessage/SMS (iPhone)"), "whatsapp_ios": N_("WhatsApp (iPhone)"),
+          "whatsapp_android": N_("WhatsApp (Android)"), "sms_android": N_("SMS/MMS (Android)"),
+          "ab_ios": N_("rubrica (iPhone)"), "contacts_android": N_("rubrica (Android)"),
+          "wa_contacts_android": N_("contatti WhatsApp (Android)"), "wa_contacts_ios": N_("contatti WhatsApp (iPhone)")}
+# (3.0.2) formati letti solo come «sorgente logica» (non sono estrazioni di telefoni)
+LOGICI = ("7z", "rar", "ad1", "iso")
+ESTRATTI = ("7z", "rar", "iso")          # letti con 7-Zip in una copia derivata estratta
 DATESRC = {"utc": N_("UTC (dal campo esteso dello zip o dal tar)"),
            "dos": N_("ora locale senza fuso (data DOS dello zip), convertita con il fuso del dispositivo"),
-           "copia": N_("date della cartella sul computer (possono essere quelle della copia, non del telefono)")}
+           "copia": N_("date della cartella sul computer (possono essere quelle della copia, non del telefono)"),
+           "archivio": N_("UTC (dall'archivio 7z o RAR 5)"),
+           "locale": N_("ora locale senza fuso (archivio RAR 4), convertita con il fuso indicato"),
+           "ad1": N_("date registrate nell'AD1 dallo strumento di acquisizione (UTC)"),
+           "disco": N_("UTC (dal file system del CD/DVD, ISO 9660 o UDF, che registra lo scostamento)"),
+           "disco_locale": N_("ora locale senza fuso (CD/DVD UDF senza scostamento), convertita con il fuso indicato")}
 ZIP_METHODS = {0: "stored", 8: "deflate", 9: "deflate64", 12: "bzip2", 14: "lzma", 93: "zstd", 95: "xz"}
 _lock = threading.Lock()
 
@@ -326,10 +342,328 @@ def dir_entries(root):
                    "link": os.readlink(p) if stat.S_ISLNK(st.st_mode) else None}
 
 
+# ------------------------------------------------------------------- AD1 (3.0.2, sorgente logica)
+# Immagine logica di FTK Imager (AD1 v4, anche in più segmenti .ad1 .ad2 …), letta con dissect.evidence
+# (Fox-IT, AGPL-3.0-or-later). Ogni voce si legge dalla sua posizione nell'immagine; gli hash MD5/SHA-1 registrati
+# da FTK per ogni file si confrontano con quelli ricalcolati (verifica_ad1). AD1 cifrati (ADCRYPT): non gestiti.
+
+def ad1_segmenti(path):
+    p = Path(path)
+    segs = [q for q in p.parent.iterdir() if q.stem == p.stem and re.fullmatch(r"\.ad\d+", q.suffix.lower())]
+    return sorted(segs, key=lambda q: int(q.suffix[3:])) or [p]
+
+
+def _ad1_apri(path):
+    from dissect.evidence.ad1.ad1 import AD1
+    fhs = [open(q, "rb") for q in ad1_segmenti(path)]
+    try:
+        a = AD1(fhs)
+        if a.is_adcrypt():
+            raise ValueError(tr("AD1 cifrato (ADCRYPT): non ancora supportato"))
+    except Exception:
+        for f in fhs:
+            f.close()
+        raise
+    return a, fhs
+
+
+def ad1_entries(path):
+    from dissect.evidence.ad1.ad1 import MetaType, convert_ts
+    a, fhs = _ad1_apri(path)
+
+    def t(e, mt):
+        m = e.meta.get(mt)
+        try:
+            return convert_ts(m.data).timestamp() if m else None
+        except (ValueError, UnicodeDecodeError):
+            return None
+
+    def giro(e, base):
+        for c in e.children:
+            path = f"{base}/{c.name}" if base else c.name
+            isdir = c.is_dir()
+            times = {"M": t(c, MetaType.DateModified), "A": t(c, MetaType.DateAccessed), "B": t(c, MetaType.DateCreated)}
+            yield {"path": path, "isdir": isdir, "size": 0 if isdir else c.size, "csize": 0 if isdir else c.size,
+                   "method": 0, "loc": c.offset, "mode": 0, "times": times, "dos": None, "dsrc": "ad1",
+                   "md5": None if isdir else c.md5, "sha1": None if isdir else c.sha1}
+            if isdir:
+                yield from giro(c, path)
+
+    try:
+        yield from giro(a.root, "")
+    finally:
+        for f in fhs:
+            f.close()
+
+
+class AD1SenzaDati(ValueError):
+    """(3.0.2) Voce dell'AD1 che FTK ha registrato (nome, dimensione, date, a volte hash) senza metterne i dati: nella voce
+    dimensione dei dati 0 e nessun indice dei blocchi. Succede per esempio con file cancellati di un FAT e con i file FVE2
+    di BitLocker. dissect.evidence andava a leggere l'indice all'offset 0 e falliva con «total struct size too long»."""
+    motivo = "senza_dati"
+
+
+def ad1_open(path, loc, chunk=1 << 20):
+    from dissect.evidence.ad1.ad1 import FileEntry
+    a, fhs = _ad1_apri(path)          # una lettura alla volta: l'immagine si riapre (le letture non sono concorrenti)
+    try:
+        fe = FileEntry(a, int(loc))
+        if not fe.entry.size and not fe.entry.zlib_meta:
+            if fe.size:
+                raise AD1SenzaDati(tr("contenuto non presente nell'AD1: FTK ha registrato il file ({n} byte) senza i dati").format(
+                    n=fe.size))
+            return                                  # file vuoto: niente da leggere
+        fs = fe.open()
+        while b := fs.read(chunk):
+            yield b
+    finally:
+        for f in fhs:
+            f.close()
+
+
+def verifica_ad1(case, part, say=print):
+    """MD5 e SHA-1 di ogni file ricalcolati e confrontati con quelli registrati da FTK nell'AD1."""
+    import forense_agent as fa
+    m = mx(case)
+    righe = m.execute("SELECT h.id, h.md5, h.sha1, f.path FROM logica_hash h JOIN mobile_files f ON f.id = h.id "
+                      "WHERE f.part=? ORDER BY h.id", (int(part),)).fetchall()
+    m.close()
+    res = {"controllati": 0, "uguali": 0, "diversi": [], "illeggibili": [], "senza_dati": [], "ts": fa.now()}
+    say(tr("Verifica degli hash registrati nell'AD1: {n} file…").format(n=len(righe)))
+    fa.avanz("hashad1")
+    for i, (nid, md5, sha1, path) in enumerate(righe, 1):
+        hm, hs = hashlib.md5(), hashlib.sha1()
+        try:
+            for b in stream(case, part, nid):
+                hm.update(b)
+                hs.update(b)
+        except AD1SenzaDati:                # (3.0.2) registrato da FTK senza dati: niente da verificare, non è un errore
+            res["senza_dati"].append(path)
+            continue
+        except Exception as e:
+            res["illeggibili"].append({"percorso": path, "errore": f"{type(e).__name__}: {e}"})
+            continue
+        res["controllati"] += 1
+        ok = (not md5 or hm.hexdigest() == md5.lower()) and (not sha1 or hs.hexdigest() == sha1.lower())
+        if ok:
+            res["uguali"] += 1
+        else:
+            res["diversi"].append({"percorso": path, "md5_ad1": md5, "md5": hm.hexdigest(), "sha1_ad1": sha1,
+                                   "sha1": hs.hexdigest()})
+        if i % 500 == 0:
+            fa.avanz(fatti=i, totale=len(righe))
+    res["n_senza_dati"] = len(res["senza_dati"])
+    res["diversi"], res["illeggibili"], res["senza_dati"] = res["diversi"][:200], res["illeggibili"][:200], res["senza_dati"][:200]
+    return res
+
+
+# ------------------------------------------------------------- 7z e rar (3.0.2, sorgente logica)
+# Gli archivi 7z e rar (spesso «solid») non si leggono voce per voce: 7-Zip li estrae una volta in una COPIA DERIVATA
+# nella cartella del caso (estratta/), con SHA-256 dell'archivio e riferimento, come la copia decompressa dei tar.gz.
+# Date ed elenco vengono dall'archivio (7z l -slt), non dai file estratti.
+
+def _data_7z(s, locale, tz, scarto=0):
+    m = re.match(r"(\d{4}-\d\d-\d\d) (\d\d:\d\d:\d\d)(?:\.(\d{1,6}))?", (s or "").strip())
+    if not m:
+        return None
+    try:
+        d = dt.datetime.strptime(f"{m.group(1)} {m.group(2)}", "%Y-%m-%d %H:%M:%S")
+    except ValueError:
+        return None
+    d = d.replace(microsecond=int((m.group(3) or "0").ljust(6, "0")))
+    return _local_to_utc(d, tz) if locale else d.replace(tzinfo=dt.timezone.utc).timestamp() - scarto
+
+
+def archivio_voci(exe, f, tz):
+    """Elenco tecnico del 7z o rar: voci con date (UTC; RAR 4 in ora locale, convertita con tz e dichiarata)."""
+    import subprocess
+    import forense_agent as fa
+    import forense_estesa as fx
+    with open(f, "rb") as fh:
+        locale = fh.read(7) == b"Rar!\x1a\x07\x00"          # RAR 4: date DOS in ora locale senza fuso
+    disco = formato(f) == "iso"
+    scarto = 0 if locale else fx.z_scarto()                # Windows: 7-Zip scrive l'ora locale anche con TZ=UTC
+    cp = subprocess.run([exe, "l", "-slt", "-ba", fx.NOPASS, str(f)], capture_output=True, timeout=3600,
+                        stdin=subprocess.DEVNULL, env=dict(os.environ, TZ="UTC"))
+    voci, cur = [], {}
+    for line in fa.dec(cp.stdout).splitlines() + [""]:
+        if not line.strip():
+            if cur.get("Path") is not None:
+                voci.append(cur)
+            cur = {}
+            continue
+        k, sep, v = line.partition(" = ")
+        if sep:
+            cur[k.strip()] = v
+    out = []
+    for e in voci:
+        isdir = e.get("Folder") == "+" or (e.get("Attributes") or "")[:1] == "D"
+        try:
+            size = int(e.get("Size") or 0)
+        except ValueError:
+            size = 0
+        times = {"M": _data_7z(e.get("Modified"), locale, tz, scarto), "B": _data_7z(e.get("Created"), locale, tz, scarto),
+                 "A": _data_7z(e.get("Accessed"), locale, tz, scarto)}
+        out.append({"path": e["Path"].replace("\\", "/"), "isdir": isdir, "size": 0 if isdir else size,
+                    "csize": size, "method": 0, "loc": 0, "mode": 0, "times": {k: v for k, v in times.items() if v},
+                    "dos": None, "dsrc": "locale" if locale else "disco" if disco else "archivio", "cifrato": e.get("Encrypted") == "+",
+                    "crc": e.get("CRC") or None})
+    return out, cp.returncode, fa.dec(cp.stderr)
+
+
+def estrai(case, f, tz, say=print):
+    """Copia derivata estratta di un 7z, rar o immagine di CD/DVD (estratta/<nome>/, sola lettura) + elenco con le date
+    (.voci.json)."""
+    import shutil
+    import forense_agent as fa
+    import forense_estesa as fx
+    exe = fx.seven_zip()
+    if not exe:
+        raise OSError(tr("Per leggere 7z e rar serve 7-Zip (incluso nei pacchetti di RepertIA)."))
+    f = Path(f)
+    settori = None
+    if (cd_dvd(f) or "").endswith("_2352"):           # CD a settori grezzi (BIN/CUE): prima i soli dati, poi 7-Zip
+        orig = f
+        f, settori = settori_2048(case, orig, say)
+    if (cd_dvd(f) or "").startswith("udf") and udf_speciale(f):   # VAT o metadati: 7-Zip non li legge
+        return estrai_udf(case, f, tz, say, settori)
+    voci, rc, err = archivio_voci(exe, f, tz)
+    if not voci:
+        if re.search(r"(?i)wrong password|encrypted|can not open encrypted", err or ""):
+            raise ValueError(tr("Archivio protetto da password (anche i nomi dei file sono cifrati): non ancora supportato."))
+        raise ValueError(tr("7-Zip non riesce a leggere l'archivio: {e}").format(e=(err or "").strip()[-300:]))
+    tot = sum(v["size"] for v in voci)
+    dest = case.root / "estratta"
+    dest.mkdir(parents=True, exist_ok=True)
+    if shutil.disk_usage(dest).free < tot * 1.1 + (2 << 30):
+        raise OSError(tr("Spazio insufficiente per la copia estratta: servono circa {v:.1f} GB.").format(v=tot * 1.1 / 1e9))
+    out = dest / re.sub(r"[^\w.-]+", "_", f.name)[:120]
+    say(tr("Estrazione di {f} in una copia derivata con 7-Zip (l'archivio originale non cambia)…").format(f=f.name))
+    fa.avanz("decomp")
+    rc, err = fx.z_extract(exe, f, out)
+    n_cif = sum(1 for v in voci if v["cifrato"])
+    rif = {"origine": str(f), "sha256_origine": fa.sha256_file(f), "operazione": "7-Zip x",
+           "strumento": fa.tool_version([exe]) or "7-Zip", "voci": len(voci), "byte": tot, "cifrate": n_cif,
+           "esito_7zip": rc, "creata": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")}
+    if settori:
+        rif.update({"origine": settori["origine"], "sha256_origine": settori["sha256_origine"], "settori_2048": settori,
+                    "copia_intermedia": str(f)})
+    for base, dirs, files in os.walk(out):            # sola lettura, come le altre copie derivate
+        for nm in files:
+            try:
+                os.chmod(os.path.join(base, nm), 0o444)
+            except OSError:
+                pass
+    Path(str(out) + ".json").write_text(json.dumps(rif, indent=1), encoding="utf-8")
+    Path(str(out) + ".voci.json").write_text(json.dumps(voci, ensure_ascii=False), encoding="utf-8")
+    if rc not in (0, 1):
+        say(tr("ATTENZIONE: 7-Zip ha segnalato errori ({rc}); i file non estratti risulteranno illeggibili.").format(rc=rc))
+    return out, rif
+
+
+def udf_speciale(f):
+    """(3.0.2) UDF con partizione virtuale (VAT, CD-R/DVD-R di Windows «come una chiavetta») o di metadati (UDF 2.50+):
+    si legge col lettore di RepertIA (forense_udf) invece che con 7-Zip."""
+    import forense_udf as fu
+    try:
+        u = fu.UDF(f)
+    except Exception:
+        return False
+    try:
+        return any(m["tipo"] in ("virtuale", "metadati") for m in u.mappe)
+    finally:
+        u.close()
+
+
+def estrai_udf(case, f, tz, say=print, settori=None):
+    """(3.0.2) Copia derivata dei file di un CD/DVD UDF letto con forense_udf: lo stato attivo del disco più i file che
+    compaiono solo nelle VAT precedenti (cancellati, rinominati o sostituiti), in una cartella a parte e segnati come
+    cancellati, ciascuno col percorso dell'ultima VAT che lo elenca; i nomi precedenti restano nel .voci.json."""
+    import shutil
+    import forense_agent as fa
+    import forense_udf as fu
+    f = Path(f)
+    u = fu.UDF(f)
+    try:
+        gens = u.generazioni()
+        att_g, attive = gens[-1]
+        chiavi_att = {v["pos"] for v in attive if v["fe"] and not v["cancellato"]}
+        prec_lbl = tr("[file solo nelle VAT precedenti]")
+        canc_lbl = tr("[voci cancellate]")
+        scelte, nomi = {}, {}
+        for i, (g, voci) in enumerate(gens):
+            for v in voci:
+                if not v["fe"]:
+                    continue
+                k = v["pos"]
+                nomi.setdefault(k, [])
+                if v["percorso"] not in nomi[k]:
+                    nomi[k].append(v["percorso"])
+                if i == len(gens) - 1:
+                    scelte[k] = (v, g, canc_lbl if v["cancellato"] else None)
+                elif k not in chiavi_att:
+                    scelte[k] = (v, g, prec_lbl)     # vince l'ultima VAT precedente che lo elenca
+        tot = sum(v["fe"]["size"] for v, _g, _l in scelte.values() if not v["cartella"])
+        dest = case.root / "estratta"
+        dest.mkdir(parents=True, exist_ok=True)
+        if shutil.disk_usage(dest).free < tot * 1.1 + (2 << 30):
+            raise OSError(tr("Spazio insufficiente per la copia estratta: servono circa {v:.1f} GB.").format(v=tot * 1.1 / 1e9))
+        nome0 = Path(settori["origine"]).name if settori else f.name      # non la copia intermedia a 2048 byte
+        out = dest / re.sub(r"[^\w.-]+", "_", nome0)[:120]
+        say(tr("Lettura del CD/DVD UDF con il lettore di RepertIA ({n} VAT trovate) e copia derivata dei file…").format(
+            n=len(u.vat_gen)))
+        fa.avanz("decomp")
+        voci_out, n_prec = [], 0
+        for k, (v, g, lbl) in sorted(scelte.items(), key=lambda x: (x[1][2] or "", x[1][0]["percorso"])):
+            rel = v["percorso"] if not lbl else f"{lbl}/{v['percorso']}"
+            parti = [re.sub(r'[\x00-\x1f<>:"|?*\\]', "_", q) or "_" for q in rel.split("/")]
+            rel = "/".join(q for q in parti if q not in (".", ".."))
+            fe = v["fe"]
+            times, dsrc = {}, "disco_locale" if fe["locale"] else "disco"
+            for kk, d in fe["times"].items():
+                times[kk] = _local_to_utc(d, tz) if fe["locale"] else d.replace(tzinfo=dt.timezone.utc).timestamp()
+            dst = out.joinpath(*rel.split("/"))
+            if v["cartella"]:
+                dst.mkdir(parents=True, exist_ok=True)
+            else:
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                u.vat = g["tabella"] if g else u.vat
+                with open(dst, "wb") as fh:
+                    for x in u.pezzi(fe):
+                        fh.write(x)
+                os.chmod(dst, 0o444)
+            if lbl == prec_lbl and not v["cartella"]:
+                n_prec += 1
+            voci_out.append({"path": rel, "isdir": v["cartella"], "size": 0 if v["cartella"] else fe["size"],
+                             "csize": fe["size"], "method": 0, "loc": 0, "mode": 0,
+                             "times": {kk: x for kk, x in times.items() if x}, "dos": None, "dsrc": dsrc, "cifrato": False,
+                             "crc": None, "cancellato": bool(lbl), "nomi": nomi.get(k, []),
+                             "vat": g["modifica"].strftime("%Y-%m-%dT%H:%M:%S") if g and g.get("modifica") else None})
+        u.vat = att_g["tabella"] if att_g else u.vat
+        vat = [{"settore": g["settore"], "modifica_utc": g["modifica"].strftime("%Y-%m-%dT%H:%M:%S") if g.get("modifica") else None,
+                "file": g["file"], "cartelle": g["cartelle"], "voci_elencate": len(vv)} for g, vv in gens if g]
+        rif = {"origine": str(settori["origine"] if settori else f),
+               "sha256_origine": settori["sha256_origine"] if settori else fa.sha256_file(f),
+               "operazione": tr("lettura UDF con forense_udf (RepertIA)"), "strumento": "forense_udf (RepertIA)",
+               "volume": u.nome, "mappe": [m["tipo"] for m in u.mappe], "vat": vat, "avvisi": u.avvisi,
+               "voci": len(voci_out), "byte": tot, "cifrate": 0, "solo_vat_precedenti": n_prec, "cartella_vat": prec_lbl,
+               "esito_7zip": None, "creata": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")}
+        if settori:
+            rif.update({"settori_2048": settori, "copia_intermedia": str(f)})
+    finally:
+        u.close()
+    Path(str(out) + ".json").write_text(json.dumps(rif, indent=1, ensure_ascii=False), encoding="utf-8")
+    Path(str(out) + ".voci.json").write_text(json.dumps(voci_out, ensure_ascii=False), encoding="utf-8")
+    say(tr("CD/DVD UDF «{nome}»: {n} voci, {p} solo nelle VAT precedenti (cancellate, rinominate o sostituite), {g} VAT.").format(
+        nome=rif["volume"], n=len(voci_out), p=n_prec, g=len(vat)))
+    return out, rif
+
+
 # ------------------------------------------------------------------------------- riconoscimento
 
 def formato(path):
-    """'zip', 'tar', 'targz' (da decomprimere), 'cartella' oppure None, guardando il contenuto (non il nome)."""
+    """'zip', 'tar', 'targz' (da decomprimere), 'cartella', '7z', 'rar', 'ad1', 'iso' (questi solo come sorgente logica)
+    oppure None, guardando il contenuto (non il nome)."""
     p = Path(path)
     if p.is_dir():
         return "cartella"
@@ -344,7 +678,93 @@ def formato(path):
         return "targz"
     if len(head) >= 262 and head[257:262] == b"ustar":
         return "tar"
+    if head[:6] == b"7z\xbc\xaf\x27\x1c":
+        return "7z"
+    if head[:7] == b"Rar!\x1a\x07\x00" or head[:8] == b"Rar!\x1a\x07\x01\x00":
+        return "rar"
+    if head[:16] == b"ADSEGMENTEDFILE\x00" or head[:8] == b"ADCRYPT\x00":
+        return "ad1"
+    if cd_dvd(p):
+        return "iso"
     return None
+
+
+def cd_dvd(path):
+    """(3.0.2) Immagine di CD/DVD: descrittori di volume ISO 9660 («CD001») o UDF («BEA01», «NSR02», «NSR03») dal settore
+    16. -> 'udf', 'iso9660', con «_2352» se i settori sono grezzi da 2352 byte (BIN/CUE, «RAW ISO» di FTK Imager: sincronismo,
+    intestazione e correzione d'errore attorno ai 2048 byte di dati), altrimenti None. Sleuth Kit non legge UDF (NIST Data
+    Leakage, CD-R RM#3); 7-Zip sì, ma solo a settori da 2048 byte."""
+    try:
+        with open(path, "rb") as fh:
+            fh.seek(16 * 2048)
+            area = fh.read(2048 * 16)
+            fh.seek(0)
+            grezzo = fh.read(2352 * 32)
+    except OSError:
+        return None
+
+    def tipo(ids):
+        return "udf" if ids & {b"BEA01", b"NSR02", b"NSR03"} else "iso9660" if b"CD001" in ids else None
+    t = tipo({area[i + 1:i + 6] for i in range(0, len(area) - 6, 2048)})
+    if t:
+        return t
+    if grezzo[:12] == CD_SYNC:
+        ids = set()
+        for n in range(16, 32):
+            b = grezzo[n * 2352:(n + 1) * 2352]
+            o = 16 if b[15:16] == b"\x01" else 24          # mode 1: dati dal byte 16; mode 2 form 1: dal byte 24
+            ids.add(b[o + 1:o + 6])
+        t = tipo(ids)
+        return t + "_2352" if t else None
+    return None
+
+
+CD_SYNC = b"\x00" + b"\xff" * 10 + b"\x00"
+
+
+def settori_2048(case, f, say=print):
+    """(3.0.2) Copia derivata a settori da 2048 byte di un'immagine di CD a settori grezzi da 2352 (solo i dati di ogni
+    settore, come bchunk): serve a 7-Zip. SHA-256 e riferimento all'originale, che non cambia; settori anomali contati."""
+    import forense_agent as fa
+    dest = case.root / "estratta"
+    dest.mkdir(parents=True, exist_ok=True)
+    out = dest / (re.sub(r"[^\w.-]+", "_", Path(f).stem)[:100] + ".settori_2048.iso")
+    say(tr("Immagine di CD a settori grezzi da 2352 byte: copia derivata a settori da 2048 byte (solo i dati)…"))
+    cont = {"settori": 0, "mode1": 0, "mode2_form1": 0, "mode2_form2": 0, "senza_sincronismo": 0, "vuoti": 0}
+    # MD5 e SHA-1 dei dati a 2048 byte: sono quelli che gli acquisitori (FTK Imager…) e NIST pubblicano per i CD
+    h_md5, h_sha1 = hashlib.md5(), hashlib.sha1()
+    with open(f, "rb") as src, open(out, "wb") as dst:
+        while True:
+            b = src.read(2352 * 512)
+            if not b:
+                break
+            buf = bytearray()
+            for i in range(0, len(b) - 2351, 2352):
+                x = b[i:i + 2352]
+                cont["settori"] += 1
+                if x[:12] != CD_SYNC:
+                    if not any(x):                     # settore non scritto (zeri): dati vuoti, niente da segnalare
+                        cont["vuoti"] += 1
+                        buf += bytes(2048)
+                        continue
+                    cont["senza_sincronismo"] += 1
+                if x[15] == 1:
+                    cont["mode1"] += 1
+                    buf += x[16:16 + 2048]
+                else:
+                    cont["mode2_form2" if x[18] & 0x20 else "mode2_form1"] += 1
+                    buf += x[24:24 + 2048]
+            dst.write(buf)
+            h_md5.update(buf)
+            h_sha1.update(buf)
+    os.chmod(out, 0o444)
+    rif = {"origine": str(f), "sha256_origine": fa.sha256_file(Path(f)), "operazione": tr("settori da 2352 a 2048 byte"),
+           "sha256": fa.sha256_file(out), "md5": h_md5.hexdigest(), "sha1": h_sha1.hexdigest(), **cont}
+    Path(str(out) + ".json").write_text(json.dumps(rif, indent=1), encoding="utf-8")
+    if cont["mode2_form2"] or cont["senza_sincronismo"]:
+        say(tr("ATTENZIONE: {a} settori Mode 2 Form 2 e {b} senza sincronismo: i loro dati potrebbero non essere completi.").format(
+            a=cont["mode2_form2"], b=cont["senza_sincronismo"]))
+    return out, rif
 
 
 IOS_RE = re.compile(r"(^|/)(mobile/Library/|private/var/mobile/|System/Library/CoreServices/SystemVersion\.plist$)")
@@ -427,8 +847,12 @@ def index(case, part, con, say=print):
     src = _sorgente(case, part)
     img, kind = src["file"], src["formato"]
     tz = ((case.meta.get("fuso_dispositivo") or {}).get("tz")) or "Europe/Rome"
-    gen = (zip_entries(img) if kind == "zip" else tar_entries(img) if kind == "tar" else dir_entries(img))
-    mf, files, evs = [], [], []
+    if kind == "estratto":            # (3.0.2) 7z/rar: elenco e date dall'archivio, file dalla copia estratta
+        gen = json.loads(Path(str(img) + ".voci.json").read_text(encoding="utf-8"))
+    else:
+        gen = (zip_entries(img) if kind == "zip" else tar_entries(img) if kind == "tar" else
+               ad1_entries(img) if kind == "ad1" else dir_entries(img))
+    mf, files, evs, hs = [], [], [], []
     n = nev = 0
     stats = {"voci": 0, "cartelle": 0, "byte": 0, "date": {}, "collegamenti": 0, "sparsi": 0, "cifrate": 0,
              "metodi": {}}
@@ -447,7 +871,9 @@ def index(case, part, con, say=print):
             times = {"M": _local_to_utc(e["dos"], tz)}
             dsrc = "dos"
         else:
-            dsrc = "copia" if kind == "cartella" else "utc"
+            dsrc = e.get("dsrc") or ("copia" if kind == "cartella" else "utc")
+        if e.get("md5") or e.get("sha1"):
+            hs.append((nid, e.get("md5"), e.get("sha1")))
         stats["date"][dsrc] = stats["date"].get(dsrc, 0) + 1
         if kind == "zip":
             stats["metodi"][e["method"]] = stats["metodi"].get(e["method"], 0) + 1
@@ -467,7 +893,7 @@ def index(case, part, con, say=print):
         iso = {k: _iso(times.get(k)) for k in "MACB"}
         mf.append((nid, int(part), path, int(isdir), size, mode, iso["M"], iso["A"], iso["C"], iso["B"], dsrc,
                    kind, int(e.get("loc") or 0), int(e.get("csize") or 0), int(e.get("method") or 0), e.get("link")))
-        files.append((int(part), str(nid), 0, typ, path))
+        files.append((int(part), str(nid), 1 if e.get("cancellato") else 0, typ, path))
         if isdir:
             have_dirs.add(path)
             stats["cartelle"] += 1
@@ -493,9 +919,11 @@ def index(case, part, con, say=print):
         if say and n % 100000 == 0:
             say(tr("  {n} voci dell'estrazione lette...").format(n=n))
     w.executemany(INSERT_MF, mf)
+    w.executemany("INSERT INTO logica_hash VALUES (?,?,?)", hs)
     con.executemany(fa.INSERT_FILE, files)
     con.executemany(fa.INSERT_EV, evs)
     nev += len(evs)
+    stats["hash_registrati"] = len(hs)
     # cartelle presenti solo nei percorsi (zip senza voci per le cartelle): le aggiunge l'albero da solo
     for nid_h, target in hard:          # tar: un collegamento fisico ha i dati della voce a cui rimanda
         t = target.strip("/")
@@ -546,8 +974,13 @@ def stream(case, part, inode, chunk=1 << 20):
         yield from zip_open(img, r["loc"], r["csize"], r["method"])
     elif r["kind"] == "tar":
         yield from tar_open(img, r["loc"], r["size"])
+    elif r["kind"] == "ad1":
+        yield from ad1_open(img, r["loc"], chunk)
     else:
-        with open(os.path.join(img, *r["path"].split("/")), "rb") as fh:
+        p = os.path.join(img, *r["path"].split("/"))
+        if r["kind"] == "estratto" and not os.path.realpath(p).startswith(os.path.realpath(img) + os.sep):
+            raise FileNotFoundError(tr("percorso fuori dalla copia estratta: {p}").format(p=r["path"]))
+        with open(p, "rb") as fh:
             while b := fh.read(chunk):
                 yield b
 
@@ -629,6 +1062,20 @@ def istat_text(case, part, inode):
             loc=r["loc"], cs=r["csize"], m=ZIP_METHODS.get(r["method"], r["method"])))
     elif r["kind"] == "tar":
         L.append(tr("Posizione nel tar: dati dal byte {loc}").format(loc=r["loc"]))
+    elif r["kind"] == "ad1":
+        L.append(tr("Posizione nell'AD1: voce al byte {loc} dei dati logici").format(loc=r["loc"]))
+    elif r["kind"] == "estratto":
+        L.append(tr("Letto dalla copia estratta con 7-Zip: {p}").format(p=os.path.join(src["file"], *r["path"].split("/"))))
+    m = mx(case)
+    try:
+        h = m.execute("SELECT md5, sha1 FROM logica_hash WHERE id=?", (int(inode),)).fetchone()
+    except Exception:
+        h = None
+    finally:
+        m.close()
+    if h:
+        L.append(tr("Hash registrati dallo strumento di acquisizione: MD5 {md5}, SHA-1 {sha1}").format(
+            md5=h[0] or "-", sha1=h[1] or "-"))
     return "\n".join(L)
 
 
@@ -803,9 +1250,14 @@ def cmd_prepara(args):
     if case.meta_path.exists():
         sys.exit(tr("Il caso {root} esiste già: usa un'altra cartella.").format(root=case.root))
     kind = formato(img)
+    logica = bool(getattr(args, "logica", False))
     if kind is None:
-        sys.exit(tr("Formato non riconosciuto: servono uno zip, un tar (anche .tar.gz) o una cartella con "
+        sys.exit(tr("Formato non riconosciuto: servono zip, tar, tar.gz, 7z, rar, AD1, un'immagine di CD/DVD o una cartella.") if logica else
+                 tr("Formato non riconosciuto: servono uno zip, un tar (anche .tar.gz) o una cartella con "
                     "l'estrazione del file system del telefono."))
+    if kind in LOGICI and not logica:
+        sys.exit(tr("7z, rar, AD1 e immagini di CD/DVD si aprono come «Sorgente logica» (nella Home), non come estrazione di un telefono."))
+    kind0 = kind
     case.root.mkdir(parents=True, exist_ok=True)
     case.export_dir.mkdir(exist_ok=True)
     lingua = lg.imposta(getattr(args, "lingua", None) or lg.lingua())
@@ -813,6 +1265,8 @@ def cmd_prepara(args):
                  "tool_versions": {}, "lingua": lingua}
     if getattr(args, "drone", False):       # (3.0) si legge come un'estrazione; le chat e iLEAPP/ALEAPP sull'insieme non servono
         case.meta["drone"] = True
+    if logica:                              # (3.0.2) archivio, AD1 o cartella di file: niente analisi del telefono
+        case.meta["logica"] = True
     try:
         case.meta["ambiente"] = fa.ambiente()
     except Exception as e:
@@ -838,7 +1292,8 @@ def cmd_prepara(args):
             case.meta["sha256_rinviato"] = True
             case.log("hash_copia_rinviato", tr("analisi speditiva"))
         else:
-            fa.hash_evidence(case)
+            # AD1: l'hash complessivo di FTK non è quello dei file .ad1; si verificano gli hash dei singoli file
+            fa.hash_evidence(case, dati=kind != "ad1")
     else:
         print(tr("Estrazione in una cartella: l'hash di ogni file si calcola con «Hash dei file» (non c'è un file unico "
                  "dell'estrazione da verificare)."))
@@ -854,10 +1309,16 @@ def cmd_prepara(args):
         case.meta["image"] = str(work)
         case.log("copia_derivata_decompressa", rif)
         kind = "tar"
+    elif kind in ESTRATTI:
+        work, rif = estrai(case, img, case.meta["fuso_dispositivo"]["tz"], lambda x: print(x, flush=True))
+        case.meta["estratta"] = rif
+        case.meta["image"] = str(work)
+        case.log("copia_derivata_estratta", rif)
+        kind = "estratto"
     part = part_key(0)
-    case.meta["partitions"] = [{"offset": part, "readable": True, "fs": tr("Estrazione ({fmt})").format(
-        fmt=tr(FORMATI[kind])), "desc": img.name, "length_sectors": 0,
-        "mobile": {"file": str(work), "formato": kind, "nome": img.name}}]
+    case.meta["partitions"] = [{"offset": part, "readable": True, "fs": (tr("Sorgente logica ({fmt})") if logica else
+        tr("Estrazione ({fmt})")).format(fmt=tr(FORMATI[kind0 if logica else kind])), "desc": img.name, "length_sectors": 0,
+        "mobile": {"file": str(work), "formato": kind, "nome": img.name, "formato_originale": kind0}}]
     case.save()
     db = case.db_path
     if db.exists():
@@ -870,7 +1331,11 @@ def cmd_prepara(args):
     fa.avanz("list")               # (2.20) passi della pagina di preparazione
     n, nev, stats = index(case, part, con)
     p = case.meta["partitions"][0]
-    p["files"], p["deleted"] = n, 0
+    # (3.0.2) cancellate: solo le voci dei CD/DVD UDF presenti nelle VAT precedenti o segnate cancellate
+    p["files"], p["deleted"] = n, con.execute("SELECT count(*) FROM files WHERE part=? AND deleted=1", (int(part),)).fetchone()[0]
+    if logica:
+        _prepara_logica(case, args, con, part, p, n, nev, stats, kind0)
+        return
     m = mx(case)
     sample = [r[0] for r in m.execute("SELECT path FROM mobile_files WHERE part=? LIMIT 200000", (part,))]
     m.close()
@@ -969,6 +1434,94 @@ def cmd_prepara(args):
     print(tr("Pronto."))
 
 
+def _prepara_logica(case, args, con, part, p, n, nev, stats, kind0):
+    """(3.0.2) Seguito della preparazione per una sorgente logica (archivio, AD1, cartella di file): niente
+    riconoscimento del telefono, chat, iLEAPP/ALEAPP; per l'AD1 la verifica degli hash registrati da FTK."""
+    import forense_agent as fa
+    p["os"] = None
+    p["mobile"].update({"statistiche": stats})
+    case.meta["mobile"] = {"formato": p["mobile"]["formato"], "logica": True}
+    case.meta["disk_type"] = tr("sorgente logica ({fmt})").format(fmt=tr(FORMATI[kind0]))
+    fd = case.meta["fuso_dispositivo"]
+    fd["stato"] = "non_verificabile" if fd.get("auto") else "scelto_non_verificato"
+    case.meta["timeline"] = {"tsk_events": nev, "plaso_events": 0}
+    case.log("sorgente_logica_indicizzata", {"voci": n, "eventi": nev, "formato": kind0, "statistiche": stats})
+    for k, msg in (("dos", N_("ATTENZIONE: {n} voci dello zip hanno solo la data DOS (ora locale senza fuso): convertite "
+                              "con il fuso {tz}.")),
+                   ("locale", N_("ATTENZIONE: {n} voci del RAR 4 hanno date in ora locale senza fuso: convertite con il "
+                                 "fuso {tz}."))):
+        if stats["date"].get(k):
+            print(tr(msg).format(n=stats["date"][k], tz=fd["tz"]), flush=True)
+    case.save()
+    print(tr("Sorgente logica {fmt}: {n} voci, {nev} eventi.").format(fmt=tr(FORMATI[kind0]), n=n, nev=nev), flush=True)
+    if kind0 == "ad1" and stats.get("hash_registrati"):
+        if args.no_hash:
+            print(tr("Verifica degli hash dell'AD1 rinviata (analisi speditiva)."), flush=True)
+        else:
+            v = verifica_ad1(case, part, lambda x: print(x, flush=True))
+            case.meta["verifica_ad1"] = v
+            case.log("verifica_hash_ad1", {k: v[k] for k in ("controllati", "uguali", "diversi", "illeggibili", "n_senza_dati")})
+            case.save()
+            print(tr("Hash dei file nell'AD1: {u} uguali su {c} controllati, {d} diversi, {i} illeggibili.").format(
+                u=v["uguali"], c=v["controllati"], d=len(v["diversi"]), i=len(v["illeggibili"])), flush=True)
+            if v["n_senza_dati"]:
+                print(tr("File registrati da FTK senza i dati (contenuto non presente nell'AD1): {n}.").format(n=v["n_senza_dati"]),
+                      flush=True)
+    tel = riconosci_telefono(case, part)
+    if tel["database"]:
+        print(tr("Database di telefoni trovati: {d}{p}.").format(
+            d=", ".join(f"{tr(DB_LBL.get(k, k))} ({v})" for k, v in sorted(tel["database"].items())),
+            p=(" — " + tr("piattaforma {p}").format(p=tel["piattaforma"])) if tel["piattaforma"] else ""), flush=True)
+        if getattr(args, "chat", True):
+            try:
+                import forense_mobile_chat as fmc
+                fa.avanz("chat")
+                fmc.run(case, con)
+            except Exception as e:
+                print(tr("Chat: non completate ({vname}: {e})").format(vname=type(e).__name__, e=e), flush=True)
+    try:
+        import forense_mappe as fmp
+        fmp.livelli_dalla_sorgente(case, lambda x: print(x, flush=True))
+    except Exception as e:
+        print(tr("Mappa: KML/GPX della sorgente non letti ({vname}: {e})").format(vname=type(e).__name__, e=e), flush=True)
+    if not args.no_indice:
+        fa.run_addon(case, con, "indice")
+    if args.hash_file:
+        fa.run_addon(case, con, "hash")
+    if getattr(args, "trascrizione", None):
+        import forense_trascrizione as ftr
+        ftr.da_preparazione(case, con, args.trascrizione)
+    con.close()
+    case.save()
+    print(tr("Pronto."))
+
+
+def riconosci_telefono(case, part):
+    """(3.0.2) Sorgente logica: database noti di telefoni (per nome del file) e piattaforma che ne segue. La piattaforma
+    serve a «Chat e rubriche» e a iLEAPP/ALEAPP, che per una sorgente logica si avviano come analisi aggiuntive."""
+    import forense_mobile_chat as fmc
+    m = mx(case)
+    try:
+        found, cifrati = fmc.trova_db(m, int(part), logica=True)
+        sample = [r[0] for r in m.execute("SELECT path FROM mobile_files WHERE part=? LIMIT 200000", (int(part),))]
+    finally:
+        m.close()
+    voti = {}
+    for k, xs in found.items():
+        voti[fmc.DB_PIATTAFORMA[k]] = voti.get(fmc.DB_PIATTAFORMA[k], 0) + len(xs)
+    strutt = piattaforma(sample)
+    plat = strutt or (max(voti, key=voti.get) if voti else None)
+    tel = {"piattaforma": plat, "database": {k: len(v) for k, v in found.items()}, "cifrati": len(cifrati),
+           "struttura_telefono": bool(strutt)}
+    case.meta["logica_telefono"] = tel
+    if plat:
+        case.meta["mobile"]["piattaforma"] = plat
+        case.meta["partitions"][0]["mobile"]["piattaforma"] = plat
+    case.log("logica_database_telefono", tel)
+    case.save()
+    return tel
+
+
 def main(argv=None):
     import argparse
     import forense_lingua as lg
@@ -983,6 +1536,8 @@ def main(argv=None):
     p.add_argument("--no-chat", dest="chat", action="store_false", help=tr("non legge le chat (WhatsApp, SMS, iMessage)"))
     p.add_argument("--leapp", action="store_true", help=tr("artefatti con iLEAPP (iOS) o ALEAPP (Android)"))
     p.add_argument("--drone", action="store_true", help=tr("scheda o cartella di un drone: cerca i registri di volo"))
+    p.add_argument("--logica", action="store_true",
+                   help=tr("sorgente logica: archivio (zip, tar, tar.gz, 7z, rar), immagine AD1, immagine di CD/DVD (ISO 9660 o UDF) o cartella di file"))
     p.add_argument("--decomprimi", action="store_true",
                    help=tr("per un .tar.gz: crea nella cartella del caso la copia derivata decompressa"))
     p.add_argument("--info", help=tr("dati del caso in JSON: nome, operatore, reperto, note"))

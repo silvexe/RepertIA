@@ -1212,7 +1212,7 @@ function flags(i){
   const r = F[i], k = keyOf(r[C.part], r[C.inode]);
   const a = r[C.att] ? ATT.get(r[C.att]) : null;
   const at = !a ? "" : FD.case.mode === "tutti" ? (a.full ? `<span class="tag att">★ ${esc(a.why[0])}</span>` : "") : T("<span class=\"tag att\">📎 incluso</span>");
-  return (r[C.deleted] ? T('<span class="tag del">cancellato</span>') : "") + at + (BMKEYS.has(k) ? `<span class="tag bm">⭐</span>` : "") + (NOTES[k] ? `<span class="tag note">nota</span>` : "");
+  return (r[C.deleted] === 3 ? `<span class="tag del" title="${esc(T("File cancellato con blocchi dei dati oggi assegnati a un altro file: il contenuto che si legge è, almeno in parte, di altri file."))}">${T("cancellato · blocchi riusati")}</span>` : r[C.deleted] === 2 ? `<span class="tag del" title="${esc(T("Nome cancellato con l'inode riassegnato a un altro file (Sleuth Kit: «realloc»): il contenuto che si legge è del file che ora usa quell'inode, non di questo."))}">${T("cancellato · inode riassegnato")}</span>` : r[C.deleted] ? T('<span class="tag del">cancellato</span>') : "") + at + (BMKEYS.has(k) ? `<span class="tag bm">⭐</span>` : "") + (NOTES[k] ? `<span class="tag note">nota</span>` : "");
 }
 const icon = r => r[C.isdir] ? "📁" : r[C.att] ? "📎" : "📄";
 

@@ -1,4 +1,4 @@
-RepertIA 3.0.1 - By silvexe (Linux x86_64)
+RepertIA 3.0.2 - By silvexe (Linux x86_64)
 Forensic analysis of disk images, smartphone extractions and drone flight logs with a local language model (LLM).
 
 LINUX VERSION (EXPERIMENTAL)
@@ -21,18 +21,26 @@ On Linux their libraries are installed by installa.sh.
 
 INSTALLATION
 1. Extract the archive wherever you prefer (for example in your home folder):
-     tar -xzf RepertIA-3.0.1-Linux.tar.gz
+     tar -xzf RepertIA-3.0.2-Linux.tar.gz
 2. Open a terminal in the RepertIA folder and run:
      ./installa.sh
    Internet access and the administrator password are required. The script:
-   - installs with apt Sleuth Kit, libewf, PhotoRec, Poppler, ExifTool, Tesseract (OCR) and zenity
-     (file selection dialogs) and, if the distribution has it, bulk_extractor;
+   - installs with apt Sleuth Kit, libewf (ewf-tools), PhotoRec, Poppler, ExifTool, Tesseract (OCR) and
+     zenity (file selection dialogs) and, if the distribution has it, bulk_extractor; packages the
+     distribution does not have are listed at the end and do not block the others;
    - creates in python/ the Python environment with plaso, the libyal libraries, pytsk3, Pillow and
      the openai client, at the same versions as the Mac and Windows packages (requirements-linux.txt);
      the libyal libraries are compiled: it takes 10-20 minutes;
    - adds RepertIA to the applications menu.
    The installation log is in installa.log. The script can be run again.
 3. Start RepertIA from the applications menu or with ./RepertIA.sh: the browser opens.
+
+BULK_EXTRACTOR (optional)
+Debian and Ubuntu do not package it: build it from https://github.com/simsong/bulk_extractor
+(instructions in its README). RepertIA uses it if the bulk_extractor command is in the PATH (for
+example in /usr/local/bin, where "sudo make install" puts it) or if the program is in the
+strumenti/bulk_extractor/ folder of RepertIA. Tools are checked at startup: restart RepertIA after
+installing it. To check: "which bulk_extractor" in the terminal, or ./aggiorna-strumenti.sh.
 
 Included in the archive: 7-Zip 26.05 (strumenti/7zip) and the Italian/English OCR data
 (strumenti/tessdata). The system tools are updated with ./aggiorna-strumenti.sh; the versions

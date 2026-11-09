@@ -49,6 +49,8 @@ modello tutte le analisi, le ricerche e i report funzionano lo stesso.
 | <img src="docs/img/it/carica-memorie.jpg" alt="Scelta della copia forense di un disco" width="420"> | <img src="docs/img/it/carica-smartphone.jpg" alt="Scelta dell'estrazione di uno smartphone" width="420"> |
 | Copie forensi di dischi, SSD, pendrive e schede: E01, raw/dd, img, dmg | Estrazioni del file system completo di iPhone e Android (Cellebrite, GrayKey, altri): zip, tar, tar.gz o cartella. Facoltativi: portachiavi e sysdiagnose di iOS |
 
+Dalla 3.0.2 anche **🗂️ Sorgente logica**: file già raccolti da altri (zip, tar, tar.gz, 7z, rar, immagini logiche AD1 di FTK Imager con gli hash di FTK ricontrollati file per file, immagini di CD/DVD ISO 9660 e UDF, una cartella).
+
 <details>
 <summary><b>Altre schermate</b></summary>
 
@@ -99,7 +101,8 @@ Tutte le versioni: <https://github.com/silvexe/RepertIA/releases>
 scarica solo i sorgenti, non il programma da installare.
 
 > **Avvertenza.** RepertIA è un progetto personale, non certificato né validato da un ente terzo e non collegato ad
-> alcun ufficio o amministrazione. I risultati vanno confermati con un secondo strumento o sul dato originale prima di
+> alcun ufficio o amministrazione. Lo abbiamo provato su dati di riferimento pubblici (vedi
+> [Provato su dati di riferimento pubblici](#provato-su-dati-di-riferimento-pubblici)). I risultati vanno confermati con un secondo strumento o sul dato originale prima di
 > usarli in atti. Il software è fornito «così com'è», senza alcuna garanzia (vedi [LICENSE](LICENSE)). Le risposte del
 > modello linguistico sono spunti investigativi, non conclusioni.
 
@@ -109,8 +112,9 @@ scarica solo i sorgenti, non il programma da installare.
 |---|---|
 | File system | NTFS, FAT/exFAT, ext, HFS+, APFS (anche FileVault con chiave); file cancellati, orfani, ADS; spazio non allocato; copie shadow e snapshot APFS |
 | Volumi cifrati | Rilevamento di BitLocker, LUKS, FileVault, VeraCrypt (alta entropia); decifratura di BitLocker, LUKS1 e APFS con la chiave (mai salvata) |
-| Artefatti Windows | Per ogni installazione (anche Windows.old): account e accessi (SAM e registri eventi), Prefetch, Amcache, UserAssist, ShimCache, BAM, SRUM, LNK e jump list, ShellBags, Cronologia attività, journal NTFS `$UsnJrnl`, eventi (servizi, accensioni, Desktop remoto, Defender, USB), reti, cestino, browser |
+| Artefatti Windows | Per ogni installazione (anche Windows.old): account e accessi (SAM e registri eventi), Prefetch, Amcache, UserAssist, ShimCache, BAM, SRUM, LNK e jump list, ShellBags, Cronologia attività, journal NTFS `$UsnJrnl`, eventi (servizi, accensioni, Desktop remoto, Defender, USB), reti, cestino, browser; dalla 3.0.2 indice di Ricerca di Windows (`Windows.edb`), cronologia di Internet Explorer (`WebCacheV01.dat`), Sticky Notes, Google Drive |
 | Artefatti macOS | Volume Dati, quarantena, avvio automatico, TCC, iMessage, documenti recenti, Safari, KnowledgeC, Bluetooth, Time Machine |
+| Sorgente logica (3.0.2) | zip, tar, tar.gz, 7z, rar, AD1 di FTK Imager (anche in segmenti; MD5/SHA-1 di FTK ricalcolati per ogni file), immagini di CD/DVD ISO 9660 e UDF, anche CD-R in più sessioni con VAT (i file solo nelle VAT precedenti compaiono come cancellati), o una cartella; database di telefoni riconosciuti dal nome, KML/GPX come livelli della mappa |
 | Smartphone (2.20) | Estrazioni del file system completo di iPhone e Android (zip di Cellebrite, GrayKey e altri, tar, tar.gz, cartella) lette senza copiarle; chat WhatsApp, iMessage/SMS e SMS/MMS con vista a fumetti (anche nel report portatile), rubriche, allegati collegati ai file e in anteprima sopra la chat, esportazione delle chat (HTML/CSV con SHA-256); iLEAPP e ALEAPP inclusi, con le chat delle altre app e la vista Chiamate ricavate dai loro risultati; portachiavi di iOS acquisito a parte (es. GrayKey) passato a iLEAPP, a scelta, con i valori segreti nascosti; sysdiagnose di iOS (uno o più) letti con un secondo giro di iLEAPP |
 | File citati (2.20) | Percorsi e nomi di file citati da artefatti, allegati delle chat, righe della timeline e risposte dell'agente ritrovati nella copia o nell'estrazione (percorsi del telefono, di Windows e di macOS; campi di cartella e nome uniti; per percorso, hash o nome e dimensione), un riquadro per file con l'esito in tre livelli (✅ trovato con certezza, ⚠️ probabile con i candidati, ❌ non presente) e l'anteprima, anche nel report Word/PDF; allegati WhatsApp verificati con lo SHA-256, miniatura dal database se il file manca |
 | Timeline | File system + plaso; date in UTC, ora italiana o fuso del dispositivo (rilevato), FAT/exFAT convertiti correttamente |
@@ -125,6 +129,20 @@ Interfaccia, report e testi dei casi **in italiano o in inglese** (la lingua di 
 
 Documentazione completa: [src/README.md](src/README.md) (in inglese: [docs/MANUAL.md](docs/MANUAL.md)). Metodo, collaudi e limiti
 noti: [VALIDAZIONE.md](VALIDAZIONE.md) (in inglese: [VALIDATION.md](VALIDATION.md)).
+
+## Provato su dati di riferimento pubblici
+
+RepertIA è stato messo alla prova su immagini pubbliche preparate da altri, con le risposte attese scritte da chi le ha
+create. Le prove le abbiamo fatte noi, e pubblichiamo dati, metodo e [script](tools/prove/) perché chiunque possa rifarle.
+
+| Prova | Dati di riferimento | Risultato |
+|---|---|---|
+| **Recupero dei file cancellati** | 90 immagini NIST CFTT «Deleted File Recovery» | File completi e giusti: **primo o pari al primo** rispetto ai rapporti pubblicati, su FAT, exFAT, NTFS ed ext. Su exFAT **tutti** (273/273 e 376/376) → [dettagli](docs/prove/nist-dfr-carving.it.md) |
+| **Carving di immagini** | 26 immagini NIST CFTT «Graphic File Carving» (2014 e 2023) | File interi, anche non allineati ai settori: **pari al miglior risultato pubblicato**, zero falsi positivi. File frammentati del 2014: **sotto** il migliore → [dettagli](docs/prove/nist-dfr-carving.it.md) |
+| **Caso completo** | NIST CFReDS «Data Leakage» (PC, chiavetta, CD-R), 60 domande con le risposte ufficiali | **53 domande verificate sulle immagini: risposte uguali a quelle NIST**, salvo poche differenze spiegate in cui è la risposta NIST a essere imprecisa (e un messaggio di posta nello spazio non usato dell'OST, che RepertIA non legge); le altre 7 sono di ragionamento dell'analista. Sette difetti trovati e corretti → [dettagli](docs/prove/nist-data-leakage.it.md) |
+| **Smartphone** | Android 14 e iOS 17 di Joshua Hickman, con il diario delle azioni | **Tutte le 262 azioni presenti nei dati dei telefoni** ritrovate, con i dati giusti anche dove il diario sbaglia verso, ora o numero (5 casi). Le altre 2 annotate nel diario non sono nel registro del telefono → [dettagli](docs/prove/smartphone-hickman.it.md) |
+
+Non è una certificazione: NIST e Joshua Hickman non hanno provato RepertIA. Abbiamo usato i loro dati pubblici.
 
 ## Scaricare e installare
 

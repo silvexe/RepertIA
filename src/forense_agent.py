@@ -30,7 +30,7 @@ si calcola dopo con `prepara --case CASO --aggiungi immagine` (o dal caso, nell'
 """
 import argparse, csv, datetime as dt, hashlib, html, inspect, io, json, os, plistlib, re
 import shutil, sqlite3, subprocess, sys, tempfile, time, urllib.request, zipfile
-import platform, stat, bisect
+import platform, stat, bisect, struct
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -85,15 +85,30 @@ def noelev_env():
         tdir = Path(exe).parent
         env["TERM"] = "cygwin"
         if (tdir / "63" / "cygwin").exists():
-            env["TERMINFO"] = str(tdir)
+            # (3.0.2) nella forma di Cygwin (/cygdrive/c/...): con un percorso Windows Cygwin trova il database solo se
+            # la cartella di lavoro (quella del caso) è sullo stesso disco; con il caso su un altro disco o dietro una
+            # giunzione PhotoRec si fermava («Terminfo file is missing») senza recuperare nulla
+            p = str(tdir.absolute())
+            env["TERMINFO"] = ("/cygdrive/" + p[0].lower() + p[2:].replace("\\", "/")) if p[1:2] == ":" else p
     return env
 
 
+APT_NOMI = {"libewf": "ewf-tools", "tesseract": "tesseract-ocr", "bulk_extractor": None}   # None: non è in Debian/Ubuntu
+
+
 def install_hint(mac_pkgs):
-    """Come installare uno strumento mancante, in base al sistema."""
+    """Come installare uno strumento mancante, in base al sistema (Linux, 3.0.2: nomi dei pacchetti apt; bulk_extractor
+    non è in Debian né in Ubuntu e va compilato)."""
     if IS_WIN:
         return tr("componente non trovato: reinstalla RepertIA o esegui 'Aggiorna strumenti'")
-    return f"brew install {mac_pkgs}"
+    if IS_MAC:
+        return f"brew install {mac_pkgs}"
+    apt = [APT_NOMI.get(p, p) for p in mac_pkgs.split()]
+    s = " ".join(p for p in apt if p)
+    s = f"sudo apt install {s}" if s else ""
+    if None in apt:
+        s += ("; " if s else "") + tr("bulk_extractor va compilato: vedi LEGGIMI.txt")
+    return s
 
 
 def _force_writable(func, path, *_):
@@ -116,7 +131,7 @@ except ImportError:
 
 APP_NAME = "RepertIA"
 APP_BY = "By silvexe"
-APP_VERSION = "3.0.1"
+APP_VERSION = "3.0.2"
 
 # ------------------------------------------------------------ configurazione
 # Tutti i valori si possono passare anche come opzioni di `analizza`.
@@ -133,7 +148,10 @@ TSK_BINS = ["img_stat", "mmls", "fsstat", "fls", "icat", "istat"]
 KIND = {"M": N_("modifica contenuto"), "A": N_("accesso"),
         "C": N_("modifica metadati"), "B": N_("creazione")}
 INODE_RE = re.compile(r"\d+(-\d+-\d+)?")
-FLS_RE = re.compile(r"^(\S+)\s+(\*\s+)?(\d+(?:-\d+-\d+)?)(?:\(realloc\))?:\t(.*)$")
+FLS_RE = re.compile(r"^(\S+)\s+(\*\s+)?(\d+(?:-\d+-\d+)?)(\(realloc\))?:\t(.*)$")
+# (3.0.2) deleted = 2: nome cancellato con l'inode riassegnato a un altro file («(realloc)» di fls): il contenuto che si
+# legge da quell'inode è del file che ora lo usa, non di quello cancellato (vedi build_listing)
+CANC_RIASSEGNATO = 2
 MMLS_RE = re.compile(r"^\s*\d+:\s+(\S+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(.*)$")
 INSERT_EV = "INSERT INTO events VALUES (?,?,?,?,?,?,?)"
 INSERT_FILE = "INSERT INTO files VALUES (?,?,?,?,?)"
@@ -694,6 +712,303 @@ def stream_lines(case, cmd):
         p.wait()
 
 
+class CatenaExfat:
+    """(3.0.2) exFAT, file cancellati frammentati. Alla cancellazione exFAT libera i cluster solo nella bitmap e lascia
+    la catena nella FAT; Sleuth Kit invece legge ogni cancellato come contiguo dal primo cluster, e un file frammentato
+    torna con i dati di altri file (provato con le immagini NIST CFTT DFR-05 e DFR-12). Qui si rilegge la voce di
+    cartella dell'inode e si segue la catena nella FAT, ma solo se è certo che sia ancora quella del file: voce di un
+    file (non cartella; cancellata, o attiva dentro una cartella cancellata) senza il flag NoFatChain, catena lunga esattamente quanto la dimensione e chiusa da fine
+    catena, cluster tutti validi, distinti e liberi nella bitmap, e non contigui (altrimenti icat legge già giusto). In
+    ogni altro caso resta la lettura di Sleuth Kit. Ogni ricostruzione si annota nel registro del caso (exfat_catena)."""
+    PAG = 1 << 16
+
+    def __init__(self, case, offset):
+        import forense_estesa as fe
+        self.ok, self.pag = False, {}
+        self.img = fe.HeadReader(case)._img()
+        self.base = offset * 512
+        bs = self.img.read(self.base, 512)
+        if bs[3:11] != b"EXFAT   ":
+            return
+        fat_off, _fat_len, heap, self.ncl, root = struct.unpack_from("<IIIII", bs, 80)
+        self.bps = 1 << bs[108]
+        self.cl = self.bps << bs[109]
+        self.fat = self.base + fat_off * self.bps
+        self.heap = self.base + heap * self.bps
+        self.bitmap = None
+        dati = b"".join(self._cluster(c) for c in self._segui(root, 1 << 12))   # radice: voce 0x81 = bitmap
+        for i in range(0, len(dati) - 31, 32):
+            if dati[i] == 0x81 and not dati[i + 1] & 1:                           # prima bitmap (prima FAT)
+                primo, lun = struct.unpack_from("<IQ", dati, i + 20)
+                self.bitmap = (self._segui(primo, (lun + self.cl - 1) // self.cl), lun)
+                break
+        self.ok = self.bitmap is not None
+
+    def _leggi(self, pos, n):
+        """Lettura con pagine in memoria (FAT e bitmap si leggono a pezzi, non tutte)."""
+        out = b""
+        while n > 0:
+            p, d = divmod(pos, self.PAG)
+            if p not in self.pag:
+                self.pag[p] = self.img.read(p * self.PAG, self.PAG)
+            b = self.pag[p][d:d + n]
+            if not b:
+                break
+            out, pos, n = out + b, pos + len(b), n - len(b)
+        return out
+
+    def _cluster(self, c):
+        return self.img.read(self.heap + (c - 2) * self.cl, self.cl)
+
+    def _succ(self, c):
+        return struct.unpack("<I", self._leggi(self.fat + c * 4, 4))[0]
+
+    def _segui(self, c, lim):
+        v = []
+        while 2 <= c < self.ncl + 2 and len(v) < lim:
+            v.append(c)
+            c = self._succ(c)
+        return v
+
+    def _libero(self, c):
+        clu, lun = self.bitmap
+        i = c - 2
+        if i // 8 >= lun:
+            return False
+        k, r = divmod(i // 8, self.cl)
+        return k < len(clu) and not self._leggi(self.heap + (clu[k] - 2) * self.cl + r, 1)[0] >> (i % 8) & 1
+
+    def catena(self, inode):
+        """(cluster, dimensione) del cancellato frammentato, oppure None (si legge con icat)."""
+        if not self.ok or not str(inode).isdigit() or int(inode) < 3:
+            return None
+        e = self.img.read(self.heap + (int(inode) - 3) * 32, 64)
+        # voce di file + Stream Extension: cancellata (0x05/0x40) o rimasta attiva (0x85/0xC0) dentro una cartella
+        # cancellata; in entrambi i casi i cluster devono risultare liberi nella bitmap (un file attivo li ha occupati)
+        if len(e) < 64 or (e[0], e[32]) not in ((0x05, 0x40), (0x85, 0xC0)) or e[1] < 2:
+            return None
+        if struct.unpack_from("<H", e, 4)[0] & 0x10 or e[33] & 2:      # cartella, o NoFatChain: icat è già giusto
+            return None
+        primo, dim = struct.unpack_from("<IQ", e, 52)
+        n = (dim + self.cl - 1) // self.cl
+        if n < 2:
+            return None
+        v, c = [], primo
+        while len(v) < n:
+            if not 2 <= c < self.ncl + 2 or c in v or not self._libero(c):
+                return None
+            v.append(c)
+            c = self._succ(c)
+        if c < 0xFFFFFFF8 or all(b == a + 1 for a, b in zip(v, v[1:])):
+            return None
+        return v, dim
+
+    def scostamenti(self, inode):
+        """(3.0.2) Scostamento da UTC (in secondi) scritto nella voce exFAT per creazione (B), modifica (M) e accesso (A),
+        None per ciascuno se il campo non è valido (bit 7 a zero: chi ha scritto il disco non l'ha registrato). L'ora del
+        disco meno lo scostamento è l'istante UTC: in quel caso il fuso del dispositivo non serve (DFR-01 exFAT di NIST,
+        scritto da un Mac: ora 22:12 con +4 h = 18:12 UTC). Sleuth Kit restituisce l'ora del disco senza applicarlo."""
+        if not self.ok or not str(inode).isdigit() or int(inode) < 3:
+            return None
+        e = self.img.read(self.heap + (int(inode) - 3) * 32, 32)
+        if len(e) < 32 or e[0] not in (0x85, 0x05):
+            return None
+
+        def sc(b):
+            return None if not b & 0x80 else ((b & 0x7F) - (128 if b & 0x40 else 0)) * 900
+        return {"B": sc(e[22]), "M": sc(e[23]), "A": sc(e[24])}
+
+    def flusso(self, v, dim):
+        i = 0
+        while i < len(v) and dim > 0:
+            j = i + 1
+            while j < len(v) and v[j] == v[j - 1] + 1 and (j - i) * self.cl < 1 << 20:
+                j += 1
+            b = self.img.read(self.heap + (v[i] - 2) * self.cl, min((j - i) * self.cl, dim))
+            if not b:
+                return
+            yield b
+            dim -= len(b)
+            i = j
+
+
+CANC_BLOCCHI_RIUSATI = 3   # (3.0.2) cancellato con blocchi dei dati oggi assegnati a un altro file (vedi segna_riusati)
+
+
+class MappaAllocati:
+    """(3.0.2) Blocchi oggi assegnati a un file, nelle unità di Sleuth Kit (FAT ed exFAT: settori; NTFS: cluster; ext:
+    blocchi), dalle mappe del file system lette una volta: NTFS $Bitmap, FAT tabella dei cluster, exFAT bitmap
+    (CatenaExfat), ext bitmap dei blocchi dei gruppi. allocato(b) dà True/False, None se il file system non è gestito."""
+
+    def __init__(self, case, offset, fs):
+        import forense_estesa as fe
+        self.fs = str(fs or "").lower()
+        self.img = fe.HeadReader(case)._img()
+        self.base = int(offset) * 512
+        self.case, self.off = case, int(offset)
+        self.tipo, self.pag = None, {}
+        bs = self.img.read(self.base, 512)
+        if self.fs.startswith("ntfs"):
+            hr = fe.HeadReader(case)
+            hr.img = self.img
+            fsi = hr._fs(self.off)
+            f = fsi.open_meta(inode=6)                               # $Bitmap
+            self.bitmap = f.read_random(0, int(f.info.meta.size))
+            self.tipo = "ntfs"
+        elif self.fs.startswith("exfat"):
+            self.cx = catena_exfat_lettore(case, offset)
+            if self.cx:
+                self.spc = self.cx.cl // self.cx.bps
+                self.heap_sec = (self.cx.heap - self.base) // self.cx.bps
+                self.tipo = "exfat"
+        elif self.fs.startswith("fat"):
+            bps, spc = struct.unpack_from("<H", bs, 11)[0], bs[13]
+            ris, nfat, nroot = struct.unpack_from("<H", bs, 14)[0], bs[16], struct.unpack_from("<H", bs, 17)[0]
+            tot = struct.unpack_from("<H", bs, 19)[0] or struct.unpack_from("<I", bs, 32)[0]
+            fsz = struct.unpack_from("<H", bs, 22)[0] or struct.unpack_from("<I", bs, 36)[0]
+            self.fat = self.base + ris * bps
+            self.spc, self.bps = spc, bps
+            self.dati = ris + nfat * fsz + (nroot * 32 + bps - 1) // bps   # primo settore dell'area dati
+            ncl = (tot - self.dati) // spc
+            self.bit = 12 if ncl < 4085 else 16 if ncl < 65525 else 32
+            self.tipo = "fat"
+        elif self.fs.startswith("ext"):
+            sb = self.img.read(self.base + 1024, 1024)
+            self.first, lbs = struct.unpack_from("<II", sb, 20)
+            self.bsz = 1024 << lbs
+            self.bpg = struct.unpack_from("<I", sb, 32)[0]
+            inc = struct.unpack_from("<I", sb, 96)[0]
+            self.dsz = (struct.unpack_from("<H", sb, 254)[0] or 32) if inc & 0x80 else 32
+            self.gdt = self.base + (self.first + 1) * self.bsz
+            self.gruppi = {}
+            self.tipo = "ext"
+
+    def _leggi(self, pos, n):
+        out = b""
+        while n > 0:
+            k, d = divmod(pos, 1 << 16)
+            if k not in self.pag:
+                self.pag[k] = self.img.read(k << 16, 1 << 16)
+            b = self.pag[k][d:d + n]
+            if not b:
+                break
+            out, pos, n = out + b, pos + len(b), n - len(b)
+        return out
+
+    def allocato(self, b):
+        if self.tipo == "ntfs":
+            i = b >> 3
+            return i < len(self.bitmap) and bool(self.bitmap[i] >> (b & 7) & 1)
+        if self.tipo == "exfat":
+            if b < self.heap_sec:
+                return True
+            return not self.cx._libero((b - self.heap_sec) // self.spc + 2)
+        if self.tipo == "fat":
+            if b < self.dati:
+                return True                                          # tabella o cartella radice: non sono dati
+            c = (b - self.dati) // self.spc + 2
+            if self.bit == 32:
+                v = struct.unpack("<I", self._leggi(self.fat + c * 4, 4))[0] & 0x0FFFFFFF
+            elif self.bit == 16:
+                v = struct.unpack("<H", self._leggi(self.fat + c * 2, 2))[0]
+            else:
+                w = struct.unpack("<H", self._leggi(self.fat + c * 3 // 2, 2))[0]
+                v = w >> 4 if c & 1 else w & 0xFFF
+            return v != 0
+        if self.tipo == "ext":
+            g, i = divmod(b - self.first, self.bpg)
+            if g not in self.gruppi:
+                d = self._leggi(self.gdt + g * self.dsz, self.dsz)
+                bmp = struct.unpack_from("<I", d, 0)[0] | ((struct.unpack_from("<I", d, 0x20)[0] << 32) if self.dsz >= 64 else 0)
+                flags = struct.unpack_from("<H", d, 0x12)[0]
+                self.gruppi[g] = None if flags & 2 else bmp          # BLOCK_UNINIT: nessun blocco di dati usato
+            bmp = self.gruppi[g]
+            if bmp is None:
+                return False
+            return bool(self._leggi(self.base + bmp * self.bsz + (i >> 3), 1)[0] >> (i & 7) & 1)
+        return None
+
+
+def segna_riusati(case, offset, con, fs):
+    """(3.0.2) Un file cancellato i cui blocchi oggi sono assegnati a un altro file restituisce (in parte) il contenuto di
+    quel file. Per ogni cancellato (deleted = 1, file) si controllano tutti i blocchi che RepertIA leggerebbe (le runlist
+    di Sleuth Kit, o la catena exFAT se si segue) e, se anche uno è assegnato, la voce diventa CANC_BLOCCHI_RIUSATI.
+    Solo NTFS, FAT, exFAT ed ext; registro «cancellati_blocchi_riusati». Restituisce quanti ne ha segnati."""
+    try:
+        import forense_estesa as fe
+        import pytsk3 as pt
+        m = MappaAllocati(case, offset, fs)
+        if m.tipo is None:
+            return 0
+        hr = fe.HeadReader(case)
+        hr.img = m.img
+        fsi = hr._fs(int(offset))
+        if fsi is None:
+            return 0
+    except Exception:
+        return 0
+    segnati = []
+    righe = con.execute("SELECT rowid, inode FROM files WHERE part=? AND deleted=1 AND type LIKE '%r'", (int(offset),)).fetchall()
+    for rid, ino in righe:
+        try:
+            if m.tipo == "exfat":
+                x = catena_exfat(case, offset, ino) if str(ino).isdigit() else None
+                if x:
+                    blocchi = [(m.heap_sec + (c - 2) * m.spc, m.spc) for c in x[1]]
+                else:
+                    blocchi = None
+            else:
+                blocchi = None
+            if blocchi is None:
+                f = fsi.open_meta(inode=int(str(ino).split("-")[0]))
+                blocchi = []
+                for a in f:
+                    if int(a.info.type) not in (int(pt.TSK_FS_ATTR_TYPE_NTFS_DATA), int(pt.TSK_FS_ATTR_TYPE_DEFAULT)):
+                        continue
+                    if not int(a.info.flags) & int(pt.TSK_FS_ATTR_NONRES):
+                        continue
+                    for r in a:
+                        if int(r.flags) & (int(pt.TSK_FS_ATTR_RUN_FLAG_SPARSE) | int(pt.TSK_FS_ATTR_RUN_FLAG_FILLER)) \
+                                or int(r.addr) == 0:
+                            continue
+                        blocchi.append((int(r.addr), int(r.len)))
+            if any(m.allocato(b) for a, n in blocchi for b in range(a, a + n)):
+                segnati.append((rid, ino))
+        except Exception:
+            continue
+    if segnati:
+        con.executemany("UPDATE files SET deleted=? WHERE rowid=?", [(CANC_BLOCCHI_RIUSATI, r) for r, _i in segnati])
+        con.commit()
+        case.log("cancellati_blocchi_riusati", {"partizione": int(offset), "n": len(segnati),
+                                                "inode": [i for _r, i in segnati][:200]})
+    return len(segnati)
+
+
+_CATENE_EXFAT = {}
+
+
+def catena_exfat_lettore(case, offset):
+    """Lettore exFAT della partizione (uno per immagine e partizione), oppure None se non è exFAT o non si apre."""
+    k = (str(case.image), int(offset))
+    if k not in _CATENE_EXFAT:
+        try:
+            r = CatenaExfat(case, int(offset))
+            _CATENE_EXFAT[k] = r if r.ok else None
+        except Exception:
+            _CATENE_EXFAT[k] = None
+    return _CATENE_EXFAT[k]
+
+
+def catena_exfat(case, offset, inode):
+    """(cluster letti, catena, dimensione) per un cancellato exFAT frammentato (vedi CatenaExfat), altrimenti None."""
+    r = catena_exfat_lettore(case, offset)
+    try:
+        x = r.catena(inode) if r else None
+    except Exception:
+        x = None
+    return (r, *x) if x else None
+
+
 def icat_stream(case, offset, inode):
     if ap.is_apfs_part(offset):          # volume APFS: lo legge libfsapfs
         yield from ap.stream(case, offset, inode)
@@ -701,6 +1016,13 @@ def icat_stream(case, offset, inode):
     if is_mobile(case):                  # estrazione di uno smartphone: la legge forense_mobile
         import forense_mobile as fm
         yield from fm.stream(case, offset, inode)
+        return
+    x = catena_exfat(case, offset, inode) if str(inode).isdigit() else None
+    if x:                                # exFAT, cancellato frammentato: catena della FAT (vedi CatenaExfat)
+        r, v, dim = x
+        case.log("exfat_catena", {"partizione": offset, "inode": inode, "byte": dim,
+                                  "cluster": v if len(v) <= 64 else v[:64] + ["…"]})
+        yield from r.flusso(v, dim)
         return
     cmd = ["icat", "-o", str(offset), case.image, inode]
     case.log("cmd", cmd)
@@ -749,6 +1071,10 @@ def image_segments(path):
     if re.fullmatch(r"\.[Ee]01", path.suffix):
         return sorted(p for p in path.parent.iterdir()
                       if p.stem == path.stem and re.fullmatch(r"\.[Ee]\d\d", p.suffix))
+    if path.suffix.lower() == ".ad1":           # (3.0.2) immagine logica AD1 in più segmenti (.ad1 .ad2 …)
+        return sorted((p for p in path.parent.iterdir()
+                       if p.stem == path.stem and re.fullmatch(r"\.ad\d+", p.suffix.lower())),
+                      key=lambda p: int(p.suffix[3:])) or [path]
     return [path]
 
 
@@ -779,7 +1105,7 @@ def hash_image(path, show=False):
     return {p.name: sha256_file(p, progress if show else None) for p in segs}
 
 
-def hash_evidence(case, deferred=False):
+def hash_evidence(case, deferred=False, dati=True):
     """SHA-256 della copia forense (tutti i segmenti), confrontato con l'eventuale hash di
     acquisizione. deferred=True: calcolato dopo l'avvio dell'analisi (analisi speditiva)."""
     evidence = Path(case.meta.get("evidence", case.meta.get("image", "")))
@@ -804,7 +1130,7 @@ def hash_evidence(case, deferred=False):
               else tr("ATTENZIONE: diverso dall'hash di acquisizione!"))
     # 2.14: hash dei DATI acquisiti (contenuto del disco originale), confrontato con l'hash che il
     # programma di acquisizione ha registrato nell'E01 o nel suo file di log accanto all'immagine.
-    if os.environ.get("REPERTIA_VERIFICA_DATI", "1") != "0":
+    if dati and os.environ.get("REPERTIA_VERIFICA_DATI", "1") != "0":
         try:
             v = verifica_dati(evidence, show=True)
         except Exception as e:
@@ -1283,15 +1609,340 @@ def apfs_message(parts):
             "Per questi Mac serve un'acquisizione logica del volume Dati, fatta sul Mac acceso e sbloccato."))
 
 
-def build_listing(case, offset, con):
+def _fls_windows(s):
+    """Come fls.exe di Sleuth Kit su Windows scrive un nome UTF-8: i caratteri oltre 255 diventano «?», gli altri un byte
+    Latin-1 (che letto come UTF-8 non è valido: «Gefäß» → «Gef��»). La perdita è definitiva, per questo serve pytsk3."""
+    return dec("".join(c if ord(c) < 256 else "?" for c in s).encode("latin-1"))
+
+
+class NomiVeri:
+    """(3.0.2) Windows: fls.exe scrive i nomi nella codifica del sistema e quelli non ASCII (cinese, russo, arabo, ma
+    anche «à» o «ß») arrivano alterati. Alla prima riga alterata si leggono con pytsk3 i nomi veri della partizione
+    (stesso Sleuth Kit, ma in UTF-8) e ogni percorso si ricollega con (inode, forma alterata). Se più nomi danno la stessa
+    forma (voci cancellate con inode 0: «北京.txt» e «東京.txt» diventano entrambe «??.txt») si usano nell'ordine della
+    cartella, che fls e pytsk3 percorrono allo stesso modo. Su Mac e Linux fls scrive già UTF-8 e non serve."""
+    def __init__(self, case, offset):
+        self.case, self.offset, self.mappa = case, offset, None
+
+    @staticmethod
+    def alterato(s):
+        return "?" in s or "�" in s
+
+    def _carica(self):
+        self.mappa = {}
+        try:
+            import forense_estesa as fe
+            import pytsk3 as pt
+            fs = fe.HeadReader(self.case)._fs(self.offset)
+        except Exception:
+            fs = None
+        if fs is None:
+            return
+        visti, coda = set(), [(fs.open_dir(path="/"), "")]
+        while coda:
+            d, base = coda.pop()
+            try:
+                voci = list(d)
+            except Exception:
+                continue
+            for e in voci:
+                try:
+                    nome = e.info.name.name.decode("utf-8", "replace")
+                    addr = int(e.info.name.meta_addr)
+                except Exception:
+                    continue
+                if nome in (".", ".."):
+                    continue
+                vero = f"{base}{nome}"
+                if any(ord(c) > 127 for c in vero):
+                    self.mappa.setdefault((addr, _fls_windows(vero)), []).append(vero)
+                meta = e.info.meta
+                if meta is not None and int(meta.type) == int(pt.TSK_FS_META_TYPE_DIR) and addr not in visti:
+                    visti.add(addr)
+                    try:
+                        coda.append((e.as_directory(), vero + "/"))
+                    except Exception:
+                        pass
+
+    def correggi(self, percorso, inode):
+        """Percorso vero di una riga di fls (inode «64-128-2», «53100», «0»), o quello di fls se non si sa."""
+        if os.name != "nt" or not self.alterato(percorso):
+            return percorso
+        if self.mappa is None:
+            self._carica()
+        try:
+            addr = int(str(inode).split("-")[0])
+        except ValueError:
+            return percorso
+        v = self.mappa.get((addr, percorso))
+        if not v:
+            return percorso
+        return v.pop(0) if len(v) > 1 else v[0]
+
+
+def orfani_ext(case, offset, visti):
+    """(3.0.2) ext: inode di file cancellati che Sleuth Kit 4.15 non elenca tra gli orfani ($OrphanFiles), per esempio i
+    file ext2 rimasti dentro una cartella cancellata il cui nome ha inode 0 (immagini NIST CFTT DFR-11 e DFR-12: il
+    contenuto è intatto, Sleuth Kit 3.2.2 li elencava). Si prendono da `ils` (inode non allocati e rimossi) quelli con
+    dimensione, non già elencati da fls con nessun nome, e si aggiungono come «$OrphanFiles/OrphanFile-N» (come fls)."""
+    if not shutil.which("ils"):
+        return []
+    out = []
+    for line in stream_lines(case, ["ils", "-o", str(offset), case.image]):
+        x = line.split("|")
+        if len(x) < 11 or not x[0].isdigit() or x[1] != "f":
+            continue
+        try:
+            dim = int(x[10])
+        except ValueError:
+            continue
+        if dim > 0 and x[0] not in visti:
+            out.append(x[0])
+    return out
+
+
+CARTELLE_EXT_MAX = 32 << 30      # oltre questa dimensione del file system non si cercano i blocchi di cartella liberi
+_PUNTO_PUNTO = re.compile(rb"(....)\x0c\x00\x01\x02\.\x00\x00\x00(....)(..)\x02\x02\.\.\x00\x00", re.S)
+
+
+def _voci_cartella_ext(b, max_ino):
+    """Voci (inode, nome, tipo) di un blocco di cartella ext: quelle collegate dai rec_len e quelle cancellate rimaste
+    nella coda di una voce (il rec_len della precedente le ha inglobate). Tipo 1 file, 2 cartella, 7 collegamento."""
+    out, i = [], 0
+    while i + 8 <= len(b):
+        ino, rl, nl, tp = struct.unpack_from("<IHBB", b, i)
+        if rl < 8 or i + rl > len(b) or i + 8 + nl > len(b):
+            break
+        out.append((ino, b[i + 8:i + 8 + nl], tp))
+        j = i + ((8 + nl + 3) & ~3)
+        while j + 8 <= i + rl:
+            ino2, rl2, nl2, tp2 = struct.unpack_from("<IHBB", b, j)
+            nm = b[j + 8:j + 8 + nl2]
+            if nl2 and rl2 >= 8 and j + 8 + nl2 <= i + rl and tp2 in (1, 2, 7) and len(nm) == nl2 \
+                    and all(c >= 32 and c != 47 and c != 127 for c in nm):
+                out.append((ino2, nm, tp2))
+                j += (8 + nl2 + 3) & ~3
+                continue
+            # voce cancellata il cui numero di inode è stato coperto dal nome più lungo della voce che ne ha preso il
+            # posto (rec_len, lunghezza e tipo stanno in j…j+3, il nome da j+4): resta solo il nome (inode 0)
+            rl3, nl3, tp3 = struct.unpack_from("<HBB", b, j)
+            nm = b[j + 4:j + 4 + nl3]
+            if nl3 and tp3 in (1, 2, 7) and rl3 >= ((8 + nl3 + 3) & ~3) and j - 4 + rl3 <= i + rl \
+                    and len(nm) == nl3 and all(c >= 32 and c != 47 and c != 127 for c in nm) \
+                    and not any(b[j + 4 + nl3:j - 4 + ((8 + nl3 + 3) & ~3)]):
+                out.append((0, nm, tp3))
+                j += (4 + nl3 + 3) & ~3
+                continue
+            j += 4
+        i += rl
+    return [(ino, nm.decode("utf-8", "replace"), tp) for ino, nm, tp in out
+            if 0 <= ino <= max_ino and nm not in (b".", b"..") and tp in (1, 2, 7)]
+
+
+def _blocchi_journal_ext(case, offset):
+    """Blocchi del journal ext3/ext4 (inode 8): contengono copie di blocchi di cartella, da non leggere come cartelle."""
+    try:
+        import forense_estesa as fe
+        fsi = fe.HeadReader(case)._fs(int(offset))
+        out = set()
+        for a in fsi.open_meta(inode=8):
+            for r in a:
+                if int(r.addr):
+                    out.update(range(int(r.addr), int(r.addr) + int(r.len)))
+        return out
+    except Exception:
+        return set()
+
+
+def cartelle_ext(case, offset, con, fs):
+    """(3.0.2) ext3/ext4: alla cancellazione l'inode di una cartella perde i puntatori ai blocchi, ma il blocco con le voci
+    (nome → inode) resta sul disco finché non è riusato. Sleuth Kit non lo trova più e i file che conteneva restano senza
+    nome («$OrphanFiles/OrphanFile-N») o non sono elencati affatto (immagini NIST CFTT DFR-11 e DFR-12 ext3/ext4, file in
+    una cartella cancellata). Si cercano nei blocchi LIBERI i blocchi di cartella (prima voce «.» che punta a sé, seconda
+    «..»), se ne leggono le voci e: l'orfano senza nome prende il suo percorso; l'inode non elencato si aggiunge come
+    cancellato; l'inode già elencato con un nome resta com'è. La cartella prende il nome della voce cancellata che la
+    elenca, altrimenti «$OrphanFiles/OrphanDir-N». Nel primo blocco delle cartelle vive (non nelle copie del journal) si
+    prendono solo i nomi cancellati il cui inode è stato coperto da una voce nuova (DFR-08 ext3 «Atlas.txt»), elencati
+    con inode 0 come fa fls. Solo file system fino a CARTELLE_EXT_MAX. Restituisce le voci aggiunte; registro
+    «cartelle_ext»."""
+    try:
+        m = MappaAllocati(case, offset, fs)
+        if m.tipo != "ext":
+            return 0
+        sb = m.img.read(m.base + 1024, 1024)
+        n_ino, n_blk = struct.unpack_from("<II", sb, 0)
+        if n_blk * m.bsz > CARTELLE_EXT_MAX:
+            case.log("cartelle_ext", {"partizione": int(offset), "saltato": "dimensione", "byte": n_blk * m.bsz})
+            return 0
+    except Exception:
+        return 0
+    trovate = {}                                     # inode della cartella → (genitore, voci)
+    journal = None
+    passo = 4 << 20
+    pos = 0
+    while pos < n_blk * m.bsz:
+        try:
+            d = m.img.read(m.base + pos, passo + 32)
+        except Exception:
+            break
+        if not d:
+            break
+        for x in _PUNTO_PUNTO.finditer(d):
+            if x.start() % m.bsz or x.start() >= passo:
+                continue
+            blk = (pos + x.start()) // m.bsz
+            me, pa = struct.unpack("<I", x.group(1))[0], struct.unpack("<I", x.group(2))[0]
+            if not (0 < me <= n_ino and 0 < pa <= n_ino):
+                continue
+            voci = _voci_cartella_ext(d[x.start():x.start() + m.bsz], n_ino)
+            if m.allocato(blk) is not False:
+                # cartella viva (Sleuth Kit la legge già): solo i nomi senza inode; mai le copie nel journal
+                if journal is None:
+                    journal = _blocchi_journal_ext(case, offset)
+                if blk in journal:
+                    continue
+                voci = [v for v in voci if v[0] == 0]
+            if voci:
+                g = trovate.setdefault(me, [pa, []])
+                g[1] += [v for v in voci if v not in g[1]]
+        pos += passo
+    if not trovate:
+        return 0
+    off = int(offset)
+    righe, percorsi = {}, set()
+    for rid, ino, tipo, pa in con.execute("SELECT rowid, inode, type, path FROM files WHERE part=?", (off,)):
+        righe.setdefault(str(ino), []).append((rid, tipo, pa))
+        percorsi.add(pa)
+    nomi_dir = {}
+    for me, (pa, voci) in trovate.items():
+        for ino, nome, tp in voci:
+            if tp == 2:
+                nomi_dir.setdefault(ino, (me, nome))
+    memo = {}
+
+    def percorso(c, prof=0):
+        if c == 2:
+            return ""
+        if c in memo:
+            return memo[c]
+        p = None
+        for _rid, tipo, pa in reversed(righe.get(str(c), [])):
+            if tipo.startswith("d") and not pa.startswith("$OrphanFiles/"):
+                p = pa
+                break
+        if p is None and c in nomi_dir and prof < 64:
+            su = percorso(nomi_dir[c][0], prof + 1)
+            p = f"{su}/{nomi_dir[c][1]}" if su else nomi_dir[c][1]
+        if p is None:
+            p = f"$OrphanFiles/OrphanDir-{c}"
+        memo[c] = p
+        return p
+    nuovi, rinominati = [], []
+    for me, (_pa, voci) in sorted(trovate.items()):
+        base = percorso(me)
+        for ino, nome, tp in voci:
+            dest = f"{base}/{nome}" if base else nome
+            if ino == 0:                                 # nome rimasto senza inode: si elenca come fa fls («r/- * 0»)
+                if dest not in percorsi:
+                    t = "d/-" if tp == 2 else "l/-" if tp == 7 else "r/-"
+                    nuovi.append((off, "0", 1, t, dest))
+                    percorsi.add(dest)
+                continue
+            gia = righe.get(str(ino), [])
+            orfano = [r for r in gia if r[2] == f"$OrphanFiles/OrphanFile-{ino}"]
+            if orfano:
+                rinominati.append((dest, orfano[0][0]))
+            elif not gia:
+                t = "d/d" if tp == 2 else "l/l" if tp == 7 else "r/r"
+                nuovi.append((off, str(ino), 1, t, dest))
+                righe[str(ino)] = [(None, t, dest)]
+    if rinominati:
+        con.executemany("UPDATE files SET path=? WHERE rowid=?", rinominati)
+    if nuovi:
+        con.executemany(INSERT_FILE, nuovi)
+    con.commit()
+    if nuovi or rinominati:
+        case.log("cartelle_ext", {"partizione": off, "cartelle": len(trovate), "aggiunti": len(nuovi),
+                                  "orfani_con_nome": len(rinominati), "esempi": [r[4] for r in nuovi[:20]]})
+    return len(nuovi)
+
+
+def nomi_residui_exfat(case, offset, con):
+    """(3.0.2) exFAT: una voce di file è un gruppo (0x85 file, 0xC0 stream, 0xC1 nome; cancellata: 0x05, 0x40, 0x41).
+    Quando un file nuovo riusa le prime voci di un gruppo cancellato, le voci di nome che avanzano restano nella cartella
+    senza dimensione né cluster (DFR-08 exFAT «Deneb.txt»: Sleuth Kit non le elenca). Nei cluster di cartella (quelli
+    che contengono voci già elencate) si cercano le voci di nome cancellate fuori da ogni gruppo e si elencano con
+    inode 0, come fls fa per i nomi senza metadati. Restituisce le voci aggiunte; registro «exfat_nomi_residui»."""
+    xf = catena_exfat_lettore(case, offset)
+    if not xf:
+        return 0
+    off = int(offset)
+    cartelle, percorsi = {}, set()
+    for ino, pa in con.execute("SELECT inode, path FROM files WHERE part=?", (off,)):
+        percorsi.add(pa)
+        if str(ino).isdigit() and int(ino) >= 3:
+            c = (int(ino) - 3) * 32 // xf.cl + 2
+            if 2 <= c < xf.ncl + 2:
+                cartelle.setdefault(c, pa.rsplit("/", 1)[0] if "/" in pa else "")
+    nuovi, resto, prec = [], 0, None
+    for c in sorted(cartelle):
+        testa = c != prec    # cluster non adiacente al precedente: le voci in testa possono finire un gruppo di prima
+        if testa:
+            resto = 0
+        prec = c + 1
+        b = xf._cluster(c)
+        nome = []
+
+        def chiudi():
+            s = "".join(nome).split("\0")[0]
+            nome.clear()
+            if s and all(ch.isprintable() and ch not in '/\\:*?"<>|' for ch in s):
+                dest = f"{cartelle[c]}/{s}" if cartelle[c] else s
+                if dest not in percorsi:
+                    percorsi.add(dest)
+                    nuovi.append((off, "0", 1, "r/-", dest))
+        for i in range(0, len(b) - 31, 32):
+            t = b[i]
+            if resto:
+                resto -= 1
+                continue
+            if testa and t in (0x40, 0x41, 0xC0, 0xC1):
+                continue
+            testa = False
+            if t in (0x85, 0x05):
+                if nome:
+                    chiudi()
+                resto = b[i + 1]
+            elif t == 0x41 and b[i + 1] == 0:
+                nome.append(b[i + 2:i + 32].decode("utf-16-le", "replace"))
+            else:
+                if nome:
+                    chiudi()
+                if t == 0:
+                    break
+        if nome:
+            chiudi()
+    if nuovi:
+        con.executemany(INSERT_FILE, nuovi)
+        con.commit()
+        case.log("exfat_nomi_residui", {"partizione": off, "n": len(nuovi), "esempi": [r[4] for r in nuovi[:20]]})
+    return len(nuovi)
+
+
+def build_listing(case, offset, con, fs=""):
     n = deleted = 0
     batch = []
+    veri = NomiVeri(case, offset)
+    ext = str(fs or "").lower().startswith("ext")
+    visti = set()
     for line in stream_lines(case, ["fls", "-r", "-p", "-o", str(offset), case.image]):
         m = FLS_RE.match(line)
         if not m:
             continue
-        d = 1 if m.group(2) else 0
-        batch.append((offset, m.group(3), d, m.group(1), m.group(4)))
+        d = (CANC_RIASSEGNATO if m.group(4) else 1) if m.group(2) else 0
+        batch.append((offset, m.group(3), d, m.group(1), veri.correggi(m.group(5), m.group(3))))
+        if ext:
+            visti.add(m.group(3))
         n += 1
         deleted += d
         if n % 2000 == 0:
@@ -1301,8 +1952,25 @@ def build_listing(case, offset, con):
             batch.clear()
             if n % 100000 == 0:
                 print(tr("  {n} file elencati...").format(n=n), flush=True)
+    if ext:
+        agg = orfani_ext(case, offset, visti)
+        if agg:
+            batch += [(offset, i, 1, "-/r", f"$OrphanFiles/OrphanFile-{i}") for i in agg]
+            n += len(agg)
+            deleted += len(agg)
+            case.log("orfani_ext", {"partizione": offset, "inode": agg[:200], "n": len(agg)})
     con.executemany(INSERT_FILE, batch)
     con.commit()
+    k = 0
+    try:
+        if ext:
+            k = cartelle_ext(case, offset, con, fs)
+        elif str(fs or "").lower().startswith("exfat"):
+            k = nomi_residui_exfat(case, offset, con)
+    except Exception:
+        k = 0
+    n += k
+    deleted += k
     return n, deleted
 
 
@@ -1420,18 +2088,28 @@ def tsk_timeline(case, offset, con):
     fat = part_is_fat(case, offset)
     if tsk_neutro(case):
         case.meta["tsk_fuso"] = TSK_FUSO_MARCA
+    veri = NomiVeri(case, offset)
+    xf = catena_exfat_lettore(case, offset) if fat and tsk_neutro(case) else None   # (3.0.2) scostamenti UTC exFAT
     for line in stream_lines(case, ["fls", "-r", "-m", "/", *tsk_tz(case), "-o", str(offset), case.image]):
         p = line.split("|")
         if len(p) < 11:
             continue
         name = "|".join(p[1:-9])
         inode, size = p[-9], p[-5]
+        try:
+            sc = xf.scostamenti(inode) if xf else None
+        except Exception:
+            sc = None
+        if NomiVeri.alterato(name):             # «/percorso[ (deleted)]»: (3.0.2) nomi non ASCII su Windows
+            m = re.fullmatch(r"/(.*?)( \(deleted(?:-realloc)?\))?", name)
+            if m:
+                name = "/" + veri.correggi(m.group(1), inode) + (m.group(2) or "")
         for kind, val in zip("AMCB", p[-4:]):   # atime|mtime|ctime|crtime
             try:
                 t = int(val)
                 if t <= 0:
                     continue
-                t = tsk_epoch(case, t, fat)
+                t = t - sc[kind] if sc and sc.get(kind) is not None else tsk_epoch(case, t, fat)
                 ts = dt.datetime.fromtimestamp(t, dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
             except (ValueError, OverflowError, OSError):
                 continue
@@ -1711,6 +2389,8 @@ SKIP_LABEL = {
     "pdf_senza_testo": N_("PDF senza livello di testo (forse una scansione)"),
     "nessun_testo": N_("nessun testo estratto (formato non riconosciuto o file danneggiato)"),
     "errore_estrazione": N_("errore durante l'estrazione del testo"),
+    "lettura_fallita": N_("file non leggibile dall'immagine (struttura non valida o non supportata): non indicizzato"),
+    "senza_dati": N_("contenuto non presente nella sorgente: il file è registrato senza i dati"),
 }
 
 
@@ -1788,7 +2468,7 @@ XML_BREAK = re.compile(r"</(?:w:p|a:p|text:p|text:h|row|si|c)>|<(?:w:br|w:tab|te
 
 def xml_text(x):
     x = XML_BREAK.sub("\n", x)
-    x = re.sub(r"<[^>]+>", "", x)
+    x = re.sub(r"<[^<>]+>", "", x)
     x = html.unescape(x)
     return re.sub(r"\n\s*\n+", "\n", re.sub(r"[ \t]+", " ", x)).strip()
 
@@ -2018,7 +2698,7 @@ def extract_text(data, name, tmpdir, notes=None):
         txt, kind = data.decode("cp1252", "replace"), tr("testo (Windows-1252)")
     if ext in (".html", ".htm") or re.match(r"\s*<(!doctype html|html)", txt[:200], re.I):
         txt = re.sub(r"(?is)<(script|style)\b.*?</\1>", " ", txt)
-        txt = html.unescape(re.sub(r"<[^>]+>", " ", txt))
+        txt = html.unescape(re.sub(r"<[^<>]+>", " ", txt))
         kind = "HTML"
     return kind, txt
 
@@ -2218,7 +2898,15 @@ def build_index(case, con):
             continue
         seen.add((part, inode))
         ext = Path(path).suffix.lower()
-        data = icat_read(case, part, inode, MAX_EXTRACT)
+        try:
+            data = icat_read(case, part, inode, MAX_EXTRACT)
+        except Exception as e:
+            # (3.0.2) un file illeggibile (es. voce di un AD1 con la tabella dei blocchi non valida: «struct.error: total
+            # struct size too long» da dissect.evidence) fermava tutta la preparazione: ora resta tra i non indicizzati,
+            # con il motivo, e si va avanti
+            note_skipped(con, "fs", part, inode, deleted, path, getattr(e, "motivo", "lettura_fallita"),
+                         str(e)[:200] if hasattr(e, "motivo") else f"{type(e).__name__}: {str(e)[:200]}")
+            continue
         if data and want_text:
             g = stats.setdefault(group(ext), [0, 0])
             g[0] += 1
@@ -2594,6 +3282,93 @@ def extract_unallocated(case, part_off, target):
     return bs, r["stream"], r["zmap"]
 
 
+TESTO_CARVING = {"txt", "html", "htm", "xml", "csv", "log", "json", "js", "css", "ini", "tex", "eml", "mbox", "sh", "py",
+                 "c", "h", "php", "asp", "jsp", "pl", "rb", "bat", "reg", "vcf", "ics", "srt", "md", "url", "sql"}
+
+
+def _unita_tsk(m):
+    """Byte di un'unità di Sleuth Kit per MappaAllocati: NTFS cluster, ext blocco, FAT/exFAT settore."""
+    if m.tipo == "ntfs":
+        bs = m.img.read(m.base, 512)
+        return struct.unpack_from("<H", bs, 11)[0] * bs[13]
+    if m.tipo == "ext":
+        return m.bsz
+    if m.tipo == "fat":
+        return m.bps
+    if m.tipo == "exfat":
+        return m.cx.bps
+    return None
+
+
+def carving_non_allineati(case, con, p, out, target, mode, zmap, umap, coperti, mapping, by_type, warnings):
+    """(3.0.2) Dopo PhotoRec, nello stesso spazio, i file grafici che non cominciano all'inizio di un settore (vedi
+    forense_carving_byte). Spazio letto: il file dato a PhotoRec (spazio non allocato estratto o immagine compatta:
+    tutto); con PhotoRec sulla partizione dell'immagine raw, la partizione saltando i blocchi oggi allocati (mappa del
+    file system; se il file system non è gestito la ricerca si salta e lo si dice). Restituisce i file aggiunti."""
+    import forense_carving_byte as cb
+    off = p["offset"]
+    target = Path(target)
+    dim = target.stat().st_size
+    scarta = None
+    if mode == "freespace" and target == Path(case.image):
+        a = off * 512
+        b = min(dim, a + int(p.get("length_sectors") or 0) * 512) if p.get("length_sectors") else dim
+        try:
+            mp = MappaAllocati(case, off, p.get("fs"))
+            u = _unita_tsk(mp) if mp.tipo else None
+        except Exception:
+            mp, u = None, None
+        if not u:
+            warnings.append(tr("Partizione a offset {off}: carving dei file non allineati ai settori saltato (file system "
+                               "senza mappa dello spazio allocato).").format(off=off))
+            return 0
+
+        def scarta(pos):
+            return mp.allocato((pos - a) // u) is not False
+    else:
+        a, b = 0, dim
+
+    def allineato(pos):
+        s = zmap.stream(pos) if zmap is not None else pos
+        return s is None or s % 512 == 0
+    with open(target, "rb") as fh:
+        trovati = cb.cerca(fh, a, b, coperti, allineato, scarta)
+        if not trovati:
+            return 0
+        dest = out / "non_allineati"
+        dest.mkdir(exist_ok=True)
+        n = 0
+        for pos, ext, ln in trovati:
+            fh.seek(pos)
+            dati = fh.read(ln)
+            img_off = pos
+            if zmap is not None:
+                img_off = zmap.stream(img_off)
+            if umap is not None and img_off is not None:
+                img_off = umap.real(img_off)
+            pezzi = [(f"b{pos}.{ext}", dati)]
+            if ext == "jpg":
+                t = cb.miniatura_exif(dati)
+                if t:
+                    pezzi.append((f"tb{pos}.jpg", t))
+            for nome, d in pezzi:
+                f = dest / nome
+                f.write_bytes(d)
+                f.chmod(0o444)
+                rel = str(f.relative_to(case.root))
+                typ = nome.rsplit(".", 1)[-1]
+                con.execute("INSERT INTO carved VALUES (?,?,?,?,?,?,?)",
+                            (nome, rel, off, len(d), typ, img_off, hashlib.sha256(d).hexdigest()))
+                by_type[typ] = by_type.get(typ, 0) + 1
+                n += 1
+                if f.suffix.lower() in META_EXT:
+                    mapping[str(f.resolve())] = ("carving", off, nome, 1, f"[recuperato] {rel}")
+    case.log("carving_non_allineati", {"partizione": off, "file": n,
+                                       "per_tipo": {e: sum(1 for x in trovati if x[1] == e) for e in {x[1] for x in trovati}}})
+    print(tr("Carving dei file non allineati ai settori: {n} file in più.").format(n=n), flush=True)
+    return n
+
+
 def run_photorec(case, con, cdir):
     if not shutil.which("photorec"):
         print(tr("PhotoRec non installato ({v1}): salto il recupero dei file.").format(v1=install_hint('testdisk')))
@@ -2666,7 +3441,12 @@ def run_photorec(case, con, cdir):
             zmap = r["zmap"]
             target = ufile
         excl = photorec_exclusions()
-        spec = ",".join(x for x in (num, "fileopt,everything,enable", *[f"{t},disable" for t in excl], mode, "search") if x)
+        # (3.0.2) tipi predefiniti di PhotoRec, come nelle prove NIST CFTT: «everything» accende anche le firme che
+        # l'autore lascia spente perché rumorose (gsm, …) e sulle immagini NIST di carving grafico spezza BMP e TIFF
+        # (basic 39/47 invece di 47/47). REPERTIA_PHOTOREC_TIPI=tutti per riaccenderle tutte.
+        tutti = os.environ.get("REPERTIA_PHOTOREC_TIPI", "").strip().lower() == "tutti"
+        fopt = ("fileopt,everything,enable" if tutti else "fileopt") if (tutti or excl) else ""
+        spec = ",".join(x for x in (num, fopt, *[f"{t},disable" for t in excl], mode, "search") if x)
         if excl and not any("esclusi" in w for w in warnings):
             warnings.append(tr("Tipi di file esclusi dal carving perché danno falsi positivi che coprono i file veri "
                                "(PhotoRec 7.2): {v1} (variabile REPERTIA_PHOTOREC_ESCLUDI).").format(v1=', '.join(excl)))
@@ -2696,6 +3476,7 @@ def run_photorec(case, con, cdir):
         # PhotoRec mette al massimo 500 file per cartella (recup.1, recup.2, …) ma scrive un solo report.xml
         # in recup.1 con i nomi senza cartella: prima della 2.15 i file oltre il 500° non entravano nel caso.
         where = {f.name: f for d in out.glob("recup.*") if d.is_dir() for f in d.iterdir()}
+        coperti = []          # (3.0.2) intervalli dei file di PhotoRec nel file letto, per il carving non allineato
         for rep in sorted(out.glob("recup.*/report.xml")):
             files, vol = parse_photorec_report(rep)
             if vol is not None and mode == "freespace" and vol != off * 512:
@@ -2711,6 +3492,10 @@ def run_photorec(case, con, cdir):
                 rel = str(f.relative_to(case.root))
                 ext = f.suffix.lower()
                 typ = ext.lstrip(".") or "?"
+                # i file di testo non contano: PhotoRec ne stima la fine e possono sbordare sull'inizio di
+                # un'immagine (NIST «Byte Shifted»: un .txt di riempimento copriva i primi 2 byte di un TIFF)
+                if img_off is not None and typ not in TESTO_CARVING:
+                    coperti.append((img_off, img_off + (size or f.stat().st_size)))
                 if zmap is not None:      # offset nel file compatto -> offset nel flusso
                     img_off = zmap.stream(img_off)
                 if umap is not None:      # offset nel flusso non allocato -> offset nell'immagine
@@ -2739,16 +3524,42 @@ def run_photorec(case, con, cdir):
             if nm in done or nm == "report.xml" or not nm.startswith("t"):
                 continue
             parent = next((k for k in offs if k.startswith("f" + nm[1:].split(".")[0])), None)
-            if parent is None:
-                continue
+            if parent is not None:
+                t_off = offs[parent]
+            else:
+                # (3.0.2) foto non recuperata (frammentata, PhotoRec la scarta) ma miniatura intera: si tiene, con
+                # l'offset dal nome (t<settore>.jpg, come f<settore>; immagini NIST CFTT di carving grafico)
+                sett = re.match(r"t(\d+)", nm)
+                if not sett:
+                    continue
+                s = int(sett.group(1))
+                # il numero è in settori dall'inizio di ciò che PhotoRec ha letto: si usa lo scarto della foto
+                # recuperata più vicina prima della miniatura (stessa zona), altrimenti la conversione diretta
+                vic = max(((int(m.group(1)), o) for k, o in offs.items() if o is not None
+                           for m in [re.match(r"f(\d+)", k)] if m and int(m.group(1)) <= s), default=None)
+                if vic is not None:
+                    t_off = vic[1] + (s - vic[0]) * 512
+                else:
+                    t_off = s * 512
+                    if zmap is not None:
+                        t_off = zmap.stream(t_off)
+                    if umap is not None:
+                        t_off = umap.real(t_off)
             f.chmod(0o444)
             rel = str(f.relative_to(case.root))
             typ = f.suffix.lower().lstrip(".") or "?"
             con.execute("INSERT INTO carved VALUES (?,?,?,?,?,?,?)",
-                        (nm, rel, off, f.stat().st_size, typ, offs[parent], sha256_file(f)))
+                        (nm, rel, off, f.stat().st_size, typ, t_off, sha256_file(f)))
             by_type[typ] = by_type.get(typ, 0) + 1
             total += 1
             mapping[str(f.resolve())] = ("carving", off, nm, 1, f"[recuperato] {rel}")
+        if os.environ.get("REPERTIA_CARVING_BYTE", "1").strip() != "0":
+            try:
+                k = carving_non_allineati(case, con, p, out, target, mode, zmap, umap, coperti, mapping, by_type, warnings)
+            except Exception as e:  # noqa: BLE001 - il carving di PhotoRec resta valido comunque
+                k = 0
+                warnings.append(tr("Carving dei file non allineati ai settori non riuscito: {e}").format(e=e))
+            total += k
         exif_run(con, out, mapping)
         con.commit()
         if ufile is not None and ufile.exists():
@@ -2820,7 +3631,7 @@ def _bulk_image_size(out):
 def run_bulk(case, con, cdir):
     if not shutil.which("bulk_extractor"):
         print(tr("bulk_extractor non disponibile (")
-              + (tr("componente non trovato: reinstalla RepertIA") if IS_WIN else "brew install bulk_extractor")
+              + (tr("componente non trovato: reinstalla RepertIA") if IS_WIN else install_hint("bulk_extractor"))
               + tr("): salto le tracce."))
         return None
     out = cdir / "bulk_extractor"
@@ -3585,25 +4396,42 @@ def tsk_epoch(case, t, fat):
 _ISTAT_UTC = re.compile(r"(\d{4}-\d\d-\d\d) (\d\d:\d\d:\d\d)(\.\d+)? \((UTC|GMT)\)")
 
 
-def istat_zona(case, offset, text):
+def istat_zona(case, offset, text, inode=None):
     """Testo di `istat` letto con il fuso neutro → orari nel fuso del dispositivo con la sigla (CET/CEST, …), cioè
     lo stesso testo che Sleuth Kit scrive su Mac/Linux con «-z <fuso>». FAT/exFAT: l'ora è quella del disco (ora
-    locale del dispositivo); gli altri file system: istante UTC convertito."""
+    locale del dispositivo); gli altri file system: istante UTC convertito. (3.0.2) exFAT con lo scostamento UTC
+    scritto nella voce (vedi CatenaExfat.scostamenti): istante = ora del disco meno lo scostamento."""
     if not text or not tsk_neutro(case):
         return text
     z = _zona_dispositivo(case)
     if z is None:
         return text
     fat = part_is_fat(case, offset)
-
-    def conv(m):
+    sc = None
+    if fat and inode is not None:
         try:
-            naive = dt.datetime.fromisoformat(m.group(1) + " " + m.group(2))
-            loc = (_locale_a_utc(naive, z) if fat else naive.replace(tzinfo=dt.timezone.utc)).astimezone(z)
-        except (ValueError, OverflowError):
-            return m.group(0)
-        return f"{loc:%Y-%m-%d %H:%M:%S}{m.group(3) or ''} ({loc.tzname()})"
-    return _ISTAT_UTC.sub(conv, text)
+            xf = catena_exfat_lettore(case, offset)
+            sc = xf.scostamenti(str(inode).split("-")[0]) if xf else None
+        except Exception:
+            sc = None
+    righe = []
+    for riga in text.split("\n"):
+        k = "M" if riga.startswith("Written:") else "A" if riga.startswith("Accessed:") else \
+            "B" if riga.startswith("Created:") else None
+        s = sc.get(k) if sc and k else None
+
+        def conv(m, s=s):
+            try:
+                naive = dt.datetime.fromisoformat(m.group(1) + " " + m.group(2))
+                if s is not None:
+                    loc = (naive.replace(tzinfo=dt.timezone.utc) - dt.timedelta(seconds=s)).astimezone(z)
+                else:
+                    loc = (_locale_a_utc(naive, z) if fat else naive.replace(tzinfo=dt.timezone.utc)).astimezone(z)
+            except (ValueError, OverflowError):
+                return m.group(0)
+            return f"{loc:%Y-%m-%d %H:%M:%S}{m.group(3) or ''} ({loc.tzname()})"
+        righe.append(_ISTAT_UTC.sub(conv, riga))
+    return "\n".join(righe)
 
 
 def ripara_date_fat(case):
@@ -4173,6 +5001,15 @@ def cmd_prepare(args):
               "dell'intera immagine (PhotoRec, bulk_extractor), la ricerca nei byte grezzi e plaso")
               + ("" if args.carving else tr(".\nPer recuperare i file aggiungi il carving («Recupera dati dallo spazio "
                  "libero», da terminale --carving o --aggiungi carving)")) + ".\n" + "!" * 70, flush=True)
+        try:                      # (3.0.2) CD/DVD in UDF (Sleuth Kit non lo legge): i file si leggono come sorgente logica
+            import forense_mobile as fm
+            if (fm.cd_dvd(img) or "").startswith("udf"):
+                case.meta["cd_dvd_udf"] = True
+                print(tr("È un CD/DVD con file system UDF, che Sleuth Kit non legge: per l'elenco dei file e le loro date "
+                         "apri la stessa immagine come «Sorgente logica» (7-Zip legge UDF). Il carving di questo caso "
+                         "resta utile per i file cancellati o nascosti."), flush=True)
+        except Exception:
+            pass
 
     if case.db_path.exists():
         case.db_path.unlink()
@@ -4185,7 +5022,10 @@ def cmd_prepare(args):
         if ap.is_apfs_part(p["offset"]):
             p["files"], p["deleted"], apfs_ev[p["offset"]] = ap.index(case, p["offset"], con, print)
         else:
-            p["files"], p["deleted"] = build_listing(case, p["offset"], con)
+            p["files"], p["deleted"] = build_listing(case, p["offset"], con, p.get("fs"))
+            riusati = segna_riusati(case, p["offset"], con, p.get("fs"))
+            if riusati:
+                print(tr("  {n} file cancellati hanno blocchi oggi assegnati ad altri file: segnati").format(n=riusati))
         p["os"] = detect_os(case, p["offset"], con)
     oses = [p["os"] for p in readable if p.get("os")]
     case.meta["disk_type"] = (tr("disco di sistema: {v1}").format(v1=', '.join(oses)) if oses else
@@ -4368,7 +5208,7 @@ def make_tools(case):
         o = _off(offset)
         only_del = str(deleted_only).lower() in ("true", "1", "yes", "si")
         limit = max(1, min(int(limit), 500))
-        cond = "part=? AND path LIKE ? ESCAPE '\\'" + (" AND deleted=1" if only_del else "")
+        cond = "part=? AND path LIKE ? ESCAPE '\\'" + (" AND deleted>=1" if only_del else "")
         a = (o, like(name_contains))
         con = _db()
         total = con.execute(f"SELECT COUNT(*) FROM files WHERE {cond}", a).fetchone()[0]
@@ -4391,7 +5231,7 @@ def make_tools(case):
             import forense_mobile as fm
             return clip(fm.istat_text(case, _off(offset), _ino(inode)))
         cp = sh(case, ["istat", *tsk_tz(case), "-o", str(_off(offset)), case.image, _ino(inode)], timeout=600)
-        return clip(istat_zona(case, _off(offset), dec(cp.stdout + cp.stderr)))
+        return clip(istat_zona(case, _off(offset), dec(cp.stdout + cp.stderr), _ino(inode)))
 
     def _show(data, name, max_chars, start=0):
         return show_text(data, name, case.root, min(int(max_chars), MAX_OUT), start)
@@ -4914,7 +5754,9 @@ def make_tools(case):
         """
         con = _db()
         try:
-            r = con.execute("SELECT cat, grp, sub, ts, title, detail, user, src_path, data FROM artifacts WHERE id=?",
+            # (3.0.2) grp e sub ci sono solo nei casi smartphone: nei casi disco la richiesta falliva
+            gs = "grp, sub" if "grp" in {c[1] for c in con.execute("PRAGMA table_info(artifacts)")} else "NULL, NULL"
+            r = con.execute(f"SELECT cat, {gs}, ts, title, detail, user, src_path, data FROM artifacts WHERE id=?",
                             (int(artifact_id),)).fetchone()
         finally:
             con.close()
@@ -5873,7 +6715,7 @@ def verify_hash(case):
     ok = hash_image(ev, show=True) == case.meta["sha256"]
     entry = {"ts": now(), "ok": ok, "file": ok}
     # 2.14: anche i dati acquisiti (E01 → contenuto del disco) e la catena del registro
-    if os.environ.get("REPERTIA_VERIFICA_DATI", "1") != "0":
+    if dati and os.environ.get("REPERTIA_VERIFICA_DATI", "1") != "0":
         try:
             v = verifica_dati(ev, show=True)
             prev = (case.meta.get("hash_dati") or {}).get("calcolati") or {}

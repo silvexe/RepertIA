@@ -15,7 +15,7 @@ if [ ! -x "$DIR/python/bin/python3" ]; then
   bash "$DIR/installa.sh" || exit 1
 fi
 need=""
-for pair in fls:sleuthkit ewfexport:libewf-tools exiftool:libimage-exiftool-perl pdftotext:poppler-utils \
+for pair in fls:sleuthkit ewfexport:ewf-tools exiftool:libimage-exiftool-perl pdftotext:poppler-utils \
             photorec:testdisk tesseract:tesseract-ocr zenity:zenity; do
   command -v "${pair%%:*}" >/dev/null 2>&1 || need="$need ${pair##*:}"
 done

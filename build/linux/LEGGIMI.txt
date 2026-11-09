@@ -1,4 +1,4 @@
-RepertIA 3.0.1 - By silvexe (Linux x86_64)
+RepertIA 3.0.2 - By silvexe (Linux x86_64)
 Analisi forense di copie di dischi, estrazioni di smartphone e registri di volo dei droni con un modello linguistico (LLM) locale.
 
 VERSIONE LINUX (SPERIMENTALE)
@@ -21,18 +21,26 @@ Su Linux le loro librerie le installa installa.sh.
 
 INSTALLAZIONE
 1. Estrai l'archivio dove preferisci (ad esempio nella cartella personale):
-     tar -xzf RepertIA-3.0.1-Linux.tar.gz
+     tar -xzf RepertIA-3.0.2-Linux.tar.gz
 2. Apri un terminale nella cartella RepertIA ed esegui:
      ./installa.sh
    Serve internet e la password di amministratore. Lo script:
-   - installa con apt Sleuth Kit, libewf, PhotoRec, Poppler, ExifTool, Tesseract (OCR) e zenity
-     (finestre di scelta dei file) e, se la distribuzione lo ha, bulk_extractor;
+   - installa con apt Sleuth Kit, libewf (ewf-tools), PhotoRec, Poppler, ExifTool, Tesseract (OCR) e
+     zenity (finestre di scelta dei file) e, se la distribuzione lo ha, bulk_extractor; i pacchetti che
+     la distribuzione non ha sono elencati alla fine e non bloccano gli altri;
    - crea in python/ l'ambiente Python con plaso, le librerie libyal, pytsk3, Pillow e il client
      openai, alle stesse versioni dei pacchetti Mac e Windows (requirements-linux.txt); le librerie
      libyal si compilano: servono 10-20 minuti;
    - aggiunge RepertIA al menu delle applicazioni.
    Il registro dell'installazione è in installa.log. Lo script si può rieseguire.
 3. Avvia RepertIA dal menu delle applicazioni oppure con ./RepertIA.sh: si apre il browser.
+
+BULK_EXTRACTOR (facoltativo)
+Debian e Ubuntu non lo hanno tra i loro pacchetti: si compila da https://github.com/simsong/bulk_extractor
+(istruzioni nel suo README). RepertIA lo usa se il comando bulk_extractor è nel PATH (ad esempio in
+/usr/local/bin, dove lo mette "sudo make install") oppure se il programma è nella cartella
+strumenti/bulk_extractor/ di RepertIA. Gli strumenti si controllano all'avvio: dopo averlo installato
+riavvia RepertIA. Per verificare: "which bulk_extractor" nel terminale, oppure ./aggiorna-strumenti.sh.
 
 Inclusi nell'archivio: 7-Zip 26.05 (strumenti/7zip) e i dati OCR italiano/inglese (strumenti/tessdata).
 Gli strumenti di sistema si aggiornano con ./aggiorna-strumenti.sh; le versioni effettivamente usate

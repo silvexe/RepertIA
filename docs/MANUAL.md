@@ -6,7 +6,7 @@
 and folder names created by the program (`estratti`, `export`, `CasiForensi`…) are in Italian whatever the language.*
 
 **Forensic analysis of disk and USB drive images, smartphone extractions and drone flight logs, with local artificial intelligence.**
-Version 3.0.1 · macOS, Windows and Linux (experimental) · interface in English or Italian
+Version 3.0.2 · macOS, Windows and Linux (experimental) · interface in English or Italian
 
 RepertIA takes a forensic image (raw, dd, img or E01), indexes it with established forensic tools and lets you examine
 it in two complementary ways:
@@ -560,6 +560,21 @@ Flights appear in the **Map**, in the portable report and in the AI agent's `fli
 
 **Limits.** Parrot and Yuneec native logs are not read. DJI logs are tested on two public DF020 logs (versions 9 and 11, few positions) and on a public encrypted log (version 14). tlog, ULog and DataFlash readers gave the same positions, heights and dates as pymavlink 2.4.50 and pyulog 1.3.0 on public sample files (6,304 tlog positions, 469 ULog positions, only 5 DataFlash positions). No public Autel log was found: that reader is tested only on files built to the documented layout, where version 3 matches autel-logger; versions 1 and 2 follow only the published record sizes. SRT and CSV are tested only on built examples, not on real drone files.
 
+## Logical source (3.0.2)
+
+On the start page, **🗂️ Logical source** opens a case from files already collected by others: zip, tar, tar.gz, 7z and rar archives, FTK Imager **AD1** logical images (also in several segments .ad1, .ad2…), **CD and DVD** images (ISO 9660 and UDF, also BIN/CUE with 2352-byte sectors) or a folder. The case has files, photos and videos, Timeline, search, map and report as an extraction does, without the items specific to a phone.
+
+| Format | Reader | Integrity |
+|---|---|---|
+| zip, tar, tar.gz, folder | RepertIA | SHA-256 of the source in the log |
+| 7z, rar | the program's 7-Zip, in a derived copy `estratta/` | dates from 7-Zip in UTC; RAR 4 records local time: it is converted with the «Time zone of local dates» chosen for the case, which is stated |
+| FTK Imager AD1 | `dissect.evidence` (Fox-IT) | the MD5 and SHA-1 that FTK wrote for each file are recalculated and compared; FTK's overall hash cannot be recalculated and is not checked |
+| ISO 9660, UDF | 7-Zip; UDF with **VAT** (CD-Rs written in several sessions) with a RepertIA reader (ECMA-167, UDF 1.02-2.60) | 2352-byte BINs become a derived 2048-byte copy; files present only in previous VATs are under «[files only in previous VATs]» and counted as deleted |
+
+If the source contains phone databases (for example WhatsApp `msgstore.db` and `wa.db`), they are recognised by name even outside the phone folder structure: chats and contacts enter the case, and the **Logical source** panel warns that the phone structure is missing. iLEAPP and ALEAPP (not for AD1) and WhatsApp backups are among the additional analyses. KML and GPX files in the source become map layers, with path and SHA-256 in the log.
+
+**Limits.** EnCase L01 files are not read: there is no public sample to test them with. AD1 is tested on the public files of the dissect.evidence tests and on a public segmented AD1; UDF with VAT on the «RM#3» CD-R of the NIST CFReDS «Data Leakage» case (final files, 17 files of the previous VATs and burning time equal to the NIST answers), which is in the test data.
+
 ## Audio transcription (2.20)
 
 RepertIA transcribes the speech in audio files (chat voice notes, recordings, voicemail…) with **Whisper** (whisper.cpp
@@ -739,7 +754,12 @@ without the forensic image and without AI.
   power on and off, sessions and Remote Desktop with address, Defender detections and deactivations, connected USB
   drives, cleared logs) and **thumbnails** from the File Explorer cache (`thumbcache_*.db`, extracted among the
   extracted files: they remain even after the images are deleted). All **Windows installations** on the disk (including
-  `Windows.old`) are analysed separately: their artifacts have the folder name in square brackets; Chrome, Edge,
+  `Windows.old`) are analysed separately: their artifacts have the folder name in square brackets; from 3.0.2 also the
+  **Windows Search index** (`Windows.edb` of Windows 7, 8 and 10: indexed files, Internet Explorer pages, mail with
+  summary and attachments, Sticky Notes; the Windows 11 `Windows.db` is not read), the **Internet Explorer history**
+  (`WebCacheV01.dat`, times in UTC), **Sticky Notes** (`StickyNotes.snt` and `plum.sqlite`), **Google Drive**
+  (`sync_config.db`, `snapshot.db` including deleted records and from shadow copies, `sync_log.log`) and more events
+  (system start and event log shutdown, logoffs, device driver installation, CD/DVD inserted); Chrome, Edge,
   Firefox and Safari browsers (history, downloads, searches); Linux (users, network, shell history); macOS (see *Macs
   with APFS*: since 2.14 also the Data volume and the main artifacts).
 - **Shadow copies (VSS) and APFS snapshots** (optional): lists Windows shadow copies and, since 2.14, **APFS volume
@@ -1341,7 +1361,7 @@ The history of the versions is in [CHANGELOG.en.md](../CHANGELOG.en.md).
 
 ## Mac package (Apple Silicon)
 
-`RepertIA-3.0.1-Mac.zip` contains **RepertIA.app** with Python 3.12, openai, Pillow and **plaso already included** (no
+`RepertIA-3.0.2-Mac.zip` contains **RepertIA.app** with Python 3.12, openai, Pillow and **plaso already included** (no
 Docker). Drag the app into Applications; the first time: *Done* at the warning, then *System Settings → Privacy & Security
 → Open Anyway* and double-click again (right-click → *Open* is no longer enough on macOS 15 and later), because it is not signed with an Apple certificate. The app opens the Terminal, installs the missing
 tools with Homebrew (Sleuth Kit, libewf, exiftool, poppler, PhotoRec, bulk_extractor, Tesseract) and then the browser.
@@ -1350,7 +1370,7 @@ tools with Homebrew (Sleuth Kit, libewf, exiftool, poppler, PhotoRec, bulk_extra
 
 ## Windows version
 
-`RepertIA-3.0.1-Setup.exe` installs RepertIA for the current user (no administrator rights) in
+`RepertIA-3.0.2-Setup.exe` installs RepertIA for the current user (no administrator rights) in
 `%LOCALAPPDATA%\Programs\RepertIA`, with Python and the tools already included: plaso, The Sleuth Kit (reads E01 files
 directly), ExifTool, Poppler, PhotoRec, bulk_extractor, 7-Zip, Tesseract OCR (Italian and English) and the libraries for
 Outlook mail, shadow copies and encrypted volumes. It is started from the Start menu → **RepertIA**: a black window opens,
@@ -1368,25 +1388,28 @@ to be kept open, and the browser. Cases are in `%USERPROFILE%\CasiForensi`, sett
 
 ## Linux version (experimental)
 
-`RepertIA-3.0.1-Linux.tar.gz` is for **Linux x86_64** with Python 3.12 or later (Ubuntu 24.04 or later, Debian 13).
+`RepertIA-3.0.2-Linux.tar.gz` is for **Linux x86_64** with Python 3.12 or later (Ubuntu 24.04 or later, Debian 13).
 The program is the same as the Mac and Windows versions (same source fingerprint).
 
 ```
-tar -xzf RepertIA-3.0.1-Linux.tar.gz
+tar -xzf RepertIA-3.0.2-Linux.tar.gz
 cd RepertIA
 ./installa.sh          # once, with internet: asks for the administrator password
 ./RepertIA.sh          # or from the applications menu
 ```
 
-- `installa.sh` installs with **apt** Sleuth Kit, libewf, PhotoRec, Poppler, ExifTool, Tesseract (with Italian), zenity
-  (file selection dialogs) and, if the distribution has it, bulk_extractor; then it creates in `python/` an environment
+- `installa.sh` installs with **apt** Sleuth Kit, libewf (`ewf-tools`), PhotoRec, Poppler, ExifTool, Tesseract (with
+  Italian), zenity (file selection dialogs) and, if the distribution has it, bulk_extractor (from 3.0.2 packages the
+  distribution lacks are listed at the end and no longer block the others); then it creates in `python/` an environment
   with **plaso, the libyal libraries, pytsk3, Pillow and openai at the same versions as the Mac and Windows packages**
   (`requirements-linux.txt`; the libyal libraries are compiled, 10-20 minutes) and adds RepertIA to the menu. The log is
   in `installa.log`; the script can be run again.
 - Included in the archive: 7-Zip 26.05 (`strumenti/7zip`) and the Italian/English OCR data (`strumenti/tessdata`).
 - **Differences from Mac and Windows**: the forensic tools are those of the distribution, with its versions (reported as
-  always in the report, *Analysis environment* section); bulk_extractor may be missing in some distributions (carving
-  then uses PhotoRec); no disk acquisition.
+  always in the report, *Analysis environment* section); bulk_extractor is not packaged by Debian and Ubuntu: build it
+  from https://github.com/simsong/bulk_extractor and RepertIA uses it if it is on the PATH or in
+  `strumenti/bulk_extractor/` (see `README_EN.txt`; without it, carving uses PhotoRec); no disk acquisition. If a tool
+  is missing, the program suggests the `apt` command to run.
 - `./collaudo.sh` runs the acceptance test with the `RepertIA-collaudo` folder (also `--lingua en`);
   `./aggiorna-strumenti.sh` shows and updates the tool versions with apt.
 - **Experimental**: tested by the author in a Linux development environment; before using it in a case, run the

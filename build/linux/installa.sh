@@ -21,21 +21,37 @@ for p in python3.13 python3.12 python3; do
 done
 
 if command -v apt-get >/dev/null 2>&1; then
-  PKGS="sleuthkit libewf-tools testdisk poppler-utils libimage-exiftool-perl tesseract-ocr tesseract-ocr-ita
-        zenity xdg-utils python3 python3-venv python3-dev build-essential pkg-config zlib1g-dev"
-  echo "Installo con apt (chiede la password di amministratore):" | tee -a "$LOG"
-  echo "  $PKGS" | tr -s ' \n' ' ' | tee -a "$LOG"; echo
-  sudo apt-get update && sudo apt-get install -y $PKGS 2>&1 | tee -a "$LOG"
-  # facoltativi: non tutte le distribuzioni li hanno
-  sudo apt-get install -y bulk-extractor 2>/dev/null | tail -1 || true
-  if [ "$(uname -m)" != "x86_64" ]; then        # 7zz incluso è per Intel/AMD: su ARM quello della distribuzione
-    sudo apt-get install -y 7zip 2>/dev/null || sudo apt-get install -y p7zip-full
+  # (3.0.2) libewf: il pacchetto si chiama ewf-tools (Debian e Ubuntu; «libewf-tools» non esiste e faceva fallire
+  # tutta l'installazione). bulk-extractor non è in Debian né in Ubuntu (c'è in Kali e in altre): se manca, si spiega.
+  PKGS="sleuthkit ewf-tools testdisk poppler-utils libimage-exiftool-perl tesseract-ocr tesseract-ocr-ita
+        zenity xdg-utils python3 python3-venv python3-dev build-essential pkg-config zlib1g-dev bulk-extractor"
+  [ "$(uname -m)" != "x86_64" ] && PKGS="$PKGS 7zip"   # 7zz incluso è per Intel/AMD: su ARM quello della distribuzione
+  echo "Aggiorno l'elenco dei pacchetti con apt (chiede la password di amministratore)..." | tee -a "$LOG"
+  sudo apt-get update 2>&1 | tee -a "$LOG"
+  # solo i pacchetti che la distribuzione ha: uno che manca non deve bloccare gli altri
+  OK=""; NO=""
+  for p in $PKGS; do
+    if [ -n "$(apt-cache policy "$p" 2>/dev/null | grep -m1 'Candidate:' | grep -v '(none)')" ]; then OK="$OK $p"
+    else NO="$NO $p"; fi
+  done
+  case " $NO " in *" 7zip "*) apt-cache policy p7zip-full 2>/dev/null | grep -q 'Candidate: [0-9]' && OK="$OK p7zip-full" ;; esac
+  echo "Installo:$OK" | tee -a "$LOG"
+  sudo apt-get install -y $OK 2>&1 | tee -a "$LOG"
+  if [ -n "$NO" ]; then
+    echo "Non disponibili in questa distribuzione:$NO" | tee -a "$LOG"
+  fi
+  if ! command -v bulk_extractor >/dev/null 2>&1 && [ ! -x "$DIR/strumenti/bulk_extractor/bulk_extractor" ]; then
+    echo "bulk_extractor (facoltativo, ricerca di email, URL e altri elementi nei dati grezzi) non trovato." | tee -a "$LOG"
+    echo "  Si compila da https://github.com/simsong/bulk_extractor (istruzioni nel suo README), poi:" | tee -a "$LOG"
+    echo "  sudo make install   oppure copia il programma in $DIR/strumenti/bulk_extractor/" | tee -a "$LOG"
+    echo "  e riavvia RepertIA. Controllo: which bulk_extractor" | tee -a "$LOG"
   fi
   [ -z "$PY" ] && PY="$(command -v python3)"
 else
   echo "apt non trovato: installa a mano con il gestore della tua distribuzione Sleuth Kit, libewf (strumenti ewf*),"
   echo "TestDisk/PhotoRec, Poppler (pdftotext), ExifTool, Tesseract con la lingua italiana, zenity, Python 3.12+"
-  echo "con venv e intestazioni di sviluppo, compilatore C. Poi rilancia questo script."
+  echo "con venv e intestazioni di sviluppo, compilatore C; facoltativo bulk_extractor (nel PATH o in"
+  echo "$DIR/strumenti/bulk_extractor/). Poi rilancia questo script."
 fi
 
 if [ -z "$PY" ] || ! "$PY" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 12) else 1)'; then

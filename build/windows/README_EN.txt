@@ -1,4 +1,4 @@
-﻿RepertIA 3.0.1 - By silvexe
+﻿RepertIA 3.0.2 - By silvexe
 Forensic analysis of disk images, smartphone extractions and drone flight logs with a local language model (LLM).
 
 LANGUAGE

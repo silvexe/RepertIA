@@ -8,7 +8,7 @@ qui sotto, ciascuno con la propria licenza. I componenti sono distribuiti senza 
 programmi o librerie separati; i testi delle licenze sono nelle cartelle dei componenti dentro i pacchetti
 (`strumenti/…`, `python/…/*.dist-info/`).
 
-Versioni riferite ai pacchetti **3.0.1**. Tesseract resta alla 5.4.0 su Windows perché UB Mannheim non pubblica una build più recente; Python resta alla 3.12.15.
+Versioni riferite ai pacchetti **3.0.2**. Tesseract resta alla 5.4.0 su Windows perché UB Mannheim non pubblica una build più recente; Python resta alla 3.12.15.
 
 ## Componenti della mappa (tutti i pacchetti)
 
@@ -63,8 +63,9 @@ L'archivio contiene i file di RepertIA, 7-Zip 26.05 per Linux x64 (`strumenti/7z
 `strumenti/ffmpeg/bin/ffmpeg`, build LGPL di BtbN come per Windows, LGPL-3.0-or-later, licenza in `strumenti/ffmpeg/LICENSE.txt`,
 sorgente esatto allegato alla Release). **Python e i moduli non sono inclusi**: lo script
 `installa.sh` li scarica da PyPI sul computer dell'utente, alle versioni elencate sotto (`requirements-linux.txt`, più
-`xattr`, MIT). Sleuth Kit, libewf, PhotoRec, Poppler, ExifTool, Tesseract e bulk_extractor vengono dalla distribuzione
-Linux (apt), con le loro licenze.
+`xattr`, MIT). Sleuth Kit, libewf (`ewf-tools`), PhotoRec, Poppler, ExifTool e Tesseract vengono dalla distribuzione
+Linux (apt), con le loro licenze. bulk_extractor non è tra i pacchetti di Debian e Ubuntu: chi lo vuole lo compila da
+https://github.com/simsong/bulk_extractor (vedi `LEGGIMI.txt`).
 
 ## Moduli Python inclusi (Mac e Windows; installati da `installa.sh` su Linux)
 
@@ -90,6 +91,8 @@ Linux (apt), con le loro licenze.
 | lz4, zstd, Events, Flor | 4.4.5, 1.5.7.2, 0.5, 1.1.3 | BSD |
 | XlsxWriter | 3.3.1 | BSD-2-Clause |
 | bencode.py | 4.1.0 | BitTorrent Open Source License |
+| dissect.evidence (dalla 3.0.2, lettura delle immagini logiche AD1 di FTK Imager) | 3.13 | AGPL-3.0-or-later — https://github.com/fox-it/dissect.evidence |
+| dissect.cstruct, dissect.util (usati da dissect.evidence) | 4.7, 3.24 | Apache-2.0 — https://github.com/fox-it |
 
 ## iLEAPP e ALEAPP (casi smartphone, dalla 2.20)
 
@@ -191,6 +194,11 @@ Provenienza e licenze anche nel `LEGGIMI.txt` dell'archivio, con i testi delle l
 | Immagini DFTT (Digital Forensics Tool Testing) 5, 6, 7, 8, 11 | GPL (come indicato dal progetto DFTT) | https://dftt.sourceforge.net — https://sourceforge.net/projects/dftt/ |
 | Immagini di prova di dfvfs (APFS, APFS cifrato, BitLocker To Go) | Apache-2.0 | https://github.com/log2timeline/dfvfs/tree/main/test_data |
 | Immagini costruite per il collaudo (ext4 in E01, E01 alterato, chiavetta FAT, volume Dati di un Mac) | AGPL-3.0-or-later, come RepertIA | questo repository |
+| Caso NIST CFReDS «Data Leakage», CD-R RM#3 (`nist/`, dalla 3.0.2, senza modifiche, SHA-1 pubblicato da NIST) | pubblico dominio (opera del governo degli Stati Uniti) | https://cfreds-archive.nist.gov/data_leakage_case/ |
+
+Piccoli file di prova incorporati in `src/forense_collaudo.py` (dalla 3.0.2): l'AD1 compresso dei test di dissect.evidence
+(Fox-IT, AGPL-3.0-or-later), i RAR 4 e RAR 5 dei test di libarchive (BSD-2-Clause) e lo `StickyNotes.snt` del PC del caso
+NIST «Data Leakage» (pubblico dominio).
 
 ## Strumenti usati per costruire i pacchetti (non inclusi)
 

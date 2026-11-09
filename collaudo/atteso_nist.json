@@ -1,0 +1,30 @@
+{
+  "set": "NIST CFReDS – Data Leakage Case (cfreds.nist.gov)",
+  "fonte": "risposte ufficiali NIST del «Data Leakage Case» (documento delle risposte, rev. 1.32) e SHA-1 pubblicati da NIST per ogni immagine",
+  "indipendente": true,
+  "nota": "Le immagini NIST CFReDS (opera del governo degli Stati Uniti, pubblico dominio) sono incluse nella cartella nist/ così come scaricate da NIST (7z): il collaudo le estrae con il 7-Zip del programma e controlla lo SHA-1 pubblicato. Se mancano, si scaricano da https://cfreds-archive.nist.gov/data_leakage_case/images/ e si mettono, senza estrarle, nella cartella nist/. Gli orari NIST sono in UTC-4 (EDT): qui sono convertiti in UTC.",
+  "prove": [
+    {
+      "nome": "NIST_DataLeakage_RM3_CDR",
+      "tipo": "logica",
+      "immagine": "_estratte/cfreds_2015_data_leakage_rm#3_type1.7z/cfreds_2015_data_leakage_rm#3_type1.iso",
+      "opzioni": ["--fuso", "America/New_York"],
+      "scarica": "https://cfreds-archive.nist.gov/data_leakage_case/images/",
+      "descrizione": "CD-R «RM#3» masterizzato più volte in UDF (BIN a 2352 byte per settore, tabelle VAT): file finali e file delle sessioni precedenti, poi «cancellati», che 7-Zip e Sleuth Kit non vedono; letti con il lettore UDF di RepertIA.",
+      "atteso": {
+        "sha1_archivio": {"cfreds_2015_data_leakage_rm#3_type1.7z": "13EEDDC40AD493022B22D7E0A6674DEF603F6247"},
+        "radice": ["Koala.jpg", "Penguins.jpg", "Tulips.jpg"],
+        "nota_radice": "risposta 57: stato finale del CD-R",
+        "vat_precedenti": ["de/winter_storm.amr", "de/winter_whether_advisory.zip", "pd/my_favorite_cars.db",
+                           "pd/my_favorite_movies.7z", "pd/new_years_day.jpg", "pd/super_bowl.avi", "prog/my_friends.svg",
+                           "prog/my_smartphone.png", "prog/new_year_calendar.one", "prop/a_gift_from_you.gif",
+                           "prop/landscape.png", "tr/diary_#1d.txt", "tr/diary_#1p.txt", "tr/diary_#2d.txt",
+                           "tr/diary_#2p.txt", "tr/diary_#3d.txt", "tr/diary_#3p.txt"],
+        "nota_vat": "risposte 34, 56 e 57: file copiati sul CD-R e poi cancellati",
+        "vat_creati_tra": ["2015-03-24T20:54:00", "2015-03-24T20:58:59"],
+        "nota_ore": "risposta 59: masterizzati il 24/03/2015 tra le 16:54 e le 16:58 (UTC-4)",
+        "cancellati_vat": 17
+      }
+    }
+  ]
+}
