@@ -4,7 +4,7 @@
 
 Estratto dalla sezione «Aggiornamenti» del manuale (src/README.md). Per ogni versione: cosa cambia, come è stata provata, cosa non è stato provato.
 
-## 3.0.3 (in preparazione)
+## 3.0.3
 
 **Riapertura dei casi già preparati.** Riaprire un caso grande dopo aver chiuso il programma richiedeva minuti: i conteggi, l'albero dei Risultati e il grafico della Timeline restavano solo in memoria e si ricalcolavano a ogni avvio. Ora restano anche nella cache del caso (copie ricostruibili) e valgono finché non cambiano i database del caso, il contenuto di `case.json` e la versione del programma. Il conteggio della voce Foto/Video/Audio rileggeva la tabella dei metadati per ogni file audio: riscritto, dà lo stesso numero (sul caso iOS 17 di prova 62.199, da 196 a meno di 1 secondo); i casi nuovi hanno anche un indice su quella tabella, quelli già preparati non vengono modificati. Il riepilogo salvato non decade più quando il server LLM è collegato. Senza server LLM l'apertura aspettava 3 secondi su Windows: le porte ora si provano insieme (1 secondo). Misure sul caso iOS 17 di prova (4,8 GB): riapertura dopo il riavvio del programma da oltre 4 minuti a circa 2 secondi. Il primo calcolo dell'albero dei Risultati su quel caso richiede ancora circa 35 secondi.
 

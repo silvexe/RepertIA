@@ -22,7 +22,7 @@
 
 https://github.com/user-attachments/assets/01ccfccf-8893-4bf9-be96-a6fd0de9568d
 
-📘 **Illustrated guide:** [Italian and English, one page](https://github.com/silvexe/RepertIA/releases/download/v3.0.2/RepertIA-guida-3.0.2.html)
+📘 **Illustrated guide:** [Italian and English, one page](https://github.com/silvexe/RepertIA/releases/download/v3.0.3/RepertIA-guida-3.0.3.html)
 
 RepertIA analyses forensic images (E01, raw/dd, dmg), from 2.20 full file system extractions of iPhones and Android
 phones, from 3.0 drone flight logs and, from 3.0.2, logical sources (zip, tar, 7z and rar archives, FTK Imager AD1
@@ -101,14 +101,14 @@ From 3.0.2 also **🗂️ Logical source**: files already collected by others (z
 
 | System | File |
 |---|---|
-| Windows (installer) | [RepertIA-3.0.2-Setup.exe](https://github.com/silvexe/RepertIA/releases/download/v3.0.2/RepertIA-3.0.2-Setup.exe) |
-| Windows (portable) | [RepertIA-3.0.2-Windows.zip](https://github.com/silvexe/RepertIA/releases/download/v3.0.2/RepertIA-3.0.2-Windows.zip) |
-| Mac (Apple Silicon) | [RepertIA-3.0.2-Mac.zip](https://github.com/silvexe/RepertIA/releases/download/v3.0.2/RepertIA-3.0.2-Mac.zip) |
-| Linux x86_64 (experimental) | [RepertIA-3.0.2-Linux.tar.gz](https://github.com/silvexe/RepertIA/releases/download/v3.0.2/RepertIA-3.0.2-Linux.tar.gz) |
-| Acceptance test (*collaudo*) | [RepertIA-collaudo.zip](https://github.com/silvexe/RepertIA/releases/download/v3.0.2/RepertIA-collaudo.zip) |
-| SHA-256 checksums | [SHA256SUMS.txt](https://github.com/silvexe/RepertIA/releases/download/v3.0.2/SHA256SUMS.txt) |
-| Checksum signature | [SHA256SUMS.txt.minisig](https://github.com/silvexe/RepertIA/releases/download/v3.0.2/SHA256SUMS.txt.minisig) |
-| Illustrated guide (HTML) | [Italian and English](https://github.com/silvexe/RepertIA/releases/download/v3.0.2/RepertIA-guida-3.0.2.html) |
+| Windows (installer) | [RepertIA-3.0.3-Setup.exe](https://github.com/silvexe/RepertIA/releases/download/v3.0.3/RepertIA-3.0.3-Setup.exe) |
+| Windows (portable) | [RepertIA-3.0.3-Windows.zip](https://github.com/silvexe/RepertIA/releases/download/v3.0.3/RepertIA-3.0.3-Windows.zip) |
+| Mac (Apple Silicon) | [RepertIA-3.0.3-Mac.zip](https://github.com/silvexe/RepertIA/releases/download/v3.0.3/RepertIA-3.0.3-Mac.zip) |
+| Linux x86_64 (experimental) | [RepertIA-3.0.3-Linux.tar.gz](https://github.com/silvexe/RepertIA/releases/download/v3.0.3/RepertIA-3.0.3-Linux.tar.gz) |
+| Acceptance test (*collaudo*) | [RepertIA-collaudo.zip](https://github.com/silvexe/RepertIA/releases/download/v3.0.3/RepertIA-collaudo.zip) |
+| SHA-256 checksums | [SHA256SUMS.txt](https://github.com/silvexe/RepertIA/releases/download/v3.0.3/SHA256SUMS.txt) |
+| Checksum signature | [SHA256SUMS.txt.minisig](https://github.com/silvexe/RepertIA/releases/download/v3.0.3/SHA256SUMS.txt.minisig) |
+| Illustrated guide (HTML) | [Italian and English](https://github.com/silvexe/RepertIA/releases/download/v3.0.3/RepertIA-guida-3.0.3.html) |
 
 All versions: <https://github.com/silvexe/RepertIA/releases>
 

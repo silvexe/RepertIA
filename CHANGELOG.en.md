@@ -5,7 +5,7 @@ full; earlier versions are summarised (details in the Italian change log).*
 
 For every version: what changes, how it was tested, what was not tested.
 
-## 3.0.3 (in preparation)
+## 3.0.3
 
 **Reopening prepared cases.** Reopening a large case after closing the program took minutes: the counts, the Results tree and the Timeline chart were kept only in memory and were recalculated at every start. They are now also kept in the case cache (copies that can be rebuilt) and are valid until the case databases, the content of `case.json` or the program version change. The count of the Photos/Videos/Audio entry reread the metadata table for every audio file: rewritten, it gives the same number (on the iOS 17 test case 62,199, from 196 to less than 1 second); new cases also get an index on that table, prepared cases are not modified. The saved summary no longer expires when the LLM server is connected. Without an LLM server opening waited 3 seconds on Windows: the ports are now tried together (1 second). Measured on the iOS 17 test case (4.8 GB): reopening after restarting the program from over 4 minutes to about 2 seconds. The first calculation of the Results tree on that case still takes about 35 seconds.
 
