@@ -945,6 +945,18 @@ def controlli_aggiornamenti(check):
                  and not fag.da_mostrare({"modo": "mano", "ultimo": n, "rimanda_fino": (adesso + dt.timedelta(hours=3)).isoformat()}))
         check(tr("Aggiornamenti: controllo automatico al massimo una volta al giorno; avviso nascosto se saltato, rimandato o con «Mai»"),
               tempi, str(tempi), interno=True)
+        # (dopo la 3.0.2) dopo l'aggiornamento: l'esito salvato «c'è la versione X» con X ormai installata non fa più comparire l'avviso
+        vecchio = {**n, "versione": fa.APP_VERSION, "attuale": "1.0.0", "pacchetto": "x", "sha256": "0" * 64}
+        dopo = fag.stato({"aggiornamenti": {"modo": "mano", "ultimo": vecchio}}, fa.APP_VERSION)
+        ancora = fag.stato({"aggiornamenti": {"modo": "mano", "ultimo": n}}, fa.APP_VERSION)
+        ok_dopo = (not fag.da_mostrare(dopo) and dopo["ultimo"]["esito"] == "aggiornato" and dopo["ultimo"]["attuale"] == fa.APP_VERSION
+                   and "sha256" not in dopo["ultimo"] and fag.da_mostrare(ancora) and ancora["ultimo"]["esito"] == "nuova"
+                   and fag.da_controllare_all_avvio({"modo": "avvio", "ultimo": {"controllato_il": ora, "attuale": "1.0.0"}},
+                                                    versione_app=fa.APP_VERSION)
+                   and not fag.da_controllare_all_avvio({"modo": "avvio", "ultimo": {"controllato_il": ora, "attuale": fa.APP_VERSION}},
+                                                        versione_app=fa.APP_VERSION))
+        check(tr("Aggiornamenti: dopo l'aggiornamento l'avviso della versione ormai installata non compare più"), ok_dopo,
+              str(dopo["ultimo"].get("esito")), interno=True)
         risposte["corpo"] = prove["nuova"]
         G.aggiornamenti_post({"azione": "modo", "modo": "avvio"})
         st1 = G.aggiornamenti_post({"azione": "controlla", "auto": True})

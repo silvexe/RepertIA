@@ -7,7 +7,7 @@ The **Release packages** (Mac zip, Windows installer and zip, Linux archive) als
 each under its own license. The components are distributed unmodified and run as separate programs or libraries; the
 license texts are in the component folders inside the packages (`strumenti/…`, `python/…/*.dist-info/`).
 
-Versions refer to the **3.0.2** packages. Tesseract stays at 5.4.0 on Windows because UB Mannheim publishes no newer build; Python stays at 3.12.15.
+Versions refer to the **3.0.3** packages. Tesseract stays at 5.4.0 on Windows because UB Mannheim publishes no newer build; Python stays at 3.12.15.
 
 ## Map components (all packages)
 

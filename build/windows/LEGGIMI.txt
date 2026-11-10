@@ -1,4 +1,4 @@
-﻿RepertIA 3.0.2 - By silvexe
+﻿RepertIA 3.0.3 - By silvexe
 Analisi forense di copie di dischi, estrazioni di smartphone e registri di volo dei droni con un modello linguistico (LLM) locale.
 
 LINGUA

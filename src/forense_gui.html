@@ -3075,13 +3075,16 @@ async function mapManager(ritorno){
   };
   m.on("click", "voliL", apriVolo); m.on("click", "voliP", apriVolo);
   m.on("click", "gruppi", e => { const f = e.features[0]; m.getSource("punti").getClusterExpansionZoom(f.properties.cluster_id).then(z => m.easeTo({center: f.geometry.coordinates, zoom: z})); });
-  // frecce ↑ ↓: in animazione una posizione alla volta, altrimenti la riga della scheda aperta. Sulla mappa restano i suoi tasti
+  // frecce ↑ ↓ (e ← →): in animazione una posizione alla volta, altrimenti la riga della scheda aperta. Sulla mappa restano i suoi tasti
   const frecce = e => {
     if (!box.isConnected){ document.removeEventListener("keydown", frecce, true); return; }
-    if ((e.key !== "ArrowUp" && e.key !== "ArrowDown") || e.ctrlKey || e.metaKey || e.altKey || box.querySelector(".modal")) return;
+    const su = {ArrowUp: -1, ArrowLeft: -1, ArrowDown: 1, ArrowRight: 1}[e.key], oriz = e.key === "ArrowLeft" || e.key === "ArrowRight";
+    if (!su || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey || box.querySelector(".modal")) return;
     const t = e.target;
-    if (t.closest && t.closest("#mapDiv") || ["SELECT", "TEXTAREA"].includes(t.tagName) || (t.tagName === "INPUT" && !["checkbox", "range"].includes(t.type))) return;
-    const su = e.key === "ArrowUp" ? -1 : 1;
+    if (["SELECT", "TEXTAREA"].includes(t.tagName) || (t.tagName === "INPUT" && (!["checkbox", "range"].includes(t.type) || (oriz && t.type === "range")))) return;
+    // (dopo la 3.0.2) dentro la mappa le frecce restano della mappa solo se non c'è una posizione o un volo scelto: prima,
+    // scelta una riga, il riquadro del punto prendeva il fuoco («Apri la fonte») e le frecce non scorrevano più l'elenco
+    if (t.closest && t.closest("#mapDiv") && !(A || (tabMappa === "voli" ? volSel : posSel))) return;
     e.preventDefault(); e.stopPropagation();
     if (A){ A.playing = false; cancelAnimationFrame(A.raf); A.i = Math.max(A.da, Math.min(A.seq.length - 1, A.i + su)); animBarra(); return; }
     if (tabMappa === "voli"){
@@ -3110,7 +3113,7 @@ async function mapManager(ritorno){
       $("mapClose").click(); pvOpen(it);
     };
     el.appendChild(b);
-    return new L.Popup({maxWidth: "320px"}).setLngLat(coord).setDOMContent(el).addTo(m);
+    return new L.Popup({maxWidth: "320px", focusAfterOpen: false}).setLngLat(coord).setDOMContent(el).addTo(m);
   };
   m.on("click", "punti", e => { const f = e.features[0], pr = f.properties; popupPunto(f.geometry.coordinates, pr.c, pr.r, pr.t); });
   for (const l of ["gruppi", "punti"]){ m.on("mouseenter", l, () => { m.getCanvas().style.cursor = "pointer"; }); m.on("mouseleave", l, () => { m.getCanvas().style.cursor = ""; }); }

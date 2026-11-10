@@ -131,7 +131,7 @@ except ImportError:
 
 APP_NAME = "RepertIA"
 APP_BY = "By silvexe"
-APP_VERSION = "3.0.2"
+APP_VERSION = "3.0.3"
 
 # ------------------------------------------------------------ configurazione
 # Tutti i valori si possono passare anche come opzioni di `analizza`.
@@ -381,8 +381,13 @@ def reachable_base(base):
 
 
 def detect_backend(kind, url):
-    for base in (url_candidates(url) if url else candidate_urls(kind)):
-        base = reachable_base(base)
+    # (dopo la 3.0.2) le porte si provano insieme: senza server LLM acceso l'apertura di ogni caso aspettava i tentativi
+    # uno dopo l'altro (3 s su Windows); l'ordine di preferenza dei server resta lo stesso
+    from concurrent.futures import ThreadPoolExecutor
+    basi = url_candidates(url) if url else candidate_urls(kind)
+    with ThreadPoolExecutor(max_workers=max(1, len(basi))) as ex:
+        raggiunte = list(ex.map(reachable_base, basi))
+    for base in raggiunte:
         if not base:
             continue
         if kind == "auto":
@@ -2350,6 +2355,7 @@ FEATURE_KINDS = ("email", "url", "url_searches", "domain", "telephone", "ccn", "
 INDEX_SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta(source TEXT, part INTEGER, inode TEXT, deleted INTEGER,
     path TEXT, make TEXT, model TEXT, taken TEXT, lat REAL, lon REAL, author TEXT, data TEXT);
+CREATE INDEX IF NOT EXISTS idx_meta_pi ON meta(part, inode);
 CREATE TABLE IF NOT EXISTS carved(name TEXT, relpath TEXT, part INTEGER, size INTEGER,
     type TEXT, img_offset INTEGER, sha256 TEXT);
 CREATE TABLE IF NOT EXISTS features(kind TEXT, offset TEXT, pos INTEGER, feature TEXT,

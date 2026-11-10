@@ -4,7 +4,17 @@
 
 Estratto dalla sezione «Aggiornamenti» del manuale (src/README.md). Per ogni versione: cosa cambia, come è stata provata, cosa non è stato provato.
 
-## 3.0.2 (in preparazione)
+## 3.0.3 (in preparazione)
+
+**Riapertura dei casi già preparati.** Riaprire un caso grande dopo aver chiuso il programma richiedeva minuti: i conteggi, l'albero dei Risultati e il grafico della Timeline restavano solo in memoria e si ricalcolavano a ogni avvio. Ora restano anche nella cache del caso (copie ricostruibili) e valgono finché non cambiano i database del caso, il contenuto di `case.json` e la versione del programma. Il conteggio della voce Foto/Video/Audio rileggeva la tabella dei metadati per ogni file audio: riscritto, dà lo stesso numero (sul caso iOS 17 di prova 62.199, da 196 a meno di 1 secondo); i casi nuovi hanno anche un indice su quella tabella, quelli già preparati non vengono modificati. Il riepilogo salvato non decade più quando il server LLM è collegato. Senza server LLM l'apertura aspettava 3 secondi su Windows: le porte ora si provano insieme (1 secondo). Misure sul caso iOS 17 di prova (4,8 GB): riapertura dopo il riavvio del programma da oltre 4 minuti a circa 2 secondi. Il primo calcolo dell'albero dei Risultati su quel caso richiede ancora circa 35 secondi.
+
+**Avviso di nuove versioni.** Dopo l'aggiornamento l'avviso continuava a comparire: l'esito salvato dell'ultimo controllo («c'è la versione X») non veniva confrontato con la versione in uso, e restava finché non si rifaceva il controllo. Ora l'esito salvato si riallinea al programma in uso e, con il controllo all'avvio, si ricontrolla subito se il programma è cambiato. Un nuovo controllo del collaudo.
+
+**Mappa: frecce della tastiera.** Scelta una posizione, il riquadro del punto prendeva il fuoco della tastiera e le frecce non scorrevano più l'elenco. Ora ↑ ↓ (e ← →) scorrono le posizioni e i voli anche dopo aver scelto una riga o fatto clic sulla mappa; senza una posizione scelta, sulla mappa le frecce continuano a spostarla.
+
+Provato: collaudo dai sorgenti su Windows 755/755 in italiano e in inglese (128/128 su immagini pubbliche), navigazione 525/525 in italiano e in inglese. Non provato: il riepilogo con un server LLM acceso; le frecce nella scheda Voli.
+
+## 3.0.2
 
 **Sorgente logica.** Nella pagina iniziale **🗂️ Sorgente logica** apre un caso da file già raccolti: zip, tar, tar.gz, 7z, rar, immagini logiche **AD1** di FTK Imager (anche in più segmenti), immagini di **CD/DVD** ISO 9660 e UDF (anche BIN/CUE con settori di 2352 byte) o una cartella. 7z e rar si aprono col 7-Zip del programma in una copia derivata; le date di RAR 4, in ora locale, sono convertite col fuso «delle date locali» scelto per il caso, e lo dichiarano. Gli AD1 si leggono con `dissect.evidence` 3.13 (Fox-IT, AGPL-3.0-or-later, nuovo nei pacchetti) e gli MD5/SHA-1 scritti da FTK per ogni file sono ricalcolati e confrontati (l'hash complessivo di FTK non è ricalcolabile). I database di telefoni sono riconosciuti dal nome anche fuori dalla struttura del telefono (chat e rubriche, con un avviso), iLEAPP/ALEAPP e backup WhatsApp sono analisi aggiuntive, i KML/GPX diventano livelli della mappa. Le L01 non sono lette (nessun campione pubblico). Provato su AD1 pubblici (test di dissect.evidence e un AD1 segmentato: 8/8 hash), 7z, zip, tgz, RAR 4 e 5, in italiano e in inglese; nuovi controlli del collaudo con dati incorporati.
 

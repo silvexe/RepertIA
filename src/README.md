@@ -3,7 +3,7 @@
 *English: [docs/MANUAL.md](../docs/MANUAL.md).*
 
 **Analisi forense di copie di dischi e pendrive, estrazioni di smartphone e registri di volo dei droni, con intelligenza artificiale locale.**
-Versione 3.0.2 · macOS, Windows e Linux (sperimentale) · interfaccia in italiano o in inglese
+Versione 3.0.3 · macOS, Windows e Linux (sperimentale) · interfaccia in italiano o in inglese
 
 RepertIA prende una copia forense (raw, dd, img o E01), la indicizza con strumenti forensi
 riconosciuti e permette di esaminarla in due modi complementari:
@@ -1412,6 +1412,8 @@ scarica dal browser e si installa come sempre: il programma non scarica né inst
 non parte nessuna richiesta; il controllo non va nel registro di nessun caso (data ed esito restano nelle impostazioni).
 GitHub vede l'indirizzo IP del computer e la versione del programma. Senza rete compare solo «nessuna connessione».
 
+**Versione 3.0.3** - Correzioni. **Riapertura dei casi già preparati:** conteggi, albero dei Risultati e grafico della Timeline restano nella cache del caso e non si ricalcolano a ogni avvio del programma; il conteggio della voce Foto/Video/Audio non rilegge più la tabella dei metadati per ogni file audio (sul caso iOS 17 di prova da 196 a meno di 1 secondo, con lo stesso numero); il riepilogo salvato vale anche con il server LLM collegato; senza server LLM l'apertura aspetta 1 secondo invece di 3. I casi già preparati non vengono modificati: la cache contiene solo copie ricostruibili. **Avviso di nuove versioni:** dopo l'aggiornamento l'avviso della versione ormai installata non compare più. **Mappa:** le frecce della tastiera (↑ ↓ e ← →) scorrono le posizioni anche dopo aver scelto una riga o fatto clic sulla mappa.
+
 **Versione 3.0.2** - **🗂️ Sorgente logica** nella pagina iniziale: zip, tar, tar.gz, 7z, rar, AD1 di FTK Imager (con gli hash di FTK ricontrollati file per file), immagini di CD/DVD ISO 9660 e UDF (anche BIN/CUE) o una cartella, con chat dei database di telefoni riconosciuti dal nome e KML/GPX come livelli della mappa (vedi *Sorgente logica*). **UDF con VAT** (CD-R scritti in più volte) letto da RepertIA, con i file presenti solo nelle VAT precedenti. Windows: **indice di Ricerca di Windows** (`Windows.edb`), **cronologia di Internet Explorer** (`WebCacheV01.dat`), **Sticky Notes**, **Google Drive** ed eventi in più. **Windows: date di 7z, RAR 5, ISO e UDF spostate dello scarto del PC dall'UTC** (un'ora in Italia d'inverno): corrette. **Linux:** `installa.sh` usava un nome di pacchetto inesistente (`libewf-tools`) e apt rifiutava tutta la lista, Poppler compreso: ora `ewf-tools`, e i pacchetti mancanti non bloccano gli altri; bulk_extractor (non in Debian e Ubuntu) spiegato nel LEGGIMI; i suggerimenti del programma danno comandi `apt` e non più `brew`. **Recupero dei cancellati:** exFAT frammentati ricostruiti seguendo la catena della FAT e date exFAT con lo scostamento UTC della voce; su ext3/ext4 i file delle cartelle cancellate ritrovano nome e percorso; i nomi rimasti senza metadati sono elencati; un cancellato con l'inode riassegnato o con blocchi oggi di un altro file è segnato («inode riassegnato», «blocchi riusati»). **Carving:** tipi di file predefiniti di PhotoRec e, dopo PhotoRec, ricerca a livello di byte di JPEG, PNG, GIF, BMP, TIFF e HEIC non allineati ai settori. **Validazione NIST CFTT** (recupero dei cancellati e carving grafico) a confronto con i rapporti pubblicati da DHS: vedi VALIDAZIONE. **Prove su dati di riferimento pubblici** (NIST CFTT, NIST «Data Leakage», smartphone di Joshua Hickman): `docs/prove/` e `tools/prove/` nel repository. **Correzioni del 9 novembre:** iMessage in «Eliminati di recente» segnati come cancellati, con la data; titoli iLEAPP/ALEAPP tagliati segnati con «…»; report sui casi disco («no such column: grp»); navigazione del report HTML; AD1 con file elencati da FTK senza dati, ora segnalati invece di fermare la lettura; PhotoRec su Windows con il caso su un altro disco. **Collaudo:** il CD-R RM#3 del caso NIST CFReDS «Data Leakage», con i valori attesi dalle risposte ufficiali NIST, e quattro immagini NIST DFR. Dettagli in CHANGELOG.md.
 
 **Versione 3.0.1** - **Report illustrato**: si sceglie che cosa far confluire (sezioni, Preferiti elemento per elemento, tipi interi) e chi lo riceve vede foto, video, documenti, chat con allegati, artefatti e posta come nel caso, in HTML, PDF e Word; **Trascrizioni riviste e confermate dall'analista** (categoria «Trascrizioni confermate»); impronta del modello di trascrizione controllata su Hugging Face o scritta a mano; **avvisi dell'importazione** nella barra dei menu; **Finestre** che si spostano, si ridimensionano, si riducono nella barra in basso e vanno a schermo intero (anteprima, chat, database, mappa, guida, Timeline); **formato delle date** a scelta (predefinito giorno/mese/anno). **Foto, video e audio riconosciuti dal contenuto**, cache comprese, con una voce per app o cartella;
@@ -1703,7 +1705,7 @@ ripreparati per indicizzare i PDF.
 
 ## Pacchetto per Mac Apple Silicon
 
-`RepertIA-3.0.2-Mac.zip` contiene **RepertIA.app** con Python 3.12, openai, Pillow e **plaso
+`RepertIA-3.0.3-Mac.zip` contiene **RepertIA.app** con Python 3.12, openai, Pillow e **plaso
 già inclusi** (niente Docker). Trascina l'app in Applicazioni; la prima volta: tasto destro →
 *Apri* (o *Impostazioni di Sistema → Privacy e sicurezza → Apri comunque*), perché non è firmata
 con un certificato Apple. L'app apre il Terminale, installa con Homebrew gli strumenti che mancano
@@ -1713,7 +1715,7 @@ c'è *Aggiorna strumenti.command* nello zip. Solo per Mac M1 o successivi.
 
 ## Versione Windows
 
-`RepertIA-3.0.2-Setup.exe` installa RepertIA per l'utente corrente (senza diritti di
+`RepertIA-3.0.3-Setup.exe` installa RepertIA per l'utente corrente (senza diritti di
 amministratore) in `%LOCALAPPDATA%\Programs\RepertIA`, con Python e gli strumenti già inclusi:
 plaso, The Sleuth Kit (legge gli E01 direttamente), ExifTool, Poppler, PhotoRec, bulk_extractor, 7-Zip,
 Tesseract OCR (italiano e inglese) e le librerie per posta Outlook, copie shadow e volumi cifrati. Si avvia dal menu
@@ -1734,11 +1736,11 @@ in `%USERPROFILE%\CasiForensi`, le impostazioni in `%APPDATA%\RepertIA`.
 
 ## Versione Linux (sperimentale)
 
-`RepertIA-3.0.2-Linux.tar.gz` è per **Linux x86_64** con Python 3.12 o successivo (Ubuntu 24.04 o
+`RepertIA-3.0.3-Linux.tar.gz` è per **Linux x86_64** con Python 3.12 o successivo (Ubuntu 24.04 o
 successivo, Debian 13). Il programma è lo stesso delle versioni Mac e Windows (stessa impronta dei sorgenti).
 
 ```
-tar -xzf RepertIA-3.0.2-Linux.tar.gz
+tar -xzf RepertIA-3.0.3-Linux.tar.gz
 cd RepertIA
 ./installa.sh          # una volta, con internet: chiede la password di amministratore
 ./RepertIA.sh          # oppure dal menu delle applicazioni

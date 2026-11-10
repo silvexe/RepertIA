@@ -8,7 +8,7 @@ qui sotto, ciascuno con la propria licenza. I componenti sono distribuiti senza 
 programmi o librerie separati; i testi delle licenze sono nelle cartelle dei componenti dentro i pacchetti
 (`strumenti/…`, `python/…/*.dist-info/`).
 
-Versioni riferite ai pacchetti **3.0.2**. Tesseract resta alla 5.4.0 su Windows perché UB Mannheim non pubblica una build più recente; Python resta alla 3.12.15.
+Versioni riferite ai pacchetti **3.0.3**. Tesseract resta alla 5.4.0 su Windows perché UB Mannheim non pubblica una build più recente; Python resta alla 3.12.15.
 
 ## Componenti della mappa (tutti i pacchetti)
 

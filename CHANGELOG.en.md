@@ -5,7 +5,17 @@ full; earlier versions are summarised (details in the Italian change log).*
 
 For every version: what changes, how it was tested, what was not tested.
 
-## 3.0.2 (in preparation)
+## 3.0.3 (in preparation)
+
+**Reopening prepared cases.** Reopening a large case after closing the program took minutes: the counts, the Results tree and the Timeline chart were kept only in memory and were recalculated at every start. They are now also kept in the case cache (copies that can be rebuilt) and are valid until the case databases, the content of `case.json` or the program version change. The count of the Photos/Videos/Audio entry reread the metadata table for every audio file: rewritten, it gives the same number (on the iOS 17 test case 62,199, from 196 to less than 1 second); new cases also get an index on that table, prepared cases are not modified. The saved summary no longer expires when the LLM server is connected. Without an LLM server opening waited 3 seconds on Windows: the ports are now tried together (1 second). Measured on the iOS 17 test case (4.8 GB): reopening after restarting the program from over 4 minutes to about 2 seconds. The first calculation of the Results tree on that case still takes about 35 seconds.
+
+**New version notice.** After updating, the notice kept appearing: the saved result of the last check ("version X is available") was not compared with the version in use, and stayed until the check was repeated. The saved result is now realigned with the program in use and, with the check at start, the check is repeated at once if the program has changed. One new acceptance-test check.
+
+**Map: arrow keys.** Once a position was chosen, the point's popup took the keyboard focus and the arrow keys no longer moved through the list. Now ↑ ↓ (and ← →) move through positions and flights also after choosing a row or clicking on the map; with no position chosen, on the map the arrows still pan it.
+
+Tested: acceptance test from sources on Windows 755/755 in Italian and English (128/128 on public images), navigation 525/525 in Italian and English. Not tested: the summary with an LLM server running; the arrow keys in the Flights tab.
+
+## 3.0.2
 
 **Logical source.** On the start page **🗂️ Logical source** opens a case from files already collected: zip, tar, tar.gz, 7z, rar, FTK Imager **AD1** logical images (also in several segments), ISO 9660 and UDF **CD/DVD** images (also BIN/CUE with 2352-byte sectors) or a folder. 7z and rar are opened with the program's 7-Zip in a derived copy; RAR 4 dates, in local time, are converted with the «Time zone of local dates» chosen for the case, which is stated. AD1 files are read with `dissect.evidence` 3.13 (Fox-IT, AGPL-3.0-or-later, new in the packages) and the MD5/SHA-1 written by FTK for each file are recalculated and compared (FTK's overall hash cannot be recalculated). Phone databases are recognised by name even outside the phone folder structure (chats and contacts, with a warning), iLEAPP/ALEAPP and WhatsApp backups are additional analyses, KML/GPX files become map layers. L01 files are not read (no public sample). Tested on public AD1 files (dissect.evidence tests and a segmented AD1: 8/8 hashes), 7z, zip, tgz, RAR 4 and 5, in Italian and English; new acceptance-test checks with embedded data.
 

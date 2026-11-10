@@ -4592,6 +4592,7 @@
  "Controlla se è uscita una versione nuova di RepertIA: solo lettura da GitHub, nessun dato dei casi, senza un caso aperto": "Checks whether a new version of RepertIA is out: read-only from GitHub, no case data, without an open case",
  "Nessuna versione più nuova di questa: l'ultima pubblicata è RepertIA {0}.": "No version newer than this one: the latest published is RepertIA {0}.",
  "Aggiornamenti: versione nuova riconosciuta (anche di sicurezza), uguale o vecchia no, scartate prove, bozze e risposte guaste; collegamenti solo verso github.com": "Updates: newer version recognised (also security ones), same or older not, pre-releases, drafts and broken responses discarded; links only to github.com",
+ "Aggiornamenti: dopo l'aggiornamento l'avviso della versione ormai installata non compare più": "Updates: after updating, the notice for the version now installed no longer appears",
  "Aggiornamenti: controllo automatico al massimo una volta al giorno; avviso nascosto se saltato, rimandato o con «Mai»": "Updates: automatic check at most once a day; notice hidden if skipped, postponed or with “Never”",
  "Aggiornamenti: scelta salvata, nessuna richiesta con «Mai» o con un caso aperto": "Updates: choice saved, no request with “Never” or with an open case",
  "Aggiornamenti: senza rete un messaggio, nessun errore": "Updates: without network a message, no error",

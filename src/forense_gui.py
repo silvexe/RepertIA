@@ -742,7 +742,7 @@ def counts(case):
             "file": n_files,
             "timeline": one("SELECT COUNT(*) FROM events"),
             "doc": one("SELECT COUNT(*) FROM doc_text") if has("doc_text") else None,
-            "meta": one("SELECT COUNT(*) FROM " + media_tutti_from(bool(media_contenuto(case, con))) + " AS meta") if has("meta") else None,
+            "meta": media_tutti_conta(con, bool(media_contenuto(case, con))) if has("meta") else None,
             "carved": one("SELECT COUNT(*) FROM carved") if has("carved") and
             (case.meta.get("carving") or {}).get("photorec") else None,
             "trace": one("SELECT COUNT(*) FROM features") if has("features") and
@@ -2538,8 +2538,24 @@ def media_tutti_from(contenuto=False):
     che non vi sono già, così il numero accanto alla voce è quello dei file che apre e comprende le sottovoci. Gli audio presi
     dall'elenco dei file hanno l'id negativo (rowid di files) per non confondersi con quelli di meta."""
     cols = "source, part, inode, deleted, path, make, model, taken, lat, lon, author, data"
-    return (f"(SELECT rowid AS rowid, {cols} FROM meta UNION ALL SELECT -a.rowid AS rowid, {cols} FROM "
-            + audio_from(contenuto) + " AS a WHERE NOT EXISTS (SELECT 1 FROM meta m2 WHERE m2.part = a.part AND m2.inode = a.inode))")
+    return (f"(SELECT rowid AS rowid, {cols} FROM meta UNION ALL SELECT -f.rowid AS rowid, 'fs' AS source, f.part AS part, "
+            "f.inode AS inode, f.deleted AS deleted, f.path AS path, NULL AS make, NULL AS model, NULL AS taken, NULL AS lat, "
+            "NULL AS lon, NULL AS author, NULL AS data FROM " + audio_senza_meta(contenuto) + ")")
+
+
+def audio_senza_meta(contenuto=False):
+    """(dopo la 3.0.2) «FROM … WHERE …» degli audio dell'elenco dei file che non hanno una riga in meta. Prima era un
+    NOT EXISTS su meta per ogni audio: nei casi senza indice su meta(part, inode) SQLite rileggeva tutta la tabella ogni
+    volta (sul caso iOS 17 grande 196 s per il solo conteggio); con l'unione esterna la legge una volta sola."""
+    import forense_mobile_media as fmm
+    return ("files f LEFT JOIN meta m ON m.part = f.part AND m.inode = f.inode WHERE f.type LIKE '%/r' AND "
+            + (fmm.filtro("audio", "f.part", "f.inode") if contenuto else audio_where("f.path")) + " AND m.rowid IS NULL")
+
+
+def media_tutti_conta(con, contenuto=False):
+    """Numero di righe di media_tutti_from senza costruirle: le righe di meta più gli audio che non vi sono già."""
+    return (con.execute("SELECT COUNT(*) FROM meta").fetchone()[0]
+            + con.execute("SELECT COUNT(*) FROM " + audio_senza_meta(contenuto)).fetchone()[0])
 
 
 def trascr_where(con, mtr):
@@ -4317,6 +4333,65 @@ def case_stamp(case):
 
 _MEMO_KEYLOCK = {}
 
+# (dopo la 3.0.2) le stesse risposte anche su disco, nella cache del caso (copie ricostruibili): prima si ricalcolavano a
+# ogni avvio del programma e riaprire un caso grande già preparato costava minuti (caso iOS 17 di prova: conteggi 196 s,
+# albero dei Risultati 20-46 s). Valgono finché non cambiano i database del caso, il contenuto di case.json (non la sua
+# data: a ogni collegamento del server LLM viene riscritto con modello e server) e la versione del programma.
+MEMO_DISCO_MAX = 300
+_META_FIRMA = {}
+META_VOLATILI = ("model", "llm", "llm_esterni")
+
+
+def meta_firma(case):
+    """Impronta di case.json senza le voci che cambiano a ogni apertura (modello e server LLM)."""
+    try:
+        st = os.stat(lp(case.meta_path))
+        k = (str(case.meta_path), st.st_mtime_ns, st.st_size)
+        if k not in _META_FIRMA:
+            m = json.loads(case.meta_path.read_text())
+            for x in META_VOLATILI:
+                m.pop(x, None)
+            _META_FIRMA.clear()
+            _META_FIRMA[k] = hashlib.sha256(json.dumps(m, sort_keys=True, ensure_ascii=False, default=str).encode()).hexdigest()
+        return _META_FIRMA[k]
+    except (OSError, ValueError, AttributeError):
+        return None
+
+
+def memo_disco_stamp(case):
+    return [fa.APP_VERSION, 1, meta_firma(case)] + [list(x) for x in case_stamp(case) if x[0] != "case.json"]
+
+
+def memo_disco_file(case, k):
+    return fa.cache_base(case) / "memo" / (hashlib.sha256(repr(k[1:]).encode()).hexdigest()[:32] + ".json")
+
+
+def memo_disco_leggi(case, k):
+    try:
+        with open(lp(memo_disco_file(case, k)), encoding="utf-8") as fh:
+            c = json.load(fh)
+        if c.get("stamp") == memo_disco_stamp(case) and c.get("k") == repr(k[1:]):
+            return c["v"]
+    except (OSError, ValueError, KeyError, AttributeError):
+        pass
+    return None
+
+
+def memo_disco_scrivi(case, k, v):
+    try:
+        f = memo_disco_file(case, k)
+        f.parent.mkdir(parents=True, exist_ok=True)
+        testo = json.dumps({"stamp": memo_disco_stamp(case), "k": repr(k[1:]), "v": v}, ensure_ascii=False)
+        tmp = f.with_suffix(".tmp%d" % threading.get_ident())
+        with open(lp(tmp), "w", encoding="utf-8") as fh:
+            fh.write(testo)
+        os.replace(lp(tmp), lp(f))
+        vecchi = sorted(f.parent.glob("*.json"), key=lambda p: p.stat().st_mtime)
+        for p in vecchi[:max(0, len(vecchi) - MEMO_DISCO_MAX)]:
+            p.unlink()
+    except (OSError, TypeError, ValueError):
+        pass             # valore non scrivibile o disco pieno: resta solo la memoria
+
 
 def memo(case, key, fn):
     """Risposta in memoria finché i file del caso non cambiano; due richieste uguali insieme la calcolano una volta."""
@@ -4329,7 +4404,10 @@ def memo(case, key, fn):
             hit = _MEMO.get(k)
         if hit and hit[0] == stamp:
             return hit[1]
-        v = fn()
+        v = memo_disco_leggi(case, k)
+        if v is None:
+            v = fn()
+            memo_disco_scrivi(case, k, v)
         with _MEMO_LOCK:
             _MEMO[k] = (stamp, v)
             while len(_MEMO) > 200:
@@ -6144,8 +6222,10 @@ def search_delete(case, sid):
 def summary_cached(case, what):
     """Riepilogo del caso all'apertura: fa.summary_md legge tutto il database (sul caso iOS 17 grande 3–7 s a ogni
     apertura); si tiene nella cache del caso finché case.json, i database e le impostazioni non cambiano."""
-    sig = [what, lg.lingua(), 3]
-    for f in [case.root / "case.json", fa.SETTINGS_PATH, *sorted(case.root.glob("*.sqlite*"))]:
+    # (dopo la 3.0.2) di case.json conta il contenuto, non la data: con il server LLM collegato ogni apertura lo riscrive
+    # (modello e server) e il riepilogo salvato non valeva mai
+    sig = [what, lg.lingua(), 4, meta_firma(case)]
+    for f in [fa.SETTINGS_PATH, *sorted(case.root.glob("*.sqlite*"))]:
         try:
             st = os.stat(lp(f))
             sig.append([f.name, st.st_mtime_ns, st.st_size])
@@ -6187,7 +6267,7 @@ def senza_caso():
 def aggiornamenti_stato():
     """(3.0.1) Impostazione e ultimo esito del controllo delle versioni (nessuna richiesta in rete)."""
     import forense_aggiornamenti as fag
-    a = fag.stato(fa._raw_settings())
+    a = fag.stato(fa._raw_settings(), fa.APP_VERSION)
     return {"modo": a["modo"], "chiesto": bool(a.get("chiesto")), "ultimo": a.get("ultimo"), "saltata": a.get("saltata"),
             "mostra": fag.da_mostrare(a), "attuale": fa.APP_VERSION, "pagina": fag.PAGINA,
             "pacchetto": fag.pacchetto_sistema()}
@@ -6199,7 +6279,7 @@ def aggiornamenti_post(b):
     import datetime as dt
     import forense_aggiornamenti as fag
     st = fa._raw_settings()
-    a = fag.stato(st)
+    a = fag.stato(st, fa.APP_VERSION)
     az = b.get("azione")
     if az == "modo":
         if b.get("modo") not in fag.MODI:
@@ -6210,7 +6290,7 @@ def aggiornamenti_post(b):
             if b.get("auto"):
                 return aggiornamenti_stato()
             raise ValueError(tr("Il controllo degli aggiornamenti è disattivato: cambia la scelta per usarlo."))
-        if b.get("auto") and not fag.da_controllare_all_avvio(a):
+        if b.get("auto") and not fag.da_controllare_all_avvio(a, versione_app=fa.APP_VERSION):
             return aggiornamenti_stato()
         senza_caso()
         a["ultimo"] = fag.controlla(fa.APP_VERSION)

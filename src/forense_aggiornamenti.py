@@ -127,21 +127,35 @@ def controlla(versione_app):
 
 # ---------------------------------------------------------------- impostazioni (dentro impostazioni.json)
 
-def stato(st):
+def stato(st, versione_app=None):
+    """Impostazione degli aggiornamenti. Con `versione_app` l'ultimo esito salvato si riallinea al programma in uso:
+    dopo un aggiornamento le impostazioni dicono ancora «c'è la versione X» anche se X è ormai quella installata, e
+    l'avviso restava (fino al controllo successivo; in modo «mano» finché non si premeva «Controlla ora»)."""
     a = st.get("aggiornamenti")
     a = dict(a) if isinstance(a, dict) else {}
     if a.get("modo") not in MODI:
         a["modo"] = "mano"
+    u = a.get("ultimo")
+    mia = versione(versione_app)
+    if mia and isinstance(u, dict) and u.get("esito") == "nuova":
+        trovata = versione(u.get("versione"))
+        if trovata and trovata <= mia:
+            u = {k: v for k, v in u.items() if k not in ("pacchetto", "dimensione", "sha256")}
+            u.update(esito="aggiornato", attuale=versione_app)
+            a["ultimo"] = u
     return a
 
 
-def da_controllare_all_avvio(a, adesso=None):
-    """Controllo automatico: solo in modo «avvio» e al massimo una volta al giorno."""
+def da_controllare_all_avvio(a, adesso=None, versione_app=None):
+    """Controllo automatico: solo in modo «avvio» e al massimo una volta al giorno; subito se il programma è cambiato
+    dall'ultimo controllo (`versione_app` diversa da quella con cui era stato fatto)."""
     if a.get("modo") != "avvio":
         return False
     try:
         ultimo = dt.datetime.fromisoformat(a.get("ultimo", {}).get("controllato_il"))
     except (TypeError, ValueError, AttributeError):
+        return True
+    if versione_app and a["ultimo"].get("attuale") != versione_app:
         return True
     adesso = adesso or dt.datetime.now(dt.timezone.utc)
     return (adesso - ultimo).total_seconds() >= GIORNO_S
