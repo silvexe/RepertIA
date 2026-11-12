@@ -31,8 +31,19 @@ the code under this license.
 ## How to propose a change
 
 1. Open an issue describing the problem or the feature.
-2. Create a branch, make the change with its test, update the CHANGELOG.
+2. Fork the repository, create a branch in your fork, make the change with its test, update the CHANGELOG.
 3. Run the acceptance test and attach the result to the pull request (the report only, never case data).
+4. Open the pull request against `main`. One topic per pull request: small changes are reviewed sooner.
+
+## Maintainer and releases
+
+- Changes reach `main` only through a pull request reviewed and merged by the maintainer (silvexe). Direct pushes,
+  forced pushes and tags are reserved to the maintainer.
+- Version numbers, tags, packages and releases are made by the maintainer only. A release is official only if its
+  `SHA256SUMS.txt` carries the signature of the key published in [SECURITY.md](SECURITY.md).
+- Contributors keep the copyright on what they write and are named in the commit history; the project and its name
+  stay with the maintainer.
+- Security problems are not reported in issues or pull requests: follow [SECURITY.md](SECURITY.md).
 
 ---
 
@@ -67,5 +78,16 @@ codice con questa licenza.
 ## Come proporre una modifica
 
 1. Apri una issue che descrive il problema o la funzione.
-2. Crea un ramo, fai la modifica con la sua prova, aggiorna il CHANGELOG.
+2. Fai un fork del repository, crea un ramo nel tuo fork, fai la modifica con la sua prova, aggiorna il CHANGELOG.
 3. Esegui il collaudo e allega l'esito alla pull request (solo il rapporto, mai dati di casi).
+4. Apri la pull request verso `main`. Un argomento per pull request: le modifiche piccole si rivedono prima.
+
+## Responsabile e release
+
+- Le modifiche arrivano su `main` solo con una pull request rivista e unita dal responsabile (silvexe). Push diretti,
+  push forzati e tag sono riservati al responsabile.
+- Numeri di versione, tag, pacchetti e release li fa solo il responsabile. Una release è ufficiale solo se il suo
+  `SHA256SUMS.txt` porta la firma della chiave pubblicata in [SECURITY.md](SECURITY.md).
+- Chi contribuisce conserva il diritto d'autore su ciò che scrive ed è nominato nella storia dei commit; il progetto e
+  il suo nome restano al responsabile.
+- I problemi di sicurezza non si segnalano in issue o pull request: seguire [SECURITY.md](SECURITY.md).
