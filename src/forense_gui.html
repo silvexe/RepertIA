@@ -153,6 +153,8 @@ h2{font-size:13px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted
 .menubar .mm{position:relative}
 .menubar .mbtn{background:none;border:none;color:var(--ink);font:inherit;font-size:14px;padding:6px 11px;border-radius:7px;cursor:pointer}
 .menubar .mbtn:hover,.menubar .mm.open .mbtn{background:var(--panel2)}
+/* (3.0.4) Timeline in una pagina a sé: senza l'albero dei Risultati, le schede e le sezioni */
+#resView.tlmode #rTree,#resView.tlmode #rTreeSplit,#resView.tlmode #resNav,#resView.tlmode #xTabs{display:none!important}
 .menubar .mavv{color:var(--warn);font-weight:600;border:1px solid color-mix(in srgb,var(--warn) 45%,transparent)}
 .menubar .mbtn .car{color:var(--muted);font-size:11px;margin-left:3px}
 .menubar .mdd{display:none;position:absolute;top:calc(100% + 4px);left:0;min-width:250px;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.18);padding:6px;flex-direction:column;gap:1px}
@@ -683,6 +685,7 @@ th.srt .sa{margin-left:5px;color:var(--accent);font-size:11px}
 .ppbar>div{height:100%;width:0;background:var(--accent);transition:width .4s}
 .fqres{max-height:calc(100vh - 330px);overflow:auto;container-type:inline-size}.fqg{margin:6px 0;border:1px solid var(--line);border-radius:8px;padding:4px 8px}.fqg summary{cursor:pointer;padding:3px 0}.fqr{display:grid;grid-template-columns:max-content minmax(0,1fr) minmax(0,auto);gap:10px;padding:5px 4px;border-top:1px solid var(--line);cursor:pointer;font-size:12.5px}.fqr:hover{background:var(--hover,rgba(127,127,127,.08))}.fqt{white-space:nowrap;color:var(--muted);font-variant-numeric:tabular-nums}.fqt:empty{display:none}@container (max-width:640px){.fqr{grid-template-columns:minmax(0,1fr)}.fqd{max-width:100%}}.fqe{display:block;color:var(--muted);overflow-wrap:anywhere}.fqd{font-size:10.5px;color:var(--muted);max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.fqr mark{background:#fde68a;color:#111;border-radius:2px}
 #openOv{position:fixed;inset:0;background:rgba(10,14,18,.55);z-index:9999;display:flex;align-items:center;justify-content:center}#openOv .ovcard{background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:12px;padding:20px 24px;min-width:380px;max-width:520px;box-shadow:0 10px 40px rgba(0,0,0,.35)}#openOv h3{margin:0 0 12px;font-size:16px}#openOv .ovbar{height:8px;background:var(--panel2);border-radius:6px;overflow:hidden;margin-bottom:12px}#openOv .ovbar i{display:block;height:100%;width:0;background:var(--accent);transition:width .3s}#openOv .ovsteps div{padding:3px 0;font-size:13px}
+.ramico{height:1em;width:1.7em;vertical-align:-.14em;margin-right:.25em}
 </style>
 </head>
 <body>
@@ -731,6 +734,7 @@ th.srt .sa{margin-left:5px;color:var(--accent);font-size:11px}
       <button class="mi" id="mDbList" role="menuitem" title="Elenca i database SQLite della copia e li apre in sola lettura">🗄 Gestore database</button>
       <button class="mi" id="mMap" role="menuitem" title="Punti del caso su una mappa locale: nessuna richiesta di rete">🗺 Mappa</button>
     </div></div>
+  <button class="mbtn" id="mTimeline" title="Apre la Timeline del caso in una pagina a sé, separata dall'albero dei Risultati">📈 Timeline</button>
   <div class="mm"><button class="mbtn" aria-haspopup="true" id="mLlm"><span class="mled off" id="mLlmLed"></span>Modello IA<span class="mest hidden" id="mLlmEst">server esterno</span><span class="car">▾</span></button>
     <div class="mdd wide"><div id="llmBox"></div></div></div>
   <button class="mbtn mavv hidden" id="mAvv"></button>
@@ -747,12 +751,12 @@ th.srt .sa{margin-left:5px;color:var(--accent);font-size:11px}
       <h1>Nuova analisi con RepertIA</h1>
       <p class="lead">Che cosa analizzi?</p>
       <div class="kindrow">
-        <button class="kindbtn" id="kindDisk"><span class="ico">💽</span><b>Memorie di massa</b><small>Copie di dischi, SSD, pendrive e schede: E01, dd/raw, img, dmg</small></button>
+        <button class="kindbtn" id="kindDisk"><span class="ico">💽 <span title="Dump della memoria RAM"><svg class="ramico" viewBox="0 0 34 20" aria-hidden="true"><rect x="1" y="2.5" width="32" height="12.5" rx="1.5" fill="#2e9e5b" stroke="#1c6b3c"/><rect x="4" y="5" width="5" height="6.5" rx=".6" fill="#20262b"/><rect x="11" y="5" width="5" height="6.5" rx=".6" fill="#20262b"/><rect x="18" y="5" width="5" height="6.5" rx=".6" fill="#20262b"/><rect x="25" y="5" width="5" height="6.5" rx=".6" fill="#20262b"/><rect x="3" y="15" width="12" height="3" fill="#e0b63a"/><rect x="18" y="15" width="13" height="3" fill="#e0b63a"/></svg></span></span><b>Memorie di massa e RAM</b><small>Copie di dischi, SSD, pendrive e schede: E01, dd/raw, img, dmg. Dump della memoria RAM di computer Windows</small></button>
         <button class="kindbtn" id="kindPhone"><span class="ico">📱</span><b>Smartphone</b><small>iPhone e Android: estrazioni del file system completo (Cellebrite, GrayKey, altri) in zip, tar o cartella</small></button>
         <button class="kindbtn" id="kindDrone"><span class="ico">🚁</span><b>Droni</b><small>Registri di volo (DJI, Autel, PX4, ArduPilot), sottotitoli e foto da una cartella, uno zip o un tar: voli sulla mappa</small></button>
         <button class="kindbtn" id="kindLogica"><span class="ico">🗂️</span><b>Sorgente logica</b><small>File già raccolti: archivi zip, tar, tar.gz, 7z, rar, immagini logiche AD1 di FTK, immagini di CD/DVD o una cartella</small></button>
       </div>
-      <div style="margin-top:12px"><button class="btn small" id="homeDiag" title="Prepara un file con gli errori tecnici del programma, senza dati dei casi">Esporta log diagnostici</button> <button class="btn small" id="homeMappe" title="Si scarica solo da qui, senza un caso aperto">🗺 Scarica mappe</button> <button class="btn small" id="homeModelli" title="Si scarica solo da qui o all'avvio dell'analisi, senza un caso aperto">🎙 Modelli di trascrizione</button> <button class="btn small" id="homeGuida" title="Guida illustrata in italiano e in inglese, in un unico file">📖 Guida</button> <button class="btn small" id="homeAgg" title="Controlla se è uscita una versione nuova di RepertIA: solo lettura da GitHub, nessun dato dei casi, senza un caso aperto">🔄 Aggiornamenti</button></div>
+      <div style="margin-top:12px"><button class="btn small" id="homeDiag" title="Prepara un file con gli errori tecnici del programma, senza dati dei casi">Esporta log diagnostici</button> <button class="btn small" id="homeMappe" title="Si scarica solo da qui, senza un caso aperto">🗺 Scarica mappe</button> <button class="btn small" id="homeModelli" title="Si scarica solo da qui o all'avvio dell'analisi, senza un caso aperto">🎙 Modelli di trascrizione</button> <button class="btn small" id="homeSimboli" title="Simboli di debug di Windows per i dump della memoria RAM: si scaricano solo da qui, senza un caso aperto">🧩 Simboli per la RAM</button> <button class="btn small" id="homeGuida" title="Guida illustrata in italiano e in inglese, in un unico file">📖 Guida</button> <button class="btn small" id="homeAgg" title="Controlla se è uscita una versione nuova di RepertIA: solo lettura da GitHub, nessun dato dei casi, senza un caso aperto">🔄 Aggiornamenti</button></div>
     </div>
     <div class="card hidden" id="homeDisk">
       <button class="btn small homeback" id="homeDiskBack">← Indietro</button>
@@ -766,6 +770,8 @@ th.srt .sa{margin-left:5px;color:var(--accent);font-size:11px}
       <div id="imgInfo" class="imginfo hidden"></div>
       <label class="opt"><input type="checkbox" id="optImgHash" checked>
         <span>Calcola subito lo SHA-256 della copia forense<small>Consigliato. Toglilo per un'analisi speditiva: l'analisi parte subito e l'hash si calcola dopo, dal caso, con “Calcola hash copia” (va fatto prima di chiudere il lavoro; il report indica quando è stato calcolato). La copia resta comunque sempre in sola lettura.</small></span></label>
+      <label class="opt"><input type="checkbox" id="optRam">
+        <span><svg class="ramico" viewBox="0 0 34 20" aria-hidden="true"><rect x="1" y="2.5" width="32" height="12.5" rx="1.5" fill="#2e9e5b" stroke="#1c6b3c"/><rect x="4" y="5" width="5" height="6.5" rx=".6" fill="#20262b"/><rect x="11" y="5" width="5" height="6.5" rx=".6" fill="#20262b"/><rect x="18" y="5" width="5" height="6.5" rx=".6" fill="#20262b"/><rect x="25" y="5" width="5" height="6.5" rx=".6" fill="#20262b"/><rect x="3" y="15" width="12" height="3" fill="#e0b63a"/><rect x="18" y="15" width="13" height="3" fill="#e0b63a"/></svg>È un dump della memoria RAM (computer Windows)<small>Raw, mem, vmem, crash dump (dmp). MemProcFS ricava processi, connessioni di rete, moduli caricati, driver, attività pianificate, utenti e la timeline della memoria. I file ancora presenti in memoria vengono copiati nel caso (copia derivata: spesso sono incompleti) e si sfogliano in File System, con anteprima ed esadecimale. Nessun dato viene scaricato da internet: senza i simboli di debug di Windows alcune voci (es. i servizi) restano vuote.</small></span></label>
       <label class="opt"><input type="checkbox" id="optPlaso">
         <span>Aggiungi la timeline di sistema (plaso)<small id="plasoReq">Consigliata per dischi Windows/macOS: registro, prefetch, log, browser. Richiede Docker Desktop aperto (o plaso installato) e può durare ore.</small><small id="plasoHint" style="color:var(--warn)"></small></span></label>
       <label class="opt"><input type="checkbox" id="optHash">
@@ -863,7 +869,7 @@ th.srt .sa{margin-left:5px;color:var(--accent);font-size:11px}
       <div class="chathead">
         <button class="btn small" id="btnSide" title="Mostra / nascondi il pannello del caso">◧</button>
         <span class="t" id="chatTitle">Conversazione</span>
-        <div class="tabs"><button data-tab="chat" class="on">Conversazione</button><button data-tab="res">Risultati</button></div>
+        <div class="tabs"><button data-tab="chat" class="on">Conversazione</button><button data-tab="res">Risultati</button><button data-tab="tl">Timeline</button></div>
         <span class="grow"></span>
         <select id="tzSel" class="tzsel" title="Fuso orario con cui mostrare date e orari in tutte le sezioni (i dati del caso restano in UTC). «Fuso del dispositivo» è quello rilevato dal sistema del disco o scelto per il caso"><option value="utc">🕒 UTC</option><option value="rome">🕒 Ora italiana</option><option value="dev">🕒 Fuso del dispositivo</option></select>
         <button class="btn small" id="btnSummary" title="Riepilogo calcolato dai dati del caso, senza modello">Riepilogo</button>
@@ -1081,6 +1087,7 @@ const STR_SCOPO = () => ({sleuthkit: T("legge i file system delle copie: elenco 
   "7zip": T("apre gli archivi compressi."), ffmpeg: T("crea le anteprime dei video e prepara l'audio per la trascrizione."), whisper: T("trascrive l'audio; i modelli si scaricano a parte."),
   PIL: T("elabora le immagini: anteprime e somiglianza."), photorec: T("recupera i file dallo spazio non allocato (carving)."),
   bulk_extractor: T("trova e-mail, URL e altre evidenze di interesse nei byte della copia."), plaso: T("costruisce la timeline estesa."),
+  memprocfs: T("legge i dump della memoria RAM dei computer Windows: processi, rete, file ancora in memoria, timeline."),
   pypff: T("legge gli archivi di posta PST e OST."), pyregf: T("legge il registro di Windows."), pyscca: T("legge i file Prefetch."), pylnk: T("legge i collegamenti .lnk."),
   pyolecf: T("legge i documenti Office vecchi e i Jump List."), pyevtx: T("legge i registri eventi di Windows."), pyesedb: T("legge i database ESE di Windows."),
   ileapp: T("analizza le estrazioni di iPhone."), aleapp: T("analizza le estrazioni Android."), maplibre: T("disegna la mappa, senza rete."),
@@ -1111,6 +1118,7 @@ let RIAPRI = null;      // (3.0) caso da riaprire dopo uno scaricamento dalla pa
 // solo invece di mostrare la Home. Vale per la scheda (sessionStorage): un'altra scheda del browser parte dalla Home.
 const CASO_SCHEDA = {get: () => { try{ return sessionStorage.getItem("repertia_caso_aperto"); }catch(e){ return null; } },
   set: v => { try{ v ? sessionStorage.setItem("repertia_caso_aperto", v) : sessionStorage.removeItem("repertia_caso_aperto"); }catch(e){} }};
+const RAM_ICO = '<svg class="ramico" viewBox="0 0 34 20" aria-hidden="true"><rect x="1" y="2.5" width="32" height="12.5" rx="1.5" fill="#2e9e5b" stroke="#1c6b3c"/><rect x="4" y="5" width="5" height="6.5" rx=".6" fill="#20262b"/><rect x="11" y="5" width="5" height="6.5" rx=".6" fill="#20262b"/><rect x="18" y="5" width="5" height="6.5" rx=".6" fill="#20262b"/><rect x="25" y="5" width="5" height="6.5" rx=".6" fill="#20262b"/><rect x="3" y="15" width="12" height="3" fill="#e0b63a"/><rect x="18" y="15" width="13" height="3" fill="#e0b63a"/></svg>';   // banco di RAM (non esiste un'emoji)
 async function loadHome(){
   CASO_SCHEDA.set(null);
   await api("/api/caso_chiudi", {}).catch(() => {});
@@ -1130,7 +1138,7 @@ async function loadHome(){
   if (!h.cases.length){ list.innerHTML = T('<div class="empty">Nessun caso ancora. Inizia scegliendo una copia forense.</div>'); return; }
   list.innerHTML = h.cases.map(c => `
     <div class="case" data-root="${esc(c.root)}">
-      <div class="grow"><div class="t"><span title="${esc(c.drone ? T("Drone") : c.logica ? T("Sorgente logica") : c.tipo_caso === "smartphone" ? T("Smartphone") : T("Memoria di massa"))}">${c.drone ? "🚁" : c.logica ? "🗂️" : c.tipo_caso === "smartphone" ? "📱" : "💽"}</span> ${esc((c.info || {}).nome || c.name)}</div>
+      <div class="grow"><div class="t"><span title="${esc(c.ram ? T("Dump della memoria RAM") : c.drone ? T("Drone") : c.logica ? T("Sorgente logica") : c.tipo_caso === "smartphone" ? T("Smartphone") : T("Memoria di massa"))}">${c.ram ? RAM_ICO : c.drone ? "🚁" : c.logica ? "🗂️" : c.tipo_caso === "smartphone" ? "📱" : "💽"}</span> ${esc((c.info || {}).nome || c.name)}</div>
         <div class="s">${esc(c.disk_type_vis || T("preparazione incompleta"))} · ${when(c.created)} · <span title="${esc(T("Lingua dei testi del caso"))}">${esc((c.lingua || "it").toUpperCase())}</span>${(c.info || {}).operatore ? " · " + esc(c.info.operatore) : ""}${(c.info || {}).reperto ? " · " + esc(c.info.reperto) : ""}</div></div>
       ${c.evidence_ok ? "" : T('<span class="badge warn" title="Disco o file non raggiungibile">copia non collegata</span>')}
       <span class="badge">${TF("{0} reperti", c.findings)}</span>
@@ -1174,6 +1182,7 @@ async function checkPath(p){
         T("Il caso verrà creato in ") + esc(i.case_root)}</span>`;
     $("btnStart").disabled = false;
     $("btnStart").textContent = i.case_exists ? T("Apri il caso") : T("Avvia l'analisi");
+    if (/\.(mem|vmem|dmp|lime)$/i.test(i.path) && !$("optRam").checked){ $("optRam").checked = true; ramOpt(); }
   }catch(e){ box.className = "imginfo err"; box.classList.remove("hidden"); box.textContent = e.message; }
 }
 $("btnChoose").onclick = async () => {
@@ -1182,6 +1191,14 @@ $("btnChoose").onclick = async () => {
 };
 let tPath;
 $("pathIn").oninput = () => { clearTimeout(tPath); tPath = setTimeout(() => checkPath($("pathIn").value), 350); };
+function ramOpt(){    // (3.0.4) dump della RAM: le opzioni che lavorano sui file non si applicano
+  const ram = $("optRam").checked;
+  for (const id of ["optPlaso", "optCarving", "optEstese", "optVss", "optOcr"]){
+    const el = $(id); if (!el) continue;
+    el.disabled = ram; el.closest("label").style.opacity = ram ? ".45" : "";
+  }
+}
+$("optRam").onchange = ramOpt;
 $("optPlaso").onchange = async () => {
   if ($("optPlaso").checked){
     const h = await api("/api/home").catch(() => null);   // Docker potrebbe essere stato appena aperto
@@ -1190,10 +1207,36 @@ $("optPlaso").onchange = async () => {
   updPlasoHint();
 };
 let newOpts = null, lastNew = null;
+/* (3.0.4) dump della RAM: prima di avviare, se per quel dump non risulta uno scarico dei simboli di debug, lo si dice.
+   È il momento giusto: nessun caso è ancora aperto. Si può scaricare ora oppure avviare senza (servizi dal registro). */
+const RAM_AVVISATI = new Set();
+async function ramSimboliOk(path){
+  if (RAM_AVVISATI.has(path)) return true;
+  let st; try { st = await api("/api/ram/simboli_stato"); } catch (e) { return true; }
+  const nome = String(path || "").split(/[\\/]/).pop();           // (base() divide solo sulle barre dritte)
+  if ((st.scarichi || []).some(x => x.dump === nome)) return true;
+  if (st.scrivibile === false)       // i simboli non si possono salvare (su Mac: app non spostata): dirlo prima di avviare
+    return new Promise(res => openModal(T("Simboli di Windows per questo dump"),
+      `<p style="margin-top:0">${T("Per questo dump i simboli di debug di Windows non si possono scaricare.")}</p>
+      <p class="note">${esc(st.motivo || "")}</p>
+      <p>${T("<b>Senza simboli</b> l'analisi funziona lo stesso: i servizi di Windows vengono elencati dalla loro configurazione nel registro, senza lo stato di esecuzione.")}</p>`,
+      [[T("Avvia senza simboli"), async () => { RAM_AVVISATI.add(path); $("modal").classList.add("hidden"); res(true); }]]));
+  if (!st.disponibile) return true;
+  return new Promise(res => openModal(T("Simboli di Windows per questo dump"),
+    `<p style="margin-top:0">${T("Per questo dump non risulta uno scarico dei simboli di debug di Windows.")}</p>
+    <ul><li>${T("<b>Senza simboli</b> l'analisi funziona lo stesso: i servizi di Windows vengono elencati dalla loro configurazione nel registro, senza lo stato di esecuzione.")}</li>
+    <li>${T("<b>Con i simboli</b> ogni servizio ha lo stato (in esecuzione o fermo) e il PID al momento dell'acquisizione. Si scaricano da Microsoft una volta per versione di Windows, adesso che nessun caso è aperto; poi l'analisi li usa senza rete.")}</li></ul>
+    <p class="hint">${TF("Nella cartella locale ci sono già {0} file di simboli: se sono della stessa versione di Windows di questo dump bastano, e puoi avviare senza scaricare.", nf(st.file || 0))}</p>`,
+    [[T("Scarica i simboli"), async () => { res(false); simboliDialog(path, () => $("btnStart").click()); }],
+     [T("Avvia senza simboli"), async () => { RAM_AVVISATI.add(path); $("modal").classList.add("hidden"); res(true); }]]));
+}
 $("btnStart").onclick = async () => {
   if (!current) return;
+  if ($("optRam").checked && !current.case_exists && !(await ramSimboliOk(current.path))) return;
   try{
-    const opts = {plaso: $("optPlaso").checked, carving: $("optCarving").checked, hash_file: $("optHash").checked, no_hash: !$("optImgHash").checked,
+    const ram = $("optRam").checked;      // (3.0.4) dump della RAM: valgono solo hash e carving
+    const opts = ram ? {ram: true, hash_file: $("optHash").checked, no_hash: !$("optImgHash").checked}
+      : {plaso: $("optPlaso").checked, carving: $("optCarving").checked, hash_file: $("optHash").checked, no_hash: !$("optImgHash").checked,
       estese: $("optEstese").checked, vss: $("optVss").checked, ocr: $("optOcr").checked, trascrizione: await trascrOptRead("optTrascr")};
     if (current.case_exists){
       const r = await api("/api/prepare", {path: current.path, ...opts});
@@ -1202,7 +1245,7 @@ $("btnStart").onclick = async () => {
     // caso nuovo: prima la pagina con i dati del caso (nome, operatore, tipo di reperto, note)
     newOpts = opts;
     $("newImg").textContent = current.path;
-    $("niNome").value = base(current.path).replace(/\.(e01|raw|dd|img|001|aff4?)$/i, "");
+    $("niNome").value = base(current.path).replace(/\.(e01|raw|dd|img|001|aff4?|mem|vmem|dmp|lime)$/i, "");
     $("niOper").value = store.get("repertia_operatore", "") || "";
     $("niReperto").value = ""; $("niNote").value = ""; $("niFusoSel").value = ""; $("niLingua").value = LG.lingua || "it"; $("niFuso").value = ""; $("niFuso").classList.add("hidden");
     $("niDest").value = (homeInfo && homeInfo.last_dest) || (homeInfo && homeInfo.homes && homeInfo.homes[0] && homeInfo.homes[0].path) || "";
@@ -1248,9 +1291,11 @@ $("niGo").onclick = async () => {
 const STEPS = [
   ["hash", T("Calcolo SHA-256 della copia forense"), /^\s*hash \d+%|SHA-256 della copia/i],
   ["e01", T("Conversione E01 in raw"), /convert/i],
+  ["ram", T("Lettura della memoria e copia dei file"), /Lettura dell'intera memoria|Copia dei file ancora presenti/i],
   ["parts", T("Partizioni e file system"), /Analisi partizioni/],
   ["list", T("Elenco dei file (anche cancellati)"), /Elenco file|file elencati/],
   ["tl", T("Timeline del file system"), /Timeline file system/],
+  ["ramart", T("Processi, rete e timeline della memoria"), /Analisi della memoria RAM|timeline della memoria/i],
   ["indice", T("Testo dei documenti e media"), /Indicizzazione|file esaminati|Documenti con testo/],
   ["hashfile", T("Hash di tutti i file (MD5, SHA-1, SHA-256)"), /Hash dei file|Hash calcolati/],
   ["plaso", T("Timeline di sistema (plaso)"), /plaso|log2timeline|psort/i],
@@ -1269,7 +1314,8 @@ function startPrepView(img, opts, solo){
   $("prepImg").textContent = img || "";
   opts = opts || {};
   prepSteps = solo ? STEPS.filter(s => s[0] === solo)
-    : STEPS.filter(s => s[0] !== "e01" && s[0] !== "fuso" && (s[0] !== "hash" || !opts.no_hash) && (s[0] !== "plaso" || opts.plaso) && (s[0] !== "carving" || opts.carving) && (s[0] !== "hashfile" || opts.hash_file) &&
+    : opts.ram ? STEPS.filter(s => (s[0] === "hash" && !opts.no_hash) || ["ram", "list", "ramart", "indice"].includes(s[0]) || (s[0] === "hashfile" && opts.hash_file))
+    : STEPS.filter(s => s[0] !== "e01" && s[0] !== "fuso" && s[0] !== "ram" && s[0] !== "ramart" && (s[0] !== "hash" || !opts.no_hash) && (s[0] !== "plaso" || opts.plaso) && (s[0] !== "carving" || opts.carving) && (s[0] !== "hashfile" || opts.hash_file) &&
       (!["archivi", "anomalie", "artefatti"].includes(s[0]) || opts.estese) && (s[0] !== "vss" || opts.vss) && (s[0] !== "ocr" || opts.ocr) && (s[0] !== "trascrizione" || opts.trascrizione));
   curStep = solo ? 0 : -1; prepMarked = false; prepAv = null;
   $("prepProg").classList.add("hidden"); $("prepProg").innerHTML = "";
@@ -1424,7 +1470,7 @@ $("btnPrepStop").onclick = async () => { if (await chiedi(T("Interrompere la pre
 $("btnPrepBack").onclick = loadHome;
 
 /* ---------- caso ---------- */
-let since = 0, busy = false, polling = false, lastTool = null, toolCount = 0, llmReady = false, LLM_MODEL = "";
+let since = 0, busy = false, polling = false, lastTool = null, toolCount = 0, turnoAg = null, llmReady = false, LLM_MODEL = "";
 async function openCase(root, summary = "all"){
   // la finestra d'attesa compare subito, già mentre si apre il caso e si collega il server LLM (prima si vedeva
   // per un attimo la chat «Collegamento al server LLM…» e solo dopo la finestra di apertura)
@@ -1674,12 +1720,37 @@ function renderCase(s){
     <div class="status" style="margin-top:8px"><span class="led"></span><b>${esc(L.backend)}</b></div>
     <div class="kv" style="margin-top:6px"><b>${T("Server")}</b><span class="mono" style="font-size:12px">${esc(L.url || "")}${L.esterno ? T(' <span class="note" style="display:inline">(server esterno)</span>') : L.remoto ? T(' <span class="hint">(rete interna)</span>') : T(' <span class="hint">(questo computer)</span>')}</span><b>${T("Modello")}</b><span>${esc(L.model)}</span><b>${T("Contesto")}</b><span>${L.ctx} token</span></div>
     ${(L.notes||[]).map(n => `<div class="note">${esc(n)}</div>`).join("")}` : TF("\n    <div class=\"status\" style=\"margin-top:8px\"><span class=\"led off\"></span><b>Non collegato</b></div>\n    <div class=\"note\">{0}</div>", esc(s.llm_error || "")), L ? T("Ricollega") : remote ? T("Collega") : T("Riprova"));
+  // (3.0.4) elenco dei modelli del server: si sceglie qui e «Ricollega» lo fa caricare a Ollama o LM Studio
+  if (L && (L.elenco || []).length){
+    const fisso = !["lmstudio", "ollama"].includes(L.tipo), scelto = L.elenco.some(m => m.id === LC.modello) ? LC.modello : "";
+    $("btnLlmGo").insertAdjacentHTML("beforebegin", `<div class="srow" style="margin-top:10px;align-items:center;gap:8px"><label for="llmModel">${T("Modello")}</label><select id="llmModel" style="flex:1;min-width:0" ${fisso ? "disabled" : ""}>${fisso ? "" : `<option value="">${esc(T("quello caricato nel server"))}</option>`}${L.elenco.map(m => `<option value="${esc(m.id)}" ${m.id === (fisso ? L.model : scelto) ? "selected" : ""}>${esc(m.id.split(/[\\/]/).pop())}${m.caricato && !fisso ? " · " + esc(T("caricato")) : ""}</option>`).join("")}</select></div>${fisso ? "" : `<div class="srow" style="margin-top:6px;align-items:center;gap:8px"><label for="llmCtx" style="flex:1">${T("Contesto da caricare")}</label><input id="llmCtx" type="number" min="2048" max="1048576" step="1024" style="width:104px" value="${+LC.contesto || 32768}" title="${esc(T("Scrivi il numero di token o scegli un valore dall'elenco accanto"))}"><span class="hint">token</span><select id="llmCtxPre" style="width:118px" title="${esc(T("Valori consigliati"))}"><option value="">${esc(T("valori…"))}</option>${[8192, 16384, 32768, 65536, 131072].map(n => `<option value="${n}">${nf(n)}</option>`).join("")}</select></div>`}<div class="hint" style="margin-top:4px">${fisso ? T("Questo server usa solo il modello con cui è stato avviato: per cambiarlo va riavviato con un altro modello.") : T("Scegli un modello e premi Ricollega: RepertIA chiede al programma di caricarlo, senza aprirlo a mano. Il caricamento può richiedere qualche minuto e molta memoria; i modelli non installati non vengono scaricati.") + " " + T("Più contesto vuol dire analisi più lunghe senza perdere il filo, ma più memoria: se il computer rallenta scegli un valore più basso (RepertIA ne consiglia almeno 16.384). Se il modello ne consente meno, si usa il suo massimo.") + " " + T("Il numero di token si può scegliere dall'elenco o scrivere a mano.")}</div>`);
+  }
+  // l'elenco dei valori è un menu a parte: quello nativo del campo compariva in un punto qualunque e mostrava un valore solo
+  if ($("llmCtxPre")) $("llmCtxPre").onchange = () => { if ($("llmCtxPre").value){ $("llmCtx").value = $("llmCtxPre").value; $("llmCtxPre").value = ""; } };
+  // (3.0.4) nessun server acceso: avvio di Ollama o LM Studio da qui, se sono installati
+  if (!L && !remote && (LC.programmi || []).length){
+    const nomi = {ollama: "Ollama", lmstudio: "LM Studio"};
+    $("llmBox").insertAdjacentHTML("beforeend", `<div class="srow" style="margin-top:8px;gap:6px;flex-wrap:wrap">${LC.programmi.map(p => `<button class="btn small" data-avvia="${esc(p)}">${esc(TF("Avvia {0}", nomi[p] || p))}</button>`).join("")}</div><div class="hint" style="margin-top:4px">${T("Avvia il server del programma su questo computer e si collega. Il programma resta acceso anche dopo la chiusura di RepertIA; l'avvio resta nel registro del caso.")}</div>`);
+    $("llmBox").querySelectorAll("[data-avvia]").forEach(bt => bt.onclick = async () => {
+      bt.disabled = true; bt.textContent = T("Avvio…");
+      try{ const s2 = await api("/api/llm_avvia", {programma: bt.dataset.avvia}); renderCase(s2); toast(s2.llm ? TF("Server LLM collegato: {0}", s2.llm.url) : T("Server LLM non raggiungibile"), s2.llm ? "good" : "bad"); }
+      catch(e){ toast(e.message, "bad"); bt.disabled = false; bt.textContent = TF("Avvia {0}", nomi[bt.dataset.avvia] || bt.dataset.avvia); }
+    });
+  }
+  // (3.0.4) turni del modello per ogni domanda: regolabile, vale dalla domanda successiva
+  $("llmBox").insertAdjacentHTML("beforeend", `<div class="srow" style="margin-top:10px;align-items:center;gap:8px"><label for="llmPassi" style="flex:1">${T("Turni per domanda")}</label><input id="llmPassi" type="number" min="10" max="200" step="10" style="width:76px" value="${+LC.passi || 40}"></div><div class="hint" style="margin-top:4px">${T("Quante volte l'agente può consultare il modello per una domanda (da 10 a 200; predefinito 40). Con più turni le analisi lunghe arrivano in fondo, ma durano di più. Finiti i turni l'agente risponde con ciò che ha trovato e lo dichiara.")}</div>`);
+  let passiSalvati = +LC.passi || 40;
+  $("llmPassi").onchange = async () => {
+    try{ const r = await api("/api/agente_passi", {passi: +$("llmPassi").value}); passiSalvati = r.passi; LC.passi = r.passi; $("llmPassi").value = r.passi; toast(TF("Turni per domanda: {0}", r.passi), "good"); }
+    catch(e){ toast(e.message, "bad"); $("llmPassi").value = passiSalvati; }
+  };
   $("mLlmLed").classList.toggle("off", !L);           // lo stato resta visibile anche a menu chiuso
   $("mLlmEst").classList.toggle("hidden", !(L && L.esterno));
   $("mLlm").title = L ? TF("Collegato: {0}", L.model) : T("Non collegato");
   const llmGo = async (modo) => {
     const b = $("btnLlmGo"); b.disabled = true; b.textContent = T("Collego…");
     const body = {modo};
+    if ($("llmModel") && !$("llmModel").disabled){ body.modello = $("llmModel").value; body.contesto = Math.round(+$("llmCtx").value) || 0; }      // (3.0.4) modello e contesto scelti
     if (modo === "remoto"){
       body.url = $("llmUrl").value.trim();
       if (!body.url){ b.disabled = false; b.textContent = T("Collega"); $("llmUrl").focus(); return toast(T("Inserisci l'indirizzo del server"), "bad"); }
@@ -1768,7 +1839,8 @@ const TOOLS = {case_overview:T("Riepilogo del caso"), fs_info:T("Dettagli file s
   export_file:T("Esportazione file"), query_timeline:T("Consultazione timeline"), timeline_activity:T("Attività nella timeline"),
   record_finding:T("Registrazione reperto"), file_exif:T("Metadati del file"), search_text:T("Ricerca nel testo dei documenti"), list_not_indexed:T("File non indicizzati"),
   search_metadata:T("Ricerca nei metadati"), carved_files:T("File recuperati"), read_carved:T("Lettura file recuperato"),
-  search_traces:T("Evidenze di interesse (bulk_extractor)"), locate_offset:T("Localizzazione offset")};
+  search_traces:T("Evidenze di interesse (bulk_extractor)"), locate_offset:T("Localizzazione offset"),
+  list_bookmarks:T("Preferiti"), saved_searches:T("Ricerche salvate"), similar_images:T("Immagini simili")};
 function argText(a){
   if (!a || typeof a !== "object") return "";
   return Object.entries(a).filter(([k,v]) => v !== "" && k !== "description")
@@ -1776,9 +1848,10 @@ function argText(a){
 }
 function addEvent(ev){
   const box = $("msgs"), d = ev.data;
+  if (ev.kind === "turno"){ turnoAg = d; return; }      // (3.0.4) a che turno è l'agente: solo per l'indicatore
   const w = box.querySelector(".working"); if (w) w.remove();
   let el;
-  if (ev.kind === "user"){ el = document.createElement("div"); el.className = "u"; el.textContent = d; toolCount = 0; }
+  if (ev.kind === "user"){ el = document.createElement("div"); el.className = "u"; el.textContent = d; toolCount = 0; turnoAg = null; }
   else if (ev.kind === "thinking"){ el = document.createElement("div"); el.className = "think"; el.textContent = d; }
   else if (ev.kind === "tool"){
     toolCount++;
@@ -1813,7 +1886,7 @@ function workingIndicator(){
   const box = $("msgs");
   let w = box.querySelector(".working");
   if (!w){ w = document.createElement("div"); w.className = "working"; box.appendChild(w); }
-  w.innerHTML = TF("<span class=\"dot\"></span>L'agente sta lavorando{0}…", toolCount ? TF(" · {0} passaggi", toolCount) : "");
+  w.innerHTML = TF("<span class=\"dot\"></span>L'agente sta lavorando{0}…", (toolCount === 1 ? T(" · 1 strumento") : toolCount ? TF(" · {0} strumenti", toolCount) : "") + (turnoAg ? TF(" · turno {0} di {1}", turnoAg.n, turnoAg.max) : ""));
 }
 async function poll(){
   if (polling) return; polling = true;
@@ -3209,6 +3282,47 @@ async function modelliDialog(){
   cons(); riapriWire();
 }
 $("homeModelli").onclick = () => modelliDialog();
+/* (3.0.4) simboli di debug di Windows per i dump della RAM: servono allo stato dei servizi. Si scaricano da Microsoft solo
+   da qui, senza un caso aperto, dopo il consenso alle condizioni; poi l'analisi li usa dalla cartella locale, senza rete. */
+async function simboliDialog(dump, dopo, fatto){
+  // dopo: che cosa fare alla chiusura dopo uno scarico riuscito (dall'avviso di «Avvia»: far partire l'analisi);
+  // fatto: esito dello scarico appena finito, da dire chiaramente prima di chiudere
+  let st; try { st = await api("/api/ram/simboli_stato"); } catch (e) { return toast(e.message, "bad"); }
+  const mb = n => (n / 1e6).toLocaleString(LOC, {maximumFractionDigits: 1}) + " MB";
+  const ult = (st.scarichi || []).slice(-3).reverse().map(x => `<div class="hint">${esc(when(x.ts))} · Windows ${esc(x.windows || "?")} · ${nf((x.scaricati || []).length)} ${T("file")} · ${mb(x.byte || 0)} · ${TF("servizi letti: {0}", nf(x.servizi_letti || 0))}</div>`).join("");
+  const finito = fatto ? `<div class="lcok" style="margin-bottom:10px"><b>✓ ${fatto.nuovi ? TF("Simboli scaricati: {0} file, {1}.", nf(fatto.nuovi), mb(fatto.byte || 0)) : T("I simboli per questo dump erano già nella cartella locale: non c'era nulla da scaricare.")}</b> ${TF("Servizi letti con i simboli: {0}.", nf(fatto.servizi || 0))} ${dopo ? T("Puoi chiudere questa finestra: l'analisi parte subito.") : T("Puoi chiudere questa finestra e proseguire.")}<div style="margin-top:8px"><button class="btn primary" id="smFine">${dopo ? T("Chiudi e avvia l'analisi") : T("Chiudi e prosegui")}</button></div></div>` : "";
+  openModal(T("Simboli di Windows per la RAM"), finito + (st.disponibile ? "" : `<p class="note">${esc(st.motivo || "")}</p>`) +
+    `<div class="lcok" style="margin-bottom:8px">${T("Nessun caso è aperto: da qui RepertIA va in rete solo per i simboli del dump indicato e solo se lo accetti.")}</div>
+    <p style="margin-top:0">${T("Alcuni dati della memoria (lo stato di esecuzione dei servizi) si leggono solo con i simboli di debug della versione di Windows del dump, che Microsoft pubblica sul suo server. RepertIA li scarica una volta in una cartella di questo computer; poi l'analisi dei casi li usa da lì, senza rete.")}</p>
+    <ul class="hint"><li>${T("A Microsoft arrivano il nome e l'identificativo dei file di simboli richiesti: dicono quale versione di Windows è, non il contenuto del dump.")}</li>
+    <li>${T("Per chiedere i simboli il dump viene aperto in sola lettura mentre la rete è in uso: se il caso non lo consente, non scaricarli.")}</li>
+    <li>${T("I simboli valgono per quella versione di Windows: un dump di un'altra versione richiede un altro scarico.")}</li></ul>
+    <div class="hint">${TF("Nella cartella locale: {0} file, {1}.", nf(st.file || 0), mb(st.byte || 0))} ${st.cartella ? `<button class="lnk2" id="smDir">${T("Apri la cartella")}</button>` : ""}</div>${ult}
+    <div class="srow" style="margin-top:10px"><input id="smDump" style="flex:1" placeholder="${esc(T("percorso del dump della memoria"))}" value="${esc(dump || "")}"><button class="btn small" id="smPick">${T("Scegli…")}</button></div>
+    <label style="display:block;margin-top:10px"><input type="checkbox" id="smOk"> ${T("Ho letto e accetto le condizioni di licenza Microsoft che regolano l'uso dei simboli")} <button class="lnk2" id="smLic">${T("Apri le condizioni")}</button></label>
+    <div id="smProg" class="hint" style="margin-top:8px"></div>
+    <button class="btn" id="smGo" style="margin-top:8px" ${st.disponibile ? "" : "disabled"}>${T("Scarica i simboli per questo dump")}</button>`, []);
+  if ($("smFine")) $("smFine").onclick = () => { $("modal").classList.add("hidden"); if (dopo) dopo(); };
+  if ($("smDir")) $("smDir").onclick = () => api("/api/ram/simboli_cartella", {}).catch(e => toast(e.message, "bad"));
+  $("smLic").onclick = e => { e.preventDefault(); api("/api/ram/simboli_cartella", {condizioni: true}).catch(x => toast(x.message, "bad")); };
+  $("smPick").onclick = async () => { try { const r = await api("/api/ram/scegli_dump", {}); if (r.path) $("smDump").value = r.path; } catch (e) { toast(e.message, "bad"); } };
+  $("smGo").onclick = async () => {
+    const d = $("smDump").value.trim();
+    if (!d) return toast(T("Indica il dump della memoria"), "bad");
+    if (!$("smOk").checked) return toast(T("Per scaricare i simboli serve accettare le condizioni di Microsoft"), "bad");
+    try { await api("/api/ram/simboli", {dump: d, accetto: true}); } catch (e) { return toast(e.message, "bad"); }
+    $("smGo").disabled = true; modalLock(true);
+    const tick = async () => {
+      const t = await api("/api/task?name=ram_simboli").catch(e => ({done: true, error: e.message}));
+      if (!t.done){ if ($("smProg")) $("smProg").textContent = (t.progress || {}).msg || T("In corso…"); return setTimeout(tick, 900); }
+      modalLock(false);
+      if (t.error){ toast(t.error, "bad"); return simboliDialog(d, dopo); }
+      simboliDialog(d, dopo, {nuovi: (t.result.scaricati || []).length, byte: t.result.byte || 0, servizi: t.result.servizi_letti || 0});
+    };
+    tick();
+  };
+}
+$("homeSimboli").onclick = () => simboliDialog();
 function apriGuida(){
   const u = "/guida/guida.html?l=" + (LG.lingua === "en" ? "en" : "it") + "&t=" + (isDark() ? "dark" : "light");
   // (3.0) la guida si apre sopra il programma: il caso resta sotto com'era. Alcuni browser (anche quello integrato in
@@ -3400,7 +3514,20 @@ let SEL = {};                       // selezione per vista: {ids:Set, all:bool, 
 let treeParts = null, treeLayout = null, treeCache = {}, TREEOPEN = {}, treeNodes = new Map();
 let hist = {gran: "auto", data: null, pick: null, range: null};
 let XTABS = [], xSeq = 0, curRow = -1;
-document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => switchTab(b.dataset.tab));
+/* (3.0.4) La Timeline ha una pagina sua (pulsante in alto e scheda «Timeline»): non è più una voce dell'albero dei
+   Risultati. TLMODE segue la sezione mostrata; LASTRES ricorda dove tornare con la scheda «Risultati». */
+let TLMODE = false, LASTRES = "explore";
+function tabsOn(){
+  const t = resTab === "chat" ? "chat" : TLMODE ? "tl" : "res";
+  document.querySelectorAll(".tabs button").forEach(b => b.classList.toggle("on", b.dataset.tab === t));
+}
+function openTimeline(){ if (caseInfo) switchTab("res", "timeline"); }
+document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => {
+  if (b.dataset.tab === "tl") return openTimeline();
+  if (b.dataset.tab === "res" && TLMODE) return switchTab("res", LASTRES);        // dalla Timeline ai Risultati: dove si era
+  switchTab(b.dataset.tab);
+});
+$("mTimeline").onclick = openTimeline;
 const kindOf = s => /^x\d+$/.test(s) ? "explore" : /^[sb]\d+$/.test(s) ? "hits" : s;
 const isXTab = s => /^[xsb]\d+$/.test(s);
 const isExp = s => kindOf(s) === "explore";
@@ -3409,7 +3536,7 @@ function saveScroll(){ if (resSec && resState[resSec]) resState[resSec].scroll =
 function switchTab(t, sec){
   if (resTab === "res") saveScroll();
   resTab = t;
-  document.querySelectorAll(".tabs button").forEach(b => b.classList.toggle("on", b.dataset.tab === t));
+  tabsOn();
   $("chatView").classList.toggle("hidden", t !== "chat");
   $("resView").classList.toggle("hidden", t !== "res");
   srchTagsOn();
@@ -3435,7 +3562,16 @@ function fmtTaken(s){
 function takenTz(s){ const m = /(Z|[+-]\d\d:?\d\d)$/.exec(String(s || "").trim()); return !String(s || "").trim() ? "" : !m ? T("non indicato (ora locale del dispositivo)") : m[1] === "Z" ? "UTC" : m[1]; }
 const nf = n => n == null ? "" : Number(n).toLocaleString(LOC);
 const fsize = n => n == null ? "" : n < 1024 ? n + " B" : n < 1048576 ? (n/1024).toFixed(1) + " KB" : n < 1073741824 ? (n/1048576).toFixed(1) + " MB" : (n/1073741824).toFixed(2) + " GB";
-const fts = s => s ? esc(dataTxt(tzMode() !== "utc" ? (tzConv(s) || ftsRaw(s, true)) : ftsRaw(s))) : "";
+/* (3.0.4) ogni data porta la sua sigla accanto al valore, anche in UTC: «2026-08-06 12:42:52 CEST», «… UTC»,
+   «… UTC-05:00». Le date senza fuso nella fonte restano come sono e lo dicono. */
+const fts = s => s ? esc(dataTxt(tzMode() !== "utc" ? (tzConv(s) || ftsRaw(s, true)) : ftsRaw(s, true))) : "";
+// colonne delle date dei file: una data che il file system non ha è scritta a zeri, come negli altri strumenti forensi
+const ftsZ = s => s ? fts(s) : `<span class="hint" title="${esc(T("Data non presente nella fonte"))}">0000-00-00 00:00:00</span>`;
+/* orari scritti nei testi (Dettagli degli artefatti) con la sigla UTC: mostrati nel fuso scelto, come le colonne delle
+   date. Si convertono solo quelli marcati UTC: un'ora locale senza fuso non viene mai spostata. */
+function fdet(s){
+  return esc(s == null ? "" : s).replace(/(\d{4}-\d\d-\d\d)[T ](\d\d:\d\d:\d\d)(?:\.\d+)? UTC\b(?![+-]\d)/g, (m, d, t) => fts(d + "T" + t) || m);
+}
 /* (3.0.1) formato delle date mostrate (menu 📅 accanto al fuso): «gma» 31/01/2024 (predefinito in italiano), «iso»
    2024-01-31 (predefinito in inglese), «mga» 01/31/2024, «esteso» 31 gen 2024. Cambia solo come si vedono: dati, registro,
    CSV, filtri e ordinamento restano in formato ISO. */
@@ -3551,7 +3687,8 @@ const VIEWABLE = new Set(["explore", "file", "doc", "meta", "carved", "hits", "a
 const ART_LBL = {sistema: T("Sistema"), utenti: T("Account utente"), usb: T("Dispositivi USB"), programmi: T("Programmi installati"), esecuzioni: T("Programmi eseguiti"),
   recenti: T("File e cartelle recenti"), reti: T("Reti"), cestino: T("Cestino"), web: T("Cronologia web"), download: T("Download"), ricerche: T("Ricerche"), comandi: T("Comandi (shell)"), messaggi: T("Messaggi (iMessage/SMS)"), avvio: T("Avvio automatico"), permessi: T("Permessi alle app (TCC)"), uso: T("Uso delle app"), dispositivi: T("Dispositivi e volumi"), backup: T("Backup (Time Machine)"),
   cartelle: T("Cartelle aperte (ShellBags)"), journal: T("Journal NTFS (creati, cancellati, rinominati)"), eventi: T("Eventi di sistema"),
-  cloud: T("Servizi cloud (Google Drive)"), indice: T("Indice di Ricerca di Windows"), note: T("Note (Sticky Notes)")};
+  cloud: T("Servizi cloud (Google Drive)"), indice: T("Indice di Ricerca di Windows"), note: T("Note (Sticky Notes)"),
+  processi: T("Processi (RAM)"), connessioni: T("Connessioni di rete (RAM)"), moduli: T("Moduli caricati (RAM)"), driver: T("Driver (RAM)"), attivita: T("Attività pianificate (RAM)"), servizi: T("Servizi (RAM)")};
 const ANOM_LBL = {volume: T("Volume cifrato"), estensione: T("Estensione falsa"), cifrato: T("Protetto da password"), contenitore: T("Possibile contenitore cifrato"), segnalato: T("Hash da segnalare")};
 const FILTERS = {
   search: [], bm: [],
@@ -3577,7 +3714,7 @@ async function loadRes(sec){
     if (sec && !isXTab(sec)) mainSec = sec;
     if (c[mainSec] == null) mainSec = "explore";
     const target = sec && isXTab(sec) && XTABS.find(t => t.id === sec) ? sec : (sec && !isXTab(sec) ? mainSec : (isXTab(resSec) && XTABS.find(t => t.id === resSec) ? resSec : mainSec));
-    $("resNav").innerHTML = TF("<button class=\"navmode\" id=\"navMode\" title=\"Mostra le sezioni come albero laterale, con le sottovoci indentate\">{0} Vista ad albero</button>", TREE_ICO) + SECTIONS.filter(([k]) => !(c[k] == null && ["art", "mail", "arch", "vss", "anom"].includes(k))).map(([k, label]) => `<button data-sec="${k}" ${c[k] == null ? T("disabled title='Analisi non eseguita'") : ""}>${label}<span>${k === "explore" || (k === "search" && !c[k]) ? "" : c[k] == null ? "–" : nf(c[k])}</span></button>`).join("");
+    $("resNav").innerHTML = TF("<button class=\"navmode\" id=\"navMode\" title=\"Mostra le sezioni come albero laterale, con le sottovoci indentate\">{0} Vista ad albero</button>", TREE_ICO) + SECTIONS.filter(([k]) => k !== "timeline" && !(c[k] == null && ["art", "mail", "arch", "vss", "anom"].includes(k))).map(([k, label]) => `<button data-sec="${k}" ${c[k] == null ? T("disabled title='Analisi non eseguita'") : ""}>${label}<span>${k === "explore" || (k === "search" && !c[k]) ? "" : c[k] == null ? "–" : nf(c[k])}</span></button>`).join("");
     $("resNav").querySelectorAll("button[data-sec]").forEach(b => b.onclick = () => { saveScroll(); mainSec = b.dataset.sec; selectRes(mainSec); });
     $("navMode").onclick = () => setNavMode("tree");
     rtInit(); RTC = c; if (NAVMODE === "tree") await rtRefresh();
@@ -3617,8 +3754,10 @@ function closeXTab(id){
 function selectRes(sec){
   thReset();                     // (2.20) cambiando sezione si annullano le miniature in corso
   const kind = kindOf(sec);
-  if (pvOpenState() && pvState.sec !== sec) pvClose();
+  if (pvOpenState() && pvState.sec !== sec) pvClose(false, true);
   resSec = sec; curRow = -1; srchTagsOn();
+  TLMODE = kind === "timeline"; if (!TLMODE) LASTRES = sec;
+  $("resView").classList.toggle("tlmode", TLMODE); tabsOn();
   schedeDisegna();
   if (TL_FULL && kind !== "timeline") tlFull(false);
   resWait();
@@ -4176,20 +4315,20 @@ function renderTable(r){
   const C = {
     explore: [[T("Nome"), (x, i) => (x.isdir ? `<span class="fic">📁</span><span class="dirlink" data-dir="${i}">${esc(x.name)}</span>` : `<span class="fic">${fileIcon(kind, x)}</span>${esc(x.name)}`) + delTag(x.deleted) + (x.known ? (x.known.startsWith("noti") ? `<span class="tag known" title="${esc(x.known.slice(5))}">noto</span>` : `<span class="tag flag" title="${esc(x.known.slice(10))}">segnalato</span>`) : "") + `<div class="hint">${x.ua ? TF("settori {0}–{1} · byte {2}", nf(x.s0), nf(x.s1), nf(x.start)) : `${sub && x.parent ? esc(x.parent) + " · " : ""}${x.inode ? "inode " + esc(x.inode) : T("cartella ricostruita dal percorso")}`}</div>`, "p", {k: "name", t: "t", ph: T("nome…")}],
       [T("Dimensione"), x => x.isdir ? TF("<span class=\"hint\">{0} elem.</span>", nf(x.nitems)) : fsize(x.size), "n", {k: "size", t: "n"}],
-      [TF("Modificato ({0})", tzLbl()), x => fts(x.mtime), "d", {k: "mtime", t: "d"}], [TF("Creato ({0})", tzLbl()), x => fts(x.crtime), "d", {k: "crtime", t: "d"}], [TF("Accesso ({0})", tzLbl()), x => fts(x.atime), "d", {k: "atime", t: "d"}]],
+      [T("Modificato"), x => ftsZ(x.mtime), "d", {k: "mtime", t: "d"}], [T("Modifica metadati"), x => ftsZ(x.ctime), "d", {k: "ctime", t: "d"}], [T("Accesso"), x => ftsZ(x.atime), "d", {k: "atime", t: "d"}], [T("Creato"), x => ftsZ(x.crtime), "d", {k: "crtime", t: "d"}]],
     file: [[T("Percorso"), (x, i) => `<span class="fic">${fileIcon(kind, x)}</span>` + plink(x, i, x.path) + delTag(x.deleted), "p", {k: "path", t: "t", ph: T("percorso o nome…")}], [T("Tipo"), x => esc(x.type), "m", {k: "type", t: "t"}], [T("Rif."), x => `${x.part} / ${esc(x.inode)}`, "m", {k: "inode", t: "t", ph: "inode"}],
       [T("Dimensione"), x => x.size != null ? fsize(x.size) : "", "n", {k: "size", t: "n"}],
-      [TF("Modificato ({0})", tzLbl()), x => fts(x.mtime), "d", {k: "mtime", t: "d"}], [TF("Creato ({0})", tzLbl()), x => fts(x.crtime), "d", {k: "crtime", t: "d"}], [TF("Accesso ({0})", tzLbl()), x => fts(x.atime), "d", {k: "atime", t: "d"}]],
-    timeline: [[TF("Data ({0})", tzLbl()), x => fts(x.ts), "d", {k: "ts", t: "d"}], [T("Evento"), x => esc(x.kind), "", {k: "kind", t: "t", ph: T("es. modifica")}], [T("Fonte"), x => esc(x.origin === "tsk" ? T("file system") : x.source), "", {k: "source", t: "t"}], [T("Dettaglio"), (x, i) => x.origin === "tsk" && x.inode ? plink(x, i, x.path) : esc(x.origin === "tsk" ? x.path : x.message), "p", {k: "detail", t: "t"}]],
-    doc: [[T("Documento"), (x, i) => `<span class="fic">${fileIcon(kind, x)}</span>` + (x.source === "carving" ? esc(x.path) : plink(x, i, x.path)) + delTag(x.deleted) + `<div class="hint">${esc(x.kind)}${/^OCR\b/.test(x.kind || "") ? ` · <b>${T("testo OCR automatico")}</b>` : ""} · ${esc(ref(x))}</div>`, "p", {k: "path", t: "t", ph: T("nome o percorso…")}], [T("Dimensione"), x => x.size != null ? fsize(x.size) : "", "n", {k: "size", t: "n"}], [TF("Modificato ({0})", tzLbl()), x => fts(x.mtime), "d", {k: "mtime", t: "d"}], [TF("Creato ({0})", tzLbl()), x => fts(x.crtime), "d", {k: "crtime", t: "d"}], [T("Testo trovato"), x => hlSnip(x.snippet), "p"]],
-    meta: [[T("File"), (x, i) => `<span class="fic">${fileIcon(kind, x)}</span>` + (x.source === "carving" ? esc(x.path) : plink(x, i, x.path)) + delTag(x.deleted) + mediaHint(x), "p", {k: "path", t: "t"}], [T("Dimensione"), x => x.size != null ? fsize(x.size) : "", "n", {k: "size", t: "n"}], [TF("Modificato ({0})", tzLbl()), x => fts(x.mtime), "d", {k: "mtime", t: "d"}], [TF("Creato ({0})", tzLbl()), x => fts(x.crtime), "d", {k: "crtime", t: "d"}], [T("Dispositivo"), x => esc([x.make, x.model].filter(Boolean).join(" ")), "", {k: "device", t: "t"}], [T("Data (dai metadati)"), x => fmtTaken(x.taken), "m", {k: "taken", t: "D"}], ["GPS", x => x.lat != null ? `${x.lat.toFixed(6)}, ${x.lon.toFixed(6)}` : "", "m"], [T("Autore"), x => esc(x.author || ""), "", {k: "author", t: "t"}]],
+      [T("Modificato"), x => ftsZ(x.mtime), "d", {k: "mtime", t: "d"}], [T("Modifica metadati"), x => ftsZ(x.ctime), "d", {k: "ctime", t: "d"}], [T("Accesso"), x => ftsZ(x.atime), "d", {k: "atime", t: "d"}], [T("Creato"), x => ftsZ(x.crtime), "d", {k: "crtime", t: "d"}]],
+    timeline: [[T("Data"), x => fts(x.ts), "d", {k: "ts", t: "d"}], [T("Evento"), x => esc(x.kind), "", {k: "kind", t: "t", ph: T("es. modifica")}], [T("Fonte"), x => esc(x.origin === "tsk" ? T("file system") : x.source), "", {k: "source", t: "t"}], [T("Dettaglio"), (x, i) => x.origin === "tsk" && x.inode ? plink(x, i, x.path) : x.origin === "tsk" ? esc(x.path) : fdet(x.message), "p", {k: "detail", t: "t"}]],
+    doc: [[T("Documento"), (x, i) => `<span class="fic">${fileIcon(kind, x)}</span>` + (x.source === "carving" ? esc(x.path) : plink(x, i, x.path)) + delTag(x.deleted) + `<div class="hint">${esc(x.kind)}${/^OCR\b/.test(x.kind || "") ? ` · <b>${T("testo OCR automatico")}</b>` : ""} · ${esc(ref(x))}</div>`, "p", {k: "path", t: "t", ph: T("nome o percorso…")}], [T("Dimensione"), x => x.size != null ? fsize(x.size) : "", "n", {k: "size", t: "n"}], [T("Modificato"), x => fts(x.mtime), "d", {k: "mtime", t: "d"}], [T("Creato"), x => fts(x.crtime), "d", {k: "crtime", t: "d"}], [T("Testo trovato"), x => hlSnip(x.snippet), "p"]],
+    meta: [[T("File"), (x, i) => `<span class="fic">${fileIcon(kind, x)}</span>` + (x.source === "carving" ? esc(x.path) : plink(x, i, x.path)) + delTag(x.deleted) + mediaHint(x), "p", {k: "path", t: "t"}], [T("Dimensione"), x => x.size != null ? fsize(x.size) : "", "n", {k: "size", t: "n"}], [T("Modificato"), x => fts(x.mtime), "d", {k: "mtime", t: "d"}], [T("Creato"), x => fts(x.crtime), "d", {k: "crtime", t: "d"}], [T("Dispositivo"), x => esc([x.make, x.model].filter(Boolean).join(" ")), "", {k: "device", t: "t"}], [T("Data (dai metadati)"), x => fmtTaken(x.taken), "m", {k: "taken", t: "D"}], ["GPS", x => x.lat != null ? `${x.lat.toFixed(6)}, ${x.lon.toFixed(6)}` : "", "m"], [T("Autore"), x => esc(x.author || ""), "", {k: "author", t: "t"}]],
     hits: [[T("File"), (x, i) => `<span class="fic">${x.source === "mail" ? "✉️" : x.source === "image" ? "🧩" : x.source === "art" ? "🪟" : x.source === "chat" || x.source === "thr" ? "💬" : x.source === "rub" ? "📇" : fileIcon(kind, x)}</span>` + (["carving", "x", "mail", "image", "art", "chat", "rub", "thr"].includes(x.source) ? esc(x.path) : plink(x, i, x.path)) + delTag(x.deleted) + `<div class="hint">${({carving: T("file recuperato col carving"), x: T("file estratto (archivio, allegato, miniatura o copia shadow)"), mail: T("messaggio di posta"), art: T("artefatto di sistema"), chat: T("messaggio di una chat"), image: T("byte grezzi della copia")})[x.source] || `offset ${x.part}, inode ${esc(x.inode)}`}</div>` + (x.source === "image" ? trcPathCell(i) : ""), "p", {k: "path", t: "t", ph: T("nome o percorso…")}],
       [T("Dimensione"), x => x.size != null ? fsize(x.size) : "", "n", {k: "size", t: "n"}],
-      [TF("Modificato ({0})", tzLbl()), x => fts(x.mtime), "d", {k: "mtime", t: "d"}],
+      [T("Modificato"), x => fts(x.mtime), "d", {k: "mtime", t: "d"}],
       ...(resSec[0] === "b" ? [[T("Nota"), x => esc(x.detail || ""), "p", {k: "note", t: "t"}]] : [[T("Trovato in"), x => esc(x.wheres), "", {k: "wheres", t: "t"}], [T("Termini"), x => `<span class="mono" style="font-size:12px">${esc(x.terms)}</span>`, "p", {k: "terms", t: "t"}]]),
       [resSec[0] === "b" ? T("Hash") : T("Dettaglio"), x => (resSec[0] === "b" ? "" : hlTerms(x.detail, x.terms)) + (x.sha256 ? `<div class="hint mono" title="MD5 ${esc(x.md5 || "")}\nSHA-1 ${esc(x.sha1 || "")}\nSHA-256 ${esc(x.sha256)}">SHA-256 ${esc(x.sha256.slice(0, 16))}…</div>` : ""), "p", resSec[0] === "b" ? {k: "sha256", t: "t", ph: T("hash…")} : {k: "detail", t: "t"}]],
     // (3.0) chiamate: verso e contatto in colonne proprie (testi uguali a CALL_VERSI del server, per i filtri)
-    art: kind === "art" && stOf(sec).cat === "chiamate" ? [[TF("Data ({0})", tzLbl()), x => fts(x.ts), "d", {k: "ts", t: "d"}],
+    art: kind === "art" && stOf(sec).cat === "chiamate" ? [[T("Data"), x => ftsZ(x.ts), "d", {k: "ts", t: "d"}],
       [T("Verso"), x => { const v = (x.data || {}).verso; return `${{in: "↙", out: "↗", persa: "✖", rifiutata: "⛔", segreteria: "📼"}[v] || "☎"} ${esc(CALL_VERSI[v] || T("verso non indicato"))}`; }, "", {k: "verso", t: "t"}],
       // (3.0.1) nome in rubrica, numero (+39… invece di 39…@s.whatsapp.net) e LID di WhatsApp se la fonte aveva quello
       [T("Contatto"), x => { const d = x.data || {}, who = d.nome_rubrica || d.nome_app, num = waNum(d.numero); return who || num ? `${who ? `<b>${esc(who)}</b>` : ""}${who && num ? "<br>" : ""}${num ? `<span class="mono">${esc(num)}</span>` : ""}${d.lid ? `<br><span class="hint mono" title="${esc(T("identificativo WhatsApp (LID) registrato nella chiamata"))}">LID ${esc(d.lid)}</span>` : ""}` : `<span class="hint">${T("(non indicato)")}</span>`; }, "p", {k: "contatto", t: "t"}],
@@ -4198,17 +4337,17 @@ function renderTable(r){
       [T("Risposta"), x => { const v = (x.data || {}).risposta; return v == null ? `<span class="hint">${esc(T("non indicata"))}</span>` : v ? T("sì") : T("no"); }, "", {k: "risposta", t: "t"}],
       [T("Dettagli"), x => chiamataDett(x), "p dett", {k: "detail", t: "t"}],
       [T("Fonte"), (x, i) => x.src_path ? plink(x, i, x.src_path) : "", "p", {k: "src_path", t: "t"}]] :
-    [[TF("Data ({0})", tzLbl()), x => fts(x.ts), "d", {k: "ts", t: "d"}], [T("Categoria"), x => esc(ART_LBL[x.cat] || x.cat), "", {k: "cat", t: "t"}],
+    [[T("Data"), x => ftsZ(x.ts), "d", {k: "ts", t: "d"}], [T("Categoria"), x => esc(ART_LBL[x.cat] || x.cat), "", {k: "cat", t: "t"}],
       [T("Elemento"), x => citedThumb(x) + artTitle(x), "p", {k: "title", t: "t"}], [T("Dettagli"), x => artDetail(x), "p dett", {k: "detail", t: "t"}],
       [T("Fonte"), (x, i) => x.src_path ? plink(x, i, x.src_path) : "", "p", {k: "src_path", t: "t"}]],
-    mail: [[TF("Data ({0})", tzLbl()), x => fts(x.date), "d", {k: "date", t: "d"}], ["Da", x => esc(x.sender), "p", {k: "sender", t: "t"}], ["A", x => esc(x.recipients), "p", {k: "recipients", t: "t"}],
+    mail: [[T("Data"), x => ftsZ(x.date), "d", {k: "date", t: "d"}], ["Da", x => esc(x.sender), "p", {k: "sender", t: "t"}], ["A", x => esc(x.recipients), "p", {k: "recipients", t: "t"}],
       [T("Oggetto"), x => `<b>${esc(x.subject)}</b>` + (x.n_att ? TF(" <span class=\"hint\" title=\"allegati\">📎 {0}</span>", x.n_att) : ""), "p", {k: "subject", t: "t"}],
       [T("Cartella"), (x, i) => `<span class="hint">${esc(x.fmt)}</span> ${esc(x.folder || "")}<div class="hint">${plink(x, i, x.src_path)}</div>`, "p", {k: "folder", t: "t"}]],
     arch: [[T("File"), x => `<span class="fic">${fileIcon(kind, x)}</span>${esc(x.inner || x.name)}${x.encrypted ? T(' <span class="del">PROTETTO</span>') : ""}${x.deleted ? T(' <span class="del">DA FILE CANCELLATO</span>') : ""}<div class="hint">${x.kind === "allegato" ? T("📎 allegato di ") : x.kind === "miniatura" ? T("🖼 miniatura in ") : x.kind === "cache_web" ? T("🌐 dalla voce di cache ") : "in "}${esc(parentOf(x.path))}</div>`, "p", {k: "path", t: "t", ph: T("nome o percorso…")}],
-      [T("Dimensione"), x => fsize(x.size), "n", {k: "size", t: "n"}], [TF("Data ({0})", tzLbl()), x => fts(x.mtime), "d", {k: "mtime", t: "d"}],
+      [T("Dimensione"), x => fsize(x.size), "n", {k: "size", t: "n"}], [T("Data"), x => fts(x.mtime), "d", {k: "mtime", t: "d"}],
       [T("SHA-256 / note"), x => x.sha256 ? `<span class="mono" style="font-size:12px" title="MD5 ${esc(x.md5 || "")}\nSHA-1 ${esc(x.sha1 || "")}\nSHA-256 ${esc(x.sha256)}">${esc(x.sha256.slice(0, 16))}…</span>` : `<span class="hint">${esc(x.note || "")}</span>`, "p", {k: "note", t: "t"}]],
     vss: [[T("File"), x => `<span class="fic">${fileIcon(kind, x)}</span>${esc(x.inner)}`, "p", {k: "path", t: "t"}], [T("Copia shadow"), x => esc(x.store), "", {k: "store", t: "t"}], [T("Stato"), x => esc(x.note), "p", {k: "note", t: "t"}],
-      [T("Dimensione"), x => fsize(x.size), "n", {k: "size", t: "n"}], [TF("Modificato ({0})", tzLbl()), x => fts(x.mtime), "d", {k: "mtime", t: "d"}]],
+      [T("Dimensione"), x => fsize(x.size), "n", {k: "size", t: "n"}], [T("Modificato"), x => fts(x.mtime), "d", {k: "mtime", t: "d"}]],
     anom: [[T("Tipo"), x => `<span class="sev${x.sev}">${esc(ANOM_LBL[x.kind] || x.kind)}</span>`, "", {k: "kind", t: "t"}],
       [T("File"), (x, i) => (x.source === "fs" && x.inode ? plink(x, i, x.path) : esc(x.path)) + delTag(x.deleted), "p", {k: "path", t: "t"}], [T("Dettaglio"), x => esc(x.detail), "p", {k: "detail", t: "t"}],
       [T("Dimensione"), x => x.size != null ? fsize(x.size) : "", "n", {k: "size", t: "n"}]],
@@ -5023,10 +5162,10 @@ async function loadSaved(){
 function extRef(kind, x){
   const src = x.part != null && (x.inode || (x.estrazione && x.src_path)) ? {source: "fs", part: x.part, inode: x.inode || "", path: x.src_path || x.path} : null;
   if (kind === "art") return {source: "art", id: x.id, title: x.title, path: x.title, src: x.src_path ? src : null,
-    label: TF("artefatto «{0}» ({1}, {2}): {3}{4}", x.title, ART_LBL[x.cat] || x.cat, x.ts ? fts(x.ts) + (tzMode() === "utc" ? " UTC" : "") : T("senza data"), x.detail,
+    label: TF("artefatto «{0}» ({1}, {2}): {3}{4}", x.title, ART_LBL[x.cat] || x.cat, x.ts ? fts(x.ts) : T("senza data"), x.detail,
       !x.src_path ? "" : x.estrazione ? TF(" — fonte {0} (percorso nell'estrazione)", x.src_path) : !x.inode ? TF(" — fonte {0}", x.src_path) : TF(" — fonte {0} (offset {1}, inode {2})", x.src_path, x.part, x.inode))};
   if (kind === "mail") return {source: "mail", id: x.id, title: x.subject, path: x.subject, src,
-    label: TF("messaggio «{0}» del {1} da {2} a {3} ({4} › {5}, offset {6}, inode {7})", x.subject, x.date ? fts(x.date) + (tzMode() === "utc" ? " UTC" : "") : "?", x.sender, x.recipients, x.src_path, x.folder || "", x.part, x.inode)};
+    label: TF("messaggio «{0}» del {1} da {2} a {3} ({4} › {5}, offset {6}, inode {7})", x.subject, x.date ? fts(x.date) : "?", x.sender, x.recipients, x.src_path, x.folder || "", x.part, x.inode)};
   if (kind === "arch" || kind === "vss") return {source: "x", id: x.id, name: x.name, path: x.path, src: kind === "arch" ? src : null,
     label: `${x.path} (${x.size} byte${x.sha256 ? ", SHA-256 " + x.sha256 : ""}${x.encrypted ? T(", protetto da password") : ""}${x.note ? "; " + x.note : ""})`};
   if (kind === "anom"){
@@ -5158,7 +5297,7 @@ function applyNavMode(){
 }
 // celle «Elemento» e «Dettagli» degli artefatti (il frammento smartphone le sostituisce per i suoi artefatti)
 function artTitle(x){ return `<b>${esc(x.title)}</b>` + (x.user ? `<div class="hint">${TF("utente {0}", esc(x.user))}</div>` : ""); }
-function artDetail(x){ return esc(x.detail); }
+function artDetail(x){ return fdet(x.detail); }
 // sottovoci dei Documenti: una per estensione, con il programma che di solito la apre
 const DOCEXT_APP = {doc: T("Word"), docx: T("Word"), docm: T("Word"), dot: T("Word"), dotx: T("Word"), rtf: T("testo formattato"), odt: "LibreOffice Writer", pages: T("Pages"),
   xls: T("Excel"), xlsx: T("Excel"), xlsm: T("Excel"), xlsb: T("Excel"), csv: "tabella", ods: "LibreOffice Calc", numbers: T("Numbers"),
@@ -5234,7 +5373,8 @@ function rtNodes(){
     sec("timeline", T("📈 Timeline"), [
       ...(tl.tsk ? [f("tl:tsk", T("File system"), "timeline", {origin: "tsk"}, tl.tsk)] : []),
       ...(tl.plaso ? [f("tl:plaso", T("Plaso"), "timeline", {origin: "plaso"}, tl.plaso, (d.plaso || []).map(([src, n]) => f("tl:p:" + src, src || T("(senza fonte)"), "timeline", {origin: "plaso", q: src}, n)))] : []),
-      ...tlFontiNodi(d)]),
+      ...(tl.ram ? [f("tl:ram", T("Memoria RAM"), "timeline", {origin: "ram"}, tl.ram, (d.ram || []).map(([src, n]) => f("tl:r:" + src, src || T("(senza fonte)"), "timeline", {origin: "ram", q: src}, n)))] : []),
+      ...tlFontiNodi(d)], {hide: true}),        // (3.0.4) non nell'albero: pagina propria; resta per le briciole
     sec("art", T("🪟 Artefatti di sistema"), (d.art || []).map(([k, n]) => f("art:" + k, ART_LBL[k] || k, "art", {cat: k}, n))),
     // (3.0) stesso contenuto di Strumenti aggiuntivi > Mappa: si apre sulla voce scelta
     {id: "geo", label: T("🗺 Posizioni e voli"), count: (d.geo || []).reduce((a, x) => a + x[1], 0) + (d.voli_n || 0), open: () => mapManager().catch(e => toast(e.message, "bad")), kids: [
@@ -5370,7 +5510,7 @@ document.addEventListener("click", ev => { if (SCHEDE_MENU && ev.target.isConnec
 function rtGo(n){
   const sec = n.sec, st = stOf(sec);
   schedaApri(n);
-  if (pvOpenState()) pvClose();      // (3.0) un'altra voce dell'albero, anche nella stessa sezione: l'anteprima di prima trarrebbe in inganno
+  if (pvOpenState()) pvClose(false, true);      // (3.0) un'altra voce dell'albero, anche nella stessa sezione: l'anteprima di prima trarrebbe in inganno
   for (const k of Object.keys(RTSET[sec] || {})) delete st[k];
   if (n.filt){ Object.assign(st, n.filt); RTSET[sec] = n.filt; } else delete RTSET[sec];
   st.offset = 0; st.scroll = 0;
@@ -5432,7 +5572,7 @@ async function renderBmPage(){
 async function bmTimeline(cid){       // (2.21) tutti i preferiti, o una categoria, in ordine di data dell'evento
   const tEl = $("resTable"), r = await api("/api/bm_timeline?" + (cid ? "cid=" + cid : "")), cats = (await api("/api/bm_cats")).cats;
   if (resSec !== "bm") return;
-  const when = v => v ? fts(v) + (tzMode() === "utc" ? " UTC" : "") : "";
+  const when = v => v ? fts(v) : "";
   tEl.dataset.shown = "bmtl";
   tEl.innerHTML = `<div class="srch"><div class="srchcard"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
     <button class="btn small" id="tlBack">← ${T("Preferiti")}</button><b>${T("Cronologia dei preferiti")}</b>
@@ -5533,7 +5673,7 @@ async function renderHitsHead(sec){
 }
 
 /* ---------- riquadro di anteprima ---------- */
-let pvState = {it: null, sec: null, tab: "view", info: null, hidSide: false};
+let pvState = {it: null, sec: null, tab: "view", info: null};
 const pvOpenState = () => !$("pv").classList.contains("hidden") && pvState.it;
 function pvRef(it){ return it.source === "ua" ? {source: "ua", part: it.part, inode: it.inode} : it.source === "image" ? {source: "image"} : it.source === "carving" ? {source: "carving", name: it.name} : ["x", "mail", "art", "chat", "rub"].includes(it.source) ? {source: it.source, id: it.id} : {source: "fs", part: it.part, inode: it.inode}; }
 const isUA = x => /^u\d+-\d+$/.test(String((x || {}).inode || ""));
@@ -5608,7 +5748,7 @@ function pvAggancia(){
   $("pv").classList.remove("hidden"); $("pvSplit").classList.remove("hidden");
   const w = paneStore.get("pv") || Math.round($("resView").clientWidth * 0.42);
   $("pv").style.width = Math.max(320, Math.min(w, $("resView").clientWidth - 360)) + "px";
-  if (!$("vCase").classList.contains("noside")){ $("vCase").classList.add("noside"); pvState.hidSide = true; }
+  // (3.0.4) il pannello laterale non si tocca più: cambia stato solo col suo pulsante (richiesta dell'utente)
 }
 /* (3.0.1) ⧉ anteprima in una finestra (si sposta, si riduce nella barra, va a schermo intero; la scelta resta per le
    anteprime successive); ⧉ nella finestra la riaggancia a destra. 📌 copia l'anteprima di adesso in una finestra a parte,
@@ -5618,7 +5758,6 @@ const pvWinOf = () => WM.wins.find(w => w.el === $("pv"));
 const pvWinTit = () => "🔎 " + ($("pvTitle").textContent || T("Anteprima"));
 function pvFinestra(){
   $("pvSplit").classList.add("hidden");
-  if (pvState.hidSide){ $("vCase").classList.remove("noside"); pvState.hidSide = false; }
   $("pv").style.width = "";
   wmApri($("pv"), {kind: "anteprima", titolo: pvWinTit(), dentro: true, chiudi: () => pvClose(), aggancia: () => pvStacca(false),
                    agganciaTit: T("Riaggancia l'anteprima a destra"), w: .45, h: .86});
@@ -5659,13 +5798,14 @@ $("pvFull").onclick = () => pvFull(!$("pv").classList.contains("pvfull"));
 document.addEventListener("keydown", e => { if (e.key === "Escape" && $("pv").classList.contains("pvfull") && !document.querySelector(".modal:not(.hidden)")){ e.stopImmediatePropagation(); pvFull(false); } }, true);
 // le azioni che portano altrove riducono prima il riquadro; le altre aprono finestre sopra di esso
 $("pvActs").addEventListener("click", e => { const b = e.target.closest("[data-pa]"); if (b && !["exp", "xexp", "find", "fav"].includes(b.dataset.pa)) pvFull(false); }, true);
-function pvClose(silent){
+/* (3.0.4) Il pannello laterale cambia stato solo col suo pulsante: l'anteprima non lo nasconde e non lo riapre più
+   (prima si nascondeva all'apertura e ricompariva a ogni clic che chiudeva l'anteprima, spostando la tabella sotto il
+   cursore). nav = chiusa dalla navigazione (un'altra voce, una cartella, avanti/indietro), non dall'utente. */
+function pvClose(silent, nav){
   pvFull(false);
   const pw = pvWinOf(); if (pw) wmChiudi(pw);
   $("pv").classList.add("hidden"); $("pvSplit").classList.add("hidden");
   pvState.it = null; hexState = null;
-  if (pvState.hidSide && !silent){ $("vCase").classList.remove("noside"); }
-  pvState.hidSide = false;
   $("pvBody").innerHTML = "";
   if ($("resTable")) $("resTable").querySelectorAll(".cur").forEach(e => e.classList.remove("cur"));
 }
@@ -5682,10 +5822,10 @@ async function pvTab(t){
   if (it.source === "image" && t !== "hex"){ body.innerHTML = T("<div class=\"resempty\">Questa posizione non appartiene a nessun file: per la copia forense c'è solo la vista Esadecimale.<div style=\"margin-top:12px\"><button class=\"btn small\" id=\"pvToHex2\">Apri in esadecimale</button></div></div>"); $("pvToHex2").onclick = () => pvTab("hex"); return; }
   body.innerHTML = `<div class="working" style="padding:14px"><span class="dot"></span>${t === "view" ? T("Preparo l'anteprima…") : T("Carico…")}</div>`;
   try{
-    if (t === "view") return pvRenderView(await api("/api/view", {...pvRef(it), tz: tzMode()}), it);
+    if (t === "view") return pvRenderView(await api("/api/view", {...pvRef(it), tz: tzMode(), dfmt: dataFmt()}), it);
     if (t === "text"){ const r = await api("/api/filetext", pvRef(it)); if (pvState.it !== it) return; return textOpen(r.text || ""); }
     if (t === "meta"){
-      const r = await api("/api/fileinfo", {...pvRef(it), tz: tzMode()}); if (pvState.it !== it) return;
+      const r = await api("/api/fileinfo", {...pvRef(it), tz: tzMode(), dfmt: dataFmt()}); if (pvState.it !== it) return;
       body.innerHTML = TF("<div class=\"pvmeta\">{0}<h4>File system (istat)</h4><pre>{1}</pre>{2}</div>", r.sha256 ? `<h4>SHA-256</h4><pre>${esc(r.sha256)}</pre>` : "", esc(r.istat), r.exif ? `<h4>${T("Metadati (exiftool)")}</h4><pre>${esc(r.exif)}</pre>` : "");
       return;
     }
@@ -5876,7 +6016,7 @@ async function citedPreview(el, c){
     return;
   }
   try{
-    const v = await api("/api/view", {source: "fs", part: c.part, inode: c.inode, path: c.path, tz: tzMode()});
+    const v = await api("/api/view", {source: "fs", part: c.part, inode: c.inode, path: c.path, tz: tzMode(), dfmt: dataFmt()});
     if (v.type === "image") el.innerHTML = `<img src="${esc(v.src)}" alt="" onerror="this.remove()">`;
     else if (v.type === "video") el.innerHTML = `<video controls preload="metadata" src="${esc(v.src)}"></video>`;
     else if (v.type === "audio") el.innerHTML = `<audio controls preload="metadata" src="${esc(v.src)}"></audio>`;
@@ -6587,7 +6727,7 @@ async function navRestore(s){
     if ($("mapMgr")) $("mapClose").click();
     if (window.RM && RM.navRestore && !s.chat) await RM.navRestore(null);
     if (s.tab === "chat"){
-      if (pvOpenState()) pvClose();
+      if (pvOpenState()) pvClose(false, true);
       if (resTab !== "chat") switchTab("chat");
       $("msgs").scrollTop = s.msgs;
     } else {
@@ -6603,7 +6743,7 @@ async function navRestore(s){
         if (NAVMODE === "tree") renderResTree();
       } else $("resTable").scrollTop = (s.st && s.st.scroll) || 0;
       if (s.pv){ if (!pvOpenState() || !sameItem(pvState.it, s.pv.it)) pvOpen(s.pv.it, s.pv.sec, s.pv.tab); else if (s.pv.tab && pvState.tab !== s.pv.tab) pvTab(s.pv.tab); }
-      else if (pvOpenState() && !(window.RM && RM.attOpen && RM.attOpen())) pvClose();
+      else if (pvOpenState() && !(window.RM && RM.attOpen && RM.attOpen())) pvClose(false, true);
     }
     if (s.chat && window.RM) await RM.navRestore(s.chat);
     if (s.mappa) await mapManager(s.mappa);        // (3.0) dalla fonte si torna alla mappa com'era

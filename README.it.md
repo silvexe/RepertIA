@@ -295,6 +295,11 @@ dalla propria versione. Non permette altro: tutto il resto del programma resta s
 I pacchetti delle Releases includono componenti di terze parti con le loro licenze: elenco, versioni e fonti in
 [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).
 
+## Chi lavora al progetto
+
+- **Autore e responsabile:** [silvexe](https://github.com/silvexe).
+- **Contributor:** [nannib](https://github.com/nannib) — idee e indicazioni per migliorare lo strumento.
+
 ## Come è stato sviluppato
 
 Il codice è stato scritto con l'ausilio di Claude, modello di intelligenza artificiale di Anthropic. Scelte

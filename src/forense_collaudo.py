@@ -18,6 +18,7 @@ import glob
 import gzip
 import hashlib
 import html
+import io
 import json
 import os
 import re
@@ -215,6 +216,17 @@ def run_test(t, img, out):
     if "hash_esito" in a:
         check(tr("hash dei dati: esito"), hd.get("esito") == a["hash_esito"],
               tr("atteso {hash_esito}, ottenuto {v1} ({v2})").format(hash_esito=a['hash_esito'], v1=hd.get('esito'), v2=fa.hash_dati_testo(hd)))
+    if "hash_esito" in a and m.get("sha256"):
+        # (3.0.4) «Verifica hash» deve arrivare in fondo e registrare l'esito: nella 3.0.2 e 3.0.3 si fermava con un errore
+        try:
+            import contextlib
+            with contextlib.redirect_stdout(io.StringIO()):
+                ok_v = fa.verify_hash(case)
+            ult = (case.meta.get("verifiche") or [{}])[-1]
+            check(tr("verifica hash: completata e registrata nel caso"), bool(ok_v) == (a["hash_esito"] != "diverso") and ult.get("file") is True and ult.get("dati") == a["hash_esito"] and bool(ult.get("registro")),
+                  tr("file uguali: {f}; dati acquisiti: {d}; registro: {r}").format(f=ult.get("file"), d=ult.get("dati"), r=ult.get("registro")), interno=True)
+        except Exception as e:
+            check(tr("verifica hash: completata e registrata nel caso"), False, f"{type(e).__name__}: {e}", interno=True)
     for alg in ("md5", "sha1", "sha256"):
         if f"hash_{alg}" in a:
             got = (hd.get("calcolati") or {}).get(alg)
@@ -535,6 +547,27 @@ def controlli_preferiti_chat(case, con, check):
         tl = fa.bookmarks_timeline(c)
         check(tr("Preferiti: la cronologia indica la chat con il suo periodo"), len(tl) == 1 and tl[0]["chat"] == tid and tl[0]["evento"] == tr("conversazione") and bool(tl[0]["ts"]),
               json.dumps(tl[0] if tl else None, ensure_ascii=False, default=str)[:160], interno=True)
+        # (3.0.4) strumenti dell'agente: conteggi e filtri dei preferiti, ricerche salvate dall'analista
+        sx = G.search_db(c)
+        sx.execute("DELETE FROM hits")              # copia temporanea: le ricerche già presenti non servono
+        sx.execute("DELETE FROM searches")
+        sx.execute("INSERT INTO searches(sid, title, created, params, total, elapsed, note) VALUES (1, 'Parole: bonifico', '2024-01-02T10:00:00+00:00', ?, 2, 0.1, '{}')",
+                   (json.dumps({"mode": "kw", "terms": "bonifico", "where": ["name", "doc"]}),))
+        sx.executemany("INSERT INTO hits(sid, source, part, inode, path, name, deleted, size, mtime, wheres, terms, detail) VALUES (1,'fs',0,?,?,?,0,10,'2024-01-01T00:00:00','nome','bonifico',?)",
+                       [("11", "docs/bonifico_gennaio.pdf", "bonifico_gennaio.pdf", "pagina 1"), ("12", "docs/altro.txt", "altro.txt", "riga con bonifico")])
+        sx.commit()
+        sx.close()
+        ts = fa.make_tools(c)
+        testa = lambda n, s, k: tr("Preferiti: {t} in tutto, {n} con questi filtri ({s} senza data). Per categoria: {c}.").format(t=1, n=n, s=s, c=k)
+        lb = ts["list_bookmarks"]
+        check(tr("agente: preferiti con conteggi per categoria e filtri (categoria, testo, periodo)"),
+              testa(1, 0, "Collaudo 1") in lb() and testa(1, 0, "Collaudo 1") in lb(category="colla") and testa(0, 0, tr("nessuna")) in lb(contains="zz-assente-zz")
+              and testa(0, 0, tr("nessuna")) in lb(start="2999-01-01") and testa(1, 0, "Collaudo 1") in lb(start="1990-01-01", end="2999-01-01")
+              and testa(0, 0, tr("nessuna")) in lb(category="altra"), lb()[:160], interno=True)
+        ss = ts.get("saved_searches")
+        check(tr("agente: ricerche salvate dall'analista e loro risultati"),
+              bool(ss) and '"termini": "bonifico"' in ss() and '"risultati": 2' in ss() and ss(1).count('"path"') == 2
+              and ss(1, contains="gennaio").count('"path"') == 1 and tr("Ricerca {n} non trovata.").format(n=9) == ss(9), (ss() if ss else "")[:160], interno=True)
         md = fa.write_report(c).read_text(encoding="utf-8")
         check(tr("Preferiti: il report contiene cronologia e testo della chat"), tr("### Cronologia dei preferiti") in md and tr("### Chat nei Preferiti") in md, "", interno=True)
         cx = fa.db_ro(c)
@@ -1218,6 +1251,728 @@ def controlli_sorgente_logica(check):
         check(tr("Sorgente logica: preparazione dei casi di prova"), False, f"{type(e).__name__}: {e}"[:160], interno=True)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
+
+
+class _RamVfs:
+    """File system di MemProcFS finto: percorso -> byte; le cartelle si ricavano dai percorsi."""
+    def __init__(self, files, cartelle=()):
+        self.files = files
+        self.dirs = set(cartelle)
+        for p in files:
+            parti = p.strip("/").split("/")
+            for i in range(1, len(parti)):
+                self.dirs.add("/" + "/".join(parti[:i]))
+
+    def list(self, path):
+        path = "/" + path.strip("/")
+        if path != "/" and path not in self.dirs:
+            raise RuntimeError("percorso assente")
+        pre = path.rstrip("/") + "/"
+        out = {}
+        for d in self.dirs:
+            if d.startswith(pre) and "/" not in d[len(pre):]:
+                out[d[len(pre):]] = {"f_isdir": True, "size": 0, "name": d[len(pre):]}
+        for f, b in self.files.items():
+            if f.startswith(pre) and "/" not in f[len(pre):]:
+                out[f[len(pre):]] = {"f_isdir": False, "size": len(b), "name": f[len(pre):]}
+        return out
+
+    def read(self, path, size, offset=0):
+        return self.files[path][offset:offset + size]
+
+
+class _RamProc:
+    def __init__(self, pid, ppid, name, cmd, sid):
+        self.pid, self.ppid, self.name, self.fullname, self.cmdline, self.sid = pid, ppid, name, name, cmd, sid
+        self.pathuser, self.pathkernel = "C:\\Windows\\" + name, "\\Device\\HarddiskVolume3\\Windows\\" + name
+        self.session, self.integrity, self.is_wow64, self.state = 1, 3, False, 0
+
+    def module_list(self):
+        import types
+        return [types.SimpleNamespace(name=self.name, fullname=self.pathuser, base=0x7ff600000000, image_size=77824)]
+
+
+class _RamChiave:
+    """Chiave del registro come la espone MemProcFS: nome, sottochiavi, valori (nome, tipo, byte), ultima scrittura."""
+    def __init__(self, name, valori=None, figli=(), time_int=133855762028500675):          # 2025-03-04 15:36:42 UTC
+        import types
+        self.name, self.time_int, self._figli = name, time_int, list(figli)
+        self._valori = [types.SimpleNamespace(name=n, type=tp, value=b, size=len(b)) for n, (tp, b) in (valori or {}).items()]
+
+    def subkeys(self):
+        return self._figli
+
+    def values(self):
+        return self._valori
+
+
+def _ram_registro():
+    """HKLM\\SYSTEM finto: un servizio, un driver (escluso dai servizi) e un valore predefinito."""
+    u = lambda s: s.encode("utf-16-le") + b"\0\0"
+    dhcp = _RamChiave("Dhcp", {"Type": (4, (0x20).to_bytes(4, "little")), "Start": (4, (2).to_bytes(4, "little")),
+                               "ImagePath": (2, u("%SystemRoot%\\system32\\svchost.exe -k Dhcp")), "ObjectName": (1, u("NT Authority\\LocalService")),
+                               "DisplayName": (1, u("Client DHCP")), "DependOnService": (7, u("NSI") + u("Afd")[:-2] + b"\0\0"),
+                               "(Default)": (1, u("predefinito"))})
+    disk = _RamChiave("disk", {"Type": (4, (1).to_bytes(4, "little")), "Start": (4, (0).to_bytes(4, "little"))})
+    return _RamChiave("SYSTEM", figli=[_RamChiave("Select"), _RamChiave("ControlSet001", figli=[_RamChiave("Services", figli=[dhcp, disk])])])
+
+
+def _ram_motore(files, cartelle, processi, aperture, hive=()):
+    """Modulo memprocfs finto: stessi nomi che forense_ram.py usa di quello vero. Un dump che comincia con NONWIN
+    non si apre, come una memoria che MemProcFS non riconosce."""
+    import types
+
+    class Vmm:
+        def __init__(self, args):
+            aperture.append(list(args))
+            with open(args[args.index("-device") + 1], "rb") as fh:
+                if fh.read(6) == b"NONWIN":
+                    raise RuntimeError("Vmm.init(): Initialization of vmm failed.")
+            self.vfs = _RamVfs(files, cartelle)
+            self.maps = types.SimpleNamespace(
+                user=lambda: [{"sid": "S-1-5-21-1-2-3-1001", "name": "Mario Rossi"}],
+                kdriver=lambda: [{"name": "Prova", "path": "\\Driver\\Prova", "service_key_name": "prova"}])
+
+        def process_list(self):
+            return list(processi)
+
+        def reg_key(self, percorso):
+            if percorso.upper() != "HKLM\\SYSTEM":
+                raise RuntimeError("Vmm.reg_key: Failed.")
+            return _ram_registro()
+
+        def reg_hive_list(self):
+            return [types.SimpleNamespace(name=n, name_short=c, size=len(files["/registry/hive_files/" + n + ".reghive"])) for n, c in hive]
+
+        def close(self):
+            aperture.append(["chiuso"])
+    return types.SimpleNamespace(Vmm=Vmm, __version__="finto")
+
+
+def controlli_ram(check):
+    """(3.0.4) Dump della memoria RAM: il caso si prepara con un motore finto che risponde come MemProcFS (stessi file di
+    testo, nello stesso formato). Si controlla ciò che fa RepertIA: avvio senza server dei simboli, copia dei file
+    ancora in memoria, record MFT, artefatti, timeline, fuso, report, strumenti dell'agente, dump non riconosciuto."""
+    import contextlib
+    import io
+    import types
+    import forense_estesa as fx
+    import forense_mobile as fm
+    import forense_ram as fr
+    tmp = Path(tempfile.mkdtemp(prefix="collaudo_ram_"))
+    testa = "  Process                      Pid Parent   Flag User             Create Time              Exit Time              "
+
+    def proc(liv, nome, pid, ppid, utente, cre, fin="***"):
+        s = ("-" * liv + " " + nome).ljust(testa.find("Pid") + 3 - len(str(pid))) + str(pid)
+        s = s + str(ppid).rjust(testa.find("Parent") + 6 - len(s))
+        s = s.ljust(testa.find("User")) + utente
+        s = s.ljust(testa.find("Create Time")) + cre + " UTC"
+        return s + ("  " + fin + " UTC" if fin != "***" else "***".rjust(25))
+
+    U = "Mario Rossi"
+    files = {
+        "/sys/proc/proc.txt": "\n".join([
+            testa, "-" * len(testa),
+            proc(1, "System", 4, 0, "", "2025-03-07 19:35:07"),
+            proc(2, "smss.exe", 400, 4, "SYSTEM", "2025-03-07 19:35:07"),
+            proc(2, "notepad.exe", 8860, 5000, U, "2025-03-07 19:40:00"),      # il padre 5000 è nato DOPO: PID riusato
+            proc(2, "cmd.exe", 5000, 400, U, "2025-03-07 19:41:00"),
+            proc(2, "vecchio.exe", 7000, 400, U, "2025-03-07 19:36:00", "2025-03-07 19:37:00")]) + "\n",
+        "/sys/net/netstat-v.txt": "\n".join([
+            "   #    PID Proto  State        Src                           Dst                          Process              Time                     Object Address    Process Path",
+            "-" * 160,
+            "0000   8860 TCPv4  ESTABLISHED  10.0.2.152:50079              203.0.113.7:443              notepad.exe          2025-03-07 19:41:08 UTC  ffffe00922cb69f0  \\Device\\HarddiskVolume3\\Windows\\notepad.exe",
+            "0001      4 TCPv4  LISTENING    0.0.0.0:445                   ***                          System               2025-03-07 19:35:14 UTC  ffffe00921290ea0  System"]) + "\n",
+        "/sys/tasks/tasks.txt": "\n".join([
+            "   # Task GUID                              Task Name                        Time (Most Recent)      User         Command Line :: Parameters",
+            "-" * 150,
+            "0000 {15C0A147-AE3C-4CB5-873B-152CDFF2D37D} \\Prova\\Copia notturna             2025-03-07 19:35:30 UTC Author       C:\\Prova\\copia.exe :: /tutto"]) + "\n",
+        "/sys/services/services.txt": "   #    PID Start Type   State      Type Type    Obj Address  Name / Display Name\n" + "-" * 80 + "\n",
+        "/sys/computername.txt": "PC-PROVA                        ",
+        "/sys/version.txt": "10.0.26100",
+        "/sys/architecture.txt": "X64",
+        "/sys/time-boot.txt": "2025-03-07 19:35:01 UTC",
+        "/sys/time-current.txt": "2025-03-07 19:41:25 UTC",
+        "/sys/timezone.txt": "Central Europe Standard Time [UTC+1]         ",
+        "/conf/config_symbolserver_enable.txt": "0",
+        "/forensic/progress_percent.txt": "100",
+        "/sys/sysinfo/sysinfo.txt": "Windows Information:\n  Computer Name:   PC-PROVA\n\nHardware Information:\n  Architecture:    X64\n"
+                                    "  Physical Memory: 4 GB\n  CPU:             CPU di prova\n  BIOS Vendor:     Prova\n  System Vendor:   Prova S.p.A.\n\n"
+                                    "Network Interfaces:\n  Interface #2:\n    DhcpNameServer:     10.0.2.1\n    DhcpIPAddress:      10.0.2.152\n",
+        # oggetti file ancora in memoria: il primo è arrotondato a 4.096 byte dalla cache (zeri in coda), il secondo è intero
+        "/forensic/files/ROOT/Users/Mario/Desktop/ffffe00925182300-nota.txt": b"nota in memoria\n" + bytes(4080),
+        "/forensic/files/ROOT/Windows/ffffe00925182301-intero.bin": bytes(range(1, 251)) * 20,
+        # record MFT: dimensione vera di nota.txt, un file piccolo col contenuto nel record, uno grande senza contenuto,
+        # uno piccolo di cui MemProcFS restituisce solo zeri
+        "/forensic/ntfs/1/Users/Mario/Desktop/nota.txt": b"nota in memoria\n",
+        "/forensic/ntfs/1/Users/Mario/Desktop/piccolo.txt": b"residente!!\n",
+        "/forensic/ntfs/1/Users/Mario/Desktop/grande.docx": bytes(500000),
+        "/forensic/ntfs/1/Users/Mario/Desktop/zeri.txt": bytes(100),
+        # registro in memoria: SOFTWARE (percorso troncato, file non in elenco), l'hive dell'utente (c'è solo il record
+        # MFT, senza contenuto) e un hive che non serve agli artefatti
+        "/forensic/ntfs/1/Users/Mario/NTUSER.DAT": bytes(300000),
+        "/registry/hive_files/0xffff000000001000-SOFTWARE-unknown.reghive": b"regf" + bytes(8188),
+        "/registry/hive_files/0xffff000000002000-ntuserdat-unknown.reghive": b"regf" + bytes(range(1, 251)) * 40,
+        "/registry/hive_files/0xffff000000003000-settingsdat-unknown.reghive": b"regf" + bytes(4092),
+        "/forensic/ntfs/ntfs_files.txt": "\n".join([
+            "     0           0       5       0                     *** :                     ***            0 A  D \\1",
+            "     7    a389c000   26020   2f07c 2025-03-01 10:00:00 UTC : 2025-03-05 12:30:00 UTC           10 A    \\1\\Users\\Mario\\Desktop\\nota.txt",
+            "     8    a389c400   26021   2f07c 2025-03-02 08:00:00 UTC : 2025-03-06 09:15:00 UTC            c A    \\1\\Users\\Mario\\Desktop\\piccolo.txt",
+            "     9    a389c800   26022   2f07c 2025-03-03 08:00:00 UTC : 2025-03-04 18:00:00 UTC        7a120 A    \\1\\Users\\Mario\\Desktop\\grande.docx"]) + "\n",
+        "/forensic/timeline/timeline_all.txt": "\n".join([
+            "2025-03-07 19:41:39 UTC  Net    CRE      8860         0 ffffe009205e30a0 UDPv4  ***          0.0.0.0:57080                 10.0.2.1:53",
+            "2025-03-07 19:41:40 UTC  NTFS   MOD         0         0        10dd86000 \\1\\Users\\Mario\\Desktop\\nota.txt",
+            "2025-03-07 19:41:39 UTC  REG    MOD         0         0                0 \\ControlSet001\\Services\\bam\\State",
+            "2025-03-07 19:41:38 UTC  THREAD CRE      4744      3280 ffffe0092255c080 TID: 3280",
+            "2025-03-07 19:40:00 UTC  PROC   CRE      8860      5000 ffffe00922244080 notepad.exe [Mario Rossi] \\Device\\HarddiskVolume3\\Windows\\notepad.exe",
+            "2025-03-07 19:40:35 UTC  WEB    CRE      9228         0                0 browser:[EDGE] type:[VISIT] url:[https://esempio.test/]"]) + "\n",
+    }
+    files = {k: (v.encode() if isinstance(v, str) else v) for k, v in files.items()}
+    sid = "S-1-5-21-1-2-3-1001"
+    processi = [_RamProc(4, 0, "System", None, "S-1-5-18"), _RamProc(400, 4, "smss.exe", "smss.exe", "S-1-5-18"),
+                _RamProc(8860, 5000, "notepad.exe", "notepad.exe C:\\Users\\Mario\\Desktop\\nota.txt", sid),
+                _RamProc(5000, 400, "cmd.exe", "cmd.exe", sid)]
+    aperture = []
+    vero = sys.modules.get("memprocfs")
+    sys.modules["memprocfs"] = _ram_motore(files, ["/forensic/ntfs/1/Users/Mario/Documenti", "/forensic/ntfs/0"], processi, aperture,
+                                           [("0xffff000000001000-SOFTWARE-unknown", "emRoot\\System32\\Config\\SOFTWARE"),
+                                            ("0xffff000000002000-ntuserdat-unknown", "sers\\Mario\\NTUSER.DAT"),
+                                            ("0xffff000000003000-settingsdat-unknown", "1h2txyewy\\Settings\\settings.dat")])
+
+    def prepara(nome, dati):
+        img = tmp / nome
+        img.write_bytes(dati)
+        a = types.SimpleNamespace(case=str(tmp / "casi" / nome), image=str(img), no_hash=True, no_indice=True, hash_file=False,
+                                  lingua=None, info=None, fuso=None)
+        with contextlib.redirect_stdout(io.StringIO()):
+            fr.prepara(a)
+        return fa.Case(a.case)
+
+    try:
+        case = prepara("memoria.mem", b"PAGEDUMP" + bytes(4088))
+        m = case.meta
+        r = m.get("ram") or {}
+        con = fa.sqlite3.connect(case.db_path)
+        avvii = [x for x in aperture if x != ["chiuso"]]
+        check(tr("RAM: MemProcFS avviato sempre senza server dei simboli; lettura dell'intera memoria alla preparazione"),
+              bool(avvii) and all("-disable-symbolserver" in x for x in avvii) and any(x[-2:] == ["-forensic", "1"] for x in avvii)
+              and r.get("simboli_da_rete") is False and aperture[-1] == ["chiuso"] and not fr._VMM, str(avvii)[:160], interno=True)
+        mx = fm.mx(case)
+        righe = {x[0]: x[1:] for x in mx.execute("SELECT path, id, size, mtime, datesrc, isdir FROM mobile_files")}
+        mx.close()
+
+        def leggi(p):
+            x = righe.get(p)
+            return b"".join(fm.stream(case, fm.part_key(0), x[0])) if x else None
+        nota, intero = righe.get("Users/Mario/Desktop/nota.txt"), righe.get("Windows/intero.bin")
+        check(tr("RAM: file ancora in memoria copiati nel caso; quello arrotondato dalla cache riportato alla dimensione del record MFT"),
+              bool(nota) and bool(intero) and leggi("Users/Mario/Desktop/nota.txt") == b"nota in memoria\n" and nota[3] == "memoria"
+              and leggi("Windows/intero.bin") == bytes(range(1, 251)) * 20 and (m.get("estratta") or {}).get("riportati_alla_dimensione_del_record") == 1,
+              f"{nota} {intero} {m.get('estratta')}"[:160], interno=True)
+        picc, grande, zeri = (righe.get("Users/Mario/Desktop/" + x) for x in ("piccolo.txt", "grande.docx", "zeri.txt"))
+        check(tr("RAM: record MFT in memoria: contenuto dei file piccoli dal record, file grandi in elenco senza contenuto, cartelle"),
+              bool(picc) and bool(grande) and bool(zeri) and leggi("Users/Mario/Desktop/piccolo.txt") == b"residente!!\n" and picc[3] == "mft_res"
+              and leggi("Users/Mario/Desktop/grande.docx") == b"" and grande[3] == "mft" and zeri[3] == "mft"
+              and leggi("Users/Mario/Desktop/zeri.txt") == b"" and (righe.get("Users/Mario/Documenti") or [0] * 5)[4] == 1,
+              f"{picc} {grande} {zeri} {righe.get('Users/Mario/Documenti')}"[:160], interno=True)
+        check(tr("RAM: date di creazione e modifica dei file dai record MFT (UTC)"),
+              bool(nota) and bool(picc) and bool(grande) and [str(x[2])[:19] for x in (nota, picc, grande)] ==
+              ["2025-03-05T12:30:00", "2025-03-06T09:15:00", "2025-03-04T18:00:00"], f"{nota} {picc} {grande}"[:160], interno=True)
+        n = dict(con.execute("SELECT cat, COUNT(*) FROM artifacts WHERE src_path LIKE 'RAM:%' GROUP BY 1"))
+        attesi = {"sistema": 2, "reti": 2, "utenti": 1, "processi": 5, "connessioni": 2, "attivita": 1, "driver": 1, "moduli": 4, "servizi": 1}
+        check(tr("RAM: processi, connessioni, moduli, driver, attività, utenti e dati del sistema tra gli artefatti"),
+              n == attesi and r.get("conteggi") == attesi, f"{n}", interno=True)
+        pr = {x[0]: x[1:] for x in con.execute("SELECT title, ts, detail, user FROM artifacts WHERE cat='processi'")}
+        note_p, vecchio = pr.get("notepad.exe (PID 8860)"), next((v for k, v in pr.items() if k.startswith("vecchio.exe (PID 7000)")), None)
+        check(tr("RAM: processo terminato riconosciuto; padre non indicato se il suo PID è stato riusato da un processo nato dopo"),
+              bool(note_p) and bool(vecchio) and note_p[0] == "2025-03-07T19:40:00" and tr("non più presente") in note_p[1] and note_p[2] == U
+              and "2025-03-07 19:37:00" in vecchio[1] and tr(" · padre {p} (PID {i})").format(p="smss.exe", i=400) in pr.get("cmd.exe (PID 5000)", ("", ""))[1],
+              f"{note_p} {vecchio}"[:160], interno=True)
+        ev = con.execute("SELECT ts, source, message, path FROM events WHERE origin='ram' ORDER BY ts, rowid").fetchall()
+        check(tr("RAM: timeline della memoria negli eventi del caso (UTC), senza thread e senza i record NTFS già nei file"),
+              len(ev) == 4 and r.get("eventi") == {"NET": 1, "REG": 1, "PROC": 1, "WEB": 1} and (m.get("timeline") or {}).get("ram_events") == 4
+              and ev[0][0] == "2025-03-07T19:40:00" and ev[0][2].endswith("| PID 8860") and not any(x[3] for x in ev)
+              and not any("TID:" in x[2] for x in ev), f"{len(ev)} {r.get('eventi')}", interno=True)
+        hv = sorted(x["file"] for x in (m.get("estratta") or {}).get("hive_del_registro") or [])
+        with contextlib.redirect_stdout(io.StringIO()):
+            fa.run_addon(case, con, "artefatti")            # rifare «Artefatti di sistema» non deve togliere quelli della memoria
+        n2 = dict(con.execute("SELECT cat, COUNT(*) FROM artifacts WHERE src_path LIKE 'RAM:%' GROUP BY 1"))
+        check(tr("RAM: hive del registro caricati in memoria messi al posto dei file (percorso troncato riconosciuto, hive inutili esclusi); gli artefatti della memoria restano rifacendo «Artefatti di sistema»"),
+              hv == ["Users/Mario/NTUSER.DAT", "Windows/System32/config/SOFTWARE"] and (leggi("Windows/System32/config/SOFTWARE") or b"")[:4] == b"regf"
+              and leggi("Users/Mario/NTUSER.DAT") == fr.hive_con_controllo(b"regf" + bytes(range(1, 251)) * 40)[0]
+              and fr.hive_con_controllo(leggi("Users/Mario/NTUSER.DAT"))[1] is False       # intestazione con il controllo giusto
+              and all(x.get("controllo_intestazione_ricalcolato") for x in m["estratta"]["hive_del_registro"]) and n2 == attesi, f"{hv} {n2}"[:200], interno=True)
+        # registro letto chiave per chiave dalla memoria: stessi nomi di libregf, così lo usa il codice degli artefatti
+        import forense_art_windows as faw
+        hm = faw.HiveMem("memoria:Windows/System32/config/SYSTEM")
+        hm.radice = fr.ChiaveMem(_ram_registro())
+        _hv, radice = faw.open_hive(hm)
+        dh = faw.rk(radice, "ControlSet001\\Services\\Dhcp")
+        sv = con.execute("SELECT ts, title, detail, src_path FROM artifacts WHERE cat='servizi'").fetchall()
+        check(tr("RAM: registro letto chiave per chiave dalla memoria con il codice degli artefatti (stringhe, numeri, elenchi, valore predefinito, data della chiave); servizi dal registro, driver esclusi"),
+              faw.rv(dh, "ImagePath") == "%SystemRoot%\\system32\\svchost.exe -k Dhcp" and faw.rv(dh, "Start") == 2 and faw.rv(dh, "DependOnService") == ["NSI", "Afd"]
+              and faw.rv(dh, "") == "predefinito" and faw.lw(dh) == "2025-03-04T15:36:42" and faw.rk(radice, "ControlSet001\\Assente") is None
+              and [x.name for x in faw.subkeys(faw.rk(radice, "ControlSet001\\Services"))] == ["Dhcp", "disk"]
+              and len(sv) == 1 and sv[0][0] == "2025-03-04T15:36:42" and sv[0][1] == "Dhcp (Client DHCP)" and "svchost.exe -k Dhcp" in sv[0][2]
+              and sv[0][3] == "RAM: registro HKLM\\SYSTEM\\ControlSet001\\Services\\Dhcp", f"{sv} {faw.rv(dh, 'DependOnService')} {faw.lw(dh)}"[:200], interno=True)
+        # stato dei servizi: l'elenco di MemProcFS (c'è solo con i simboli nella cartella locale), letto dalle colonne
+        ts = "   #    PID Start Type   State      Type Type    Obj Address  Name / Display Name                          User                    Image Path                          Object Name / Command Line"
+
+        def srv(i, pid, avvio, stato, tipo, nome, utente, percorso, comando):
+            s = f"{i:04x} {pid:>6} "
+            for campo, col in ((avvio, "Start Type"), (stato, "State"), (tipo, "Type Type"), ("01e1b612a040", "Obj Address"), (nome, "Name / Display Name"),
+                               (utente, "User"), (percorso, "Image Path")):
+                s = s.ljust(ts.find(col, ts.find("Start Type") + (11 if col == "State" else 0))) + campo
+            return s.ljust(ts.find("Object Name") - 3) + (":: " + comando if comando else "")       # come nell'elenco vero
+        finto = types.SimpleNamespace(vfs=_RamVfs({"/sys/services/services.txt": "\n".join([
+            ts, "-" * len(ts), srv(0, 1376, "AUTO_START", "RUNNING", "PROC SHR", "Dhcp / Client DHCP", "LocalService", "C:\\Windows\\system32\\svchost.exe", "svchost.exe -k Dhcp"),
+            srv(2, 0, "BOOT_START", "RUNNING", "DRV  KERNEL", "ACPI", "---", "System32\\drivers\\ACPI.sys", "\\Driver\\ACPI"),
+            srv(1, 0, "DEMAND_START", "STOPPED", "PROC OWN", "Fax", "NetworkService", "C:\\Windows\\system32\\fxssvc.exe", "")]).encode()}))
+        ss = fr.leggi_servizi_stato(finto)
+        try:
+            fr.scarica_simboli(tmp / "memoria.mem", False)
+            senza_consenso = False
+        except ValueError:
+            senza_consenso = True
+        check(tr("RAM: stato di esecuzione dei servizi letto dall'elenco di MemProcFS; lo scarico dei simboli non parte senza il consenso dell'analista"),
+              [(x["pid"], x["avvio"], x["stato"], x["nome"], x["nome_mostrato"], x["utente"]) for x in ss] ==
+              [(1376, "AUTO_START", "RUNNING", "Dhcp", "Client DHCP", "LocalService"), (0, "BOOT_START", "RUNNING", "ACPI", "", ""),
+               (0, "DEMAND_START", "STOPPED", "Fax", "", "NetworkService")] and [x["tipo"] for x in ss] == ["PROC SHR", "DRV KERNEL", "PROC OWN"]
+              and ss[1]["comando"] == "\\Driver\\ACPI" and ss[2]["comando"] == ""
+              and ss[0]["percorso"].endswith("svchost.exe") and ss[0]["comando"] == "svchost.exe -k Dhcp" and senza_consenso
+              and fr.leggi_servizi_stato(types.SimpleNamespace(vfs=_RamVfs({"/sys/services/services.txt": (ts + "\n" + "-" * 20 + "\n").encode()}))) == [],
+              str(ss)[:200], interno=True)
+        # adattatore verso la libreria (forense_vmm.py): strutture come in vmmdll.h, le stesse su Mac, Windows e Linux
+        import ctypes
+        import forense_vmm as fv
+        dim = {n: ctypes.sizeof(getattr(fv, n)) for n in ("_ExInfo", "_FileList2", "_ProcInfo", "_HiveInfo", "_MappaTesta",
+                                                           "_ModuloVoce", "_DriverVoce", "_UtenteVoce")}
+        try:
+            fv.libreria(tmp)
+            senza_libreria = False
+        except ImportError:
+            senza_libreria = True
+        check(tr("RAM: adattatore della libreria di MemProcFS con le strutture di vmmdll.h; una cartella senza libreria è rifiutata"),
+              dim == {"_ExInfo": 32, "_FileList2": 32, "_ProcInfo": 448, "_HiveInfo": 640, "_MappaTesta": 40, "_ModuloVoce": 112,
+                      "_DriverVoce": 280, "_UtenteVoce": 40}
+              and fv._ProcInfo.win.offset == 136 and fv._ProcWin.IntegrityLevel.offset == 308 and fv._HiveInfo.uszName.offset == 84
+              and senza_libreria and fr.carica() is sys.modules["memprocfs"], str(dim), interno=True)
+        # (3.0.4) su Mac e Linux la libreria chiederebbe i simboli a Microsoft anche senza server dei simboli: lo scarico
+        # va impedito prima di caricarla; permesso solo nel processo dello scarico esplicito; su Windows non serve
+        import struct
+        nomi_proxy = ("HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy", "ALL_PROXY", "all_proxy")
+        amb_prima = {k: os.environ.get(k) for k in nomi_proxy + (fv.RETE_SIMBOLI_ENV,)}
+        stato_prima = fv.SCARICO_SIMBOLI
+        os.environ.pop(fv.RETE_SIMBOLI_ENV, None)
+        st = [fv.impedisci_scarico_simboli(tmp)]                    # cartella senza libpdbcrust
+        os.environ[fv.RETE_SIMBOLI_ENV] = "1"
+        st.append(fv.impedisci_scarico_simboli(tmp))                # processo dello scarico esplicito
+        os.environ.pop(fv.RETE_SIMBOLI_ENV, None)
+        veri = [c / "memprocfs" for c in fr.cartelle_motore()] if sys.platform != "win32" else []
+        st.append(fv.impedisci_scarico_simboli(veri[0] if veri else tmp))               # con la libreria vera, se c'è
+        for k, v in amb_prima.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+        fv.SCARICO_SIMBOLI = stato_prima
+        check(tr("RAM: su Mac e Linux lo scarico dei simboli dalla rete è impedito prima di caricare MemProcFS, permesso solo nel processo dello scarico esplicito; il proxy dell'ambiente resta com'era"),
+              (st == ["non necessario"] * 3 if sys.platform == "win32" else st == ["impedito", "permesso", "impedito"])
+              and {k: os.environ.get(k) for k in nomi_proxy} == {k: amb_prima[k] for k in nomi_proxy}, str(st), interno=True)
+        # (3.0.4) cartella del motore non scrivibile (Mac: app eseguita da una posizione temporanea): motivo chiaro
+        spostata = Path("/private/var/folders/x/T/AppTranslocation/0000/d/RepertIA.app/Contents/Resources/strumenti/memprocfs/memprocfs")
+        protetta = Path("/opt/repertia/strumenti/memprocfs/memprocfs")
+        mot = [fr.simboli_non_salvabili(spostata, False), fr.simboli_non_salvabili(protetta, False),
+               fr.simboli_non_salvabili(spostata, True), fr.simboli_non_salvabili(tmp)]
+        (tmp / "symsrv.dll").write_bytes(b"")
+        prima_ram = (fr.cartella_motore, fr._motore_scrivibile)
+        try:
+            fr.cartella_motore = lambda: tmp
+            fr._motore_scrivibile = lambda m: False
+            st_no = fr.simboli_stato()
+            fr._motore_scrivibile = lambda m: True
+            st_si = fr.simboli_stato()
+        finally:
+            fr.cartella_motore, fr._motore_scrivibile = prima_ram
+            (tmp / "symsrv.dll").unlink()
+        check(tr("RAM: se la cartella del motore non è scrivibile lo scarico dei simboli non è offerto e ne dice il motivo (su Mac: app eseguita da una posizione temporanea, da spostare)"),
+              mot[0] == tr("macOS sta eseguendo RepertIA da una posizione temporanea di sola lettura, quindi i simboli non si possono "
+                           "salvare. Chiudi RepertIA, sposta RepertIA.app con il Finder in Applicazioni o in un'altra cartella e riaprila.")
+              and mot[1] == tr("RepertIA non può scrivere nella cartella in cui salva i simboli ({c}). Sposta RepertIA in una cartella in "
+                               "cui il tuo utente può scrivere e riaprila.").format(c=protetta)
+              and mot[2:] == ["", ""] and (st_no["disponibile"], bool(st_no["motivo"]), st_no["scrivibile"]) == (False, True, False)
+              and (st_si["disponibile"], st_si["motivo"], st_si["scrivibile"]) == (True, "", True), f"{mot} {st_no.get('motivo')}"[:200], interno=True)
+        # (3.0.4) stato dei servizi letto da RepertIA nella memoria di services.exe (Mac e Linux): memoria finta
+        import forense_ram_servizi as frs
+
+        class _MemFinta(frs._Memoria):
+            def __init__(self):
+                self.byte = {}
+
+            def scrivi(self, va, dati):
+                self.byte.update({va + i: b for i, b in enumerate(dati)})
+
+            def leggi(self, va, quanti):
+                return bytes(self.byte.get(va + i, 0) for i in range(quanti)) if va in self.byte else None
+        o19, o16 = frs.scostamenti(26100)
+        mf = _MemFinta()
+        for va, t in ((0x30000000, "Dhcp"), (0x30000100, "Client DHCP"), (0x30000200, "ACPI"), (0x30000300, "Fax"),
+                      (0x30000400, "\\Driver\\ACPI"), (0x30000500, "svchost.exe -k Dhcp"), (0x30000600, "NT AUTHORITY\\LocalService")):
+            mf.scrivi(va, t.encode("utf-16-le") + b"\0\0")
+        x16 = bytearray(o16["dim"])
+        x16[0:4] = b"Sc16"
+        struct.pack_into("<I", x16, o16["pid"], 1376)
+        struct.pack_into("<Q", x16, o16["comando"], 0x30000500)
+        struct.pack_into("<Q", x16, o16["utente"], 0x30000600)
+        mf.scrivi(0x21000000, bytes(x16))
+
+        def rec(va, ordinale, avvio, tipo, stato, nome, mostrato, esteso, indietro, avanti, tag=b"Sc19"):
+            r = bytearray(o19["dim"])
+            r[o19["tag"]:o19["tag"] + 4] = tag
+            struct.pack_into("<QQ", r, o19["indietro"], indietro, avanti)
+            struct.pack_into("<II", r, o19["ordinale"], ordinale, avvio)
+            struct.pack_into("<QQ", r, o19["nome"], nome, mostrato)
+            struct.pack_into("<II", r, o19["stato"], tipo, stato)
+            struct.pack_into("<Q", r, o19["esteso"], esteso)
+            mf.scrivi(va, bytes(r))
+        ra, rb, rc, rd = 0x20000100, 0x20000400, 0x20000700, 0x20000a00
+        rec(ra, 2, 2, 0x20, 4, 0x30000000, 0x30000100, 0x21000000, 0, rb)
+        rec(rb, 1, 0, 0x01, 4, 0x30000200, 0x30000200, 0x30000400, ra, rc)
+        rec(rc, 3, 3, 0x10, 1, 0x30000300, 0, 0, rb, rd)
+        rec(rd, 4, 2, 0x10, 4, 0x30000300, 0, 0, rc, ra, tag=b"XXXX")           # contrassegno sbagliato: scartato
+        sm = sorted(frs.percorri(mf, [ra, rc], o19, o16), key=lambda d: d["ordinale"])
+        base_pe = 0x7ff600000000
+        pe = bytearray(0x1000)
+        pe[0:2], pe[0x80:0x84] = b"MZ", b"PE\0\0"
+        struct.pack_into("<I", pe, 0x3c, 0x80)
+        struct.pack_into("<H", pe, 0x80 + 24, 0x20b)
+        struct.pack_into("<II", pe, 0x80 + 24 + 112 + 6 * 8, 0x2000, 28)
+        mf.scrivi(base_pe, bytes(pe))
+        voce = bytearray(28)
+        struct.pack_into("<III", voce, 12, 2, 37, 0x3000)
+        mf.scrivi(base_pe + 0x2000, bytes(voce))
+        mf.scrivi(base_pe + 0x3000, b"RSDS" + bytes.fromhex("FA698AA741AA58C6808C33157238D687") + struct.pack("<I", 1) + b"services.pdb\0")
+        check(tr("RAM: stato dei servizi letto dalla memoria di services.exe (record Sc19 e Sc16, record non validi scartati, identificativo dei simboli dall'intestazione PE); build non nota o non a 64 bit rifiutate"),
+              [(d["ordinale"], d["stato"], d["avvio"], d["tipo"], d["pid"], d["nome"]) for d in sm] ==
+              [(1, "RUNNING", "BOOT_START", "DRV KERNEL", 0, "ACPI"), (2, "RUNNING", "AUTO_START", "PROC SHR", 1376, "Dhcp"),
+               (3, "STOPPED", "DEMAND_START", "PROC OWN", 0, "Fax")]
+              and sm[1]["utente"] == "NT AUTHORITY\\LocalService" and sm[1]["comando"] == "svchost.exe -k Dhcp" and sm[1]["nome_mostrato"] == "Client DHCP"
+              and sm[0]["comando"] == "\\Driver\\ACPI"
+              and frs.identificativo_simboli(mf, base_pe) == ("services.pdb", "A78A69FAAA41C658808C33157238D6871")
+              and frs.identificativo_simboli(mf, 0x30000000) is None and frs.scostamenti(9600) is None
+              and frs.scostamenti(19045)[0]["esteso"] == 0x128 and (o19["dim"], o19["stato"], o16["pid"]) == (0x158, 0x50, 0x28)
+              and frs.leggi(None, tmp, 26100, "X86")[0] == [] and frs.leggi(None, tmp, 9600, "X64")[0] == []
+              and fr.leggi_servizi_memoria(None, {"versione": "10.0.26100", "architettura": "X64"}) == [], str(sm)[:300], interno=True)
+        fd = m.get("fuso_dispositivo") or {}
+        check(tr("RAM: fuso orario rilevato dalla memoria; servizi senza dati dichiarati nell'esito"),
+              fd.get("tz") == "Europe/Budapest" and fd.get("stato") == "rilevato" and any(x.startswith(tr("Servizi: {n} letti dalla configurazione nel registro in memoria (la data è l'ultima scrittura della chiave). Lo stato di esecuzione al momento dell'acquisizione non è disponibile: servirebbero i simboli di debug di Windows, che RepertIA non scarica.").format(n=1)[:40]) for x in r.get("avvisi") or [])
+              and (r.get("sistema") or {}).get("computer") == "PC-PROVA", f"{fd} {r.get('avvisi')}"[:160], interno=True)
+        txt = "\n".join(fx.report_md(case))
+        tools = fa.make_tools(case)
+        qa = tools["query_artifacts"](category="processi", contains="notepad", limit=20) if "query_artifacts" in tools else ""
+        check(tr("RAM: sezione nel report e artefatti della memoria raggiungibili dall'agente"),
+              tr("## Memoria RAM") in txt and "PC-PROVA" in txt and "notepad.exe (PID 8860)" in qa and tr("dump della memoria RAM") == m.get("disk_type"),
+              f"{len(txt)} {qa[:80]}", interno=True)
+        reg = [json.loads(x).get("event") for x in case.log_path.read_text(encoding="utf-8").splitlines() if x.strip()]
+        check(tr("RAM: copia dei file e analisi della memoria nel registro del caso"),
+              "copia_derivata_file_in_memoria" in reg and "analisi_ram" in reg, str([x for x in reg if "ram" in str(x) or "memoria" in str(x)]), interno=True)
+        # (3.0.4) report e istruzioni all'agente di un dump della memoria: non devono parlare di telefoni (il caso usa la
+        # lettura per voci dei casi smartphone) e tra gli strumenti deve esserci il motore che ha letto il dump
+        import forense_mobile_chat as fmc
+        rep = fa.write_report(case).read_text(encoding="utf-8")
+        usati = dict(fmc.strumenti_usati(case))
+        istr = "\n".join(fmc.prompt_extra(case))
+        tipi = [fa.tipo_sorgente(types.SimpleNamespace(meta=x)) for x in (
+            {}, {"tipo_caso": "smartphone"}, {"tipo_caso": "smartphone", "logica": True},
+            {"tipo_caso": "smartphone", "logica": True, "ram_dump": True})]
+        del_telefono = [x for x in (tr("## Estrazione dello smartphone"), tr("## Chat e messaggi"), tr("## Limiti dell'analisi dello smartphone"),
+                                    tr("- Estrazione: `{v1}`").split("`")[0], "WhatsApp", "iMessage") if x in rep]
+        check(tr("RAM: report e istruzioni all'agente con i testi del dump della memoria, senza quelli dei telefoni; MemProcFS tra gli strumenti usati"),
+              not del_telefono and tr("## File trovati in memoria") in rep and tr("## Hash del dump della memoria (SHA-256)") in rep
+              and "MemProcFS" in usati and fa.tipo_sorgente(case) == "ram" and tipi == ["disco", "smartphone", "logica", "ram"]
+              and "SMARTPHONE" not in istr.upper() and "IPHONE" not in istr.upper() and len(istr) > 50,
+              f"{del_telefono} {sorted(usati)} {tipi}"[:200], interno=True)
+        con.close()
+        try:
+            prepara("altro.mem", b"NONWIN" + bytes(4090))
+            rifiuto = ""
+        except SystemExit as e:
+            rifiuto = str(e)
+        check(tr("RAM: dump che il motore non riconosce rifiutato con il motivo, senza lasciare il motore aperto"),
+              "MemProcFS" in rifiuto and not fr._VMM and not (tmp / "casi" / "altro.mem" / "caso.sqlite").exists(), rifiuto[:160], interno=True)
+    except Exception as e:
+        check(tr("RAM: preparazione del caso di prova"), False, f"{type(e).__name__}: {e}"[:160], interno=True)
+    finally:
+        fr.chiudi()
+        if vero is not None:
+            sys.modules["memprocfs"] = vero
+        else:
+            sys.modules.pop("memprocfs", None)
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def controlli_agente_turni(check):
+    """(3.0.4) Ciclo dell'agente con un modello finto: il limite dei turni è regolabile (impostazioni o FORENSE_PASSI, tra 10
+    e 200), ogni turno è annunciato all'interfaccia e, finiti i turni, la risposta dichiara di essere parziale."""
+    import types
+    tmp = Path(tempfile.mkdtemp(prefix="collaudo_turni_"))
+    prima = (fa.client if hasattr(fa, "client") else None, fa.SETTINGS_PATH, os.environ.pop("FORENSE_PASSI", None))
+
+    class Finto:
+        def __init__(self, rispondi_al=0, numeri=None, strumento="eco", taglia_al=0):
+            self.n, self.rispondi_al, self.numeri, self.strumento, self.taglia_al = 0, rispondi_al, numeri, strumento, taglia_al
+            self.chat = types.SimpleNamespace(completions=types.SimpleNamespace(create=self.create))
+
+        def create(self, **k):
+            self.n += 1
+            if "tools" not in k:
+                msg = types.SimpleNamespace(content="risposta parziale", tool_calls=None)
+            elif self.n == self.rispondi_al:
+                msg = types.SimpleNamespace(content="risposta", tool_calls=None)
+            else:
+                if self.n == self.taglia_al:       # come trim_history: il risultato di prima non è più in memoria
+                    for m in k["messages"]:
+                        if m.get("role") == "tool":
+                            m["content"] = fa.TRIMMED
+                x = self.numeri[min(self.n, len(self.numeri)) - 1] if self.numeri else self.n   # senza elenco: ogni volta diverso
+                msg = types.SimpleNamespace(content="", tool_calls=[types.SimpleNamespace(
+                    id=f"c{self.n}", function=types.SimpleNamespace(name=self.strumento, arguments='{"x": %d}' % x))])
+            return types.SimpleNamespace(choices=[types.SimpleNamespace(message=msg)])
+
+    def eco(x: int) -> str:
+        """Restituisce il numero.
+
+        Args:
+            x: numero
+        """
+        eseguite.append(x)
+        return fa.pagina([], 0) if x < 0 else str(x)      # negativo: una ricerca senza righe
+
+    eseguite = []
+
+    def giro(rispondi_al=0, **opzioni):
+        ev = []
+        del eseguite[:]
+        fa.client = Finto(rispondi_al, **opzioni)
+        fa.agent_turn(fa.Case(tmp / "caso"), {"eco": eco, "record_finding": eco},
+                      [{"role": "system", "content": "s"}, {"role": "user", "content": "d"}], lambda k, d: ev.append((k, d)))
+        return ev, fa.client.n
+
+    try:
+        fa.SETTINGS_PATH = tmp / "impostazioni.json"
+        pred = fa.passi_max()
+        fa.save_settings({"passi": 60})
+        salvato = fa.passi_max()
+        limiti = []
+        for v in ("5", "999", "x", "12"):
+            os.environ["FORENSE_PASSI"] = v
+            limiti.append(fa.passi_max())
+        check(tr("agente: turni per domanda regolabili (predefinito 40, impostazioni, FORENSE_PASSI; sempre tra 10 e 200)"),
+              (pred, salvato, limiti) == (40, 60, [10, 200, 40, 12]), f"{pred} {salvato} {limiti}", interno=True)
+        ev, chiamate = giro()                      # FORENSE_PASSI=12: il modello chiede sempre uno strumento
+        turni = [d for k, d in ev if k == "turno"]
+        fine = tr("Analisi NON completa: raggiunto il limite di {n} passi. Scrivi «continua» per proseguire o restringi la domanda.").format(n=12)
+        check(tr("agente: ogni turno annunciato; finiti i turni risponde con ciò che ha trovato e lo dichiara"),
+              turni == [{"n": i, "max": 12} for i in range(1, 13)] and chiamate == 13 and sum(1 for k, _ in ev if k == "tool") == 12
+              and ("answer", "risposta parziale") in ev and ev[-1] == ("info", fine), f"{len(turni)} {chiamate} {ev[-1]}"[:160], interno=True)
+        ev, chiamate = giro(3)
+        check(tr("agente: una risposta entro il limite chiude la domanda senza avvisi"),
+              [d["n"] for k, d in ev if k == "turno"] == [1, 2, 3] and ev[-1] == ("answer", "risposta") and chiamate == 3
+              and not any(k == "info" for k, _ in ev), f"{chiamate} {ev[-1]}"[:160], interno=True)
+        # (3.0.4) chiamate ripetute: non si rieseguono; dopo tre turni di sole ripetizioni si chiede la risposta
+        ev, chiamate = giro(numeri=[1, 1, 2, 2, 2, 2])
+        esiti = [d["output"] for k, d in ev if k == "tool_result"]
+        gia = tr("Chiamata identica già eseguita al passo {n} di questa domanda: il risultato è lo stesso ed è già "
+                 "qui sopra. Non ripeterla: usa quel risultato, cambia i parametri oppure scrivi la risposta finale.")
+        chiusa = tr("Ricerca chiusa al passo {n} di {max}: il modello ripeteva chiamate già fatte. La risposta usa ciò che "
+                    "ha trovato fin lì; scrivi «continua» per proseguire o fai una domanda più mirata.").format(n=6, max=12)
+        a = (eseguite == [1, 2] and esiti == ["1", gia.format(n=1), "2"] + [gia.format(n=3)] * 3 and chiamate == 7
+             and ("answer", "risposta parziale") in ev and ev[-1] == ("info", chiusa))
+        ev, chiamate = giro(3, numeri=[1, 1], taglia_al=2)            # risultato tolto dalla memoria: la chiamata si rifà
+        b = eseguite == [1, 1] and ev[-1] == ("answer", "risposta")
+        ev, chiamate = giro(4, numeri=[1, 1, 1], strumento="record_finding")      # uno strumento che scrive non è una ripetizione
+        c = eseguite == [1, 1, 1] and ev[-1] == ("answer", "risposta")
+        d = (fa.chiave_chiamata("eco", {"a": 1, "b": 2}) == fa.chiave_chiamata("eco", {"b": 2, "a": 1})
+             and fa.chiave_chiamata("eco", {"a": 1}) != fa.chiave_chiamata("eco", {"a": 2})
+             and fa.chiave_chiamata("export_file", {"a": 1}) is None and fa.chiave_chiamata("eco", None) is None)
+        ev, chiamate = giro(3, numeri=[-1, -1])                       # la ricerca ripetuta non aveva trovato righe
+        vuota = tr("Chiamata identica già eseguita al passo {n} di questa domanda: non aveva trovato nessuna riga e "
+                   "rifarla dà lo stesso esito. Questo non dimostra che il dato manchi: cerca con termini diversi o più "
+                   "corti, togli un filtro oppure elenca la categoria senza testo da cercare. Se lo hai già fatto, "
+                   "scrivi la risposta finale dicendo che cosa hai cercato senza trovarlo.").format(n=1)
+        e = eseguite == [-1] and [d["output"] for k, d in ev if k == "tool_result"] == [fa.pagina([], 0), vuota]
+        check(tr("agente: una chiamata identica già fatta nella stessa domanda non si riesegue (si rifà se il risultato non è più in memoria o se lo strumento scrive; se non aveva trovato righe l'avviso dice di cercare in altro modo); dopo tre turni di sole ripetizioni risponde con ciò che ha trovato e lo dichiara"),
+              a and b and c and d and e, f"{a} {b} {c} {d} {e} {eseguite} {chiamate}"[:160], interno=True)
+    except Exception as e:
+        check(tr("agente: prova del ciclo con il modello finto"), False, f"{type(e).__name__}: {e}"[:160], interno=True)
+    finally:
+        fa.client, fa.SETTINGS_PATH = prima[0], prima[1]
+        os.environ.pop("FORENSE_PASSI", None)
+        if prima[2] is not None:
+            os.environ["FORENSE_PASSI"] = prima[2]
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def controlli_modelli(check):
+    """(3.0.4) Scelta del modello dal menu: un server finto risponde come LM Studio e come Ollama. Si controlla l'elenco
+    dei modelli, la richiesta di caricamento con il contesto, il collegamento al modello scelto e il ripiego su quello
+    caricato se la scelta non esiste più. Nessun programma viene avviato e nessun modello caricato davvero."""
+    import http.server
+    import threading
+    stato = {"tipo": "lmstudio", "post": [], "caricati": {"qwen-a": 8192}}
+
+    class H(http.server.BaseHTTPRequestHandler):
+        def log_message(self, *a):
+            pass
+
+        def manda(self, d, codice=200):
+            b = json.dumps(d).encode()
+            self.send_response(codice)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(b)))
+            self.end_headers()
+            self.wfile.write(b)
+
+        def do_GET(self):
+            lm, c = stato["tipo"] == "lmstudio", stato["caricati"]
+            if self.path == "/v1/models":
+                return self.manda({"object": "list", "data": [{"id": x, "object": "model"} for x in (("qwen-a", "gemma-b") if lm else ("llama3:8b", "qwen3:4b"))]})
+            if lm and self.path == "/api/v0/models":
+                return self.manda({"data": [
+                    {"id": "qwen-a", "type": "llm", "state": "loaded" if "qwen-a" in c else "not-loaded", "loaded_context_length": c.get("qwen-a"), "max_context_length": 32768},
+                    {"id": "gemma-b", "type": "vlm", "state": "loaded" if "gemma-b" in c else "not-loaded", "loaded_context_length": c.get("gemma-b"), "max_context_length": 16384},
+                    {"id": "incorporamenti", "type": "embeddings", "state": "not-loaded"}]})
+            if not lm and self.path == "/api/version":
+                return self.manda({"version": "0.0-finto"})
+            if not lm and self.path == "/api/tags":
+                return self.manda({"models": [{"name": "qwen3:4b", "model": "qwen3:4b"}, {"name": "llama3:8b", "model": "llama3:8b"}]})
+            if not lm and self.path == "/api/ps":
+                return self.manda({"models": [{"name": k, "model": k, "context_length": v} for k, v in c.items()]})
+            self.manda({"error": "non trovato"}, 404)
+
+        def do_POST(self):
+            b = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
+            stato["post"].append((self.path, b))
+            if self.path == "/api/v1/models/unload" and stato["tipo"] == "lmstudio":
+                stato["caricati"].pop(b.get("instance_id"), None)
+                return self.manda({"instance_id": b.get("instance_id")})
+            if self.path == "/api/v1/models/load" and stato["tipo"] == "lmstudio":
+                stato["caricati"][b["model"]] = b.get("context_length")
+                return self.manda({"type": "llm", "status": "loaded"})
+            if self.path == "/api/generate" and stato["tipo"] == "ollama":
+                stato["caricati"][b["model"]] = (b.get("options") or {}).get("num_ctx")
+                return self.manda({"model": b["model"], "done": True})
+            self.manda({"error": "non trovato"}, 404)
+
+    prima = (fa.client, fa.MODEL, fa.NUM_CTX, fa.MAX_OUT, fa.API_KEY)
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    base = f"http://127.0.0.1:{srv.server_address[1]}"
+    try:
+        el = fa.elenco_modelli(fa.identify(base), base)
+        note = fa.carica_modello("lmstudio", base, "gemma-b", fa.CTX_MODELLO)
+        llm = fa.connect_llm("auto", base, "gemma-b", 0, api_key="")
+        check(tr("modelli: elenco di LM Studio, caricamento del modello scelto con il contesto che il modello consente, collegamento"),
+              el == [{"id": "gemma-b", "caricato": False, "ctx_max": 16384, "ctx": 0}, {"id": "qwen-a", "caricato": True, "ctx_max": 32768, "ctx": 8192}]
+              and stato["post"] == [("/api/v1/models/load", {"model": "gemma-b", "context_length": 16384})] and len(note) == 2 and "16384" in note[0] and "qwen-a" in note[1]
+              and (llm["tipo"], llm["model"], llm["ctx"]) == ("lmstudio", "gemma-b", 16384) and [m["caricato"] for m in llm["elenco"]] == [True, True],
+              f"{el} {stato['post']} {note} {llm.get('model')} {llm.get('ctx')}"[:200], interno=True)
+        # (3.0.4) contesto scelto dall'analista: un modello già caricato con un altro contesto viene scaricato e ricaricato
+        stato["post"] = []
+        uguale = fa.carica_modello("lmstudio", base, "gemma-b", 16384)
+        nessuna = list(stato["post"])
+        fa.carica_modello("lmstudio", base, "qwen-a", 16384)
+        fa.SETTINGS_PATH, vecchio = Path(tempfile.mkdtemp(prefix="collaudo_ctx_")) / "impostazioni.json", fa.SETTINGS_PATH
+        try:
+            liberi = [fa.contesto_modello()]
+            for v in (20000, 100, 10 ** 9, "x"):          # un valore scritto a mano vale; fuori dai limiti si riporta dentro
+                fa.save_settings({"contesto": v})
+                liberi.append(fa.contesto_modello())
+        finally:
+            shutil.rmtree(fa.SETTINGS_PATH.parent, ignore_errors=True)
+            fa.SETTINGS_PATH = vecchio
+        check(tr("modelli: contesto scelto dall'analista; un modello già caricato con un altro contesto viene ricaricato, uno già a posto no"),
+              liberi == [fa.CTX_MODELLO, 20000, fa.CTX_MIN, fa.CTX_MAX, fa.CTX_MODELLO] and not nessuna and not uguale and stato["post"] == [("/api/v1/models/unload", {"instance_id": "qwen-a"}),
+                                                              ("/api/v1/models/load", {"model": "qwen-a", "context_length": 16384})]
+              and stato["caricati"].get("qwen-a") == 16384, f"{liberi} {nessuna} {uguale} {stato['post']}"[:200], interno=True)
+        stato.update(tipo="ollama", post=[], caricati={})
+        el = fa.elenco_modelli(fa.identify(base), base)
+        note = fa.carica_modello("ollama", base, "llama3:8b", fa.CTX_MODELLO)
+        llm = fa.connect_llm("auto", base, "llama3:8b", 0, api_key="")
+        check(tr("modelli: elenco di Ollama, modello scelto preparato con un contesto ampio, collegamento"),
+              el == [{"id": "llama3:8b", "caricato": False, "ctx_max": 0, "ctx": 0}, {"id": "qwen3:4b", "caricato": False, "ctx_max": 0, "ctx": 0}] and not note
+              and stato["post"] == [("/api/generate", {"model": "llama3:8b", "keep_alive": "30m", "options": {"num_ctx": fa.CTX_MODELLO}})]
+              and (llm["tipo"], llm["model"], llm["ctx"]) == ("ollama", "llama3:8b", fa.CTX_MODELLO), f"{el} {stato['post']} {note} {llm.get('model')}"[:200], interno=True)
+        stato["post"] = []
+        note = fa.carica_modello("ollama", base, "non-installato")
+        llm = fa.connect_llm("auto", base, "non-installato", 0, api_key="")
+        check(tr("modelli: una scelta che il server non ha più non viene richiesta; si usa il modello caricato e lo si dice"),
+              len(note) == 1 and not stato["post"] and llm["model"] == "llama3:8b" and any("non-installato" in x for x in llm["notes"]),
+              f"{note} {llm.get('model')} {llm.get('notes')}"[:200], interno=True)
+        with tempfile.TemporaryDirectory() as d:
+            f = Path(d) / ".lmstudio" / "bin" / ("lms.exe" if fa.IS_WIN else "lms")
+            f.parent.mkdir(parents=True)
+            f.write_bytes(b"")
+            trovati = fa.programmi_llm(d)
+        check(tr("modelli: programmi di cui si può avviare il server riconosciuti dalla loro installazione"),
+              "lmstudio" in trovati and all(Path(v).name.split(".")[0] in ("lms", "ollama") for v in trovati.values()), str(sorted(trovati)), interno=True)
+    except Exception as e:
+        check(tr("modelli: prova con il server finto"), False, f"{type(e).__name__}: {e}"[:200], interno=True)
+    finally:
+        srv.shutdown()
+        srv.server_close()
+        fa.client, fa.MODEL, fa.API_KEY = prima[0], prima[1], prima[4]
+        fa.NUM_CTX, fa.MAX_OUT = prima[2], prima[3]
+
+
+def controlli_orari(check):
+    """(3.0.4) Orari nei Dettagli degli artefatti: scritti con la sigla UTC alla preparazione e mostrati nel fuso scelto
+    (interfaccia, report, esportazioni) come la colonna Data. Gli orari dichiarati «ora locale», quelli con un fuso
+    proprio e quelli dentro nomi e percorsi non si toccano."""
+    import sqlite3
+    import types
+    import forense_estesa as fx
+    import forense_art_windows as faw
+    import forense_gui as G
+    try:
+        casi = [("ultimo accesso 2024-01-02 10:00:00 (SAM); password impostata 2024-01-03 11:00:00",
+                 "ultimo accesso 2024-01-02 10:00:00 UTC (SAM); password impostata 2024-01-03 11:00:00 UTC"),
+                ("12 eventi dal 2024-01-02 10:00:00 al 2024-01-05 09:00:00 (UTC)", "12 eventi dal 2024-01-02 10:00:00 UTC al 2024-01-05 09:00:00 UTC"),
+                ("primo collegamento 2024-01-02 10:00:00 (ora locale); chiave scritta 2024-01-02 09:00:00 (UTC)",
+                 "primo collegamento 2024-01-02 10:00:00 (ora locale); chiave scritta 2024-01-02 09:00:00 UTC"),
+                ("first connection 2024-01-02 10:00:00 (local time)", "first connection 2024-01-02 10:00:00 (local time)"),
+                ("sync_log.log, ora locale 2024-01-02 10:00:00 +0100 convertita in UTC", "sync_log.log, ora locale 2024-01-02 10:00:00 +0100 convertita in UTC"),
+                ("file C:\\x\\report_2024-01-02 10:00:00.txt; visto 2024-01-02T10:00:00Z; fine 2024-01-02 10:00:00.",
+                 "file C:\\x\\report_2024-01-02 10:00:00.txt; visto 2024-01-02T10:00:00Z; fine 2024-01-02 10:00:00 UTC."),
+                ("terminato 2025-03-07 19:35:18 UTC", "terminato 2025-03-07 19:35:18 UTC"), ("", "")]
+        esiti = [faw.marca_utc(a) for a, _ in casi]
+        con = sqlite3.connect(":memory:")
+        fx.ensure_schema(con)
+        faw.Art(types.SimpleNamespace(con=con)).add("utenti", "2024-01-02T10:00:00", "Mario", "ultimo accesso 2024-01-02 10:00:00 (SAM)")
+        salvato = con.execute("SELECT detail FROM artifacts").fetchone()[0]
+        con.close()
+        check(tr("orari: nei Dettagli degli artefatti ogni orario calcolato da RepertIA porta la sigla UTC; ora locale, fusi propri, nomi e percorsi non toccati"),
+              esiti == [b for _, b in casi] and salvato == "ultimo accesso 2024-01-02 10:00:00 UTC (SAM)",
+              str([x for x, (_, b) in zip(esiti, casi) if x != b] or salvato)[:200], interno=True)
+        testo = "ultimo accesso 2024-07-02 10:00:00 UTC (SAM); ora locale 2024-01-02 10:00:00; 2024-01-02 23:30:00 UTC"
+        rome = G.testo_fuso(None, "rome", testo)
+        ny = G.testo_fuso(None, "America/New_York", testo)
+        check(tr("orari: gli orari marcati UTC nei testi seguono il fuso scelto con la sigla (ora legale compresa); gli altri restano come sono"),
+              rome == "ultimo accesso 2024-07-02 12:00:00 CEST (SAM); ora locale 2024-01-02 10:00:00; 2024-01-03 00:30:00 CET"
+              and G.testo_fuso(None, "utc", testo) == testo and (G._zone_obj("America/New_York") is None or
+                                                               ny.startswith("ultimo accesso 2024-07-02 06:00:00 UTC-04:00")), f"{rome} | {ny}"[:200], interno=True)
+        md, conv, lasciati = G.md_to_zone_ex("- 2024-01-02 10:00:00 UTC, Mario: ciao\n| 2024-01-02 10:00:00 | x | creato 2024-07-02 10:00:00 UTC; "
+                                             "file a_2024-01-02 10:00:00.txt |", "Europe/Rome")
+        check(tr("orari: nel report gli orari marcati UTC dentro i Dettagli sono convertiti come le colonne delle date"),
+              md == "- 2024-01-02 11:00:00 CET, Mario: ciao\n| 2024-01-02 11:00:00 CET | x | creato 2024-07-02 12:00:00 CEST; file a_2024-01-02 10:00:00.txt |"
+              and (conv, lasciati) == (3, 1), f"{md} {conv} {lasciati}"[:200], interno=True)
+        riga = "2014-02-10 16:14:39 CET; 2014-07-10 11:14:39 UTC-04:00; 2014-02-10 09:00:00 (ora locale); file_2014-02-10 09:00:00.txt; 2014-02-10"
+        gma, iso = G.data_fmt(riga, "gma"), G.data_fmt(riga, "iso")
+        check(tr("orari: nelle anteprime le date con la sigla seguono il formato di data scelto; nomi di file e date senza ora non toccati"),
+              gma == "10/02/2014 16:14:39 CET; 10/07/2014 11:14:39 UTC-04:00; 10/02/2014 09:00:00 (ora locale); file_2014-02-10 09:00:00.txt; 2014-02-10"
+              and iso == riga and G.data_fmt(riga, "mga").startswith("02/10/2014 16:14:39 CET"), gma[:200], interno=True)
+    except Exception as e:
+        check(tr("orari: prova della sigla e della conversione"), False, f"{type(e).__name__}: {e}"[:200], interno=True)
 
 
 def controlli_nist_lacune(check):
@@ -2013,15 +2768,22 @@ def controlli_report_strumenti(case, txt, check):
     import forense_mobile_chat as fmc
     usati = fmc.strumenti_usati(case)
     lp = case.meta.get("leapp") or {}
+    tipo = fa.tipo_sorgente(case)        # (3.0.4) dump della RAM e sorgenti logiche: metodo e titolo propri, niente «telefono»
+    metodo = {"ram": tr("L'analisi è stata condotta su un dump della memoria RAM di un computer Windows"),
+              "logica": tr("L'analisi è stata condotta su una sorgente logica")}.get(
+        tipo, tr("L'analisi è stata condotta sull'estrazione del file system del telefono"))
     ok = ("Sleuth Kit" not in txt and "sleuthkit" not in txt and "plaso" not in txt.lower().split(tr("## Artefatti con iLEAPP/ALEAPP"))[0]
-          and tr("L'analisi è stata condotta sull'estrazione del file system del telefono") in txt)
+          and metodo in txt
+          and (tipo == "smartphone" or tr("L'analisi è stata condotta sull'estrazione del file system del telefono") not in txt))
     if lp.get("esito") == "ok":
         ok = ok and f"{lp.get('strumento')}: {lp.get('versione')}, " in txt and (lp.get("impronta") or "") in txt
     for v in case.meta.get("sysdiagnose") or []:
         ok = ok and v.get("sha256", "") in txt
     if case.meta.get("portachiavi"):
         ok = ok and case.meta["portachiavi"].get("sha256", "") in txt
-    check(tr("report dello smartphone: solo gli strumenti usati, metodo dell'estrazione"), ok,
+    check({"ram": tr("report del dump della memoria: solo gli strumenti usati, metodo del dump"),
+           "logica": tr("report della sorgente logica: solo gli strumenti usati, metodo della sorgente")}.get(
+        tipo, tr("report dello smartphone: solo gli strumenti usati, metodo dell'estrazione")), ok,
           ", ".join(k for k, _v in usati), interno=True)
 
 
@@ -3026,6 +3788,10 @@ def controlli_smartphone(t, img, case, con, a, check):
         controlli_telegram_chiamate(check)
         controlli_droni(check)
         controlli_sorgente_logica(check)
+        controlli_ram(check)
+        controlli_agente_turni(check)
+        controlli_modelli(check)
+        controlli_orari(check)
         controlli_nist_lacune(check)
         controlli_nist_ese(check)
         controlli_nist_validazione(check)

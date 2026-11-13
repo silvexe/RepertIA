@@ -85,6 +85,9 @@ class Prova:
         self.p.locator(sel).locator("visible=true").first.click(timeout=15000)
 
     def albero(self, nodo):
+        if nodo == "timeline":          # (3.0.4) la Timeline non è più nell'albero: pulsante in alto
+            return self.clic("#mTimeline")
+        self.ai_risultati()
         n = self.p.locator(f"#rTree .rtn[data-n='{nodo}']")
         if not n.count() or not n.first.is_visible():
             # la voce è dentro una voce chiusa: apre i genitori
@@ -93,7 +96,15 @@ class Prova:
                 self.albero_apri(par)
         self.clic(f"#rTree .rtn[data-n='{nodo}'] .nm")
 
+    def ai_risultati(self):
+        """(3.0.4) nella pagina della Timeline l'albero non c'è: si torna ai Risultati (dove si era) con la scheda."""
+        if self.p.evaluate("() => typeof TLMODE !== 'undefined' && TLMODE"):
+            self.clic(".tabs button[data-tab=res]")
+            self.p.wait_for_function("() => !TLMODE", timeout=15000)
+            self.attendi()
+
     def albero_apri(self, nodo):
+        self.ai_risultati()
         if ":" in nodo:
             self.albero_apri(nodo.rsplit(":", 1)[0])
         el = self.p.locator(f"#rTree .rtn[data-n='{nodo}']")
@@ -140,7 +151,7 @@ def prova_caso(P, url, termine, lab):
         page.click(".tabs button[data-tab=res]")
     st = P.attendi()
     P.controlla("pagina iniziale", "explore", [lab["explore"]], st)
-    page.wait_for_selector("#rTree .rtn[data-n=timeline]", timeout=30000)
+    page.wait_for_selector("#rTree .rtn[data-n=explore]", timeout=30000)
 
     # ---- A: pulsante in alto ----
     P.albero("timeline"); st = P.attendi("resSec === 'timeline'")
@@ -201,12 +212,15 @@ def prova_caso(P, url, termine, lab):
         if page.locator(f"#rTree .rtn[data-n='{madre}'] + .rtsub").count():
             P.clic(f"#rTree .rtn[data-n='{madre}'] .car")
             page.wait_for_timeout(300)
-    P.albero(altra); st = P.attendi(f"resSec === '{altra}'")
-    P.controlla(f"E voci chiuse, clic su «{altra}»", altra, [lab[altra]], st)
+    # (3.0.4) senza un'altra sezione con dati si parte da «File System»: il pulsante Timeline premuto mentre si è già
+    # nella Timeline non aggiunge un passo alla cronologia
+    prima = altra if altra != "timeline" else "explore"
+    P.albero(prima); st = P.attendi(f"resSec === '{prima}'")
+    P.controlla(f"E voci chiuse, clic su «{prima}»", prima, [lab[prima]], st)
     P.albero("timeline"); st = P.attendi("resSec === 'timeline'")
     P.controlla("E voci chiuse, clic su Timeline", "timeline", [lab["timeline"]], st)
-    P.indietro(); st = P.attendi(f"resSec === '{altra}'")
-    P.controlla("E Indietro", altra, [lab[altra]], st)
+    P.indietro(); st = P.attendi(f"resSec === '{prima}'")
+    P.controlla("E Indietro", prima, [lab[prima]], st)
     P.albero_apri("search")
 
     # ---- D: due sottovoci di seguito senza attendere ----

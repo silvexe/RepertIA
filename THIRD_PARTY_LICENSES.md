@@ -8,7 +8,7 @@ qui sotto, ciascuno con la propria licenza. I componenti sono distribuiti senza 
 programmi o librerie separati; i testi delle licenze sono nelle cartelle dei componenti dentro i pacchetti
 (`strumenti/…`, `python/…/*.dist-info/`).
 
-Versioni riferite ai pacchetti **3.0.3**. Tesseract resta alla 5.4.0 su Windows perché UB Mannheim non pubblica una build più recente; Python resta alla 3.12.15.
+Versioni riferite ai pacchetti **3.0.4**. Tesseract resta alla 5.4.0 su Windows perché UB Mannheim non pubblica una build più recente; Python resta alla 3.12.15.
 
 ## Componenti della mappa (tutti i pacchetti)
 
@@ -30,7 +30,7 @@ dai progetti originali agli indirizzi indicati, per la versione indicata, ed è 
 `RepertIA-2.19.0-sorgenti-terze-parti.tar` (Sleuth Kit con libewf/libvhdi/libvmdk, TestDisk/PhotoRec, bulk_extractor
 con la libewf collegata e la ricetta di compilazione, 7-Zip, librerie libyal; elenco nel `LEGGIMI.txt` interno) e
 `poppler-<versione>.tar.xz`; dalla 3.0.0 anche `7z2605-src.tar.xz` e `Image-ExifTool-13.61.tar.gz` (13.60 nella 3.0.0), per le versioni di 7-Zip ed ExifTool incluse; dalla 2.20 anche `ffmpeg-n9.0.2-36-g6882969ce9-sorgenti.tar.gz` (FFmpeg al commit
-6882969ce9 da cui è costruito l'eseguibile di BtbN). Per le librerie di sistema incluse nelle distribuzioni originali di TestDisk e Poppler per
+6882969ce9 da cui è costruito l'eseguibile di BtbN); dalla 3.0.4 anche `MemProcFS-5.19.3-sorgenti.tar.gz` (commit 6490ad8bc322, «Version 5.19.3») e `LeechCore-2.23.5-sorgenti.tar.gz` (commit 23f1919853d4, «Version 2.23.5»), i sorgenti delle librerie incluse. Per le librerie di sistema incluse nelle distribuzioni originali di TestDisk e Poppler per
 Windows (Cygwin, Qt, GLib, cairo, libiconv, gettext) e per qualunque altro sorgente corrispondente non allegato,
 l'autore lo fornisce su richiesta, per almeno tre anni dalla pubblicazione del pacchetto, tramite le Issues del repository.
 
@@ -48,6 +48,8 @@ l'autore lo fornisce su richiesta, per almeno tre anni dalla pubblicazione del p
 | Tesseract OCR | 5.4.0 (build UB Mannheim) con le DLL che usa (Leptonica, libtiff, libpng, libjpeg, libwebp, OpenJPEG, zlib, zstd, libarchive…) | Apache-2.0; librerie con licenze proprie (BSD, MIT, libtiff, zlib, IJG, OpenSSL/Apache-2.0) | https://github.com/tesseract-ocr/tesseract — https://github.com/UB-Mannheim/tesseract |
 | tessdata_fast (eng, ita, osd) | — | Apache-2.0 | https://github.com/tesseract-ocr/tessdata_fast |
 | FFmpeg (solo `ffmpeg.exe`, anteprima dei video) | 9.0.2-36-g6882969ce9 (build LGPL di BtbN, autobuild-2026-10-27-18-38) | LGPL-3.0-or-later (`strumenti/ffmpeg/LICENSE.txt`); sorgente esatto allegato alla Release: `ffmpeg-n9.0.2-36-g6882969ce9-sorgenti.tar.gz` | https://ffmpeg.org — https://github.com/BtbN/FFmpeg-Builds |
+| MemProcFS (`strumenti/memprocfs`, analisi dei dump della memoria RAM; solo la libreria, chiamata da `forense_vmm.py`; `forense_ram_servizi.py` rifà in Python la lettura dei servizi di `vmm/vmmwinsvc.c`, stessa licenza AGPL-3.0) | 5.19.3, dalla release GitHub dell'autore, la stessa per Mac, Windows e Linux; tolti il programma a riga di comando, il modulo Python ufficiale con i suoi plugin e i file per chi sviluppa | AGPL-3.0 (`strumenti/memprocfs/LICENZE/`); comprende, su Windows, `dbghelp.dll` e `symsrv.dll` di Microsoft (ridistribuibili, vedi `license_dbghelp.txt`) e, su Linux e Mac, libpdbcrust (`license_libpdbcrust.txt`) e MSCompression (`license_libmscompression.txt`); i simboli di debug scaricati su richiesta dell'analista restano sul suo computer e non si ridistribuiscono; vmmyara (YARA, BSD-3-Clause), LZ4 (BSD-2-Clause) e un database di informazioni sui simboli | https://github.com/ufrisk/MemProcFS |
+| LeechCore (`strumenti/memprocfs`, lettura del file del dump) | 2.23.5, quello compreso nella release 5.19.3 di MemProcFS; tolti i driver FTDI e i moduli di acquisizione da rete, Hyper-V, driver, memoria viva e macchine virtuali, che RepertIA non usa | GPL-3.0 (`strumenti/memprocfs/LICENZE/`) | https://github.com/ufrisk/LeechCore |
 | Python | 3.12.15 (python-build-standalone, install_only_stripped) | PSF-2.0 (con componenti BSD, MIT, OpenSSL, zlib, Tcl/Tk) | https://github.com/astral-sh/python-build-standalone |
 
 ## Pacchetto Mac

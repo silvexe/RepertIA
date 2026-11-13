@@ -60,7 +60,8 @@ CREATE TABLE IF NOT EXISTS logica_hash(id INTEGER PRIMARY KEY, md5 TEXT, sha1 TE
 FORMATI = {"zip": N_("zip"), "tar": N_("tar"), "cartella": N_("cartella già estratta"),
            "7z": N_("7z"), "rar": N_("rar"), "estratto": N_("copia estratta dall'archivio"),
            "ad1": N_("AD1, immagine logica di FTK"), "targz": N_("tar.gz"),
-           "iso": N_("immagine di CD/DVD ISO 9660 o UDF")}
+           "iso": N_("immagine di CD/DVD ISO 9660 o UDF"),
+           "ram": N_("dump della memoria RAM")}            # (3.0.4) forense_ram.py
 DB_LBL = {"imessage": N_("iMessage/SMS (iPhone)"), "whatsapp_ios": N_("WhatsApp (iPhone)"),
           "whatsapp_android": N_("WhatsApp (Android)"), "sms_android": N_("SMS/MMS (Android)"),
           "ab_ios": N_("rubrica (iPhone)"), "contacts_android": N_("rubrica (Android)"),
@@ -72,6 +73,9 @@ DATESRC = {"utc": N_("UTC (dal campo esteso dello zip o dal tar)"),
            "dos": N_("ora locale senza fuso (data DOS dello zip), convertita con il fuso del dispositivo"),
            "copia": N_("date della cartella sul computer (possono essere quelle della copia, non del telefono)"),
            "archivio": N_("UTC (dall'archivio 7z o RAR 5)"),
+           "memoria": N_("UTC, dai record MFT trovati in memoria (il contenuto viene dalla memoria e può essere incompleto)"),
+           "mft": N_("UTC, dal record MFT trovato in memoria (del file restano nome, date e dimensione: il contenuto non è nel dump)"),
+           "mft_res": N_("UTC, dal record MFT trovato in memoria (file piccolo: anche il contenuto viene dal record)"),
            "locale": N_("ora locale senza fuso (archivio RAR 4), convertita con il fuso indicato"),
            "ad1": N_("date registrate nell'AD1 dallo strumento di acquisizione (UTC)"),
            "disco": N_("UTC (dal file system del CD/DVD, ISO 9660 o UDF, che registra lo scostamento)"),
@@ -980,6 +984,8 @@ def stream(case, part, inode, chunk=1 << 20):
         p = os.path.join(img, *r["path"].split("/"))
         if r["kind"] == "estratto" and not os.path.realpath(p).startswith(os.path.realpath(img) + os.sep):
             raise FileNotFoundError(tr("percorso fuori dalla copia estratta: {p}").format(p=r["path"]))
+        if r["datesrc"] == "mft" and not r["size"] and not os.path.exists(p):
+            return                        # (3.0.4) dump della RAM: del file c'è solo il record MFT, senza contenuto
         with open(p, "rb") as fh:
             while b := fh.read(chunk):
                 yield b
@@ -1042,7 +1048,8 @@ def istat_text(case, part, inode):
     r = _row(case, part, inode)
     mode = r["mode"] or 0
     L = [tr("Voce dell'estrazione: {inode}").format(inode=inode),
-         tr("Estrazione: {file} ({fmt})").format(file=src["file"], fmt=tr(FORMATI.get(r["kind"], r["kind"]))),
+         tr("Estrazione: {file} ({fmt})").format(file=src["file"], fmt=tr(FORMATI["ram"]) if r["datesrc"] in (
+             "memoria", "mft", "mft_res") else tr(FORMATI.get(r["kind"], r["kind"]))),
          tr("Percorso nell'estrazione: {path}").format(path=r["path"]),
          tr("Tipo: {t}").format(t=tr("cartella") if r["isdir"] else tr("collegamento") if stat.S_ISLNK(mode) else tr("file")),
          tr("Dimensione: {size} byte").format(size=r["size"])]
@@ -1064,6 +1071,15 @@ def istat_text(case, part, inode):
         L.append(tr("Posizione nel tar: dati dal byte {loc}").format(loc=r["loc"]))
     elif r["kind"] == "ad1":
         L.append(tr("Posizione nell'AD1: voce al byte {loc} dei dati logici").format(loc=r["loc"]))
+    elif r["datesrc"] in ("memoria", "mft", "mft_res"):      # (3.0.4) dump della RAM
+        L.append(tr("Dimensione registrata (cache di Windows o record MFT): {cs} byte; contenuto disponibile: {size} byte").format(
+            cs=r["csize"], size=r["size"]))
+        L.append(tr("Del file in memoria c'è solo il record MFT (nome, date, dimensione): il contenuto non è recuperabile dal dump.")
+                 if r["datesrc"] == "mft" else
+                 tr("Contenuto letto dal record MFT (file piccolo, salvato dentro il record).") if r["datesrc"] == "mft_res" else
+                 tr("Contenuto letto dalla memoria con MemProcFS: può essere incompleto (parti mancanti o a zero)."))
+        if r["size"]:
+            L.append(tr("Copia derivata: {p}").format(p=os.path.join(src["file"], *r["path"].split("/"))))
     elif r["kind"] == "estratto":
         L.append(tr("Letto dalla copia estratta con 7-Zip: {p}").format(p=os.path.join(src["file"], *r["path"].split("/"))))
     m = mx(case)
@@ -1249,7 +1265,8 @@ def cmd_prepara(args):
         sys.exit(tr("Estrazione non trovata: {img}").format(img=img))
     if case.meta_path.exists():
         sys.exit(tr("Il caso {root} esiste già: usa un'altra cartella.").format(root=case.root))
-    kind = formato(img)
+    ram = bool(getattr(args, "ram", False))      # (3.0.4) dump della RAM: sorgente logica dei file ancora in memoria
+    kind = "ram" if ram else formato(img)
     logica = bool(getattr(args, "logica", False))
     if kind is None:
         sys.exit(tr("Formato non riconosciuto: servono zip, tar, tar.gz, 7z, rar, AD1, un'immagine di CD/DVD o una cartella.") if logica else
@@ -1267,6 +1284,8 @@ def cmd_prepara(args):
         case.meta["drone"] = True
     if logica:                              # (3.0.2) archivio, AD1 o cartella di file: niente analisi del telefono
         case.meta["logica"] = True
+    if ram:
+        case.meta["ram_dump"] = True
     try:
         case.meta["ambiente"] = fa.ambiente()
     except Exception as e:
@@ -1309,6 +1328,17 @@ def cmd_prepara(args):
         case.meta["image"] = str(work)
         case.log("copia_derivata_decompressa", rif)
         kind = "tar"
+    elif kind == "ram":                     # (3.0.4) i file ancora in memoria, copiati nel caso da MemProcFS
+        import forense_ram as fr
+        try:
+            work, rif = fr.estrai(case, img, lambda x: print(x, flush=True))
+        except (OSError, fr.RamNonDisponibile) as e:
+            fr.chiudi()
+            sys.exit(str(e))
+        case.meta["estratta"] = rif
+        case.meta["image"] = str(work)
+        case.log("copia_derivata_file_in_memoria", rif)
+        kind = "estratto"
     elif kind in ESTRATTI:
         work, rif = estrai(case, img, case.meta["fuso_dispositivo"]["tz"], lambda x: print(x, flush=True))
         case.meta["estratta"] = rif
@@ -1441,7 +1471,8 @@ def _prepara_logica(case, args, con, part, p, n, nev, stats, kind0):
     p["os"] = None
     p["mobile"].update({"statistiche": stats})
     case.meta["mobile"] = {"formato": p["mobile"]["formato"], "logica": True}
-    case.meta["disk_type"] = tr("sorgente logica ({fmt})").format(fmt=tr(FORMATI[kind0]))
+    case.meta["disk_type"] = (tr("dump della memoria RAM") if case.meta.get("ram_dump") else
+                              tr("sorgente logica ({fmt})").format(fmt=tr(FORMATI[kind0])))
     fd = case.meta["fuso_dispositivo"]
     fd["stato"] = "non_verificabile" if fd.get("auto") else "scelto_non_verificato"
     case.meta["timeline"] = {"tsk_events": nev, "plaso_events": 0}
@@ -1454,6 +1485,9 @@ def _prepara_logica(case, args, con, part, p, n, nev, stats, kind0):
             print(tr(msg).format(n=stats["date"][k], tz=fd["tz"]), flush=True)
     case.save()
     print(tr("Sorgente logica {fmt}: {n} voci, {nev} eventi.").format(fmt=tr(FORMATI[kind0]), n=n, nev=nev), flush=True)
+    if case.meta.get("ram_dump"):          # (3.0.4) processi, rete, timeline e fuso letti dalla memoria
+        import forense_ram as fr
+        fr.dopo_elenco(case, con, lambda x: print(x, flush=True))
     if kind0 == "ad1" and stats.get("hash_registrati"):
         if args.no_hash:
             print(tr("Verifica degli hash dell'AD1 rinviata (analisi speditiva)."), flush=True)

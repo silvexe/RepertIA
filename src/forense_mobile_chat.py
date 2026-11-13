@@ -1713,15 +1713,23 @@ def report_md(case):
         return str(x if x is not None else "").replace("|", "/").replace("\n", " ")
     m = case.meta
     mob = m.get("mobile") or {}
-    L = ["", tr("## Estrazione dello smartphone"), ""]
+    tipo = fa.tipo_sorgente(case)        # (3.0.4) dump della RAM e sorgenti logiche non sono telefoni: testi propri
+    L = ["", tr("## File trovati in memoria") if tipo == "ram" else tr("## Sorgente logica") if tipo == "logica" else
+         tr("## Estrazione dello smartphone"), ""]
     for p in fm.sorgenti(case):
         s = p["mobile"]
         st = s.get("statistiche") or {}
         si = s.get("sistema") or {}
-        L.append(tr("- Estrazione `{n}` ({fmt}){prod}: {v} voci, {c} cartelle, {b} byte di file").format(
-            n=s.get("nome"), fmt=tr(fm.FORMATI.get(s.get("formato"), s.get("formato"))),
-            prod=(", " + tr("prodotta da {p} (riconosciuto dalla struttura)").format(p=s["produttore"])) if s.get("produttore") else "",
-            v=st.get("voci"), c=st.get("cartelle"), b=st.get("byte")))
+        if tipo == "ram":
+            L.append(tr("- Dump `{n}`: {v} voci, {c} cartelle, {b} byte di file ricostruiti dalla memoria con {s}").format(
+                n=s.get("nome"), v=st.get("voci"), c=st.get("cartelle"), b=st.get("byte"),
+                s=(m.get("estratta") or {}).get("strumento") or "MemProcFS"))
+        else:
+            L.append((tr("- Sorgente `{n}` ({fmt}){prod}: {v} voci, {c} cartelle, {b} byte di file") if tipo == "logica" else
+                      tr("- Estrazione `{n}` ({fmt}){prod}: {v} voci, {c} cartelle, {b} byte di file")).format(
+                n=s.get("nome"), fmt=tr(fm.FORMATI.get(s.get("formato"), s.get("formato"))),
+                prod=(", " + tr("prodotta da {p} (riconosciuto dalla struttura)").format(p=s["produttore"])) if s.get("produttore") else "",
+                v=st.get("voci"), c=st.get("cartelle"), b=st.get("byte")))
         if si:
             L.append(tr("- Sistema del telefono: ") + ", ".join(f"{k} {v}" for k, v in si.items() if v))
         for k, n in (st.get("date") or {}).items():
@@ -1735,10 +1743,22 @@ def report_md(case):
                     "derivata; l'originale non è stato modificato.").format(
             f=m.get("image"), c=d.get("creata"), o=d.get("origine"), so=d.get("sha256_origine"), sc=d.get("sha256"),
             b=d.get("byte")))
-    L.append(tr("- I file non sono stati estratti: si leggono dall'estrazione quando servono (posizione di ogni voce "
-                "nella scheda Metadati). L'estrazione contiene solo i file presenti nel telefono al momento "
-                "dell'acquisizione: non ci sono file cancellati del file system."))
     c = m.get("chat") or {}
+    if tipo == "ram":
+        L.append(tr("- I file ancora in memoria sono stati copiati nel caso come copie derivate (cartella `estratta`): il "
+                    "contenuto viene dalla memoria e può essere incompleto; dei file di cui resta solo il record MFT ci sono "
+                    "nome, date e dimensione, non il contenuto. Non è un'immagine disco: niente partizioni né spazio non "
+                    "allocato."))
+    elif tipo == "logica":
+        L.append(tr("- I file si leggono dalla sorgente quando servono (posizione di ogni voce nella scheda Metadati). La "
+                    "sorgente contiene solo i file presenti al momento della copia: non è un'immagine disco, quindi non ci "
+                    "sono partizioni, spazio non allocato né file cancellati del file system."))
+    else:
+        L.append(tr("- I file non sono stati estratti: si leggono dall'estrazione quando servono (posizione di ogni voce "
+                    "nella scheda Metadati). L'estrazione contiene solo i file presenti nel telefono al momento "
+                    "dell'acquisizione: non ci sono file cancellati del file system."))
+    if tipo != "smartphone" and not (c.get("app") or c.get("avvisi") or m.get("leapp")):
+        return L + [""]                  # niente chat né iLEAPP/ALEAPP: le sezioni dei telefoni non servono
     L += ["", tr("## Chat e messaggi"), ""]
     if c.get("app"):
         L.append(tr("Lettori propri di RepertIA (indipendenti da iLEAPP/ALEAPP); ogni database è letto da una copia di "
@@ -1818,7 +1838,9 @@ def report_md(case):
             L += [""] + sd.rstrip("\n").split("\n")
     except ImportError:
         pass
-    L += ["", tr("## Limiti dell'analisi dello smartphone"), "",
+    L += ["", tr("## Limiti della lettura di chat e messaggi") if tipo != "smartphone" else tr("## Limiti dell'analisi dello smartphone"), "",
+          tr("- Si vede solo quello che c'è nella sorgente: se i database delle app non sono stati copiati, le chat non ci sono.")
+          if tipo != "smartphone" else
           tr("- Si vede solo quello che c'è nell'estrazione: un'estrazione non completa (logica, backup) non contiene i "
              "database delle app."),
           tr("- Database cifrati (es. backup di WhatsApp .crypt14/.crypt15, Signal) non si leggono senza la chiave."),
@@ -1840,8 +1862,18 @@ def strumenti_usati(case):
     tv = m.get("tool_versions") or {}
     amb = (m.get("ambiente") or {}).get("strumenti") or {}
     est = m.get("estese") or {}
-    out = [("RepertIA", tr("{v} – lettura dell'estrazione (zip, tar o cartella) voce per voce, senza estrarla; SHA-256, "
-                           "elenco dei file e date registrate nell'estrazione").format(v=(m.get("ambiente") or {}).get("versione") or fa.APP_VERSION))]
+    tipo = fa.tipo_sorgente(case)
+    ver = (m.get("ambiente") or {}).get("versione") or fa.APP_VERSION
+    if tipo == "ram":                    # (3.0.4) dump della memoria: gli strumenti sono altri
+        out = [("RepertIA", tr("{v} – analisi del dump della memoria attraverso la libreria di MemProcFS (adattatore "
+                               "forense_vmm.py); elenco dei file e date dai record MFT trovati in memoria; SHA-256").format(v=ver))]
+        out += _strumenti_ram(case)
+    elif tipo == "logica":
+        out = [("RepertIA", tr("{v} – lettura della sorgente (archivio, immagine di CD/DVD, AD1 o cartella) voce per voce; SHA-256, elenco dei "
+                               "file e date registrate nella sorgente").format(v=ver))]
+    else:
+        out = [("RepertIA", tr("{v} – lettura dell'estrazione (zip, tar o cartella) voce per voce, senza estrarla; SHA-256, "
+                               "elenco dei file e date registrate nell'estrazione").format(v=ver))]
     if amb.get("python"):
         out.append(("Python", amb["python"]))
     if m.get("decompressa"):
@@ -1883,6 +1915,57 @@ def strumenti_usati(case):
     return out
 
 
+def _strumenti_ram(case):
+    """(3.0.4) Strumenti che hanno davvero prodotto dati in QUESTO caso da un dump della memoria: il motore, il lettore
+    del registro in memoria e, per gli artefatti di Windows, le sole librerie di cui nel caso ci sono righe (dalla
+    fonte di ogni artefatto). Le versioni sono quelle registrate alla preparazione del caso."""
+    import forense_agent as fa
+    m = case.meta
+    amb = (m.get("ambiente") or {}).get("strumenti") or {}
+    ram = m.get("ram") or {}
+    out = []
+    if ram.get("motore") or (m.get("estratta") or {}).get("strumento"):
+        out.append(("MemProcFS", tr("{v} – dump aperto in sola lettura, senza server dei simboli: processi, connessioni, "
+                                    "moduli, driver, attività pianificate, servizi, utenti, timeline della memoria e copia dei "
+                                    "file ancora in memoria").format(
+            v=(ram.get("motore") or m["estratta"]["strumento"]).replace("MemProcFS", "").strip() or "?")))
+    fonti = {"registro": 0, "simboli": 0, "evtx": 0, "pf": 0, "lnk": 0, "jump": 0, "ese": 0}
+    hive = ("ntuser.dat", "usrclass.dat", "amcache.hve", "system", "software", "sam", "security", "default")
+    try:
+        con = fa.db_ro(case)
+        try:
+            for cat, src in con.execute("SELECT cat, src_path FROM artifacts"):
+                s = (src or "").lower()
+                if s.startswith("ram:"):
+                    fonti["simboli"] += cat == "servizi" and "registro" not in s
+                    continue
+                nome = s.replace("\\", "/").rsplit("/", 1)[-1]          # la fonte è il percorso del file (può avere spazi)
+                fonti["evtx"] += nome.endswith(".evtx")
+                fonti["pf"] += nome.endswith(".pf")
+                fonti["jump"] += "destinations-ms" in nome
+                fonti["lnk"] += nome.endswith(".lnk")
+                fonti["registro"] += nome in hive
+                fonti["ese"] += nome.startswith("webcachev") or nome == "srudb.dat" or nome.endswith(".edb")
+        finally:
+            con.close()
+    except Exception:
+        return out
+    if fonti["registro"]:
+        out.append((tr("Registro di Windows in memoria"),
+                    tr("letto chiave per chiave dalla memoria da RepertIA (forense_ram.py); dove la memoria non basta, dal "
+                       "file dell'hive con libregf (pyregf{v})").format(v=(" " + amb["pyregf"]) if amb.get("pyregf") else "")))
+    for chiave, nome, modulo in (("evtx", tr("Registri eventi (.evtx)"), "pyevtx"), ("pf", tr("Prefetch"), "pyscca"),
+                                 ("lnk", tr("Collegamenti (.lnk)"), "pylnk"), ("jump", tr("Jump list"), "pyolecf"),
+                                 ("ese", tr("Database ESE (cronologia di Internet Explorer/Edge, SRUM)"), "pyesedb")):
+        if fonti[chiave]:
+            lib = {"pyevtx": "libevtx", "pyscca": "libscca", "pylnk": "liblnk", "pyolecf": "libolecf", "pyesedb": "libesedb"}[modulo]
+            out.append((nome, f"{lib} ({modulo}" + (f" {amb[modulo]}" if amb.get(modulo) else "") + ")"))
+    if fonti["simboli"]:
+        out.append((tr("Simboli di debug di Windows"), tr("file di Microsoft già nella cartella locale, usati per lo stato "
+                                                          "dei servizi (nessuna richiesta di rete durante l'analisi)")))
+    return out
+
+
 def strumenti_dict(case):
     """strumenti_usati come dizionario (nomi ripetuti numerati: più sysdiagnose)."""
     out = {}
@@ -1899,9 +1982,19 @@ def metodo_md(case):
     import forense_agent as _fa
     m = case.meta
     nomi = [k for k, _v in strumenti_usati(case) if k not in ("RepertIA", "Python")]
-    return (tr("L'analisi è stata condotta sull'estrazione del file system del telefono (non su un'immagine disco: niente "
-               "partizioni, spazio non allocato né file cancellati del file system), aperta in sola lettura e letta voce per "
-               "voce senza estrarla; i database sono letti da copie di lavoro con i loro file -wal/-shm.")
+    tipo = _fa.tipo_sorgente(case)
+    return ((tr("L'analisi è stata condotta su un dump della memoria RAM di un computer Windows, aperto in sola lettura e "
+                "senza richieste di rete (non è un'immagine disco: niente partizioni né spazio non allocato). I file ancora "
+                "in memoria sono copie derivate e possono essere incompleti; processi, connessioni e gli altri dati della "
+                "memoria possono essere residui di strutture già liberate e vanno trattati come elementi da verificare.")
+             if tipo == "ram" else
+             tr("L'analisi è stata condotta su una sorgente logica (archivio, immagine di CD/DVD, AD1 o cartella di file, non un'immagine disco: "
+                "niente partizioni, spazio non allocato né file cancellati del file system), aperta in sola lettura e letta "
+                "voce per voce; i database sono letti da copie di lavoro con i loro file -wal/-shm.")
+             if tipo == "logica" else
+             tr("L'analisi è stata condotta sull'estrazione del file system del telefono (non su un'immagine disco: niente "
+                "partizioni, spazio non allocato né file cancellati del file system), aperta in sola lettura e letta voce per "
+                "voce senza estrarla; i database sono letti da copie di lavoro con i loro file -wal/-shm."))
             + " " + (tr("Strumenti usati: {s}.").format(s=", ".join(nomi)) if nomi else "")
             + " " + _fa.modello_metodo_md(case) + _fa.verifica_reperti_md(case.findings())
             + tr("La traccia completa di comandi e risposte è in `audit_log.jsonl`."))
@@ -1911,9 +2004,22 @@ def metodo_md(case):
 
 def prompt_extra(case):
     m = case.meta
-    L = [tr("- Questo caso è l'ESTRAZIONE DI UNO SMARTPHONE ({os}), non un disco: non ci sono partizioni né file "
-            "cancellati del file system; l'«offset» {off} indica l'estrazione e l'«inode» è il numero della voce "
-            "nell'estrazione.").format(os=m.get("disk_type"), off=(m.get("partitions") or [{}])[0].get("offset"))]
+    import forense_agent as _fa
+    tipo = _fa.tipo_sorgente(case)       # (3.0.4) dump della RAM e sorgenti logiche non sono telefoni
+    off = (m.get("partitions") or [{}])[0].get("offset")
+    if tipo == "ram":
+        return [tr("- Questo caso è un DUMP DELLA MEMORIA RAM di un computer Windows, non un disco: non ci sono partizioni né "
+                   "spazio non allocato; l'«offset» {off} indica il dump e l'«inode» è il numero della voce tra i file trovati "
+                   "in memoria. Il contenuto dei file viene dalla memoria e può essere incompleto; di molti resta solo nome, "
+                   "date e dimensione. I percorsi sono quelli di Windows (Users/<utente>/..., Windows/System32/...).").format(off=off)]
+    if tipo == "logica":
+        L = [tr("- Questo caso è una SORGENTE LOGICA ({os}: archivio, immagine di CD/DVD, AD1 o cartella di file), non un disco: non ci sono "
+                "partizioni né file cancellati del file system; l'«offset» {off} indica la sorgente e l'«inode» è il numero "
+                "della voce nella sorgente.").format(os=m.get("disk_type"), off=off)]
+    else:
+        L = [tr("- Questo caso è l'ESTRAZIONE DI UNO SMARTPHONE ({os}), non un disco: non ci sono partizioni né file "
+                "cancellati del file system; l'«offset» {off} indica l'estrazione e l'«inode» è il numero della voce "
+                "nell'estrazione.").format(os=m.get("disk_type"), off=off)]
     c = m.get("chat") or {}
     if c.get("app"):
         L.append(tr("- Chat lette ({app}): count_messages conta i messaggi, list_chats elenca le conversazioni, read_chat legge una conversazione "
@@ -1926,9 +2032,10 @@ def prompt_extra(case):
                     "verificato», dillo."))
     if m.get("leapp"):
         L.append(tr("- Artefatti di iLEAPP/ALEAPP importati: query_artifacts con categoria «leapp»."))
-    L.append(tr("- DOVE CERCARE su iPhone: private/var/mobile/Library (SMS, AddressBook, CallHistoryDB, Safari), "
-                "Containers/Shared/AppGroup (WhatsApp), Media/DCIM (foto). Su Android: data/data/<app>/databases, "
-                "data/media/0 (memoria interna: DCIM, WhatsApp/Media, Download)."))
+    if tipo == "smartphone" or (m.get("logica_telefono") or {}).get("struttura_telefono"):
+        L.append(tr("- DOVE CERCARE su iPhone: private/var/mobile/Library (SMS, AddressBook, CallHistoryDB, Safari), "
+                    "Containers/Shared/AppGroup (WhatsApp), Media/DCIM (foto). Su Android: data/data/<app>/databases, "
+                    "data/media/0 (memoria interna: DCIM, WhatsApp/Media, Download)."))
     return L
 
 

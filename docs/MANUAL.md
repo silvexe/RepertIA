@@ -6,7 +6,7 @@
 and folder names created by the program (`estratti`, `export`, `CasiForensi`…) are in Italian whatever the language.*
 
 **Forensic analysis of disk and USB drive images, smartphone extractions and drone flight logs, with local artificial intelligence.**
-Version 3.0.3 · macOS, Windows and Linux (experimental) · interface in English or Italian
+Version 3.0.4 · macOS, Windows and Linux (experimental) · interface in English or Italian
 
 RepertIA takes a forensic image (raw, dd, img or E01), indexes it with established forensic tools and lets you examine
 it in two complementary ways:
@@ -145,6 +145,19 @@ network: llama-server with `--host 0.0.0.0`, LM Studio with *Serve on Local Netw
 `OLLAMA_HOST=0.0.0.0`, and the port open in the firewall. To test: from your computer open
 `http://ADDRESS:PORT/v1/models` in the browser; the list of models must appear.
 
+**Choosing the model and the context (3.0.4).** When RepertIA is connected to **Ollama** or **LM Studio**, the *AI model*
+menu lists the models installed in that program: choose one, set **Context to load** (pick a value from the list or type
+the number of tokens; default 32,768) and press **Reconnect**. RepertIA asks the program to load the model with that
+context, without opening the program by hand; a model already loaded with another context is reloaded. Models that are
+not installed are never downloaded, and models already loaded are left alone (a note says which ones stay in memory).
+With llama-server the model is the one it was started with. If no server answers and Ollama or LM Studio are installed, a
+**Start** button starts their server on this computer. The choice of the model and the start are recorded in the case log.
+**Turns per question** (10 to 200, default 40) sets how many times the agent can consult the model for one question: while
+it works the indicator shows the tools used and the turn ("3 tools · turn 4 of 40"); when the turns run out the agent
+answers with what it has found and says so. A call identical to one already made in the same question is not executed
+again (the agent is told the result is already among those it has); after three turns of repetitions only, the agent is
+asked for the answer and a notice says the search was closed for this reason.
+
 **External server (2.20.1).** If the address is neither on this computer nor on the local network (not a private IP
 10.x, 172.16–31.x, 192.168.x nor a local name without dots or with `.local`, `.lan`, `.internal`…), RepertIA shows an
 **explicit warning** before using it: questions and case content read by the agent would leave the local network. If the
@@ -152,6 +165,20 @@ analyst confirms, the use is recorded in the case log (`server_llm_esterno_confe
 shows *(external server)* and the report says "external server indicated by the analyst: *address*" instead of
 "internal network, without external services". When a case opens, an unconfirmed external server is not used. See
 [AI_ACT.en.md](../AI_ACT.en.md).
+
+### Timeline page and dates (3.0.4)
+The **Timeline** has a page of its own: it opens from the **Timeline** button in the top bar, next to *Additional tools*,
+or from the **Timeline** tab next to *Conversation* and *Results*, and it is no longer an entry of the Results tree. The
+sources that used to be sub-entries (file system, Plaso, RAM memory, evidence with a date, Bookmarks) are chosen from the
+page's **Source** selector; the *Results* tab goes back to the section you were in.
+
+**Every date carries its time zone label** next to the value, also in UTC: `2026-08-06 12:42:52 CEST`, `… UTC`,
+`… UTC-05:00` (CET/CEST for Italian time; the offset for the other zones, because zone abbreviations are ambiguous).
+File tables have four date columns, **Modified, Metadata changed, Accessed, Created**; a date the source does not have is
+written as zeros. In system artifacts the times written in the **Details** carry the UTC label when the case is prepared
+and are shown in the chosen time zone like the Date column, in the tables, in the preview, in the report and in exports.
+Times the source gives in local time stay as they are and say so. In cases prepared before 3.0.4 the Details have no
+label until the *System artifacts* analysis is run again. The case log and the agent keep working in UTC.
 
 ### Results tab
 
@@ -574,6 +601,31 @@ On the start page, **🗂️ Logical source** opens a case from files already co
 If the source contains phone databases (for example WhatsApp `msgstore.db` and `wa.db`), they are recognised by name even outside the phone folder structure: chats and contacts enter the case, and the **Logical source** panel warns that the phone structure is missing. iLEAPP and ALEAPP (not for AD1) and WhatsApp backups are among the additional analyses. KML and GPX files in the source become map layers, with path and SHA-256 in the log.
 
 **Limits.** EnCase L01 files are not read: there is no public sample to test them with. AD1 is tested on the public files of the dissect.evidence tests and on a public segmented AD1; UDF with VAT on the «RM#3» CD-R of the NIST CFReDS «Data Leakage» case (final files, 17 files of the previous VATs and burning time equal to the NIST answers), which is in the test data.
+
+## RAM memory dumps (3.0.4)
+
+On the start page, **Mass storage and RAM** also accepts a dump of the memory of a **Windows** computer (raw, `.mem`, `.vmem`, `.dmp`, `.lime`). The option **It is a RAM memory dump** turns on by itself for the known extensions; for other names tick it by hand. The dump is read with **MemProcFS** (Ulf Frisk, AGPL-3.0), which is in the list of tools at the top of the window.
+
+**Packages.** The MemProcFS component is version 5.19.3, from the same release, in the Mac, Windows and Linux packages. RepertIA calls the library directly through its own adapter (`forense_vmm.py`), because the official Python module does not exist for macOS. Tested on Windows (adapter compared with the official module on the same public dump); tested on Mac on the same dump (same counts); on Linux it has not been tested in execution.
+
+What the case contains:
+
+| Item | Where | Notes |
+|---|---|---|
+| Files still in memory | File System, File, Documents, Photos | a derived copy in `estratta/memoria`; they are **often incomplete** (the pages no longer in memory are missing). A file the Windows cache rounds up to whole blocks is brought back to the size written in its MFT record |
+| MFT records found in memory | the same lists | name, dates (UTC) and size of files and folders. Small files have their content (it is inside the record); the others are listed with 0 bytes read and the recorded size: the content cannot be recovered from the dump |
+| Registry hives loaded in memory | `Windows/System32/config`, user profiles | SYSTEM, SOFTWARE, SECURITY, DEFAULT, NTUSER.DAT, UsrClass.dat, Amcache as Windows held them in memory; they replace the copy left in the file cache. **System artifacts** (programs run, USB devices, installed programs, networks, opened folders…) are read from the registry key by key, directly from memory, skipping the missing parts. The SAM is usually not in memory: accounts and logon counters are missing |
+| Processes, network connections, loaded modules, drivers, scheduled tasks, users, system data | System artifacts | a terminated process is marked; the parent is not given when its PID was reused by a later process |
+| Memory timeline | Timeline, source **RAM memory** | registry keys, event logs, processes, network, web history, Prefetch, Amcache; threads are not imported |
+| Time zone | case panel | read from memory |
+
+**No network during the analysis.** When a case is prepared or analysed MemProcFS is always started without the symbol server. On Mac and Linux MemProcFS 5.19.3 would ask Microsoft for missing symbols anyway: before loading the library RepertIA pins the proxy of its symbol library to a closed local address for the whole analysis process, so that request cannot leave the computer; if this cannot be done the library is not loaded. With the symbols already in the local folder (downloaded from the start page), the running state of the services is shown: on Windows from the MemProcFS list, on Mac and Linux read by RepertIA from the memory of `services.exe` (`forense_ram_servizi.py`; 64-bit Windows from build 15063). Without the Windows debug symbols the list of running services is not available: **services** are read from their configuration in the registry (name, program, start type, account), with the last write of the key as date, and the result of the analysis says so.
+
+**Symbols on request, for the running state of services.** On the start page, with no case open, **🧩 Symbols for RAM** downloads from Microsoft's symbol server the debug symbols of the Windows version of the dump you indicate, after you accept Microsoft's license terms (the button *Open the terms* shows the file). Microsoft receives only the name and identifier of the requested symbol files, which say which Windows version it is, not the content of the dump; the dump is however opened read-only while the network is in use: if the case does not allow it, do not download them. The symbols stay in a local folder (`Symbols`, next to the engine; names, sizes and SHA-256 of what was downloaded are recorded there) and are never part of the packages. After that, a case prepared from a dump of that Windows version lists the services with their **running state and PID** at acquisition time, still with no network. When you press **Start the analysis** on a dump for which no download is recorded, a window explains the difference and offers **Download the symbols** (no case is open yet at that point) or **Start without symbols**.
+
+**How to read the results.** The data come from system structures still present in memory when the dump was taken: a process or a connection may be the remains of structures already freed, and acquiring the memory of a running computer is not instantaneous. They are leads to be verified, and the report says so.
+
+**Limits.** Only Windows memory, and only recent versions (a Windows Server 2003 dump is not opened). If MemProcFS does not recognise the dump the case is not created and the reason is shown. Carving, shadow copies, plaso and OCR do not apply to a dump. On the Mac the component is not included yet. Tested on the public 13Cubed memory image (Windows 11).
 
 ## Audio transcription (2.20)
 
@@ -1226,10 +1278,19 @@ file found with certainty by another field is merged into it). The method, field
 
 The interface is an HTML/JavaScript page without external libraries, served by the program itself. The main files are:
 
-- `forense_agent.py` — case preparation, agent tools, report (from the terminal too);
-- `forense_gui.py` — local server of the interface, tree, timeline, selections, exports, saved conversations;
+- `forense_agent.py` — case preparation, agent, terminal commands. Since 3.0.4 parts of its code live in shorter modules
+  that it loads and re-exports: `forense_triage.py` (partitions, file listing, timeline), `forense_indice.py` (text and
+  metadata), `forense_carving.py`, `forense_fuso.py` (time zone), `forense_hash_dati.py`, `forense_exfat.py`,
+  `forense_catena.py` (hash-chained log), `forense_strumenti_agente.py` (agent tools), `forense_agent_report.py`;
+- `forense_gui.py` — local server of the interface, state, session, saved conversations; since 3.0.4 the rest is in
+  `forense_gui_filtri.py`, `forense_gui_fuso.py`, `forense_gui_albero.py`, `forense_gui_esporta.py`,
+  `forense_gui_anteprime.py`, `forense_gui_segnalibri.py`, `forense_gui_immagine.py`, `forense_gui_report.py`,
+  `forense_gui_estese.py`;
 - `forense_gui.html` — the interface;
-- `forense_estesa.py` — extended analyses: archives, mail, anomalies, artifacts, VSS, OCR, hash sets, encrypted volumes;
+- `forense_estesa.py` — extended analyses: anomalies, OCR, perceptual hashes, encrypted volumes, execution; since 3.0.4
+  the rest is in `forense_archivi.py`, `forense_posta.py` (mail), `forense_mft.py`, `forense_art_windows.py`,
+  `forense_art_windows_altri.py`, `forense_art_mac_linux.py`, `forense_snapshot.py` (VSS and APFS snapshots),
+  `forense_liste_hash.py` (hash sets);
 - `forense_apfs.py` — Mac APFS volumes (libfsapfs), encrypted ones too;
 - `forense_collaudo.py` — acceptance test with the reference images (2.14);
 - `forense_riscontro.py` — cross-check with the file/hash list of another tool (2.15);
@@ -1361,7 +1422,7 @@ The history of the versions is in [CHANGELOG.en.md](../CHANGELOG.en.md).
 
 ## Mac package (Apple Silicon)
 
-`RepertIA-3.0.3-Mac.zip` contains **RepertIA.app** with Python 3.12, openai, Pillow and **plaso already included** (no
+`RepertIA-3.0.4-Mac.zip` contains **RepertIA.app** with Python 3.12, openai, Pillow and **plaso already included** (no
 Docker). Drag the app into Applications; the first time: *Done* at the warning, then *System Settings → Privacy & Security
 → Open Anyway* and double-click again (right-click → *Open* is no longer enough on macOS 15 and later), because it is not signed with an Apple certificate. The app opens the Terminal, installs the missing
 tools with Homebrew (Sleuth Kit, libewf, exiftool, poppler, PhotoRec, bulk_extractor, Tesseract) and then the browser.
@@ -1370,7 +1431,7 @@ tools with Homebrew (Sleuth Kit, libewf, exiftool, poppler, PhotoRec, bulk_extra
 
 ## Windows version
 
-`RepertIA-3.0.3-Setup.exe` installs RepertIA for the current user (no administrator rights) in
+`RepertIA-3.0.4-Setup.exe` installs RepertIA for the current user (no administrator rights) in
 `%LOCALAPPDATA%\Programs\RepertIA`, with Python and the tools already included: plaso, The Sleuth Kit (reads E01 files
 directly), ExifTool, Poppler, PhotoRec, bulk_extractor, 7-Zip, Tesseract OCR (Italian and English) and the libraries for
 Outlook mail, shadow copies and encrypted volumes. It is started from the Start menu → **RepertIA**: a black window opens,
@@ -1388,11 +1449,11 @@ to be kept open, and the browser. Cases are in `%USERPROFILE%\CasiForensi`, sett
 
 ## Linux version (experimental)
 
-`RepertIA-3.0.3-Linux.tar.gz` is for **Linux x86_64** with Python 3.12 or later (Ubuntu 24.04 or later, Debian 13).
+`RepertIA-3.0.4-Linux.tar.gz` is for **Linux x86_64** with Python 3.12 or later (Ubuntu 24.04 or later, Debian 13).
 The program is the same as the Mac and Windows versions (same source fingerprint).
 
 ```
-tar -xzf RepertIA-3.0.3-Linux.tar.gz
+tar -xzf RepertIA-3.0.4-Linux.tar.gz
 cd RepertIA
 ./installa.sh          # once, with internet: asks for the administrator password
 ./RepertIA.sh          # or from the applications menu

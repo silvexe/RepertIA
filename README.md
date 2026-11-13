@@ -293,6 +293,11 @@ from their version. It permits nothing else: all the rest of the program stays u
 The packages in the Releases include third-party components under their own licenses: list, versions and sources in
 [THIRD_PARTY_LICENSES.en.md](THIRD_PARTY_LICENSES.en.md).
 
+## Who works on the project
+
+- **Author and maintainer:** [silvexe](https://github.com/silvexe).
+- **Contributor:** [nannib](https://github.com/nannib) — ideas and advice to improve the tool.
+
 ## How it was developed
 
 The code was written with the help of Claude, an artificial intelligence model by Anthropic. Design choices,
