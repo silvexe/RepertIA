@@ -18,12 +18,12 @@
 
 ![RepertIA: un volo dimostrativo simulato animato sulla mappa locale](docs/media/repertia-demo.gif)
 
-🎬 **Guarda la demo** (dati di prova da un'immagine pubblica di Josh Hickman e un volo simulato, dichiarati nel video). Da scaricare: [italiano](https://github.com/silvexe/RepertIA/releases/download/v3.0.2/RepertIA-demo-3.0.2-it.mp4) · [inglese](https://github.com/silvexe/RepertIA/releases/download/v3.0.2/RepertIA-demo-3.0.2-en.mp4)
+🎬 **Guarda la demo** (dati di prova da un'immagine pubblica di Josh Hickman e un volo simulato, dichiarati nel video). Da scaricare: [italiano](https://github.com/silvexe/RepertIA/releases/download/v3.0.4/RepertIA-demo-3.0.4-it.mp4) · [inglese](https://github.com/silvexe/RepertIA/releases/download/v3.0.4/RepertIA-demo-3.0.4-en.mp4)
 
 https://github.com/user-attachments/assets/ce5dc7b1-5f86-425e-8a4b-82e186ed4d79
 
 
-📘 **Guida illustrata:** [italiano e inglese, un'unica pagina](https://github.com/silvexe/RepertIA/releases/download/v3.0.3/RepertIA-guida-3.0.3.html)
+📘 **Guida illustrata:** [italiano e inglese, un'unica pagina](https://github.com/silvexe/RepertIA/releases/download/v3.0.4/RepertIA-guida-3.0.4.html)
 
 RepertIA analizza copie forensi (E01, raw/dd, dmg), dalla 2.20 estrazioni del file system completo di iPhone e telefoni
 Android, dalla 3.0 registri di volo dei droni e, dalla 3.0.2, sorgenti logiche (archivi zip, tar, 7z e rar, immagini
@@ -102,14 +102,14 @@ Dalla 3.0.2 anche **🗂️ Sorgente logica**: file già raccolti da altri (zip,
 
 | Sistema | File |
 |---|---|
-| Windows (installazione) | [RepertIA-3.0.3-Setup.exe](https://github.com/silvexe/RepertIA/releases/download/v3.0.3/RepertIA-3.0.3-Setup.exe) |
-| Windows (portatile) | [RepertIA-3.0.3-Windows.zip](https://github.com/silvexe/RepertIA/releases/download/v3.0.3/RepertIA-3.0.3-Windows.zip) |
-| Mac (Apple Silicon) | [RepertIA-3.0.3-Mac.zip](https://github.com/silvexe/RepertIA/releases/download/v3.0.3/RepertIA-3.0.3-Mac.zip) |
-| Linux x86_64 (sperimentale) | [RepertIA-3.0.3-Linux.tar.gz](https://github.com/silvexe/RepertIA/releases/download/v3.0.3/RepertIA-3.0.3-Linux.tar.gz) |
-| Collaudo | [RepertIA-collaudo.zip](https://github.com/silvexe/RepertIA/releases/download/v3.0.3/RepertIA-collaudo.zip) |
-| Impronte SHA-256 | [SHA256SUMS.txt](https://github.com/silvexe/RepertIA/releases/download/v3.0.3/SHA256SUMS.txt) |
-| Firma delle impronte | [SHA256SUMS.txt.minisig](https://github.com/silvexe/RepertIA/releases/download/v3.0.3/SHA256SUMS.txt.minisig) |
-| Guida illustrata (HTML) | [italiano e inglese](https://github.com/silvexe/RepertIA/releases/download/v3.0.3/RepertIA-guida-3.0.3.html) |
+| Windows (installazione) | [RepertIA-3.0.3-Setup.exe](https://github.com/silvexe/RepertIA/releases/download/v3.0.4/RepertIA-3.0.4-Setup.exe) |
+| Windows (portatile) | [RepertIA-3.0.3-Windows.zip](https://github.com/silvexe/RepertIA/releases/download/v3.0.4/RepertIA-3.0.4-Windows.zip) |
+| Mac (Apple Silicon) | [RepertIA-3.0.3-Mac.zip](https://github.com/silvexe/RepertIA/releases/download/v3.0.4/RepertIA-3.0.4-Mac.zip) |
+| Linux x86_64 (sperimentale) | [RepertIA-3.0.3-Linux.tar.gz](https://github.com/silvexe/RepertIA/releases/download/v3.0.4/RepertIA-3.0.4-Linux.tar.gz) |
+| Collaudo | [RepertIA-collaudo.zip](https://github.com/silvexe/RepertIA/releases/download/v3.0.4/RepertIA-collaudo.zip) |
+| Impronte SHA-256 | [SHA256SUMS.txt](https://github.com/silvexe/RepertIA/releases/download/v3.0.4/SHA256SUMS.txt) |
+| Firma delle impronte | [SHA256SUMS.txt.minisig](https://github.com/silvexe/RepertIA/releases/download/v3.0.4/SHA256SUMS.txt.minisig) |
+| Guida illustrata (HTML) | [italiano e inglese](https://github.com/silvexe/RepertIA/releases/download/v3.0.4/RepertIA-guida-3.0.4.html) |
 
 Tutte le versioni: <https://github.com/silvexe/RepertIA/releases>
 
