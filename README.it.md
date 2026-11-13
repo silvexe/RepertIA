@@ -27,8 +27,8 @@ https://github.com/user-attachments/assets/ce5dc7b1-5f86-425e-8a4b-82e186ed4d79
 
 RepertIA analizza copie forensi (E01, raw/dd, dmg), dalla 2.20 estrazioni del file system completo di iPhone e telefoni
 Android, dalla 3.0 registri di volo dei droni e, dalla 3.0.2, sorgenti logiche (archivi zip, tar, 7z e rar, immagini
-logiche AD1 di FTK Imager, immagini di CD/DVD ISO e UDF o una cartella) da un'unica interfaccia web locale, su Mac
-Apple Silicon, Windows o Linux (sperimentale).
+logiche AD1 di FTK Imager, immagini di CD/DVD ISO e UDF o una cartella) e, dalla 3.0.4, dump della memoria RAM di
+computer Windows, da un'unica interfaccia web locale, su Mac Apple Silicon, Windows o Linux (sperimentale).
 Usa strumenti forensi riconosciuti (The Sleuth Kit, libewf, plaso, PhotoRec, bulk_extractor, ExifTool, libyal) e ne
 raccoglie i risultati in un caso consultabile con filtri, timeline e anteprime. Un modello linguistico che gira sul
 computer dell'analista (facoltativo) risponde a domande in italiano o in inglese citando file, offset e inode.
@@ -67,12 +67,19 @@ Non è una certificazione: NIST e Joshua Hickman non hanno provato RepertIA. Abb
 
 Dalla 3.0.2 anche **🗂️ Sorgente logica**: file già raccolti da altri (zip, tar, tar.gz, 7z, rar, immagini logiche AD1 di FTK Imager con gli hash di FTK ricontrollati file per file, immagini di CD/DVD ISO 9660 e UDF, una cartella).
 
+Dalla 3.0.4 anche i **dump della memoria RAM** di computer Windows (raw, mem, vmem, crash dump), dalla stessa pagina delle memorie di massa: processi, connessioni di rete, moduli, driver, attività pianificate, servizi e utenti letti con MemProcFS, più gli artefatti di Windows dal registro ancora in memoria. Con un caso aperto non viene scaricato nulla da internet.
+
+| Scelta del dump | Processi in memoria |
+|---|---|
+| <img src="docs/img/it/carica-ram.jpg" alt="Scelta di un dump della memoria RAM" width="420"> | <img src="docs/img/it/ram.jpg" alt="Processi letti da un dump della memoria RAM" width="420"> |
+| Il dump si indica come una copia forense, con la casella «È un dump della memoria RAM» | Ogni processo con PID, riga di comando, processo padre e utente (dump pubblico di prova) |
+
 <details>
 <summary><b>Altre schermate</b></summary>
 
 <br>
 
-**Timeline**: grafico dell'attività ed eventi, con filtri per data, evento e fonte.
+**Timeline**: dalla 3.0.4 in una pagina a sé, dal pulsante in alto; grafico dell'attività ed eventi, con filtri per data, evento e fonte.
 
 <img src="docs/img/it/timeline.jpg" alt="Timeline" width="800">
 
@@ -80,7 +87,7 @@ Dalla 3.0.2 anche **🗂️ Sorgente logica**: file già raccolti da altri (zip,
 
 <img src="docs/img/it/ricerca.jpg" alt="Ricerca" width="800">
 
-**Chat**: conversazioni con database, tabella e riga di ogni messaggio. Qui un backup WhatsApp decifrato (backup e chiave finti).
+**Chat**: conversazioni con database, tabella e riga di ogni messaggio. Qui iMessage da un'immagine pubblica di prova.
 
 <img src="docs/img/it/chat.jpg" alt="Vista chat" width="800">
 
@@ -130,10 +137,11 @@ scarica solo i sorgenti, non il programma da installare.
 | Volumi cifrati | Rilevamento di BitLocker, LUKS, FileVault, VeraCrypt (alta entropia); decifratura di BitLocker, LUKS1 e APFS con la chiave (mai salvata) |
 | Artefatti Windows | Per ogni installazione (anche Windows.old): account e accessi (SAM e registri eventi), Prefetch, Amcache, UserAssist, ShimCache, BAM, SRUM, LNK e jump list, ShellBags, Cronologia attività, journal NTFS `$UsnJrnl`, eventi (servizi, accensioni, Desktop remoto, Defender, USB), reti, cestino, browser; dalla 3.0.2 indice di Ricerca di Windows (`Windows.edb`), cronologia di Internet Explorer (`WebCacheV01.dat`), Sticky Notes, Google Drive |
 | Artefatti macOS | Volume Dati, quarantena, avvio automatico, TCC, iMessage, documenti recenti, Safari, KnowledgeC, Bluetooth, Time Machine |
+| Memoria RAM (3.0.4) | Dump della memoria di computer Windows (raw, mem, vmem, crash dump) letti con MemProcFS, lo stesso motore su Mac, Windows e Linux: processi, connessioni di rete, moduli caricati, driver, attività pianificate, servizi, utenti e timeline della memoria; artefatti di Windows dagli hive del registro ancora in memoria; file ancora in memoria copiati nel caso come copie derivate. Simboli di debug su richiesta, a caso chiuso e con consenso, per lo stato di esecuzione dei servizi; con un caso aperto nessuna richiesta di rete |
 | Sorgente logica (3.0.2) | zip, tar, tar.gz, 7z, rar, AD1 di FTK Imager (anche in segmenti; MD5/SHA-1 di FTK ricalcolati per ogni file), immagini di CD/DVD ISO 9660 e UDF, anche CD-R in più sessioni con VAT (i file solo nelle VAT precedenti compaiono come cancellati), o una cartella; database di telefoni riconosciuti dal nome, KML/GPX come livelli della mappa |
 | Smartphone (2.20) | Estrazioni del file system completo di iPhone e Android (zip di Cellebrite, GrayKey e altri, tar, tar.gz, cartella) lette senza copiarle; chat WhatsApp, iMessage/SMS e SMS/MMS con vista a fumetti (anche nel report portatile), rubriche, allegati collegati ai file e in anteprima sopra la chat, esportazione delle chat (HTML/CSV con SHA-256); iLEAPP e ALEAPP inclusi, con le chat delle altre app e la vista Chiamate ricavate dai loro risultati; portachiavi di iOS acquisito a parte (es. GrayKey) passato a iLEAPP, a scelta, con i valori segreti nascosti; sysdiagnose di iOS (uno o più) letti con un secondo giro di iLEAPP |
 | File citati (2.20) | Percorsi e nomi di file citati da artefatti, allegati delle chat, righe della timeline e risposte dell'agente ritrovati nella copia o nell'estrazione (percorsi del telefono, di Windows e di macOS; campi di cartella e nome uniti; per percorso, hash o nome e dimensione), un riquadro per file con l'esito in tre livelli (✅ trovato con certezza, ⚠️ probabile con i candidati, ❌ non presente) e l'anteprima, anche nel report Word/PDF; allegati WhatsApp verificati con lo SHA-256, miniatura dal database se il file manca |
-| Timeline | File system + plaso; date in UTC, ora italiana o fuso del dispositivo (rilevato), FAT/exFAT convertiti correttamente |
+| Timeline | File system + plaso, dalla 3.0.4 in una pagina a sé; date in UTC, ora italiana o fuso del dispositivo (rilevato), con la sigla del fuso accanto a ogni valore; FAT/exFAT convertiti correttamente |
 | Contenuti | Testo dei documenti con ricerca full-text, OCR (Tesseract), metadati EXIF/GPS, archivi, posta PST/OST/MBOX/EML |
 | Recupero | Carving con PhotoRec, tracce bulk_extractor, miniature della cache di Esplora file |
 | Anomalie | Estensioni false ed eseguibili mascherati (con verifica dei file cancellati contro i falsi positivi), file e contenitori cifrati |
