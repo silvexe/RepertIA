@@ -102,10 +102,10 @@ Dalla 3.0.2 anche **🗂️ Sorgente logica**: file già raccolti da altri (zip,
 
 | Sistema | File |
 |---|---|
-| Windows (installazione) | [RepertIA-3.0.3-Setup.exe](https://github.com/silvexe/RepertIA/releases/download/v3.0.4/RepertIA-3.0.4-Setup.exe) |
-| Windows (portatile) | [RepertIA-3.0.3-Windows.zip](https://github.com/silvexe/RepertIA/releases/download/v3.0.4/RepertIA-3.0.4-Windows.zip) |
-| Mac (Apple Silicon) | [RepertIA-3.0.3-Mac.zip](https://github.com/silvexe/RepertIA/releases/download/v3.0.4/RepertIA-3.0.4-Mac.zip) |
-| Linux x86_64 (sperimentale) | [RepertIA-3.0.3-Linux.tar.gz](https://github.com/silvexe/RepertIA/releases/download/v3.0.4/RepertIA-3.0.4-Linux.tar.gz) |
+| Windows (installazione) | [RepertIA-3.0.4-Setup.exe](https://github.com/silvexe/RepertIA/releases/download/v3.0.4/RepertIA-3.0.4-Setup.exe) |
+| Windows (portatile) | [RepertIA-3.0.4-Windows.zip](https://github.com/silvexe/RepertIA/releases/download/v3.0.4/RepertIA-3.0.4-Windows.zip) |
+| Mac (Apple Silicon) | [RepertIA-3.0.4-Mac.zip](https://github.com/silvexe/RepertIA/releases/download/v3.0.4/RepertIA-3.0.4-Mac.zip) |
+| Linux x86_64 (sperimentale) | [RepertIA-3.0.4-Linux.tar.gz](https://github.com/silvexe/RepertIA/releases/download/v3.0.4/RepertIA-3.0.4-Linux.tar.gz) |
 | Collaudo | [RepertIA-collaudo.zip](https://github.com/silvexe/RepertIA/releases/download/v3.0.4/RepertIA-collaudo.zip) |
 | Impronte SHA-256 | [SHA256SUMS.txt](https://github.com/silvexe/RepertIA/releases/download/v3.0.4/SHA256SUMS.txt) |
 | Firma delle impronte | [SHA256SUMS.txt.minisig](https://github.com/silvexe/RepertIA/releases/download/v3.0.4/SHA256SUMS.txt.minisig) |
