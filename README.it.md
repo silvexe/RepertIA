@@ -20,8 +20,7 @@
 
 🎬 **Guarda la demo** (dati di prova da un'immagine pubblica di Josh Hickman e un volo simulato, dichiarati nel video). Da scaricare: [italiano](https://github.com/silvexe/RepertIA/releases/download/v3.0.4/RepertIA-demo-3.0.4-it.mp4) · [inglese](https://github.com/silvexe/RepertIA/releases/download/v3.0.4/RepertIA-demo-3.0.4-en.mp4)
 
-https://github.com/user-attachments/assets/ce5dc7b1-5f86-425e-8a4b-82e186ed4d79
-
+https://github.com/user-attachments/assets/49faacbf-efce-4081-8b26-fe6b71d03e40
 
 📘 **Guida illustrata:** [italiano e inglese, un'unica pagina](https://github.com/silvexe/RepertIA/releases/download/v3.0.4/RepertIA-guida-3.0.4.html)
 
