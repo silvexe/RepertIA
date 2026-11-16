@@ -21,8 +21,20 @@ if [ -z "$DIR" ]; then
   read -r DIR; DIR="${DIR%\'}"; DIR="${DIR#\'}"; DIR="${DIR%\"}"; DIR="${DIR#\"}"; DIR="${DIR% }"
 fi
 if [ ! -f "$DIR/atteso.json" ]; then echo "Cartella di collaudo non valida: $DIR"; read -r -p "Premi Invio per chiudere..." _; exit 1; fi
+# (3.0.5) Il collaudo crea casi di prova nella cartella temporanea e vuole alcuni GB liberi. Dove /tmp sta in memoria
+# (Debian 13: metà della RAM) lo spazio può non bastare: se è poco e TMPDIR non è già scelto, si usa una cartella sul disco.
+TMP_COLLAUDO=""
+if [ -z "$TMPDIR" ]; then
+  LIBERI="$(df -Pk /tmp 2>/dev/null | awk 'NR==2 {print $4}')"
+  if [ -n "$LIBERI" ] && [ "$LIBERI" -lt 6291456 ]; then
+    TMP_COLLAUDO="${FORENSE_CASI:-$HOME/CasiForensi}/_collaudo/_temporanei"
+    mkdir -p "$TMP_COLLAUDO" && export TMPDIR="$TMP_COLLAUDO"
+    echo "Poco spazio in /tmp: per i file temporanei del collaudo uso $TMP_COLLAUDO"
+  fi
+fi
 echo "== Collaudo di RepertIA con le immagini di $DIR =="
 "$PY" "$DIR0/RepertIA/forense_collaudo.py" "$DIR" "$@"
+[ -n "$TMP_COLLAUDO" ] && rm -rf "$TMP_COLLAUDO"
 echo
 echo "Il rapporto (collaudo_<data>.md) è in ~/CasiForensi/_collaudo/."
 xdg-open "$HOME/CasiForensi/_collaudo" >/dev/null 2>&1 &

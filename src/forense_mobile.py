@@ -539,8 +539,10 @@ def estrai(case, f, tz, say=print):
     tot = sum(v["size"] for v in voci)
     dest = case.root / "estratta"
     dest.mkdir(parents=True, exist_ok=True)
-    if shutil.disk_usage(dest).free < tot * 1.1 + (2 << 30):
-        raise OSError(tr("Spazio insufficiente per la copia estratta: servono circa {v:.1f} GB.").format(v=tot * 1.1 / 1e9))
+    liberi, servono = shutil.disk_usage(dest).free, tot * 1.1 + (2 << 30)
+    if liberi < servono:                # (3.0.5) nel messaggio anche il margine e lo spazio che c'è
+        raise OSError(tr("Spazio insufficiente per la copia estratta: servono circa {v:.1f} GB liberi (margine di 2 GB compreso), "
+                         "ce ne sono {l:.1f} in {d}.").format(v=servono / 1e9, l=liberi / 1e9, d=dest))
     out = dest / re.sub(r"[^\w.-]+", "_", f.name)[:120]
     say(tr("Estrazione di {f} in una copia derivata con 7-Zip (l'archivio originale non cambia)…").format(f=f.name))
     fa.avanz("decomp")
@@ -610,8 +612,10 @@ def estrai_udf(case, f, tz, say=print, settori=None):
         tot = sum(v["fe"]["size"] for v, _g, _l in scelte.values() if not v["cartella"])
         dest = case.root / "estratta"
         dest.mkdir(parents=True, exist_ok=True)
-        if shutil.disk_usage(dest).free < tot * 1.1 + (2 << 30):
-            raise OSError(tr("Spazio insufficiente per la copia estratta: servono circa {v:.1f} GB.").format(v=tot * 1.1 / 1e9))
+        liberi, servono = shutil.disk_usage(dest).free, tot * 1.1 + (2 << 30)
+        if liberi < servono:
+            raise OSError(tr("Spazio insufficiente per la copia estratta: servono circa {v:.1f} GB liberi (margine di 2 GB compreso), "
+                             "ce ne sono {l:.1f} in {d}.").format(v=servono / 1e9, l=liberi / 1e9, d=dest))
         nome0 = Path(settori["origine"]).name if settori else f.name      # non la copia intermedia a 2048 byte
         out = dest / re.sub(r"[^\w.-]+", "_", nome0)[:120]
         say(tr("Lettura del CD/DVD UDF con il lettore di RepertIA ({n} VAT trovate) e copia derivata dei file…").format(

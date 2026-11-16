@@ -41,15 +41,16 @@ class RamNonDisponibile(RuntimeError):
 
 
 def cartelle_motore():
-    """Dove può stare la libreria di MemProcFS (vmm.dll, vmm.so o vmm.dylib, dentro una cartella `memprocfs`):
-    variabile REPERTIA_MEMPROCFS, poi strumenti/memprocfs."""
+    """Dove può stare la libreria di MemProcFS (vmm.dll, vmm.so o vmm.dylib, dentro una cartella `memprocfs`;
+    su Linux ARM a 64 bit `memprocfs_aarch64`, vedi forense_vmm.nome_cartella): variabile REPERTIA_MEMPROCFS, poi
+    strumenti/memprocfs."""
     import forense_vmm
     out = []
     if os.environ.get("REPERTIA_MEMPROCFS"):
         out.append(Path(os.environ["REPERTIA_MEMPROCFS"]))
     base = Path(os.environ.get("REPERTIA_STRUMENTI", HERE.parent / "strumenti"))
     out.append(base / "memprocfs")
-    return [d for d in out if (d / "memprocfs" / forense_vmm.nomi_libreria()[0]).is_file()]
+    return [d for d in out if (d / forense_vmm.nome_cartella() / forense_vmm.nomi_libreria()[0]).is_file()]
 
 
 def carica():
@@ -62,8 +63,8 @@ def carica():
     err = ""
     for d in cartelle_motore():
         try:
-            forense_vmm.libreria(d / "memprocfs")
-            forense_vmm.CARTELLA = d / "memprocfs"
+            forense_vmm.libreria(d / forense_vmm.nome_cartella())
+            forense_vmm.CARTELLA = d / forense_vmm.nome_cartella()
             return forense_vmm
         except (ImportError, OSError, AttributeError) as e:
             err = str(e)[:300]
@@ -244,6 +245,8 @@ def apri(dump, scansione=False):
         return v[0]
     if v:
         chiudi(dump)
+    if getattr(m, "__name__", "") == "forense_vmm":
+        _simboli_linux_collega(cartella_motore())       # (3.0.5) Linux: i simboli locali dove MemProcFS li cerca
     try:
         vmm = m.Vmm(["-device", k, "-disable-symbolserver"] + (["-forensic", "1"] if scansione else []))
     except Exception as e:
@@ -404,14 +407,16 @@ def estrai(case, dump, say=print):
     tot = sum(s for _v, _p, s in trovati if s <= MAX_FILE)
     dest = case.root / "estratta"
     dest.mkdir(parents=True, exist_ok=True)
-    if shutil.disk_usage(dest).free < tot * 1.05 + (2 << 30):
-        raise OSError(tr("Spazio insufficiente per la copia dei file in memoria: servono circa {v:.1f} GB.").format(v=tot * 1.05 / 1e9))
+    liberi, servono = shutil.disk_usage(dest).free, tot * 1.05 + (2 << 30)
+    if liberi < servono:                # (3.0.5) nel messaggio anche il margine e lo spazio che c'è: prima «servono 0.0 GB»
+        raise OSError(tr("Spazio insufficiente per la copia dei file in memoria: servono circa {v:.1f} GB liberi (margine di 2 GB "
+                         "compreso), ce ne sono {l:.1f} in {d}.").format(v=servono / 1e9, l=liberi / 1e9, d=dest))
     out = dest / "memoria"
     if out.exists():
         fa.rmtree_force(out)
     out.mkdir()
     say(tr("Copia dei file ancora presenti in memoria: {n} file, {g:.1f} GB (copia derivata; spesso incompleti)…").format(n=len(trovati), g=tot / 1e9))
-    voci, usati, fatti, saltati = [], set(), 0, 0
+    voci, usati, fatti, saltati, falliti = [], set(), 0, 0, 0
     conta = {"lunghi": 0}
 
     def colloca(parti, cartella=False):
@@ -421,8 +426,21 @@ def estrai(case, dump, say=print):
         if rel.lower() in usati:                                   # stesso file aperto più volte: resta l'indirizzo dell'oggetto
             base, punto, est = pulite[-1].rpartition(".")
             agg = "~" + (parti[-1][10:16] if NOME_OGGETTO.match(parti[-1]) else str(len(usati)))
-            pulite[-1] = (base + agg + punto + est) if punto and not cartella else pulite[-1] + agg
-            rel = "/".join(pulite)
+            nome = pulite[-1]
+
+            def con(a):
+                pulite[-1] = (base + a + punto + est) if punto and not cartella else nome + a
+                return "/".join(pulite)
+            rel = con(agg)
+            # (3.0.5) due oggetti con lo stesso nome e le stesse ultime 6 cifre dell'indirizzo (capita: gli oggetti stanno
+            # alla stessa posizione in pagine diverse) davano lo stesso percorso: il secondo si scriveva sopra il primo,
+            # già in sola lettura, e la preparazione si fermava con «Permission denied». Si allunga finché è unico.
+            if rel.lower() in usati and NOME_OGGETTO.match(parti[-1]):
+                rel = con("~" + parti[-1][:16])
+            n = 2
+            while rel.lower() in usati:
+                rel = con(agg + "-" + str(n))
+                n += 1
         if not cartella and len(str(out)) + 1 + len(rel) > MAX_PERCORSO:
             conta["lunghi"] += 1
             rel = "_percorsi_lunghi/%05d_%s" % (conta["lunghi"], pulite[-1][-80:])
@@ -441,17 +459,24 @@ def estrai(case, dump, say=print):
             saltati += 1
             nota = "troppo grande: non copiato"
         else:
-            f.parent.mkdir(parents=True, exist_ok=True)
-            with open(f, "wb") as fh:
-                while scritti < size:
-                    try:
-                        b = vmm.vfs.read(vp, min(4 << 20, size - scritti), scritti)
-                    except Exception:
-                        b = b""
-                    if not b:
-                        break
-                    fh.write(b)
-                    scritti += len(b)
+            # (3.0.5) un file che non si riesce a scrivere (nome non ammesso dal disco, antivirus che lo blocca, percorso
+            # occupato) non ferma più la preparazione: resta nell'elenco con la nota e si prosegue con gli altri
+            try:
+                f.parent.mkdir(parents=True, exist_ok=True)
+                with open(f, "wb") as fh:
+                    while scritti < size:
+                        try:
+                            b = vmm.vfs.read(vp, min(4 << 20, size - scritti), scritti)
+                        except Exception:
+                            b = b""
+                        if not b:
+                            break
+                        fh.write(b)
+                        scritti += len(b)
+            except OSError as e:
+                falliti += 1
+                scritti = 0
+                nota = "non copiato: " + (e.strerror or type(e).__name__)
             try:
                 if mod:
                     os.utime(f, (_epoca(mod), _epoca(mod)))
@@ -603,7 +628,7 @@ def estrai(case, dump, say=print):
     sha = case.meta.get("sha256")
     rif = {"origine": str(dump), "sha256_origine": sha.get(Path(dump).name) if isinstance(sha, dict) else sha,
            "operazione": "MemProcFS /forensic/files", "strumento": f"MemProcFS {ver}", "voci": len(voci), "byte": fatti,
-           "non_copiati": saltati, "percorsi_accorciati": lunghi, "con_date_mft": sum(1 for v in voci if v["times"]),
+           "non_copiati": saltati, "non_scritti": falliti, "percorsi_accorciati": lunghi, "con_date_mft": sum(1 for v in voci if v["times"]),
            "oggetti_file": len(trovati), "solo_record_mft": n_mft, "cartelle_mft": n_cart, "contenuto_dal_record_mft": n_res,
            "riportati_alla_dimensione_del_record": n_tronc, "hive_del_registro": hive_fatti,
            "incompleti": True, "creata": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")}
@@ -856,6 +881,72 @@ def simboli_stato():
             "byte": sum(p.stat().st_size for p in pdb), "accettate": (motore / "symsrv.yes").exists(), "scarichi": nota[-20:]}
 
 
+# (3.0.5) Linux: MemProcFS 5.19.3, caricato come libreria da Python, non usa la cartella Symbols accanto a vmm.so.
+# vmm/pdb.c (PDB_Initialize_InitialValues) cerca «Symbols» accanto al programma in esecuzione (l'eseguibile di Python:
+# il nome del modulo ricavato in oscompatibility.c non porta a vmm.so) e, se lì non può scrivere, usa /tmp: i simboli
+# scaricati finivano in /tmp/<nome.pdb>/…, RepertIA vedeva «0 MB» e al riavvio andavano persi. Rimedio senza toccare la
+# libreria: dopo lo scarico le cartelle create in /tmp si spostano in Symbols, e prima di ogni apertura in /tmp si
+# mette, per ogni cartella di simboli già scaricata, un collegamento a quella di Symbols. Solo cartelle e collegamenti
+# dell'utente che esegue RepertIA; su Mac e Windows queste funzioni non fanno nulla.
+SIMBOLI_TMP = Path("/tmp")
+
+
+def _simboli_linux_tmp():
+    """Cartelle di simboli vere (non collegamenti) create da MemProcFS in /tmp da questo utente."""
+    if not sys.platform.startswith("linux"):
+        return []
+    out = []
+    try:
+        for d in SIMBOLI_TMP.glob("*.pdb"):
+            if not d.is_symlink() and d.is_dir() and d.lstat().st_uid == os.getuid():
+                out.append(d)
+    except OSError:
+        pass
+    return out
+
+
+def _simboli_linux_collega(motore):
+    """Mette in /tmp un collegamento per ogni cartella di simboli di Symbols. Nessun errore se non riesce."""
+    cache = Path(motore) / "Symbols"
+    if not sys.platform.startswith("linux") or not cache.is_dir():
+        return
+    for d in cache.iterdir():
+        if not d.is_dir() or not d.name.lower().endswith(".pdb"):
+            continue
+        lnk = SIMBOLI_TMP / d.name
+        try:
+            if lnk.is_symlink():
+                if os.readlink(lnk) == str(d) or lnk.lstat().st_uid != os.getuid():
+                    continue
+                lnk.unlink()                # un collegamento nostro verso un'altra installazione
+            elif lnk.exists():
+                continue                    # una cartella vera: la sposta _simboli_linux_raccogli
+            lnk.symlink_to(d, target_is_directory=True)
+        except OSError:
+            pass
+
+
+def _simboli_linux_raccogli(motore):
+    """Sposta in Symbols i simboli che MemProcFS ha salvato in /tmp, poi rimette i collegamenti."""
+    cache = Path(motore) / "Symbols"
+    for d in _simboli_linux_tmp():
+        try:
+            for f in d.rglob("*.pdb"):
+                dest = cache / f.relative_to(SIMBOLI_TMP)
+                if f.is_file() and not dest.exists():
+                    dest.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copyfile(f, dest)
+            shutil.rmtree(d, ignore_errors=True)
+        except OSError:
+            pass
+    _simboli_linux_collega(motore)
+
+
+def _pdb_scaricati(cache):
+    """Byte di simboli presenti: Symbols più, su Linux, quelli ancora in /tmp."""
+    return sum(_pdb_in_cache(cache).values()) + sum(p.stat().st_size for d in _simboli_linux_tmp() for p in d.rglob("*.pdb") if p.is_file())
+
+
 def _pdb_in_cache(cache):
     return {str(p.relative_to(cache)).replace("\\", "/"): p.stat().st_size for p in cache.rglob("*.pdb") if p.is_file()} if cache.is_dir() else {}
 
@@ -882,6 +973,7 @@ def scarica_simboli(dump, accetto, progress=None):
         return _scarica_simboli_a_parte(dump, progress)
     cache = motore / "Symbols"
     cache.mkdir(exist_ok=True)
+    _simboli_linux_raccogli(motore)         # (3.0.5) Linux: anche quelli rimasti in /tmp da uno scarico precedente
     prima = _pdb_in_cache(cache)
     (motore / "symsrv.no").unlink(missing_ok=True)
     (motore / "symsrv.yes").write_bytes(b"")          # consenso alle condizioni: senza, symsrv aprirebbe una sua finestra
@@ -899,11 +991,12 @@ def scarica_simboli(dump, accetto, progress=None):
             for f in ("/sys/services/services.txt", "/sys/proc/proc.txt", "/sys/net/netstat-v.txt", "/sys/drivers/drivers.txt"):
                 _leggi(vmm, f, 1 << 16)
             righe = len([r for r in _leggi(vmm, "/sys/services/services.txt").splitlines()[2:] if r.strip()])
-            n = sum(_pdb_in_cache(cache).values())
+            n = _pdb_scaricati(cache)
             fermo = fermo + 1 if n == ultimo else 0
             ultimo = n
             dice({"msg": tr("Simboli scaricati finora: {n} MB").format(n=round(n / 1e6, 1)), "fatti": n})
             time.sleep(2)
+        _simboli_linux_raccogli(motore)     # (3.0.5) prima di leggere i servizi, che cercano il pdb in Symbols
         if not righe:                       # Mac e Linux: l'elenco di MemProcFS resta vuoto, lo legge RepertIA
             righe = len(leggi_servizi_memoria(vmm, s))
     finally:
@@ -911,6 +1004,7 @@ def scarica_simboli(dump, accetto, progress=None):
             vmm.close()
         except Exception:
             pass
+        _simboli_linux_raccogli(motore)
     nuovi = []
     for rel, size in sorted(_pdb_in_cache(cache).items()):
         if prima.get(rel) != size:

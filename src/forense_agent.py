@@ -134,7 +134,7 @@ except ImportError:
 
 APP_NAME = "RepertIA"
 APP_BY = "By silvexe"
-APP_VERSION = "3.0.4"
+APP_VERSION = "3.0.5"
 
 # ------------------------------------------------------------ configurazione
 # Tutti i valori si possono passare anche come opzioni di `analizza`.
@@ -2014,6 +2014,8 @@ DOVE CERCARE
 - Windows: Users/*/NTUSER.DAT, Windows/System32/config (SAM, SYSTEM, SOFTWARE),
   Windows/Prefetch, Windows/System32/winevt/Logs, $Recycle.Bin, file .lnk, browser.
   Registro, evtx e prefetch sono binari: leggili tramite la timeline plaso (origin='plaso').
+  Collegamenti .lnk, jump list, file Prefetch e indici del cestino ($I): decode_file(offset, inode) ne dà tutto il
+  contenuto (per un .lnk ogni cartella del percorso con le sue date, volume, nome del computer, indirizzo MAC).
 - Linux: etc/passwd, home/*/.bash_history, var/log, etc/crontab, .ssh/authorized_keys.
 - macOS: Users/*/.zsh_history, Users/*/Library, private/var/log, LaunchAgents, LaunchDaemons.
 """)

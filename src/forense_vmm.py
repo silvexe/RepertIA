@@ -41,6 +41,15 @@ def nomi_libreria():
     return LIBRERIE.get(sys.platform, ("vmm.so", "leechcore.so"))
 
 
+def nome_cartella():
+    """(3.0.5) Nome della cartella della libreria dentro strumenti/memprocfs: `memprocfs`; su Linux ARM a 64 bit
+    `memprocfs_aarch64` (stessa release di MemProcFS, compilata per quell'architettura)."""
+    import platform
+    if sys.platform.startswith("linux") and platform.machine().lower() in ("aarch64", "arm64"):
+        return "memprocfs_aarch64"
+    return "memprocfs"
+
+
 # ------------------------------------------------------------------ nessuno scarico dei simboli (Mac e Linux)
 # Su Windows `-disable-symbolserver` basta. Su Mac e Linux MemProcFS 5.19.3 chiede comunque a libpdbcrust di scaricare
 # da Microsoft i simboli che non trova in locale (vmm/pdb.c: l'opzione non arriva a pdbcrust_pdb_download_ensure).

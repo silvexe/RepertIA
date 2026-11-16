@@ -6,7 +6,7 @@
 and folder names created by the program (`estratti`, `export`, `CasiForensi`…) are in Italian whatever the language.*
 
 **Forensic analysis of disk and USB drive images, smartphone extractions and drone flight logs, with local artificial intelligence.**
-Version 3.0.4 · macOS, Windows and Linux (experimental) · interface in English or Italian
+Version 3.0.5 · macOS, Windows and Linux (experimental) · interface in English or Italian
 
 RepertIA takes a forensic image (raw, dd, img or E01), indexes it with established forensic tools and lets you examine
 it in two complementary ways:
@@ -332,6 +332,7 @@ narrow it, close it with ✕ or Esc, and use the keyboard arrows to move to the 
   that, the end says how many characters are missing. For binary files these are the readable strings;
 - **Hex**: the content byte by byte (see below);
 - **Metadata**: the file's SHA-256, file-system dates and attributes (istat), exiftool metadata.
+- **Decoded** (only for `.lnk` shortcuts, jump lists, `.pf` Prefetch files and `$I` Recycle Bin indexes): the full analysis of the file (header, folders of the target, volume, strings, tracking with MAC address, DestList entries, runs and loaded files, original path and deletion date), with dates in UTC; **Save as text** writes it in `export/decodifica`. For files on NTFS the Metadata tab shows the `$STANDARD_INFORMATION` and `$FILE_NAME` dates side by side. The AI agent reads the same analysis with the `decode_file` tool.
 
 The pane also offers *Show in File System*, *Export*, *Finding* and *Ask the agent*.
 
@@ -1422,7 +1423,7 @@ The history of the versions is in [CHANGELOG.en.md](../CHANGELOG.en.md).
 
 ## Mac package (Apple Silicon)
 
-`RepertIA-3.0.4-Mac.zip` contains **RepertIA.app** with Python 3.12, openai, Pillow and **plaso already included** (no
+`RepertIA-3.0.5-Mac.zip` contains **RepertIA.app** with Python 3.12, openai, Pillow and **plaso already included** (no
 Docker). Drag the app into Applications; the first time: *Done* at the warning, then *System Settings → Privacy & Security
 → Open Anyway* and double-click again (right-click → *Open* is no longer enough on macOS 15 and later), because it is not signed with an Apple certificate. The app opens the Terminal, installs the missing
 tools with Homebrew (Sleuth Kit, libewf, exiftool, poppler, PhotoRec, bulk_extractor, Tesseract) and then the browser.
@@ -1431,7 +1432,7 @@ tools with Homebrew (Sleuth Kit, libewf, exiftool, poppler, PhotoRec, bulk_extra
 
 ## Windows version
 
-`RepertIA-3.0.4-Setup.exe` installs RepertIA for the current user (no administrator rights) in
+`RepertIA-3.0.5-Setup.exe` installs RepertIA for the current user (no administrator rights) in
 `%LOCALAPPDATA%\Programs\RepertIA`, with Python and the tools already included: plaso, The Sleuth Kit (reads E01 files
 directly), ExifTool, Poppler, PhotoRec, bulk_extractor, 7-Zip, Tesseract OCR (Italian and English) and the libraries for
 Outlook mail, shadow copies and encrypted volumes. It is started from the Start menu → **RepertIA**: a black window opens,
@@ -1449,11 +1450,11 @@ to be kept open, and the browser. Cases are in `%USERPROFILE%\CasiForensi`, sett
 
 ## Linux version (experimental)
 
-`RepertIA-3.0.4-Linux.tar.gz` is for **Linux x86_64** with Python 3.12 or later (Ubuntu 24.04 or later, Debian 13).
+`RepertIA-3.0.5-Linux.tar.gz` is for **Linux x86_64** with Python 3.12 or later (Ubuntu 24.04 or later, Debian 13).
 The program is the same as the Mac and Windows versions (same source fingerprint).
 
 ```
-tar -xzf RepertIA-3.0.4-Linux.tar.gz
+tar -xzf RepertIA-3.0.5-Linux.tar.gz
 cd RepertIA
 ./installa.sh          # once, with internet: asks for the administrator password
 ./RepertIA.sh          # or from the applications menu
@@ -1549,7 +1550,7 @@ tests are the author's.
 
 ## License
 
-Copyright (C) 2026 silvexe. RepertIA is free software, released under the **GNU Affero General Public License
+Copyright (C) 2026 silvexe - Antonio Silvestre. RepertIA is free software, released under the **GNU Affero General Public License
 version 3 or later** (AGPL-3.0-or-later): it can be used, studied, modified and redistributed, modified too, provided it
 is under the same license and with the source code. It is provided without any warranty. Versions up to 2.21.0 remain under GPL-3.0-or-later. The third-party components
 included in the packages have their own licenses (THIRD_PARTY_LICENSES.en.md in the project repository).

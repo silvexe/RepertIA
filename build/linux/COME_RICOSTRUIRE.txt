@@ -30,3 +30,7 @@ RepertIA/strumenti/ (ileapp, aleapp, wheels). Le librerie le installa installa.s
 SHA-256 a72becf15d7917f990f6313867a52638b82b7f9ef237fb0c980dac56a135781c). In RepertIA/strumenti/whisper/bin si
 copiano (cp -P, con i collegamenti) whisper-cli, libwhisper.so*, libggml*.so* (whisper-cli cerca le librerie in
 $ORIGIN); LICENSE (MIT) in strumenti/whisper. ffmpeg c'è già (strumenti/ffmpeg). I modelli NON vanno nel pacchetto.
+3.0.5 - Anche per ARM a 64 bit: whisper-bin-ubuntu-arm64.tar.gz della stessa release b5454 (SHA-256
+6b95ebfc60447df48e70ef00a73bdc3f41679ed2d01ef465827206a2ff325149), stessi file (qui libggml-cpu.so è uno solo) in
+RepertIA/strumenti/whisper_aarch64/bin, con LICENSE e LEGGIMI.txt. Su ARM installa.sh lo sposta in strumenti/whisper,
+toglie ffmpeg e 7zz inclusi (Intel/AMD) e installa quelli della distribuzione.

@@ -135,6 +135,7 @@ scarica solo i sorgenti, non il programma da installare.
 | File system | NTFS, FAT/exFAT, ext, HFS+, APFS (anche FileVault con chiave); file cancellati, orfani, ADS; spazio non allocato; copie shadow e snapshot APFS |
 | Volumi cifrati | Rilevamento di BitLocker, LUKS, FileVault, VeraCrypt (alta entropia); decifratura di BitLocker, LUKS1 e APFS con la chiave (mai salvata) |
 | Artefatti Windows | Per ogni installazione (anche Windows.old): account e accessi (SAM e registri eventi), Prefetch, Amcache, UserAssist, ShimCache, BAM, SRUM, LNK e jump list, ShellBags, Cronologia attività, journal NTFS `$UsnJrnl`, eventi (servizi, accensioni, Desktop remoto, Defender, USB), reti, cestino, browser; dalla 3.0.2 indice di Ricerca di Windows (`Windows.edb`), cronologia di Internet Explorer (`WebCacheV01.dat`), Sticky Notes, Google Drive |
+| Decodifica (3.0.5) | Scheda dell'anteprima per collegamenti `.lnk`, jump list, Prefetch e indici del cestino (`$I`) di Windows: tutto il contenuto del file, con una voce per ogni cartella del percorso (nomi, date, riferimento NTFS), volume e percorso, nome del computer e indirizzo MAC del tracciamento; si salva come testo. Nei Metadati le date NTFS di `$STANDARD_INFORMATION` e `$FILE_NAME` affiancate |
 | Artefatti macOS | Volume Dati, quarantena, avvio automatico, TCC, iMessage, documenti recenti, Safari, KnowledgeC, Bluetooth, Time Machine |
 | Memoria RAM (3.0.4) | Dump della memoria di computer Windows (raw, mem, vmem, crash dump) letti con MemProcFS, lo stesso motore su Mac, Windows e Linux: processi, connessioni di rete, moduli caricati, driver, attività pianificate, servizi, utenti e timeline della memoria; artefatti di Windows dagli hive del registro ancora in memoria; file ancora in memoria copiati nel caso come copie derivate. Simboli di debug su richiesta, a caso chiuso e con consenso, per lo stato di esecuzione dei servizi; con un caso aperto nessuna richiesta di rete |
 | Sorgente logica (3.0.2) | zip, tar, tar.gz, 7z, rar, AD1 di FTK Imager (anche in segmenti; MD5/SHA-1 di FTK ricalcolati per ogni file), immagini di CD/DVD ISO 9660 e UDF, anche CD-R in più sessioni con VAT (i file solo nelle VAT precedenti compaiono come cancellati), o una cartella; database di telefoni riconosciuti dal nome, KML/GPX come livelli della mappa |
@@ -281,7 +282,7 @@ collaudo. Le immagini sono nell'archivio `RepertIA-collaudo.zip` tra le Releases
 
 ## Licenza
 
-Copyright (C) 2026 silvexe.
+Copyright (C) 2026 silvexe - Antonio Silvestre.
 
 RepertIA è software libero: puoi ridistribuirlo e/o modificarlo secondo i termini della **GNU Affero General Public License**
 pubblicata dalla Free Software Foundation, **versione 3 o (a tua scelta) qualsiasi versione successiva**

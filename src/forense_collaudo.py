@@ -1568,7 +1568,7 @@ def controlli_ram(check):
         os.environ[fv.RETE_SIMBOLI_ENV] = "1"
         st.append(fv.impedisci_scarico_simboli(tmp))                # processo dello scarico esplicito
         os.environ.pop(fv.RETE_SIMBOLI_ENV, None)
-        veri = [c / "memprocfs" for c in fr.cartelle_motore()] if sys.platform != "win32" else []
+        veri = [c / fv.nome_cartella() for c in fr.cartelle_motore()] if sys.platform != "win32" else []
         st.append(fv.impedisci_scarico_simboli(veri[0] if veri else tmp))               # con la libreria vera, se c'è
         for k, v in amb_prima.items():
             if v is None:
@@ -1700,8 +1700,22 @@ def controlli_ram(check):
             rifiuto = str(e)
         check(tr("RAM: dump che il motore non riconosce rifiutato con il motivo, senza lasciare il motore aperto"),
               "MemProcFS" in rifiuto and not fr._VMM and not (tmp / "casi" / "altro.mem" / "caso.sqlite").exists(), rifiuto[:160], interno=True)
-    except Exception as e:
-        check(tr("RAM: preparazione del caso di prova"), False, f"{type(e).__name__}: {e}"[:160], interno=True)
+        # (3.0.5) tre oggetti con lo stesso nome e le stesse ultime 6 cifre dell'indirizzo: il terzo otteneva il percorso
+        # del secondo e la preparazione si fermava con «Permission denied» (segnalazione del 14/11/2026)
+        for ind, dato in (("ffffb80f12c1f340", b"primo"), ("ffffb80e55c1f340", b"secondo"), ("ffffb80a00c1f340", b"terzo")):
+            files[f"/forensic/files/ROOT/Users/Mario/{ind}-$Directory"] = dato
+        try:
+            c2 = prepara("doppi.mem", b"PAGEDUMP" + bytes(4088))
+            voci2 = json.loads((c2.root / "estratta" / "memoria.voci.json").read_text(encoding="utf-8"))
+            dd = sorted(v["path"] for v in voci2 if "$Directory" in v["path"])
+            cont = sorted((c2.root / "estratta" / "memoria" / p).read_bytes() for p in dd)
+            esito, det = len({p.lower() for p in dd}) == 3 and cont == [b"primo", b"secondo", b"terzo"], str(dd)
+        except (Exception, SystemExit) as e:
+            esito, det = False, f"{type(e).__name__}: {e}"
+        check(tr("RAM: oggetti con lo stesso nome e le stesse ultime cifre dell'indirizzo copiati in file distinti, senza fermare la preparazione"),
+              esito, det[:200], interno=True)
+    except (Exception, SystemExit) as e:        # (3.0.5) anche l'uscita di cmd_prepara (es. poco spazio nella cartella temporanea)
+        check(tr("RAM: preparazione del caso di prova"), False, f"{type(e).__name__}: {e}"[:300], interno=True)
     finally:
         fr.chiudi()
         if vero is not None:
@@ -3357,6 +3371,39 @@ def controlli_gps_segno(check):
           fa.gps_da(con_c) == (-35.6, -78.8) and fa.gps_da(senza) == (-35.6, -78.8) and fa.gps_da(est) == (35.6, 14.5), interno=True)
 
 
+def controlli_artefatto(check):
+    """(3.0.5) Scheda «Decodifica»: tipo dal nome, collegamento LNK e indice del cestino costruiti qui, date NTFS
+    dall'istat, identificatore di tipo UUID 1 (MAC e data)."""
+    import struct as _st
+    import forense_artefatto as art
+    ft = lambda a, m, g, h=12: int((dt.datetime(a, m, g, h) - dt.datetime(1601, 1, 1)).total_seconds()) * 10_000_000
+    rel, orig = r"..\Documenti\prova.txt", r"C:\prova.txt"
+    lnk = (_st.pack("<I", 0x4C) + bytes.fromhex("0114020000000000c000000000000046") + _st.pack("<II", 0x88, 0x20)
+           + _st.pack("<QQQ", ft(2024, 1, 2), ft(2024, 1, 3), ft(2024, 1, 4)) + _st.pack("<IiIHHII", 1234, 0, 1, 0, 0, 0, 0)
+           + _st.pack("<H", len(rel)) + rel.encode("utf-16-le") + bytes(4))
+    try:
+        righe = {k: v for s in art.analizza_lnk(lnk) for k, v in s["righe"]}
+    except Exception as e:
+        righe = {"errore": str(e)}
+    ci = _st.pack("<QQQI", 2, 4096, ft(2024, 5, 6), len(orig) + 1) + orig.encode("utf-16-le") + bytes(2)
+    rc = {k: v for s in art.analizza_cestino(ci) for k, v in s["righe"]}
+    riga = lambda nome, giorno: f"{nome}:\t2024-01-{giorno:02d} 10:00:00.000000000 (UTC)"
+    blocco = lambda titolo, giorno: [f"${titolo} Attribute Values:", "Flags: Archive"] + [riga(n, giorno) for n in ("Created", "File Modified", "MFT Modified", "Accessed")] + [""]
+    nt = art.date_ntfs("\n".join(blocco("STANDARD_INFORMATION", 1) + blocco("FILE_NAME", 5) + ["Attributes:", ""]))
+    gi = art._guid_info("a2f20552-d228-11e4-b630-000c29ff2429")
+    tipi = [art.tipo(n) for n in ("Recent/a.docx.LNK", "x/1b4dd67f29cb1962.automaticDestinations-ms", "x/28c.customDestinations-ms",
+                                  "Windows/Prefetch/CMD.EXE-4A81B364.pf", "$Recycle.Bin/S-1/$IKXD1U3.jpg", "a/b.txt")]
+    ok = (tipi == ["lnk", "jump_auto", "jump_custom", "prefetch", "cestino", None]
+          and righe.get(tr("Data di creazione")) == "2024-01-02 12:00:00 UTC" and righe.get(tr("Percorso relativo")) == rel
+          and righe.get(tr("Dimensione del file")) == tr("{n} byte").format(n=1234)
+          and rc.get(tr("Percorso originale")) == orig and rc.get(tr("Data di cancellazione")) == "2024-05-06 12:00:00 UTC"
+          and nt is not None and nt["righe"][0][1].startswith("2024-01-01") and nt["righe"][0][2].startswith("2024-01-05")
+          and art.date_ntfs("Directory Entry: 5") is None
+          and gi.get("mac") == "00:0c:29:ff:24:29" and gi.get("data", "").startswith("2015-03-24 13:21:10"))
+    check(tr("scheda Decodifica: collegamento LNK, indice del cestino, date NTFS dei due attributi e identificatore con indirizzo MAC letti correttamente"),
+          ok, f"{tipi} {righe} {rc} {nt} {gi}"[:600], interno=True)
+
+
 def controlli_ricerca_veloce(case, con, check):
     """(2.20) Ricerca veloce nei risultati del caso: indice costruito, un messaggio ritrovato da una parte del testo, un
     numero della rubrica ritrovato scritto in un altro formato, nessun valore segreto del portachiavi nell'indice."""
@@ -3792,6 +3839,7 @@ def controlli_smartphone(t, img, case, con, a, check):
         controlli_agente_turni(check)
         controlli_modelli(check)
         controlli_orari(check)
+        controlli_artefatto(check)
         controlli_nist_lacune(check)
         controlli_nist_ese(check)
         controlli_nist_validazione(check)

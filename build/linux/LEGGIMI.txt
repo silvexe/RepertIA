@@ -1,4 +1,4 @@
-RepertIA 3.0.4 - By silvexe (Linux x86_64)
+RepertIA 3.0.5 - By silvexe (Linux x86_64)
 Analisi forense di copie di dischi, estrazioni di smartphone e registri di volo dei droni con un modello linguistico (LLM) locale.
 
 VERSIONE LINUX (SPERIMENTALE)
@@ -6,7 +6,10 @@ Stesso programma delle versioni Mac e Windows (stessa impronta dei sorgenti). Il
 eseguito dall'autore in un ambiente Linux di sviluppo; prima dell'uso in un caso esegui il collaudo
 sul tuo computer (vedi sotto) e conserva il rapporto.
 Sistemi: Ubuntu 24.04 o successivo, Debian 13 o altre distribuzioni con Python 3.12 o successivo,
-processore Intel/AMD a 64 bit.
+processore Intel/AMD a 64 bit. Su ARM a 64 bit (aarch64) il programma funziona con gli strumenti della
+distribuzione (anche 7-Zip e ffmpeg); il pacchetto contiene anche, per ARM, la libreria MemProcFS per
+l'analisi della RAM e il motore di trascrizione degli audio (whisper.cpp): li mette al loro posto installa.sh,
+da rieseguire dopo ogni aggiornamento del programma.
 
 LINGUA
 L'interfaccia è in italiano o in inglese: si sceglie con il selettore in alto a destra.
@@ -21,7 +24,7 @@ Su Linux le loro librerie le installa installa.sh.
 
 INSTALLAZIONE
 1. Estrai l'archivio dove preferisci (ad esempio nella cartella personale):
-     tar -xzf RepertIA-3.0.4-Linux.tar.gz
+     tar -xzf RepertIA-3.0.5-Linux.tar.gz
 2. Apri un terminale nella cartella RepertIA ed esegui:
      ./installa.sh
    Serve internet e la password di amministratore. Lo script:

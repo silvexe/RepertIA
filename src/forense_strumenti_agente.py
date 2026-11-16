@@ -679,6 +679,31 @@ def make_tools(case):
         import forense_gui as G
         return clip(fdb.recuperati_testo(G, case, {"part": _off(offset), "inode": str(inode)}, salta=salta), fa.MAX_OUT + 300)
 
+    def decode_file(offset: int, inode: str, start: int = 0) -> str:
+        """Decodifica completa di un collegamento .lnk, di una jump list (automaticDestinations-ms,
+        customDestinations-ms), di un file Prefetch (.pf) o di un indice del cestino ($I...): è il testo della scheda
+        «Decodifica». Per un collegamento dà una voce per ogni cartella del percorso (nome, date, riferimento NTFS),
+        volume, percorso locale o di rete, nome del computer, indirizzo MAC e identificatori di tracciamento; se il
+        file è su NTFS aggiunge le date di $STANDARD_INFORMATION e di $FILE_NAME affiancate. Gli artefatti «recenti»,
+        «cestino» ed «esecuzioni» ne contengono solo un riassunto: usa questo strumento quando servono i dettagli.
+
+        Args:
+            offset: offset della partizione in settori
+            inode: inode del file
+            start: carattere da cui iniziare (0 = dall'inizio; per continuare usa il valore indicato in fondo)
+        """
+        import forense_gui as G
+        try:
+            testo = G.file_artefatto(case, {"part": _off(offset), "inode": _ino(inode)})["testo"]
+        except ValueError as e:
+            return str(e)
+        start = max(0, int(start or 0))
+        parte = testo[start:start + fa.MAX_OUT]
+        resto = len(testo) - start - len(parte)
+        if resto > 0:
+            parte += "\n" + tr("[… restano {n} caratteri: prosegui con start={s}]").format(n=resto, s=start + len(parte))
+        return parte or tr("Nessun altro testo.")
+
     def read_artifact(artifact_id: int) -> str:
         """Tutti i campi di un artefatto del caso, compresi quelli di iLEAPP/ALEAPP. Il numero è quello che i riferimenti
         chiamano «riga N della tabella artifacts» e che location_points indica come «a|N».
@@ -816,6 +841,7 @@ def make_tools(case):
     tools.append(flights)               # (3.0) anche i dischi: i voli si cercano nelle copie forensi
     tools.append(deleted_records)
     tools.append(read_artifact)
+    tools.append(decode_file)           # (3.0.5) la scheda «Decodifica»: LNK, jump list, Prefetch, cestino
     tools.append(list_bookmarks)
     tools.append(saved_searches)        # (3.0.4) ricerche salvate dall'analista e loro risultati
     if (case.meta.get("estese") or {}).get("phash"):

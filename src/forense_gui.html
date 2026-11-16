@@ -424,6 +424,16 @@ body.vfull .menubar{z-index:1}
 .pvtext{margin:0;padding:12px;white-space:pre-wrap;word-break:break-word;font-size:12.5px}
 .pvmeta{padding:10px 12px}
 .pvmeta h4{margin:10px 0 4px;font-size:13px}
+.arttab{border-collapse:collapse;width:100%;font-size:12px;background:var(--panel2);border:1px solid var(--line);border-radius:6px}
+.arttab th,.arttab td{text-align:left;vertical-align:top;padding:3px 8px;border-bottom:1px solid var(--line)}
+.arttab tr:last-child th,.arttab tr:last-child td{border-bottom:0}
+.arttab th{font-weight:600;color:var(--muted);white-space:nowrap;width:1%}
+.arttab td{word-break:break-all;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;user-select:text}
+.arttab.col td{word-break:normal}
+.artbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.artbar b{font-size:14px}.artbar .btn{margin-left:auto}
+.artvoce{margin-top:10px;border:1px solid var(--line);border-radius:8px;padding:4px 10px}
+.artvoce summary{cursor:pointer;font-weight:600;font-size:13px;padding:4px 0;word-break:break-all}
 .pvmeta pre{white-space:pre-wrap;word-break:break-all;font-size:12px;background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:8px;margin:0}
 .pvmedia{padding:14px}
 .pvmedia video{width:100%;max-height:60vh;background:#000;border-radius:6px}
@@ -909,7 +919,7 @@ th.srt .sa{margin-left:5px;color:var(--accent);font-size:11px}
           <div class="pv hidden" id="pv">
             <div class="pvhead"><div class="grow" style="min-width:0"><div class="pvt" id="pvTitle"></div><div class="hint" id="pvSub"></div></div><button class="btn small" id="pvPin">📌</button><button class="btn small" id="pvWin">⧉</button><button class="btn small" id="pvFull" title="Apri a schermo intero">⤢</button><button class="btn small" id="pvClose" title="Chiudi l'anteprima (Esc)">✕</button></div>
             <div class="pvacts" id="pvActs"></div>
-            <div class="pvtabs"><button data-pv="view" class="on">Anteprima</button><button data-pv="text">Testo</button><button data-pv="hex">Esadecimale</button><button data-pv="meta">Metadati</button></div>
+            <div class="pvtabs"><button data-pv="view" class="on">Anteprima</button><button data-pv="text">Testo</button><button data-pv="hex">Esadecimale</button><button data-pv="meta">Metadati</button><button data-pv="art" class="hidden">Decodifica</button></div>
             <div class="pvbody" id="pvBody"></div>
           </div>
         </div>
@@ -5685,6 +5695,9 @@ function pvOpen(it, sec, tab){
   else if (tab) pvState.tab = tab;
   else if (pvState.backTab){ pvState.tab = pvState.backTab; pvState.backTab = null; }
   pvState.it = it; pvState.sec = sec; pvState.info = null; hexState = null;
+  { const ab = document.querySelector('.pvtabs button[data-pv="art"]'), si = artTipo(it);      // (3.0.5) scheda «Decodifica»
+    if (ab) ab.classList.toggle("hidden", !si);
+    if (!si && pvState.tab === "art") pvState.tab = "view"; }
   if (!was){
     $("pv").classList.remove("hidden");
     if (pvWinPref()) pvFinestra(); else pvAggancia();
@@ -5811,6 +5824,21 @@ function pvClose(silent, nav){
 }
 $("pvClose").onclick = () => pvClose();
 document.querySelectorAll(".pvtabs button").forEach(b => b.onclick = () => pvTab(b.dataset.pv));
+// (3.0.5) Scheda «Decodifica»: analisi completa di collegamenti LNK, jump list, Prefetch e indici del cestino
+function artTipo(it){
+  if (!it || !["fs", "x", "carving"].includes(it.source || "fs")) return false;
+  const n = String(it.name || it.path || "").split(" › ").pop().split(/[\/\\]/).pop();
+  return /\.(lnk|pf|automaticdestinations-ms|customdestinations-ms)$/i.test(n) || /^\$I[a-z0-9]{6}(\.[^.]*)?$/i.test(n);
+}
+function artSez(s){
+  if (s.colonne) return `<h4>${esc(s.titolo)}</h4><table class="arttab col"><tr>${s.colonne.map(c => `<th>${esc(c)}</th>`).join("")}</tr>${s.righe.map(r => `<tr>${r.map((c, i) => i ? `<td>${esc(c)}</td>` : `<th>${esc(c)}</th>`).join("")}</tr>`).join("")}</table>${s.nota ? `<div class="hint" style="margin-top:4px">${esc(s.nota)}</div>` : ""}`;
+  return `<h4>${esc(s.titolo)}</h4><table class="arttab">${s.righe.map(([k, v]) => `<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>`).join("")}</table>`;
+}
+function artHtml(r){
+  return `<div class="pvmeta"><div class="artbar"><b>${esc(r.titolo)}</b><span class="hint">${T("Le date dell'artefatto sono in UTC, come sono scritte nel file.")}</span><button class="btn small" id="artExp" title="${esc(T("Salva questa decodifica come file di testo in export/decodifica"))}">${T("Salva come testo")}</button></div>` +
+    r.sezioni.map(artSez).join("") +
+    (r.voci || []).map((v, i) => `<details class="artvoce"${i ? "" : " open"}><summary>${esc(v.titolo)}</summary>${v.sezioni.map(artSez).join("")}</details>`).join("") + `</div>`;
+}
 async function pvTab(t){
   pvState.tab = t;
   document.querySelectorAll(".pvtabs button").forEach(b => b.classList.toggle("on", b.dataset.pv === t));
@@ -5826,7 +5854,13 @@ async function pvTab(t){
     if (t === "text"){ const r = await api("/api/filetext", pvRef(it)); if (pvState.it !== it) return; return textOpen(r.text || ""); }
     if (t === "meta"){
       const r = await api("/api/fileinfo", {...pvRef(it), tz: tzMode(), dfmt: dataFmt()}); if (pvState.it !== it) return;
-      body.innerHTML = TF("<div class=\"pvmeta\">{0}<h4>File system (istat)</h4><pre>{1}</pre>{2}</div>", r.sha256 ? `<h4>SHA-256</h4><pre>${esc(r.sha256)}</pre>` : "", esc(r.istat), r.exif ? `<h4>${T("Metadati (exiftool)")}</h4><pre>${esc(r.exif)}</pre>` : "");
+      body.innerHTML = TF("<div class=\"pvmeta\">{0}<h4>File system (istat)</h4><pre>{1}</pre>{2}</div>", (r.sha256 ? `<h4>SHA-256</h4><pre>${esc(r.sha256)}</pre>` : "") + (r.ntfs ? artSez(r.ntfs) : ""), esc(r.istat), r.exif ? `<h4>${T("Metadati (exiftool)")}</h4><pre>${esc(r.exif)}</pre>` : "");
+      return;
+    }
+    if (t === "art"){
+      const r = await api("/api/artefatto", {...pvRef(it), tz: tzMode(), dfmt: dataFmt()}); if (pvState.it !== it) return;
+      body.innerHTML = artHtml(r);
+      $("artExp").onclick = async () => { try{ const x = await api("/api/artefatto_esporta", {...pvRef(it), tz: tzMode(), dfmt: dataFmt()}); toast(x.message, "good"); }catch(e){ toast(e.message, "bad"); } };
       return;
     }
     if (t === "hex") return hexOpen(it);
@@ -6643,7 +6677,7 @@ const isDark = () => (document.documentElement.dataset.theme || (matchMedia("(pr
 function applyTheme(t){
   if (t) document.documentElement.dataset.theme = t;
 function licenzaInfo(){
-  openModal(T("Licenza e informazioni legali"), `<p><b>${TF("Versione installata: {0}", esc(APPVER))}</b></p><p>${T("RepertIA, Copyright (C) 2026 silvexe. È software libero con licenza GNU Affero General Public License versione 3 o successiva (AGPL-3.0-or-later), con un permesso aggiuntivo per The Sleuth Kit descritto nel README.")}</p><p>${T("È fornito SENZA ALCUNA GARANZIA, nei limiti consentiti dalla legge.")}</p><p>${TF("Codice sorgente: {0}. Testo della licenza: {1}.", "<code>https://github.com/silvexe/RepertIA</code>", "<code>https://www.gnu.org/licenses/agpl-3.0.html</code>")}</p><p>${TF("I componenti di terze parti hanno le proprie licenze (THIRD_PARTY_LICENSES.md). Dati delle mappe: © OpenStreetMap contributors, licenza ODbL ({0}); Natural Earth, pubblico dominio.", "<code>openstreetmap.org/copyright</code>")}</p>`);
+  openModal(T("Licenza e informazioni legali"), `<p><b>${TF("Versione installata: {0}", esc(APPVER))}</b></p><p>${T("RepertIA, Copyright (C) 2026 silvexe - Antonio Silvestre. È software libero con licenza GNU Affero General Public License versione 3 o successiva (AGPL-3.0-or-later), con un permesso aggiuntivo per The Sleuth Kit descritto nel README.")}</p><p>${T("È fornito SENZA ALCUNA GARANZIA, nei limiti consentiti dalla legge.")}</p><p>${TF("Codice sorgente: {0}. Testo della licenza: {1}.", "<code>https://github.com/silvexe/RepertIA</code>", "<code>https://www.gnu.org/licenses/agpl-3.0.html</code>")}</p><p>${TF("I componenti di terze parti hanno le proprie licenze (THIRD_PARTY_LICENSES.md). Dati delle mappe: © OpenStreetMap contributors, licenza ODbL ({0}); Natural Earth, pubblico dominio.", "<code>openstreetmap.org/copyright</code>")}</p>`);
 }
 $("btnLic").onclick = licenzaInfo;
   $("btnTheme").textContent = isDark() ? "☀" : "☾";

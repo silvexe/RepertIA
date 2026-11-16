@@ -24,17 +24,23 @@ if command -v apt-get >/dev/null 2>&1; then
   # (3.0.2) libewf: il pacchetto si chiama ewf-tools (Debian e Ubuntu; «libewf-tools» non esiste e faceva fallire
   # tutta l'installazione). bulk-extractor non è in Debian né in Ubuntu (c'è in Kali e in altre): se manca, si spiega.
   PKGS="sleuthkit ewf-tools testdisk poppler-utils libimage-exiftool-perl tesseract-ocr tesseract-ocr-ita
-        zenity xdg-utils python3 python3-venv python3-dev build-essential pkg-config zlib1g-dev bulk-extractor"
-  [ "$(uname -m)" != "x86_64" ] && PKGS="$PKGS 7zip"   # 7zz incluso è per Intel/AMD: su ARM quello della distribuzione
+        zenity xdg-utils python3 python3-venv python3-dev build-essential pkg-config zlib1g-dev bulk-extractor
+        libusb-1.0-0 libssl3t64"   # (3.0.5) librerie di sistema richieste da MemProcFS (analisi della RAM)
+  # 7zz e ffmpeg inclusi sono per Intel/AMD: sulle altre architetture quelli della distribuzione;
+  # libgomp1 serve al motore di trascrizione (whisper-cli)
+  [ "$(uname -m)" != "x86_64" ] && PKGS="$PKGS 7zip ffmpeg libgomp1"
   echo "Aggiorno l'elenco dei pacchetti con apt (chiede la password di amministratore)..." | tee -a "$LOG"
   sudo apt-get update 2>&1 | tee -a "$LOG"
   # solo i pacchetti che la distribuzione ha: uno che manca non deve bloccare gli altri
+  # (3.0.5) LC_ALL=C: su un sistema non in inglese apt traduce «Candidate:» e nessun pacchetto risultava disponibile
   OK=""; NO=""
   for p in $PKGS; do
-    if [ -n "$(apt-cache policy "$p" 2>/dev/null | grep -m1 'Candidate:' | grep -v '(none)')" ]; then OK="$OK $p"
+    if [ -n "$(LC_ALL=C apt-cache policy "$p" 2>/dev/null | grep -m1 'Candidate:' | grep -v '(none)')" ]; then OK="$OK $p"
     else NO="$NO $p"; fi
   done
-  case " $NO " in *" 7zip "*) apt-cache policy p7zip-full 2>/dev/null | grep -q 'Candidate: [0-9]' && OK="$OK p7zip-full" ;; esac
+  # libssl3t64 è il nome in Debian 13 e Ubuntu 24.04; nelle distribuzioni precedenti si chiama libssl3
+  case " $NO " in *" libssl3t64 "*) LC_ALL=C apt-cache policy libssl3 2>/dev/null | grep -q 'Candidate: [0-9]' && OK="$OK libssl3" ;; esac
+  case " $NO " in *" 7zip "*) LC_ALL=C apt-cache policy p7zip-full 2>/dev/null | grep -q 'Candidate: [0-9]' && OK="$OK p7zip-full" ;; esac
   echo "Installo:$OK" | tee -a "$LOG"
   sudo apt-get install -y $OK 2>&1 | tee -a "$LOG"
   if [ -n "$NO" ]; then
@@ -86,8 +92,23 @@ for T in ileapp aleapp; do
   fi
 done
 
-chmod +x "$DIR"/*.sh "$DIR/strumenti/7zip/7zz" 2>/dev/null
-[ "$(uname -m)" != "x86_64" ] && rm -rf "$DIR/strumenti/7zip"
+chmod +x "$DIR"/*.sh "$DIR/strumenti/7zip/7zz" "$DIR"/strumenti/whisper*/bin/whisper-cli 2>/dev/null
+# (3.0.5) Programmi inclusi per Intel/AMD: sulle altre architetture si tolgono (un programma di un'altra architettura
+# nel PATH non parte e ferma la trascrizione) e si usano quelli della distribuzione. Su ARM a 64 bit il motore di
+# trascrizione incluso per ARM (strumenti/whisper_aarch64) prende il posto di quello per Intel/AMD.
+if [ "$(uname -m)" != "x86_64" ]; then
+  rm -rf "$DIR/strumenti/7zip" "$DIR/strumenti/ffmpeg"
+  case "$(uname -m)" in
+    aarch64|arm64)
+      if [ -x "$DIR/strumenti/whisper_aarch64/bin/whisper-cli" ]; then
+        rm -rf "$DIR/strumenti/whisper"
+        mv "$DIR/strumenti/whisper_aarch64" "$DIR/strumenti/whisper"
+        echo "Trascrizione degli audio: motore per ARM a 64 bit in strumenti/whisper." | tee -a "$LOG"
+      fi ;;
+    *) rm -rf "$DIR/strumenti/whisper" "$DIR/strumenti/whisper_aarch64" ;;
+  esac
+  command -v ffmpeg >/dev/null 2>&1 || echo "ffmpeg non trovato: serve alla trascrizione degli audio (sudo apt install ffmpeg)." | tee -a "$LOG"
+fi
 mkdir -p "$HOME/.local/share/applications"
 cat > "$HOME/.local/share/applications/repertia.desktop" <<EOF2
 [Desktop Entry]

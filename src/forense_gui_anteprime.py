@@ -1135,7 +1135,7 @@ def file_details(case, b):
         return {"istat": v.get("headers") or "", "exif": "", "sha256": ""}
     tz = b.get("tz")
     it = file_ident(case, b)
-    t = SES.case_tools
+    t = getattr(SES, "case_tools", None) or fa.make_tools(case)   # (3.0.5) anche fuori dal server (agente da riga di comando)
     if it["source"] == "x":
         istat = G.x_details(case, it, tz)
         exif = ""
@@ -1189,6 +1189,47 @@ def file_details(case, b):
                 h.update(c)
         sha = h.hexdigest()
     return {"istat": istat, "exif": exif, "sha256": sha}
+
+
+def file_artefatto(case, b):
+    """(3.0.5) Scheda «Decodifica»: analisi completa di un collegamento LNK, di una jump list, di un Prefetch o di un
+    indice del cestino (forense_artefatto), con le date NTFS dei due attributi affiancate quando il file è su NTFS.
+    Restituisce sezioni e voci per la pagina e lo stesso contenuto come testo."""
+    import forense_artefatto as art
+    it = file_ident(case, b)
+    nome = it.get("name") or it.get("path") or ""
+    if not art.tipo(nome):
+        raise ValueError(tr("Per questo tipo di file non c'è una decodifica."))
+    local = cached_file(case, it)
+    if not local:
+        raise ValueError(tr("Il file è troppo grande per la decodifica."))
+    ris = art.analizza(local, nome)
+    det = G.date_vista(file_details(case, b), b)
+    ntfs = art.date_ntfs(det.get("istat")) if it["source"] == "fs" else None
+    if ntfs:
+        ris["sezioni"].append(ntfs)
+    testa = [(tr("Nome"), re.split(r"[/\\]", str(nome))[-1]), (tr("Percorso nel reperto"), it.get("path")),
+             (tr("Partizione (offset) e inode"), f"{it['part']} / {it['inode']}" if it["source"] == "fs" else ""),
+             (tr("Dimensione"), tr("{n} byte").format(n=Path(local).stat().st_size)),
+             ("SHA-256", det.get("sha256")), (tr("Cancellato"), tr("sì") if it.get("deleted") else "")]
+    ris["testo"] = art.come_testo(ris, testa)
+    ris["nome"] = re.split(r"[/\\]", str(nome))[-1]
+    return ris
+
+
+def export_artefatto(case, b):
+    """(3.0.5) Salva l'analisi dell'artefatto come testo in <caso>/export/decodifica e lo annota nel registro."""
+    import codecs
+    ris = file_artefatto(case, b)
+    dest = unique(case.export_dir / "decodifica" / (safe_key(ris["nome"])[:120] + ".txt"))
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dati = ris["testo"].encode("utf-8")
+    with open(lp(dest), "wb") as f:
+        f.write(codecs.BOM_UTF8 + dati)
+    os.chmod(lp(dest), 0o444)
+    case.log("export_decodifica", {"file": ris["nome"], "tipo": ris["tipo"], "part": b.get("part"), "inode": b.get("inode"),
+                                  "sha256_testo": hashlib.sha256(codecs.BOM_UTF8 + dati).hexdigest(), "dest": str(dest)})
+    return tr("Decodifica salvata in {v1}").format(v1=dest.relative_to(case.root))
 
 
 FULL_TEXT_MAX = 2_000_000       # caratteri mostrati al massimo nella scheda Testo

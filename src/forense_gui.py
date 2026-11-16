@@ -462,6 +462,28 @@ def _as_str(t):
     return '"' + t.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
+# (3.0.5) Finestra proprietaria delle finestre di scelta su Windows: «sempre in cima», mostrata (trasparente, di un
+# punto, fuori dalla barra delle applicazioni) prima di ShowDialog, così la scelta compare sopra il browser. Con la
+# proprietaria mai mostrata restava dietro (segnalazione del 15/11/2026, riprodotta con Edge e un clic vero). Poi si
+# prova a darle anche il primo piano (Windows lo nega a un processo che non ha ricevuto l'ultimo clic: ci si aggancia
+# per un momento alla coda di ingresso della finestra in primo piano); se non riesce resta comunque sopra le altre.
+_PS_PROPRIETARIA = ("$f=New-Object System.Windows.Forms.Form -Property @{TopMost=$true;ShowInTaskbar=$false;"
+                    "Opacity=0;FormBorderStyle='None';StartPosition='CenterScreen';Width=1;Height=1};"
+                    "$f.Show();"
+                    "try{Add-Type -Namespace RepertIA -Name Fin -MemberDefinition '"
+                    "[DllImport(\"user32.dll\")]public static extern IntPtr GetForegroundWindow();"
+                    "[DllImport(\"user32.dll\")]public static extern uint GetWindowThreadProcessId(IntPtr h,IntPtr p);"
+                    "[DllImport(\"kernel32.dll\")]public static extern uint GetCurrentThreadId();"
+                    "[DllImport(\"user32.dll\")]public static extern bool AttachThreadInput(uint a,uint b,bool f);"
+                    "[DllImport(\"user32.dll\")]public static extern bool SetForegroundWindow(IntPtr h);';"
+                    "$t=[RepertIA.Fin]::GetWindowThreadProcessId([RepertIA.Fin]::GetForegroundWindow(),[IntPtr]::Zero);"
+                    "$m=[RepertIA.Fin]::GetCurrentThreadId();"
+                    "[void][RepertIA.Fin]::AttachThreadInput($m,$t,$true);"
+                    "[void][RepertIA.Fin]::SetForegroundWindow($f.Handle);"
+                    "[void][RepertIA.Fin]::AttachThreadInput($m,$t,$false)}catch{};"
+                    "$f.Activate();")
+
+
 def choose_file(prompt=None, kind="image", any_file=False):
     """Finestra nativa di scelta di un file: la copia forense (kind «image»), un elenco CSV/TXT di un altro
     strumento («list») o un file qualsiasi («any», anche any_file=True). Restituisce il percorso o None."""
@@ -476,10 +498,10 @@ def choose_file(prompt=None, kind="image", any_file=False):
     elif IS_WIN:
         ps = ("Add-Type -AssemblyName System.Windows.Forms;"
               "[Console]::OutputEncoding=[Text.Encoding]::UTF8;"
-              "$f=New-Object System.Windows.Forms.Form -Property @{TopMost=$true};"
+              + _PS_PROPRIETARIA +
               "$d=New-Object System.Windows.Forms.OpenFileDialog;"
               f"$d.Title={_ps_str(prompt)};$d.Filter={_ps_str(tr(FILE_FILTERS[kind]))};"
-              "if($d.ShowDialog($f) -eq 'OK'){$d.FileName}")
+              "if($d.ShowDialog($f) -eq 'OK'){$d.FileName};$f.Close()")
         r = subprocess.run(["powershell", "-NoProfile", "-STA", "-Command", ps],
                            capture_output=True, creationflags=subprocess.CREATE_NO_WINDOW)
         path = r.stdout.decode("utf-8", "replace").strip()
@@ -503,10 +525,10 @@ def choose_folder(prompt=None):
     elif IS_WIN:
         ps = ("Add-Type -AssemblyName System.Windows.Forms;"
               "[Console]::OutputEncoding=[Text.Encoding]::UTF8;"
-              "$f=New-Object System.Windows.Forms.Form -Property @{TopMost=$true};"
+              + _PS_PROPRIETARIA +
               "$d=New-Object System.Windows.Forms.FolderBrowserDialog;"
               f"$d.Description={_ps_str(prompt)};$d.ShowNewFolderButton=$true;"
-              "if($d.ShowDialog($f) -eq 'OK'){$d.SelectedPath}")
+              "if($d.ShowDialog($f) -eq 'OK'){$d.SelectedPath};$f.Close()")
         r = subprocess.run(["powershell", "-NoProfile", "-STA", "-Command", ps],
                            capture_output=True, creationflags=subprocess.CREATE_NO_WINDOW)
         path = r.stdout.decode("utf-8", "replace").strip()
@@ -819,7 +841,7 @@ from forense_gui_anteprime import (  # noqa: E402,F401
     UA_CACHE_MAX, UA_JOBS, UA_LOCK, ua_cache_file, ua_runs, ua_job, ua_name, ua_ident, ua_stream, item_stream,
     export_ua, ua_list, file_ident, key_lock, cached_file, file_size, read_range, iter_chunks, hex_page, hex_search,
     sniff_mime, to_jpeg, make_thumb, thumb_bytes, thumb_put, office_pdf, pdf_pages, page_png, converted_image,
-    CSP_DOC, word_html, printable_ratio, decode_text, media_url, ext_contenuto, view_info, file_details,
+    CSP_DOC, word_html, printable_ratio, decode_text, media_url, ext_contenuto, view_info, file_details, file_artefatto, export_artefatto,
     FULL_TEXT_MAX, carved_full_text, file_text)
 
 
@@ -1716,7 +1738,15 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/hexsearch":
             return hex_search(SES.case, b)
         if path == "/api/fileinfo":
-            return date_vista(file_details(SES.case, b), b)
+            r = date_vista(file_details(SES.case, b), b)
+            if (b.get("source") or "fs") == "fs":       # (3.0.5) date NTFS dei due attributi affiancate
+                import forense_artefatto
+                r["ntfs"] = forense_artefatto.date_ntfs(r.get("istat"))
+            return r
+        if path == "/api/artefatto":          # (3.0.5) scheda «Decodifica»: LNK, jump list, Prefetch, cestino
+            return file_artefatto(SES.case, b)
+        if path == "/api/artefatto_esporta":
+            return {"message": export_artefatto(SES.case, b)}
         if path == "/api/simili":
             return phash_simili(SES.case, b)
         if path == "/api/filetext":

@@ -1,4 +1,4 @@
-RepertIA 3.0.4 - By silvexe (Linux x86_64)
+RepertIA 3.0.5 - By silvexe (Linux x86_64)
 Forensic analysis of disk images, smartphone extractions and drone flight logs with a local language model (LLM).
 
 LINUX VERSION (EXPERIMENTAL)
@@ -6,7 +6,10 @@ Same program as the Mac and Windows versions (same source fingerprint). The acce
 run by the author in a Linux development environment; before using it in a case, run the
 acceptance test on your computer (see below) and keep the report.
 Systems: Ubuntu 24.04 or later, Debian 13 or other distributions with Python 3.12 or later,
-64-bit Intel/AMD processor.
+64-bit Intel/AMD processor. On 64-bit ARM (aarch64) the program works with the tools of the
+distribution (7-Zip and ffmpeg too); the package also contains, for ARM, the MemProcFS library for RAM
+analysis and the audio transcription engine (whisper.cpp): installa.sh puts them in place, and must be
+run again after every update of the program.
 
 LANGUAGE
 The interface is available in Italian and English: use the selector at the top right.
@@ -21,7 +24,7 @@ On Linux their libraries are installed by installa.sh.
 
 INSTALLATION
 1. Extract the archive wherever you prefer (for example in your home folder):
-     tar -xzf RepertIA-3.0.4-Linux.tar.gz
+     tar -xzf RepertIA-3.0.5-Linux.tar.gz
 2. Open a terminal in the RepertIA folder and run:
      ./installa.sh
    Internet access and the administrator password are required. The script:

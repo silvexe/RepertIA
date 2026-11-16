@@ -1,4 +1,4 @@
-﻿RepertIA 3.0.4 - By silvexe
+﻿RepertIA 3.0.5 - By silvexe
 Forensic analysis of disk images, smartphone extractions and drone flight logs with a local language model (LLM).
 
 LANGUAGE
@@ -68,7 +68,7 @@ Personal project of silvexe, carried out privately and not connected with any of
 ======================================================================
 LICENCE
 
-RepertIA - Copyright (C) 2026 silvexe.
+RepertIA - Copyright (C) 2026 silvexe - Antonio Silvestre.
 RepertIA is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
 License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any
 later version. It is distributed WITHOUT ANY WARRANTY. The third-party components included (python and strumenti
