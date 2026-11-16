@@ -21,8 +21,6 @@ For every version: what changes, how it was tested, what was not tested.
 
 **NTFS dates side by side.** In the **Metadata** tab (and at the end of the Decoded tab), for files on NTFS the four dates of the two attributes `$STANDARD_INFORMATION` and `$FILE_NAME` are shown side by side in a table, stating whether they are the same or differ; the values are those of the Sleuth Kit istat, which stays below in full.
 
-**Author in the copyright.** In the "Licence and legal information" window, in the READMEs and in the manual the copyright is "silvexe - Antonio Silvestre".
-
 **Debug symbols on Linux.** On Linux MemProcFS, loaded as a library, saves the downloaded symbols in `/tmp` and not in the program folder: the download from the start page showed 0 MB and the symbols were lost at reboot. Now, when the download ends, RepertIA moves them to its symbols folder and, before opening a dump, puts in `/tmp` a link to those already downloaded. Nothing changes on Mac and Windows.
 
 **Disk space and acceptance test.** The not-enough-space messages (copy of the files in memory, extracted copy of logical sources) state the space needed including the 2 GB margin, the free space and the folder: before, for a small dump, the message was "about 0.0 GB are needed". In the acceptance test a failed preparation of the RAM test case becomes a failed check with its reason and the following tests go on; on Linux `collaudo.sh` uses a temporary folder on disk when `/tmp` has less than 6 GB free (in Debian 13 `/tmp` lives in memory).

@@ -20,8 +20,6 @@ Estratto dalla sezione «Aggiornamenti» del manuale (src/README.md). Per ogni v
 
 **Date NTFS affiancate.** Nella scheda **Metadati** (e in fondo alla scheda Decodifica), per i file su NTFS le quattro date dei due attributi `$STANDARD_INFORMATION` e `$FILE_NAME` sono affiancate in una tabella, con l'indicazione se coincidono o differiscono; i valori sono quelli dell'istat di Sleuth Kit, che resta sotto per intero.
 
-**Autore nel copyright.** Nella finestra «Licenza e informazioni legali», nei README e nel manuale il copyright è «silvexe - Antonio Silvestre».
-
 **Simboli di debug su Linux.** Su Linux MemProcFS, caricato come libreria, salva i simboli scaricati in `/tmp` e non nella cartella del programma: lo scarico dalla pagina iniziale mostrava 0 MB e i simboli si perdevano al riavvio. Ora, a scarico finito, RepertIA li sposta nella sua cartella dei simboli e, prima di aprire un dump, mette in `/tmp` un collegamento a quelli già scaricati. Su Mac e Windows non cambia nulla.
 
 **Spazio su disco e collaudo.** I messaggi di spazio insufficiente (copia dei file della memoria, copia estratta delle sorgenti logiche) dicono lo spazio richiesto compreso il margine di 2 GB, lo spazio libero e la cartella: prima, per un dump piccolo, il messaggio era «servono circa 0.0 GB». Nel collaudo una preparazione fallita del caso di prova della RAM diventa un controllo non superato con il motivo e le prove seguenti proseguono; su Linux `collaudo.sh` usa una cartella temporanea sul disco quando `/tmp` ha meno di 6 GB liberi (in Debian 13 `/tmp` sta in memoria).
