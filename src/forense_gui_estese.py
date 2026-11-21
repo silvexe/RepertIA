@@ -111,7 +111,7 @@ def ext_results(case, q, ids=None, limit=PAGE):
                          "subject": ("subject", "t"),
                          "folder": ("(IFNULL(fmt,'') || ' ' || IFNULL(folder,'') || ' ' || IFNULL(src_path,''))", "t")}, w, a)
             cols = ("id", "date", "sender", "recipients", "cc", "subject", "n_att", "fmt", "folder", "src_path",
-                    "part", "inode", "xid")
+                    "part", "inode", "xid", "bcc")
             table, order = "mail", "date IS NULL, date DESC, id"
         elif kind in ("arch", "vss"):
             if not fa.table_exists(con, "xitems"):
@@ -153,8 +153,10 @@ def ext_results(case, q, ids=None, limit=PAGE):
         order = cf_order(q, order)
         cond = (" WHERE " + " AND ".join(w)) if w else ""
         total = con.execute(f"SELECT COUNT(*) FROM {table}{cond}", a).fetchone()[0]
+        # (3.0.6) Ccn: NULL nei casi letti prima della 3.0.6 (colonna assente)
+        sel = [fe_mod().mail_bcc(con) if table == "mail" and c == "bcc" else c for c in cols]
         rows = [dict(zip(cols, r)) for r in con.execute(
-            f"SELECT {', '.join(cols)} FROM {table}{cond} ORDER BY {order}{lim}", a)]
+            f"SELECT {', '.join(sel)} FROM {table}{cond} ORDER BY {order}{lim}", a)]
     finally:
         con.close()
     for r in rows:
@@ -355,19 +357,19 @@ def mail_view(case, b):
     con = fa.db_ro(case)
     try:
         r = con.execute("SELECT id, date, sender, recipients, cc, subject, body, html, headers, src_path, folder, fmt, "
-                        "part, inode FROM mail WHERE id=?", (int(b.get("id") or b.get("inode") or 0),)).fetchone()
+                        f"part, inode, {fe_mod().mail_bcc(con)} FROM mail WHERE id=?", (int(b.get("id") or b.get("inode") or 0),)).fetchone()
         atts = con.execute("SELECT id, name, size, encrypted, relpath, note FROM xitems WHERE mail=? ORDER BY id",
                            (int(b.get("id") or b.get("inode") or 0),)).fetchall()
     finally:
         con.close()
     if not r:
         raise ValueError(tr("Messaggio non trovato."))
-    mid, date, snd, to, cc, subj, body, htm, hdr, src, folder, fmt, part, inode = r
+    mid, date, snd, to, cc, subj, body, htm, hdr, src, folder, fmt, part, inode, bcc = r
     page = htm if htm else f"<pre style='white-space:pre-wrap;font:13px/1.5 -apple-system,Segoe UI,sans-serif'>{html_mod.escape(body or '')}</pre>"
     page = re.sub(r"(?is)<(script|iframe|object|embed|link|meta)\b.*?(</\1>|>)", "", page)
     return {"type": "mail", "title": subj, "name": subj, "source": "mail", "id": mid, "size": len(body or ""),
             "deleted": 0, "part": part, "inode": inode, "magic": "",
-            "head": {"Da": snd, "A": to, "Cc": cc, f"Data ({tz_label(case, b.get('tz'))})": fmt_ts(case, b.get("tz"), date), "Oggetto": subj,
+            "head": {"Da": snd, "A": to, "Cc": cc, **({"Ccn": bcc} if bcc else {}), f"Data ({tz_label(case, b.get('tz'))})": fmt_ts(case, b.get("tz"), date), "Oggetto": subj,
                      "Fonte": f"{src} › {folder}" if folder else src, "Formato": fmt},
             "html": CSP_DOC + "<base target='_blank'>" + page, "headers": hdr or "",
             "atts": [{"id": i, "name": n, "size": z, "enc": e, "ok": bool(rel), "note": nt} for i, n, z, e, rel, nt in atts]}
@@ -384,7 +386,7 @@ def art_view(case, b):
         raise ValueError(tr("Artefatto non trovato."))
     aid, cat, ts, title, detail, user, src, part, inode, data = r
     chat = None
-    if cat == "messaggi" and data:               # (2.21) scheda di una chat: dai Preferiti si deve poter aprire la conversazione
+    if cat in ("messaggi", "chat_esportate") and data:               # (2.21) scheda di una chat: dai Preferiti si deve poter aprire la conversazione
         try:
             chat = (json.loads(data) or {}).get("chat_thread")
         except (ValueError, AttributeError):
@@ -419,7 +421,7 @@ def art_campi(case, b):
         raise ValueError(tr("Artefatto non trovato."))
     title, rows, _seg = _art_campi(case, b, r)
     chat = None
-    if r[1] == "messaggi" and r[9]:
+    if r[1] in ("messaggi", "chat_esportate") and r[9]:
         try:
             chat = (json.loads(r[9]) or {}).get("chat_thread")
         except (ValueError, AttributeError):
@@ -518,6 +520,38 @@ def export_x(case, b):
     return {"message": tr("Esportato in {dest} (SHA-256 {sha256})").format(dest=dest, sha256=it['rec']['sha256']), "path": str(dest)}
 
 
+def export_mail(case, b):
+    """(3.0.6) Una mail come file .eml in export/posta (byte originali per EML, EMLX e mbox; ricostruita per PST/OST e
+    MSG, con anche il .msg originale) e la mostra."""
+    import forense_posta_eml as fpe
+    con = fa.db_ro(case)
+    try:
+        r = fpe.esporta(case, con, int(b.get("id") or 0), case.export_dir / "posta")
+    finally:
+        con.close()
+    f = r["file"][0]
+    if b.get("reveal"):
+        reveal(f["file"])
+    msg = tr("Esportato in {dest}").format(dest=f["file"].parent) + ": " + " · ".join(
+        f"{x['file'].name} (SHA-256 {x['sha256']})" for x in r["file"])
+    if not r["originale"]:
+        msg += " · " + "; ".join(r["note"])
+    return {"message": msg, "path": str(f["file"]), "rel": str(f["file"].relative_to(case.root)), "originale": r["originale"],
+            "note": r["note"], "cartella": str(f["file"].parent),
+            "files": [{"nome": x["file"].name, "descrizione": x["descrizione"], "sha256": x["sha256"]} for x in r["file"]]}
+
+
+def mail_targets(kind, rows):
+    """(3.0.6) Mail nella selezione (tabella Posta, ricerca, documenti, preferiti): id dei messaggi."""
+    ids = []
+    for x in rows:
+        if kind == "mail":
+            ids.append(int(x["id"]))
+        elif kind in ("hits", "doc") and x.get("source") in ("mail", "posta"):
+            ids.append(int(x["inode"]))
+    return list(dict.fromkeys(ids))
+
+
 def x_targets(case, kind, rows):
     """File estratti (source x) presenti nelle righe selezionate: {id: (percorso, relpath)}."""
     ids = []
@@ -561,7 +595,7 @@ def ext_ref_label(kind, x):
 EXT_CSV = {
     "art": [("cat", "categoria"), ("ts", "data_utc"), ("title", "elemento"), ("detail", "dettagli"), ("user", "utente"),
             ("src_path", "fonte"), ("part", "partizione_offset"), ("inode", "inode")],
-    "mail": [("date", "data_utc"), ("sender", "mittente"), ("recipients", "destinatari"), ("cc", "cc"),
+    "mail": [("date", "data_utc"), ("sender", "mittente"), ("recipients", "destinatari"), ("cc", "cc"), ("bcc", "ccn"),
              ("subject", "oggetto"), ("n_att", "allegati"), ("fmt", "formato"), ("folder", "cartella"),
              ("src_path", "file_di_posta"), ("part", "partizione_offset"), ("inode", "inode")],
     "arch": [("path", "percorso"), ("kind", "tipo"), ("size", "byte"), ("mtime", "data_utc"), ("encrypted", "cifrato"),

@@ -682,6 +682,26 @@ def _db_sources(case, con, tid, tpart, tinode, tsrc):
                                    "AND inode != 'None'", (tid,)):
         pairs.setdefault((part, str(inode)), None)
     out = []
+    app = (con.execute("SELECT app FROM chat_threads WHERE id=?", (tid,)).fetchone() or [None])[0]
+    if app == "whatsapp_export" or not fm.is_mobile_case(case):
+        # (3.0.6) chat esportata da WhatsApp: la fonte è il file di testo (nella copia, anche di un disco) o, per le
+        # esportazioni aggiunte a mano o estratte da uno zip, l'originale registrato con il suo SHA-256
+        import hashlib
+        import forense_agent as fa
+        for (part, inode), src in pairs.items():
+            sha = None
+            if part is not None and " › " not in str(src or tsrc or ""):
+                try:
+                    h = hashlib.sha256()
+                    for b in fa.icat_stream(case, part, inode):
+                        h.update(b)
+                    sha = h.hexdigest()
+                except Exception:
+                    sha = None
+            elif part is None:
+                sha = str(inode)
+            out.append({"path": src or tsrc, "offset": part, "inode": inode, "sha256": sha, "accanto": []})
+        return out
     m = fm.mx(case)
     try:
         for (part, inode), src in pairs.items():
@@ -728,6 +748,8 @@ def export_chat(G, case, b):
         con.close()
     lbl = fmc.APP_LBL.get(app, app)
     when = lambda v: G.fmt_ts(case, tz, v) if v else ""
+    # (3.0.6) nell'HTML le date come nel visualizzatore (giorno/mese/anno); nel CSV restano anche in ISO
+    whenh = lambda v: re.sub(r"^(\d{4})-(\d\d)-(\d\d)", r"\3/\2/\1", when(v)).replace(" locale (", " (")
     stamp = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
     d = Path(b["cartella"]) if b.get("cartella") else case.export_dir / "chat"
     d.mkdir(parents=True, exist_ok=True)
@@ -740,6 +762,15 @@ def export_chat(G, case, b):
             if a.get("path") and str(a["path"]).startswith("leapp:"):
                 f = (case.root / a["path"][6:]).resolve()
                 src = ("file", f) if (case.root / "leapp").resolve() in f.parents and f.is_file() else None
+            elif a.get("metodo") == "estratto" and a.get("inode") not in (None, "", "None"):
+                # (3.0.6) allegato estratto dallo zip di una chat esportata: la copia derivata nel caso
+                cx = fa.db_ro(case)
+                try:
+                    rx = cx.execute("SELECT relpath FROM xitems WHERE id=?", (int(a["inode"]),)).fetchone()
+                finally:
+                    cx.close()
+                f = (case.root / rx[0]) if rx and rx[0] else None
+                src = ("file", f) if f is not None and f.is_file() else None
             elif a.get("inode") not in (None, "", "None") and a.get("part") is not None:
                 src = ("fs", (int(a["part"]), str(a["inode"])))
             a["_rel"] = a["_sha"] = a["_thumb"] = a["_dbthumb"] = None
@@ -790,7 +821,7 @@ def export_chat(G, case, b):
         " ".join(x for x in (title, f"({fmc.show_id(plist[0])})" if plist and fmc.show_id(plist[0]) not in (title or "") else None) if x)
     head = [(tr("Caso"), ic.get("nome") or case.root.name), (tr("Operatore"), ic.get("operatore") or ""),
             (tr("App"), lbl), (tr("Interlocutori"), f"{loc} ↔ {other}"),
-            (tr("Periodo"), f"{when(first)} → {when(last)}"), (tr("Fuso orario usato"), G.tz_label(case, tz)),
+            (tr("Periodo"), f"{whenh(first)} → {whenh(last)}"), (tr("Fuso orario usato"), G.tz_label(case, tz)),
             (tr("Messaggi"), str(len(msgs))),
             *([(tr("Periodo esportato"), tr("dal {a} al {b}, giorni UTC").format(a=da or "…", b=al or "…"))] if da or al else []),
             (tr("Estrazione"), f"{meta.get('image') or ''}" + (f" · SHA-256 {sha_ext}" if sha_ext else ""))]
@@ -799,13 +830,13 @@ def export_chat(G, case, b):
                      + "".join(f"\n{x['path']} · inode {x['inode']} · SHA-256 {x['sha256']}" for x in f["accanto"])))
     if not fonti:
         head.append((tr("Database di origine"), tsrc or ""))
-    head.append((tr("Esportata il"), f"{fa.now()} UTC · RepertIA {fa.APP_VERSION}"))
+    head.append((tr("Esportata il"), f"{whenh(fa.now()[:19])} · RepertIA {fa.APP_VERSION}"))
     # HTML
     E = lambda x: H.escape(str(x or ""))
     body, lastday = [], ""
     for mid, ts, dr, snd, sname, text, kind, st, rts, svc, tb, row, extra in msgs:
         ex = json.loads(extra) if extra else {}
-        day = when(ts)[:10]
+        day = whenh(ts)[:10]
         if day and day != lastday:
             body.append(f'<div class="day">{E(day)}</div>')
             lastday = day
@@ -833,7 +864,15 @@ def export_chat(G, case, b):
                       + (f'<div class="tr"><b>{E(tr("Trascrizione confermata dall\'analista ({o}, {t})").format(o=a["trascrizione"]["analista"]["operatore"] or "", t=a["trascrizione"]["analista"]["ts"] or ""))}:</b> '
                          f'{E(a["trascrizione"]["analista"]["testo"])}</div>'
                          if (a.get("trascrizione") or {}).get("analista", {}).get("stato") == "confermata" else "") + "</div>")
-        meta_l = " · ".join(x for x in (when(ts), st, svc, f"{tb} #{row}", f"{tr('messaggio')} {mid}") if x)
+        ora_tel = None
+        if ex.get("ora_locale") and ex.get("fuso") and ts:       # (3.0.6) chat esportata con un fuso indicato
+            gma_ = lambda s: re.sub(r"^(\d{4})-(\d\d)-(\d\d)[T ]", r"\3/\2/\1 ", str(s))
+            ora_tel = "(📱 " + tr("ora del telefono {0}, adeguata al fuso dell'analisi {1}").format(
+                gma_(ex["ora_locale"]), ex["fuso"]) + ")"
+            nuda = G.to_zone(ts, ex["fuso"], " ")
+            if ex.get("ora_dubbia") or nuda != str(ex["ora_locale"]).replace("T", " "):
+                ora_tel += " ⚠ " + tr("orario da verificare (cambio dell'ora legale o fuso non disponibile)")
+        meta_l = " · ".join(x for x in (whenh(ts) + (" " + ora_tel if ora_tel else ""), st, svc, f"{tb} #{row}", f"{tr('messaggio')} {mid}") if x)
         body.append(f'<div class="b {cls}">{who}{txt}{"".join(aa)}<div class="m">{E(meta_l)}</div></div>')
     doc = (f'<!doctype html><html lang="{E(b.get("lingua") or "it")}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
            f'<title>{E(lbl)} · {E(title)}</title><style>{EXPORT_CSS}</style></head><body><header><h1>💬 {E(lbl)} · {E(title)}</h1>'
@@ -990,6 +1029,73 @@ def origine(case, q):
     return {"origine": out}
 
 
+def waexport_avviso(G, case, b):
+    """(3.0.6) Copie di dischi e di telefoni: le chat esportate non si leggono da sole (servono il fuso del telefono e
+    chi ha esportato), ma all'apertura del caso si dice quante ce ne sono nell'elenco dei file e si propone la
+    finestra di scelta. La ricerca (sui nomi) si fa una volta sola: il numero resta nel caso e nel registro.
+    b["visto"]: l'operatore ha risposto all'avviso (non si ripropone). Restituisce {"trovate": N, "visto": bool}."""
+    import forense_agent as fa
+    import forense_mobile_waexport as fwe
+    m = case.meta
+    a = m.get("chat_esportate_avviso")
+    if b.get("visto"):
+        if a and not a.get("visto"):
+            a["visto"] = True
+            m["chat_esportate_avviso"] = a
+            case.log("chat_esportate_avviso", {"trovate": a.get("trovate", 0), "risposta": str(b.get("visto"))[:20]})
+            case.save()
+        return {"trovate": (a or {}).get("trovate", 0), "visto": True}
+    if a:
+        return {"trovate": a.get("trovate", 0), "visto": bool(a.get("visto"))}
+    # non si cerca: preparazione in corso o non finita, sorgente logica (legge da sé), RAM, chat esportate già lette
+    if G.PREP.running or "timeline" not in m or m.get("logica") or m.get("ram_dump") \
+            or ((m.get("chat") or {}).get("app") or {}).get("whatsapp_export"):
+        return {"trovate": 0, "visto": True}
+    con = _con(case)
+    try:
+        n = len(fwe.cerca(con))
+    finally:
+        con.close()
+    m["chat_esportate_avviso"] = {"trovate": n, "visto": n == 0, "ts": fa.now()}
+    case.log("chat_esportate_trovate", {"trovate": n})
+    case.save()
+    return {"trovate": n, "visto": n == 0}
+
+
+def waexport_cerca(case, b, anteprime=True):
+    """(3.0.6) Esportazioni di WhatsApp nell'elenco dei file del caso, con un riepilogo di ciascuna (formato, messaggi,
+    periodo, mittenti, chi ha esportato) letto con il fuso indicato."""
+    import forense_agent as fa
+    import forense_mobile_waexport as fwe
+    # (3.0.6) fuso in cui era impostato il telefono: quello scelto nella finestra ("" = non indicato), altrimenti
+    # quello dell'ultima lettura; di partenza non indicato (l'esportazione non lo dice)
+    if "fuso" in b:
+        tz = fa.fuso_valido(b.get("fuso")) if b.get("fuso") else None
+    else:
+        tz = ((case.meta.get("chat") or {}).get("esportazioni_scelte") or {}).get("fuso")
+    con = _con(case)
+    try:
+        trovate = fwe.cerca(con)
+    finally:
+        con.close()
+    out = []
+    for c in trovate[:500]:
+        if anteprime:
+            try:
+                c = fwe.anteprima(case, c, tz)
+            except Exception as e:
+                c = dict(c, valida=False, errore=f"{type(e).__name__}: {e}")
+        out.append(c)
+    # (3.0.6) esportazioni aggiunte dall'operatore (anche da fuori della copia, es. una pendrive)
+    for v in case.meta.get("chat_esportate_esterne") or []:
+        out.append(fwe.anteprima_esterna(v, tz) if anteprime else dict(v, part=None, inode=v["sha256"]))
+    letti = {(str(x.get("part")), str(x.get("inode"))) for x in (case.meta.get("chat") or {}).get("esportazioni") or []
+             if x.get("inode") is not None}
+    for c in out:
+        c["letta"] = (str(c["part"]), str(c["inode"])) in letti
+    return {"fuso": tz or "", "trovate": out, "oltre": max(0, len(trovate) - 500)}
+
+
 def get(G, path, q):
     if path == "/api/mobile/origine":
         return origine(_case(G), q)
@@ -1011,7 +1117,7 @@ def get(G, path, q):
     if path == "/api/mobile/thread_art":
         con = _con(_case(G))
         try:
-            r = con.execute("SELECT id, title, ts, detail FROM artifacts WHERE cat='messaggi' AND data LIKE '%\"chat_thread\"%' AND "
+            r = con.execute("SELECT id, title, ts, detail FROM artifacts WHERE cat IN ('messaggi', 'chat_esportate') AND data LIKE '%\"chat_thread\"%' AND "
                             "json_extract(data, '$.chat_thread') = ?", (int(q.get("thread") or 0),)).fetchone()
         finally:
             con.close()
@@ -1164,6 +1270,56 @@ def post(G, path, b):
             raise ValueError(tr("L'estrazione non è raggiungibile: collega il disco che la contiene."))
         start(G, case.root, ["aggiungi", "--case", str(case.root), what], add="mobile_" + what,
               wa_chiave=_wa_chiave(b) if what == "wa-backup" else None)
+        return {"root": str(case.root)}
+    if path == "/api/mobile/waexport_cerca":       # (3.0.6) chat esportate da WhatsApp: elenco per la finestra di scelta
+        return waexport_cerca(_case(G), b)
+    if path == "/api/mobile/waexport_avviso":      # (3.0.6) dischi e telefoni: avviso «trovate N chat esportate»
+        return waexport_avviso(G, _case(G), b)
+    if path == "/api/mobile/waexport_scegli":      # (3.0.6) esportazione da aggiungere a mano: zip, testo o cartella
+        p = G.choose_folder(tr("Scegli la cartella della chat esportata")) if b.get("cartella") else \
+            G.choose_file(tr("Scegli lo zip o il file di testo della chat esportata da WhatsApp"), kind="any", any_file=True)
+        return {"path": p} if p else {"cancelled": True}
+    if path == "/api/mobile/waexport_aggiungi":
+        import forense_agent as fa
+        import forense_mobile_waexport as fwe
+        case = _case(G)
+        if G.PREP.running:
+            raise ValueError(tr("Una preparazione è già in corso."))
+        tz = fa.fuso_valido(b.get("fuso")) if b.get("fuso") else None
+        return {"voce": fwe.registra_esterna(case, str(b.get("path") or "").strip().strip('"'), tz)}
+    if path == "/api/mobile/waexport_decisione":   # (3.0.6) orari delle chat esportate lasciati senza fuso
+        case = _case(G)
+        ch = case.meta.get("chat") or {}
+        ch["esportazioni_da_decidere"] = False
+        case.meta["chat"] = ch
+        case.log("chat_esportate_orari", {"adeguati": False, "fuso": None})
+        case.save()
+        return {"ok": True}
+    if path == "/api/mobile/waexport_avvia":
+        case = _case(G)
+        if G.PREP.running:
+            raise ValueError(tr("Una preparazione è già in corso."))
+        if G.SES.busy:
+            raise ValueError(tr("Attendi che l'agente finisca o interrompilo."))
+        trovate = {(str(c["part"]), str(c["inode"])): c for c in waexport_cerca(case, b, anteprime=False)["trovate"]}
+        scelte = []
+        for s in b.get("scelte") or []:
+            c = trovate.get((str(s.get("part")), str(s.get("inode"))))
+            if not c:
+                raise ValueError(tr("Esportazione non trovata nel caso."))
+            io = s.get("io")
+            scelte.append({**({k: c[k] for k in ("sha256", "nome", "origine", "byte", "ts") if k in c}),
+                           "tipo": c["tipo"], "part": c["part"], "inode": c["inode"], "path": c["path"],
+                           "cancellato": c.get("cancellato"), "io": None if io is None else str(io)[:200]})
+        if not scelte:
+            raise ValueError(tr("Scegli almeno una chat esportata."))
+        import forense_agent as fa
+        fz = fa.fuso_valido(b.get("fuso")) if b.get("fuso") else None
+        if b.get("fuso") and not fz:
+            raise ValueError(tr("Fuso orario non riconosciuto: {fuso} (usa un nome come Europe/Rome o UTC).").format(fuso=b.get("fuso")))
+        start(G, case.root, ["aggiungi", "--case", str(case.root), "chat-esportate",
+                             "--scelte", json.dumps(scelte, ensure_ascii=False)] + (["--fuso", fz] if fz else []),
+              add="mobile_chat")
         return {"root": str(case.root)}
     if path == "/api/mobile/export_chat":
         return export_chat(G, _case(G), b)

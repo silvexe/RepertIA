@@ -27,7 +27,7 @@ https://github.com/user-attachments/assets/49faacbf-efce-4081-8b26-fe6b71d03e40
 RepertIA analizza copie forensi (E01, raw/dd, dmg), dalla 2.20 estrazioni del file system completo di iPhone e telefoni
 Android, dalla 3.0 registri di volo dei droni e, dalla 3.0.2, sorgenti logiche (archivi zip, tar, 7z e rar, immagini
 logiche AD1 di FTK Imager, immagini di CD/DVD ISO e UDF o una cartella) e, dalla 3.0.4, dump della memoria RAM di
-computer Windows, da un'unica interfaccia web locale, su Mac Apple Silicon, Windows o Linux (sperimentale).
+computer Windows e, dalla 3.0.6, chat esportate da WhatsApp, da un'unica interfaccia web locale, su Mac Apple Silicon, Windows o Linux.
 Usa strumenti forensi riconosciuti (The Sleuth Kit, libewf, plaso, PhotoRec, bulk_extractor, ExifTool, libyal) e ne
 raccoglie i risultati in un caso consultabile con filtri, timeline e anteprime. Un modello linguistico che gira sul
 computer dell'analista (facoltativo) risponde a domande in italiano o in inglese citando file, offset e inode.
@@ -66,6 +66,8 @@ Non è una certificazione: NIST e Joshua Hickman non hanno provato RepertIA. Abb
 
 Dalla 3.0.2 anche **🗂️ Sorgente logica**: file già raccolti da altri (zip, tar, tar.gz, 7z, rar, immagini logiche AD1 di FTK Imager con gli hash di FTK ricontrollati file per file, immagini di CD/DVD ISO 9660 e UDF, una cartella).
 
+Dalla 3.0.6 anche le **chat esportate da WhatsApp** («Esporta chat» di iPhone e Android, zip o cartella, con o senza media): come sorgente logica o, in ogni tipo di caso, con un'analisi aggiuntiva che le cerca anche dentro gli zip. Nelle copie di dischi e di smartphone un avviso all'apertura del caso dice quante ce ne sono e apre la finestra di scelta. Gli orari restano l'ora del telefono finché non si sceglie di adeguarli al fuso del caso.
+
 Dalla 3.0.4 anche i **dump della memoria RAM** di computer Windows (raw, mem, vmem, crash dump), dalla stessa pagina delle memorie di massa: processi, connessioni di rete, moduli, driver, attività pianificate, servizi e utenti letti con MemProcFS, più gli artefatti di Windows dal registro ancora in memoria. Con un caso aperto non viene scaricato nulla da internet.
 
 | Scelta del dump | Processi in memoria |
@@ -89,6 +91,9 @@ Dalla 3.0.4 anche i **dump della memoria RAM** di computer Windows (raw, mem, vm
 **Chat**: conversazioni con database, tabella e riga di ogni messaggio. Qui iMessage da un'immagine pubblica di prova.
 
 <img src="docs/img/it/chat.jpg" alt="Vista chat" width="800">
+**Chat esportate da WhatsApp** (3.0.6): le chat salvate con «Esporta chat», con allegati, chi ha esportato e fuso dichiarato. Qui una chat inventata.
+
+<img src="docs/img/it/chat-esportate.jpg" alt="Chat esportata da WhatsApp" width="800">
 
 **Sysdiagnose di iOS**: acquisiti a parte e letti con iLEAPP.
 
@@ -111,7 +116,7 @@ Dalla 3.0.4 anche i **dump della memoria RAM** di computer Windows (raw, mem, vm
 | Windows (installazione) | [RepertIA-3.0.5-Setup.exe](https://github.com/silvexe/RepertIA/releases/download/v3.0.5/RepertIA-3.0.5-Setup.exe) |
 | Windows (portatile) | [RepertIA-3.0.5-Windows.zip](https://github.com/silvexe/RepertIA/releases/download/v3.0.5/RepertIA-3.0.5-Windows.zip) |
 | Mac (Apple Silicon) | [RepertIA-3.0.5-Mac.zip](https://github.com/silvexe/RepertIA/releases/download/v3.0.5/RepertIA-3.0.5-Mac.zip) |
-| Linux x86_64 (sperimentale) | [RepertIA-3.0.5-Linux.tar.gz](https://github.com/silvexe/RepertIA/releases/download/v3.0.5/RepertIA-3.0.5-Linux.tar.gz) |
+| Linux x86_64 | [RepertIA-3.0.5-Linux.tar.gz](https://github.com/silvexe/RepertIA/releases/download/v3.0.5/RepertIA-3.0.5-Linux.tar.gz) |
 | Collaudo | [RepertIA-collaudo.zip](https://github.com/silvexe/RepertIA/releases/download/v3.0.5/RepertIA-collaudo.zip) |
 | Impronte SHA-256 | [SHA256SUMS.txt](https://github.com/silvexe/RepertIA/releases/download/v3.0.5/SHA256SUMS.txt) |
 | Firma delle impronte | [SHA256SUMS.txt.minisig](https://github.com/silvexe/RepertIA/releases/download/v3.0.5/SHA256SUMS.txt.minisig) |
@@ -138,16 +143,18 @@ scarica solo i sorgenti, non il programma da installare.
 | Decodifica (3.0.5) | Scheda dell'anteprima per collegamenti `.lnk`, jump list, Prefetch e indici del cestino (`$I`) di Windows: tutto il contenuto del file, con una voce per ogni cartella del percorso (nomi, date, riferimento NTFS), volume e percorso, nome del computer e indirizzo MAC del tracciamento; si salva come testo. Nei Metadati le date NTFS di `$STANDARD_INFORMATION` e `$FILE_NAME` affiancate |
 | Artefatti macOS | Volume Dati, quarantena, avvio automatico, TCC, iMessage, documenti recenti, Safari, KnowledgeC, Bluetooth, Time Machine |
 | Memoria RAM (3.0.4) | Dump della memoria di computer Windows (raw, mem, vmem, crash dump) letti con MemProcFS, lo stesso motore su Mac, Windows e Linux: processi, connessioni di rete, moduli caricati, driver, attività pianificate, servizi, utenti e timeline della memoria; artefatti di Windows dagli hive del registro ancora in memoria; file ancora in memoria copiati nel caso come copie derivate. Simboli di debug su richiesta, a caso chiuso e con consenso, per lo stato di esecuzione dei servizi; con un caso aperto nessuna richiesta di rete |
+| Chat esportate (3.0.6) | Esportazioni di WhatsApp («Esporta chat») di iPhone e Android, in italiano e in inglese, lette nel visualizzatore delle chat con allegati, posizioni e chiamate, in una categoria a parte; anche zip dentro dischi e telefoni, segnalati da un avviso all'apertura del caso, ed esportazioni prese da fuori del caso (SHA-256 registrato e ricontrollato); ora del telefono senza fuso finché non si adegua al fuso del caso, ore doppie e inesistenti del cambio dell'ora segnate |
 | Sorgente logica (3.0.2) | zip, tar, tar.gz, 7z, rar, AD1 di FTK Imager (anche in segmenti; MD5/SHA-1 di FTK ricalcolati per ogni file), immagini di CD/DVD ISO 9660 e UDF, anche CD-R in più sessioni con VAT (i file solo nelle VAT precedenti compaiono come cancellati), o una cartella; database di telefoni riconosciuti dal nome, KML/GPX come livelli della mappa |
 | Smartphone (2.20) | Estrazioni del file system completo di iPhone e Android (zip di Cellebrite, GrayKey e altri, tar, tar.gz, cartella) lette senza copiarle; chat WhatsApp, iMessage/SMS e SMS/MMS con vista a fumetti (anche nel report portatile), rubriche, allegati collegati ai file e in anteprima sopra la chat, esportazione delle chat (HTML/CSV con SHA-256); iLEAPP e ALEAPP inclusi, con le chat delle altre app e la vista Chiamate ricavate dai loro risultati; portachiavi di iOS acquisito a parte (es. GrayKey) passato a iLEAPP, a scelta, con i valori segreti nascosti; sysdiagnose di iOS (uno o più) letti con un secondo giro di iLEAPP |
 | File citati (2.20) | Percorsi e nomi di file citati da artefatti, allegati delle chat, righe della timeline e risposte dell'agente ritrovati nella copia o nell'estrazione (percorsi del telefono, di Windows e di macOS; campi di cartella e nome uniti; per percorso, hash o nome e dimensione), un riquadro per file con l'esito in tre livelli (✅ trovato con certezza, ⚠️ probabile con i candidati, ❌ non presente) e l'anteprima, anche nel report Word/PDF; allegati WhatsApp verificati con lo SHA-256, miniatura dal database se il file manca |
 | Timeline | File system + plaso, dalla 3.0.4 in una pagina a sé; date in UTC, ora italiana o fuso del dispositivo (rilevato), con la sigla del fuso accanto a ogni valore; FAT/exFAT convertiti correttamente |
-| Contenuti | Testo dei documenti con ricerca full-text, OCR (Tesseract), metadati EXIF/GPS, archivi, posta PST/OST/MBOX/EML |
+| Contenuti | Testo dei documenti con ricerca full-text, OCR (Tesseract), metadati EXIF/GPS, archivi, posta PST/OST/MBOX/EML (dalla 3.0.6 mittente e destinatari, anche Ccn, come registrati nel file; esportazione in `.eml`: originale per EML e mbox, ricostruita e dichiarata per PST/OST e MSG con le intestazioni originali accanto); video `.ts` delle videocamere riconosciuti dal contenuto e mostrati in anteprima |
 | Recupero | Carving con PhotoRec, tracce bulk_extractor, miniature della cache di Esplora file |
 | Anomalie | Estensioni false ed eseguibili mascherati (con verifica dei file cancellati contro i falsi positivi), file e contenitori cifrati |
 | Immagini e liste | Hash percettivi (immagini simili), liste di hash NSRL, Project VIC / CAID, cartelle di immagini di riferimento |
-| Garanzie | Copia mai modificata, hash dei dati confrontati con quelli di acquisizione, registro delle operazioni a catena di hash con voci e hash finale nel report e *Verifica registro* (anche da terminale, `tools/verifica_registro.py`), versioni e impronta del programma nel report |
+| Garanzie | Copia mai modificata, hash dei dati confrontati con quelli di acquisizione, registro delle operazioni a catena di hash con voci e hash finale nel report e *Verifica registro* (anche da terminale, `tools/verifica_registro.py`), versioni e impronta del programma nel report; esportazioni divise per tipo di evidenza, con manifest delle impronte e `LEGGIMI.txt` che dice che cosa è originale e che cosa è ricostruito |
 | Report | Report del caso (Markdown, Word, PDF) e report portatile HTML per chi non ha la copia forense |
+| Chiusura (3.0.6) | Pulsante «⏻ Chiudi»: chiede conferma ed elenca prima i lavori in corso |
 
 Interfaccia, report e testi dei casi **in italiano o in inglese** (la lingua di ogni caso si sceglie alla creazione).
 
@@ -158,7 +165,7 @@ noti: [VALIDAZIONE.md](VALIDAZIONE.md) (in inglese: [VALIDATION.md](VALIDATION.m
 
 Dopo aver scaricato il pacchetto del proprio sistema (vedi [Scarica](#scarica)):
 
-| | Mac (Apple Silicon) | Windows 10/11 64 bit | Linux x86_64 (sperimentale) |
+| | Mac (Apple Silicon) | Windows 10/11 64 bit | Linux x86_64 |
 |---|---|---|---|
 | Installazione | decomprimere e spostare `RepertIA.app` (con Python, plaso e librerie) dove si preferisce; primo avvio: vedi [Primo avvio su Mac](#primo-avvio-su-mac) | eseguire il Setup.exe (senza diritti di amministratore) oppure decomprimere lo zip portatile | estrarre ed eseguire `./installa.sh` (Ubuntu 24.04+, Debian 13) |
 | Strumenti esterni | installati al primo avvio con Homebrew | inclusi | installati con apt da `installa.sh`, che prepara anche Python, plaso e le librerie |
@@ -213,7 +220,7 @@ xattr -dr com.apple.quarantine /Applications/RepertIA.app
 
 **Computer (senza IA)**
 - **Sistema**: Mac con chip Apple Silicon (M1 o successivo), Windows 10/11 a 64 bit, oppure Linux x86_64 con Ubuntu 24.04
-  o successivo (versione sperimentale).
+  o successivo.
 - **Memoria (RAM)**: 8 GB bastano per pendrive e dischi piccoli; con 16 GB si lavora comodi.
 - **Disco**: meglio un SSD. Il caso non è una copia del disco ma un database con gli indici; a questo si aggiunge lo spazio
   per i file esportati, il carving e la cache delle anteprime (al massimo circa 5 GB per caso). La copia forense può stare

@@ -227,11 +227,153 @@ body.chatopen .toast{z-index:80}
   ];
 
   // ------------------------------------------------------------------ caso aperto
+  // (3.0.6) analisi aggiuntiva «Chat esportate da WhatsApp», in ogni tipo di caso (dischi, telefoni, sorgenti logiche)
+  function waAddon(c){
+    const box = $("addons");
+    if (!box) return;
+    const old = box.querySelector("[data-waexp]");
+    if (old) old.remove();
+    const a = ((c.chat || {}).app || {}).whatsapp_export;
+    box.insertAdjacentHTML("beforeend", `<div class="addon" data-waexp="1"><div class="grow"><b>📤 ${T("Chat esportate da WhatsApp")}</b>
+      <div class="s">${a ? "✓ " + esc(TF("{0} conversazioni, {1} messaggi", nf(a.conversazioni), nf(a.messaggi))) : T("non eseguito") + (WA_AVV.root === c.root && WA_AVV.n ? " · " + esc(WA_AVV.n === 1 ? T("1 trovata nell'elenco dei file") : TF("{0} trovate nell'elenco dei file", nf(WA_AVV.n))) : "")}</div></div>
+      ${a ? `<button class="btn small" data-waopen="1">💬 ${T("Apri le chat")}</button>` : ""}
+      <button class="btn small" data-wacerca="1">${a ? T("Rifai") : T("Cerca…")}</button></div>`);
+    box.querySelector("[data-wacerca]").onclick = () => waDialog();
+    waDomandaApertura(c);
+    waConta(c);
+    const o = box.querySelector("[data-waopen]");
+    if (o) o.onclick = () => openChats({f: {app: "whatsapp_export"}});
+  }
+  // (3.0.6) copie di dischi e di telefoni: le chat esportate non si leggono da sole (servono il fuso del telefono e
+  // chi ha esportato), ma all'apertura del caso si dice quante ce ne sono e si propone la finestra di scelta. La
+  // ricerca la fa il server una volta sola; dopo la risposta dell'operatore l'avviso non torna (resta la riga qui sopra).
+  // waConta (a ogni disegno del caso): chiede il numero e lo scrive nella riga; waAvviso (a fine apertura, dopo
+  // l'avviso del fuso): mostra la finestra, aspettando che le altre finestre siano chiuse.
+  let WA_AVV = {root: null, n: 0, visto: true, p: null};
+  function waConta(c){
+    if (!c.complete || c.logica || c.ram || ((c.chat || {}).app || {}).whatsapp_export || WA_AVV.root === c.root) return;
+    const st = WA_AVV = {root: c.root, n: 0, visto: true, p: null};
+    st.p = (async () => {
+      let r;
+      try{ r = await api("/api/mobile/waexport_avviso", {}); }catch(e){ return; }
+      if (!r.trovate || WA_AVV !== st) return;
+      st.n = r.trovate; st.visto = !!r.visto;
+      waAddon(c);
+    })();
+  }
+  async function waAvviso(){
+    const st = WA_AVV;
+    if (!caseInfo || st.root !== caseInfo.root || !st.p) return;
+    await st.p;
+    if (!st.n || st.visto) return;
+    for (let i = 0; i < 600 && !$("modal").classList.contains("hidden"); i++) await new Promise(f => setTimeout(f, 500));
+    if (!$("modal").classList.contains("hidden") || WA_AVV !== st || !caseInfo || caseInfo.root !== st.root) return;
+    // come l'avviso del fuso: torna a ogni apertura finché le chat non sono lette o si spunta «Non chiedere più»
+    const fine = async apri => {
+      if ($("waNoAsk").checked){ st.visto = true; try{ await api("/api/mobile/waexport_avviso", {visto: "non chiedere più"}); }catch(e){} }
+      if (apri) waDialog(); else $("modal").classList.add("hidden");
+    };
+    openModal(T("Chat esportate da WhatsApp"), `<p>${st.n === 1 ? T("Nell'elenco dei file di questo caso c'è <b>1</b> chat salvata con «Esporta chat» di WhatsApp (file di testo o zip).") : TF("Nell'elenco dei file di questo caso ci sono <b>{0}</b> chat salvate con «Esporta chat» di WhatsApp (file di testo o zip).", nf(st.n))}</p>
+      <p>${T("Non vengono lette da sole: prima vanno indicati quali leggere, il fuso del telefono e chi le ha esportate.")}</p>
+      <p class="hint">${T("Si possono leggere anche dopo, dalla riga «Chat esportate da WhatsApp» tra le analisi aggiuntive del caso.")}</p>
+      <label style="display:block;margin-top:8px"><input type="checkbox" id="waNoAsk"> ${T("Non chiedere più per questo caso")}</label>`,
+      [[T("Scegli e leggi…"), async () => fine(true)], [T("Non ora"), async () => fine(false)]]);
+  }
+  // (3.0.6) fusi proposti come nel menu del caso: quello del dispositivo (rilevato o impostato), ora italiana, UTC
+  // (3.0.6) l'esportazione scrive l'ora del telefono senza fuso: alla lettura si chiede se adeguarla al fuso
+  // dell'analisi (il fuso del dispositivo del caso), come l'avviso del fuso all'apertura. Se sì gli orari si leggono in
+  // quel fuso e poi seguono il menu del fuso in alto come ogni evento; se no restano l'ora del telefono senza fuso.
+  const waFusoAnalisi = () => devTz() || tzZone();
+  function waChiedi(){
+    return new Promise(res => {
+      const z = waFusoAnalisi(), lbl = devTz() ? devTzLabel() : z;
+      openModal(T("Orari delle chat esportate da WhatsApp"), `<p>${T("L'esportazione di WhatsApp scrive l'ora del telefono senza il fuso orario.")}</p>
+        <p>${TF("Vuoi adeguare gli orari al fuso dell'analisi (<b>{0}</b>)? Gli orari saranno letti in quel fuso e poi mostrati come tutti gli altri, secondo il menu del fuso in alto.", esc(lbl))}</p>
+        <p class="hint">${T("Se non li adegui restano l'ora del telefono così com'è, «fuso non indicato». La scelta si può cambiare rifacendo l'analisi «Chat esportate da WhatsApp».")}</p>`,
+        [[TF("🕒 Adegua a {0}", z), async () => fine(z)], [T("Lascia l'ora del telefono senza fuso"), async () => fine("")]]);
+      const chiudi = $("modalClose"), prima = chiudi.onclick;
+      const fine = v => { chiudi.onclick = prima; $("modal").classList.add("hidden"); res(v); };
+      chiudi.onclick = () => fine(null);
+    });
+  }
+  async function waLeggi(scelte){
+    const fuso = await waChiedi();
+    if (fuso === null) return;
+    const rr = await api("/api/mobile/waexport_avvia", {scelte, fuso});
+    startPrepView(T("Caso: ") + rr.root, {}, "x"); prepSteps = MSTEPS.filter(s => s[0] === "chat"); curStep = 0; drawSteps(0, null); pollPrep();
+  }
+  // dopo la lettura automatica (sorgente logica) la domanda arriva alla prima apertura del caso, quando non c'è
+  // già un'altra finestra aperta (es. l'avviso del fuso)
+  let WA_CHIESTO = null;
+  function waDomandaApertura(c, n){
+    if (!((c.chat || {}).esportazioni_da_decidere) || WA_CHIESTO === c.root) return;
+    if (!$("modal").classList.contains("hidden")) { if ((n || 0) < 30) setTimeout(() => waDomandaApertura(c, (n || 0) + 1), 1000); return; }
+    WA_CHIESTO = c.root;
+    (async () => {
+      const fuso = await waChiedi();
+      if (fuso === null) return;
+      try{
+        if (!fuso) { await api("/api/mobile/waexport_decisione", {}); toast(T("Orari delle chat esportate lasciati all'ora del telefono, senza fuso.")); return; }
+        const r = await api("/api/mobile/waexport_cerca", {});
+        const scelte = r.trovate.filter(x => x.letta).map(x => ({part: x.part, inode: x.inode, io: null}));
+        const rr = await api("/api/mobile/waexport_avvia", {scelte, fuso});
+        startPrepView(T("Caso: ") + rr.root, {}, "x"); prepSteps = MSTEPS.filter(s => s[0] === "chat"); curStep = 0; drawSteps(0, null); pollPrep();
+      }catch(e){ toast(e.message, "bad"); }
+    })();
+  }
+  async function waDialog(){
+    let r;
+    try{ r = await api("/api/mobile/waexport_cerca", {}); }catch(e){ return toast(e.message, "bad"); }
+    const L = r.trovate;
+    const ora = s => esc(String(s || "").slice(0, 16).replace(/^(\d{4})-(\d\d)-(\d\d)T?/, "$3/$2/$1 "));
+    const row = (x, i) => x.valida === false
+      ? `<tr><td></td><td><span class="mono">${esc(x.path)}</span></td><td colspan="4" class="hint">${esc(x.errore || T("nessuna riga nel formato di «Esporta chat»"))}</td></tr>`
+      : `<tr><td><input type="checkbox" data-wi="${i}" ${x.letta || x.tipo === "esterna" || (x.tipo === "testo" && L.length <= 20) ? "checked" : ""}></td>
+        <td><b>${esc(x.titolo || base(x.path))}</b>${x.gruppo ? " 👥" : ""}${x.tipo === "esterna" ? ` <span class="hint" title="${esc(T("Aggiunta a mano da fuori della copia (es. una pendrive): alla lettura viene copiata nella cartella del caso, con le impronte di ogni file; registrata con lo SHA-256 dell'originale"))}">💾 ${T("aggiunta a mano")}</span>` : ""}${x.tipo === "zip" ? ` <span class="hint" title="${esc(T("Zip dell'esportazione: viene estratto una volta in una copia derivata nella cartella del caso, con le impronte di ogni file"))}">📦 zip</span>` : ""}${x.cancellato ? ` <span class="hint">(${T("cancellato")})</span>` : ""}${x.letta ? ` <span class="hint">✓ ${T("già letta")}</span>` : ""}<div class="hint mono">${esc(x.path)}</div></td>
+        <td>${x.formato === "ios" ? "iPhone" : "Android"}</td>
+        <td>${nf(x.messaggi)} · ${nf(x.allegati)} 📎</td>
+        <td class="hint">${ora(x.dal)} → ${ora(x.al)}</td>
+        <td><select data-wio="${i}"><option value="">${T("non indicato")}</option>${(x.mittenti || []).map(m => `<option value="${esc(m)}" ${m === x.io ? "selected" : ""}>${esc(m)}</option>`).join("")}</select>
+          ${x.io_come ? `<div class="hint">${esc(x.io_come)}</div>` : ""}</td></tr>`;
+    const html = L.length ? `<p class="hint" style="margin-top:0">${T("Chat salvate con «Esporta chat» di WhatsApp trovate nell'elenco dei file del caso. Si leggono come conversazioni separate («WhatsApp (chat esportata)»), senza mescolarle con le chat lette dai database del telefono. «Chi ha esportato» decide quali messaggi risultano inviati.")}</p>
+      ${L.length ? `<div style="max-height:52vh;overflow:auto"><table class="restable" style="width:100%"><thead><tr><th></th><th>${T("Chat")}</th><th>${T("Telefono")}</th><th>${T("Messaggi")}</th><th>${T("Periodo (ora del telefono)")}</th><th>${T("Chi ha esportato")}</th></tr></thead>
+        <tbody>${L.map(row).join("")}</tbody></table></div>` : ""}
+      ${r.oltre ? `<p class="note">${esc(TF("Mostrate le prime 500: altre {0} non elencate.", nf(r.oltre)))}</p>` : ""}
+`
+      : `<p>${T("Nessuna chat esportata da WhatsApp trovata nell'elenco dei file del caso.")}</p>`;
+    // (3.0.6) esportazione presa da fuori della copia (es. una pendrive): si registra e alla lettura si copia nel caso
+    const agg = `<div style="margin-top:12px;border-top:1px solid var(--line);padding-top:10px"><b>💾 ${T("Aggiungi un'esportazione da fuori del caso")}</b>
+      <div class="hint">${T("Per esempio uno zip trovato su una pendrive: indica lo zip, il file di testo o la cartella. Viene registrato con lo SHA-256; alla lettura i file si copiano nella cartella del caso, quindi il supporto deve restare collegato fino alla fine della lettura.")}</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px"><input id="waEst" class="mono" style="flex:1;min-width:240px" placeholder="${esc(T("percorso dello zip, del file di testo o della cartella"))}">
+        <button class="btn small" id="waEstF">${T("Scegli il file…")}</button><button class="btn small" id="waEstD">${T("Scegli una cartella…")}</button>
+        <button class="btn small primary" id="waEstOk">${T("Aggiungi")}</button></div></div>`;
+    openModal(T("Chat esportate da WhatsApp"), html + agg, L.some(x => x.valida !== false) ? [[T("Leggi le chat scelte"), async () => {
+      const scelte = [...document.querySelectorAll("#modalBody [data-wi]")].filter(b => b.checked).map(b => {
+        const x = L[+b.dataset.wi], s = document.querySelector(`#modalBody [data-wio="${b.dataset.wi}"]`);
+        return {part: x.part, inode: x.inode, io: s ? s.value : null};
+      });
+      if (!scelte.length) return toast(T("Scegli almeno una chat esportata."), "bad");
+      await waLeggi(scelte);
+    }]] : []);
+    const scegli = async cartella => { try{ const s = await api("/api/mobile/waexport_scegli", {cartella}); if (s.path) $("waEst").value = s.path; }catch(e){ toast(e.message, "bad"); } };
+    $("waEstF").onclick = () => scegli(false);
+    $("waEstD").onclick = () => scegli(true);
+    $("waEstOk").onclick = async () => {
+      const v = $("waEst").value.trim();
+      if (!v) return toast(T("Indica lo zip, il file di testo o la cartella."), "bad");
+      try{
+        const a = await api("/api/mobile/waexport_aggiungi", {path: v});
+        toast(TF("Registrata: {0} (SHA-256 {1}…)", a.voce.nome, String(a.voce.sha256).slice(0, 12)), "good");
+        waDialog();
+      }catch(e){ toast(e.message, "bad"); }
+    };
+  }
   function caseRendered(c){
+    waAddon(c);
     ART_LBL.messaggi = c.tipo_caso === "smartphone" ? T("Messaggi delle chat") : MSG_DISK;
     // menu «Categoria» del filtro degli Artefatti: sui telefoni le categorie dei telefoni (anche nelle sottovoci)
     FILTERS.art[0][3] = c.tipo_caso === "smartphone"
-      ? [["", T("Tutte")], ["messaggi", ART_LBL.messaggi], ["chiamate", ART_LBL.chiamate], ["leapp", ART_LBL.leapp]] : ART_CAT_DISK;
+      ? [["", T("Tutte")], ["messaggi", ART_LBL.messaggi], ["chat_esportate", T("Chat esportate da WhatsApp")], ["chiamate", ART_LBL.chiamate], ["leapp", ART_LBL.leapp]] : ART_CAT_DISK;
     FILTERS.meta = c.tipo_caso === "smartphone" ? metaFlt(Object.keys((c.chat || {}).app || {})) : META_FLT_DISK;
     let box = $("mobBox");
     if (c.tipo_caso !== "smartphone"){ if (box) box.remove(); if ($("mAvv")) $("mAvv").classList.add("hidden"); return; }
@@ -249,6 +391,10 @@ body.chatopen .toast{z-index:80}
         ${v ? `<div style="margin-top:6px">${(v.diversi || []).length || (v.illeggibili || []).length ? "⚠" : "✅"} ${esc(TF("Hash registrati nell'AD1: {0} uguali su {1} file controllati, {2} diversi, {3} illeggibili", nf(v.uguali), nf(v.controllati), nf((v.diversi || []).length), nf((v.illeggibili || []).length)))}</div>
           ${(v.diversi || []).slice(0, 20).map(d => `<div class="hint mono" style="color:var(--bad)">${esc(d.percorso)}</div>`).join("")}
           ${v.n_senza_dati ? `<div class="hint" style="margin-top:4px">ℹ ${esc(TF("{0} file registrati da FTK senza i dati: nell'AD1 ci sono nome, dimensione e date, ma non il contenuto (per esempio file cancellati del disco d'origine).", nf(v.n_senza_dati)))}</div>` : ""}` : ""}
+        ${tel.esportazioni_whatsapp ? `<div style="margin-top:8px">📤 ${esc(TF("Chat esportate da WhatsApp: {0}", nf(tel.esportazioni_whatsapp)))}</div>
+          <div class="hint" style="margin-top:4px">${T("Copia fatta da chi usa il telefono con «Esporta chat», non un'acquisizione: orari nell'ora del telefono senza fuso (se alla lettura si indica il fuso del telefono, convertiti e mostrati nel fuso di visualizzazione scelto in alto), al minuto su Android e al secondo su iPhone; niente numeri, stati di lettura, risposte, reazioni e messaggi cancellati.")}</div>
+          ${dbs.length ? "" : `<div style="margin-top:4px">💬 ${nmsgL ? TF("{0} messaggi in {1} conversazioni", nf(nmsgL), nf(nthL)) : T("nessuna chat letta")}</div>
+          ${nmsgL ? `<button class="btn small primary" id="mobChats" style="margin-top:4px">💬 ${T("Apri le chat")}</button>` : ""}`}` : ""}
         ${dbs.length ? `<div style="margin-top:8px">📱 ${esc(TF("Database di telefoni trovati: {0}", dbs.map(([k, n]) => (c.db_lbl || {})[k] || k).join(", ")))}${tel.piattaforma ? ` <span class="hint">(${esc(tel.piattaforma === "ios" ? "iPhone" : "Android")})</span>` : ""}</div>
           ${tel.struttura_telefono ? "" : `<div class="hint" style="margin-top:4px">${T("Le cartelle non hanno la struttura del telefono: chat e rubriche si leggono lo stesso, ma iLEAPP/ALEAPP cercano i file nei percorsi del telefono e qui troveranno poco o nulla.")}</div>`}
           <div style="margin-top:4px">💬 ${nmsgL ? TF("{0} messaggi in {1} conversazioni", nf(nmsgL), nf(nthL)) : T("nessuna chat letta")}</div>
@@ -261,7 +407,7 @@ body.chatopen .toast{z-index:80}
         if (["carving", "plaso", "vss", "artefatti"].includes(b.dataset.addon)) b.closest(".addon").remove();
       });
       // con database di telefoni: anche chat, iLEAPP/ALEAPP (non per l'AD1) e backup WhatsApp, come per i telefoni
-      if (dbs.length){
+      if (dbs.length || tel.esportazioni_whatsapp){
         const leappOk = c.leapp_disponibile && mobL.formato !== "ad1";
         const rowsL = [["chat", T("Chat e rubriche"), nmsgL ? TF("{0} messaggi", nf(nmsgL)) : (chL.ts ? T("nessuna chat trovata") : null)]]
           .concat(tel.piattaforma ? [["leapp", T("iLEAPP / ALEAPP"), lpL ? (lpL.esito === "ok" ? TF("{0} righe", nf(lpL.righe)) : T("non riuscito")) : null]] : [])
@@ -374,8 +520,8 @@ body.chatopen .toast{z-index:80}
 
   // ------------------------------------------------------------------ vista chat
   const APP = {whatsapp: "WhatsApp", imessage: "iMessage/SMS", sms: "SMS/MMS", whatsapp_backup: T("WhatsApp (backup decifrato)"),
-    whatsapp_business: "WhatsApp Business", whatsapp_business_backup: T("WhatsApp Business (backup decifrato)")};
-  const ICO = {whatsapp: "🟢", imessage: "🔵", sms: "✉️", whatsapp_backup: "🗄", whatsapp_business: "💼", whatsapp_business_backup: "🗄"};
+    whatsapp_business: "WhatsApp Business", whatsapp_business_backup: T("WhatsApp Business (backup decifrato)"), whatsapp_export: T("WhatsApp (chat esportata)")};
+  const ICO = {whatsapp: "🟢", imessage: "🔵", sms: "✉️", whatsapp_backup: "🗄", whatsapp_business: "💼", whatsapp_business_backup: "🗄", whatsapp_export: "📤"};
   const appLbl = k => APP[k] || k;
   const KIND = {testo: "", allegato: T("allegato"), sistema: T("evento"), reazione: T("reazione"), eliminato: T("messaggio eliminato (segnaposto dell'app: il testo non c'è più)"),
     posizione: T("posizione"), contatto: T("contatto"), link: T("link"), sondaggio: T("sondaggio"), chiamata: T("chiamata"), "non gestito": T("tipo non gestito")};
@@ -557,10 +703,28 @@ body.chatopen .toast{z-index:80}
   const attName = a => a.path || a.name || "";
   // (2.20) tipo dal percorso o dal nome dell'allegato (es. Telegram: file senza estensione, nome «….mp4»)
   const attIs = (a, rx) => rx.test(attName(a)) || rx.test(a.name || "");
+  // (3.0.6) chat esportate da WhatsApp: l'orario a sinistra è nel fuso di visualizzazione del caso (come ogni evento);
+  // qui l'ora scritta nell'esportazione, con la sigla del fuso indicato alla lettura. È lo stesso istante scritto nel
+  // fuso indicato (tzConv dall'UTC salvato), quindi coincide con l'ora del telefono; se non coincide (ora saltata dal
+  // cambio dell'ora legale) o la lettura l'ha segnata come dubbia, avviso.
+  function waOra(m, ex){
+    // senza adeguamento l'orario è l'ora del telefono «… locale» e fts lo scrive già «(ora locale, fuso n.d.)»
+    if (!ex.ora_locale || !ex.fuso || !m.ts) return "";
+    const loc = String(ex.ora_locale).replace("T", " ");
+    const gma = s => String(s || "").replace(/^(\d{4})-(\d\d)-(\d\d)[T ]/, "$3/$2/$1 ");
+    const nuda = tzConv(m.ts, true, ex.fuso), diverso = nuda && nuda !== loc;
+    const dub = ex.ora_dubbia === "doppia" ? T("ora doppia nel fuso indicato (ritorno all'ora solare): presa la prima, ora legale")
+      : ex.ora_dubbia === "inesistente" || diverso ? T("ora inesistente nel fuso indicato (salto dell'ora legale): convertita con lo scostamento di prima del salto")
+      : ex.ora_dubbia ? T("fuso indicato non disponibile: convertita come UTC") : "";
+    const tit = TF("Ora scritta nell'esportazione (ora del telefono, senza fuso): {0}. Adeguata al fuso dell'analisi {1}; l'orario segue il menu del fuso in alto.", gma(loc), ex.fuso);
+    return `<span title="${esc(tit + (dub ? "\n\n⚠ " + dub : ""))}">📱</span>${dub ? ` <span class="cbad" title="${esc(dub)}">⚠ ${esc(T("orario da verificare"))}</span>` : ""}`;
+  }
+  // (3.0.6) allegato estratto dallo zip di una chat esportata (file estratto «x» del caso, non un file della copia)
+  const attX = a => a.metodo === "estratto";
   function attThumb(a, size){
     // (2.20) anche i video: fotogramma con Quick Look (Mac) o ffmpeg (Windows, Linux); se non si può, l'immagine sparisce
     if (a.inode != null && a.inode !== "" && (attIs(a, IMG_RX) || attIs(a, VID_RX) || /^(image|video)\//.test(a.mime || "")))
-      return "/api/thumb?" + new URLSearchParams({t: TOKEN, size: size || 320, source: "fs", part: a.part, inode: a.inode});
+      return "/api/thumb?" + new URLSearchParams(attX(a) ? {t: TOKEN, size: size || 320, source: "x", id: a.inode} : {t: TOKEN, size: size || 320, source: "fs", part: a.part, inode: a.inode});
     if (isLeappMedia(a) && IMG_RX.test(a.path)) return "/api/mobile/leapp_media?" + new URLSearchParams({t: TOKEN, p: a.path});
     if (a.thumb && a.id != null) return "/api/mobile/att_thumb?" + new URLSearchParams({t: TOKEN, id: a.id});
     return null;
@@ -569,6 +733,7 @@ body.chatopen .toast{z-index:80}
   function attHow(a){
     const ok = a.inode != null && a.inode !== "";
     if (!ok) return "";
+    if (attX(a)) return `<div class="hint">✅ ${T("estratto dallo zip dell'esportazione (copia derivata nel caso, con SHA-256)")}</div>`;
     const prob = a.metodo === "nome" || a.metodo === "nome+dimensione" || a.verifica === "diverso";
     const m = a.metodo && a.metodo !== "percorso" ? `${prob ? "⚠️ " + T("probabile, da verificare") : "✅ " + T("trovato con certezza")} (${citedMetLbl(a.metodo)})` : "";
     const v = a.verifica === "uguale" ? T("SHA-256 uguale a quello registrato dall'app") : a.verifica === "diverso" ? T("ATTENZIONE: SHA-256 diverso da quello registrato dall'app") : "";
@@ -583,8 +748,8 @@ body.chatopen .toast{z-index:80}
            : a.thumb ? `<div class="hint cwarn">${T("miniatura dal database – file non presente nell'estrazione")}${a.device_path ? `: <span class="mono" style="font-size:11px">${esc(a.device_path)}</span>` : ""}</div>`
            : a.lat != null && !a.device_path ? ""
            : `<div class="hint">${T("File non presente nell'estrazione")}${a.device_path ? `: <span class="mono" style="font-size:11px">${esc(a.device_path)}</span>` : ""}</div>`}
-      ${a.trascrizione ? trascrChat(a.trascrizione, a) : ok && attIs(a, AUD_RX) ? `<div class="tranbox" data-trp="${esc(String(a.part))}" data-tri="${esc(String(a.inode))}"><button class="btn small" data-tred="1">✏️ ${T("Scrivi la trascrizione")}</button></div>` : ""}
-      ${ok || lm || a.thumb ? `<button class="btn small" data-zoom="1">${T("Anteprima")}</button>` : ""}${ok ? `<button class="btn small" data-tree="1">${T("Mostra nel File System")}</button>` : ""}</div>`;
+      ${a.trascrizione ? trascrChat(a.trascrizione, a) : ok && !attX(a) && attIs(a, AUD_RX) ? `<div class="tranbox" data-trp="${esc(String(a.part))}" data-tri="${esc(String(a.inode))}"><button class="btn small" data-tred="1">✏️ ${T("Scrivi la trascrizione")}</button></div>` : ""}
+      ${ok || lm || a.thumb ? `<button class="btn small" data-zoom="1">${T("Anteprima")}</button>` : ""}${ok && !attX(a) ? `<button class="btn small" data-tree="1">${T("Mostra nel File System")}</button>` : ""}</div>`;
   }
   // (2.20) nota vocale trascritta: il testo sotto l'allegato (aperto; si chiude con un clic), sempre come «da verificare»
   // (3.0.1) sotto: la versione dell'analista (bozza o confermata) e il pulsante per correggerla o confermarla
@@ -637,7 +802,7 @@ body.chatopen .toast{z-index:80}
       ${(r.messages || []).some(m => (m.extra || {}).decifrato) ? `<div class="hint">🔑 ${T("Conversazione decifrata da iLEAPP con il portachiavi: la decifratura e la lettura sono di iLEAPP.")}</div>` : ""}
       <div>${t.group ? "👥 " : ""}📱 ${T("questo dispositivo")}${t.local ? ` <span class="mono">${esc(t.local)}</span>` : ""} ↔ ${partHtml(t.participants || [])}</div>${(t.lid_fonti || []).length ? `<div class="hint" title="${esc(T("Associazione scritta da WhatsApp nei suoi database: le cifre del LID sono casuali e non contengono il numero. Lo schema non è documentato da WhatsApp."))}">🔗 ${esc(TF("LID e numero associati da: {0}", t.lid_fonti.join("; ")))}</div>` : ""}<div class="mono" style="font-size:11px">${esc(T("Fonte: ") + (t.src || ""))}${t.origin === "leapp" ? ` · ${esc(TF("ricavata dagli artefatti di {0}", leappTool()))}` : ""}${t.origin === "backup" ? ` · ${esc(T("backup decifrato con la chiave dell'estrazione: i messaggi assenti dal database attuale sono segnati «solo nel backup»"))}` : ""}</div>
       ${t.origin === "chiamate" ? `<div class="scban">📞 ${T("Conversazione ricostruita da RepertIA: nel database dell'app non ci sono messaggi con questo contatto, solo chiamate. Non è una chat dell'app. Le stesse chiamate sono nell'elenco Chiamate.")}</div>` : ""}
-      <div style="font-size:11.5px;margin-top:3px">${T("Messaggi cancellati: sono evidenziati i segnaposto «messaggio eliminato» lasciati dalle app. WhatsApp Android: i messaggi e le chiamate cancellati ancora presenti nei byte del database (pagine libere, spazio libero, WAL) sono recuperati e segnati «cancellato, recuperato: da verificare»; per le altre app non sono recuperati.")} ${T("iMessage di iOS: i messaggi cancellati dall'utente da meno di circa 30 giorni, ancora in «Eliminati di recente», sono segnati «cancellato dall'utente» con la data della cancellazione.")}</div>`;
+      ${t.app === "whatsapp_export" ? `<div style="font-size:11.5px;margin-top:3px">📤 ${T("Copia fatta da chi usa il telefono con «Esporta chat», non un'acquisizione: orari nell'ora del telefono senza fuso (se alla lettura si indica il fuso del telefono, convertiti e mostrati nel fuso di visualizzazione scelto in alto), al minuto su Android e al secondo su iPhone; niente numeri, stati di lettura, risposte, reazioni e messaggi cancellati.")}</div>` : `<div style="font-size:11.5px;margin-top:3px">${T("Messaggi cancellati: sono evidenziati i segnaposto «messaggio eliminato» lasciati dalle app. WhatsApp Android: i messaggi e le chiamate cancellati ancora presenti nei byte del database (pagine libere, spazio libero, WAL) sono recuperati e segnati «cancellato, recuperato: da verificare»; per le altre app non sono recuperati.")} ${T("iMessage di iOS: i messaggi cancellati dall'utente da meno di circa 30 giorni, ancora in «Eliminati di recente», sono segnati «cancellato dall'utente» con la data della cancellazione.")}</div>`}`;
     $("chFav").onclick = async () => { try{ const a = await api("/api/mobile/thread_art?" + new URLSearchParams({thread: t.id})); bmAddDialog(resSec, {source: "art", id: a.id, title: a.title, path: a.title, label: threadLabel(t)}); }catch(e){ toast(e.message, "bad"); } };
     $("chFind").onclick = async () => { let a = {}; try{ a = await api("/api/mobile/thread_art?" + new URLSearchParams({thread: t.id})); }catch(e){}
       findingForm(a.id ? {source: "art", id: a.id, label: threadLabel(t)} : {label: threadLabel(t)}); };
@@ -680,7 +845,7 @@ body.chatopen .toast{z-index:80}
       const ercl = erc ? `<div class="rcvl" title="${esc(T("Il messaggio è ancora nel database perché iOS conserva i messaggi cancellati per circa 30 giorni in «Eliminati di recente»; poi lo elimina. Fonte: tabella chat_recoverable_message_join di sms.db."))}">⚠ ${erc.cancellato ? TF("cancellato dall'utente il {0}: in «Eliminati di recente»", fts(erc.cancellato)) : T("cancellato dall'utente: in «Eliminati di recente»")}</div>` : "";
       return sep + `<div class="bub ${cls}" data-mid="${m.id}">${rcv}${ercl}${ex.solo_nel_backup ? `<div class="sbkl" title="${esc(T("Il messaggio è nel backup ma non nel database attuale dell'app (stesso identificativo key_id assente): può essere stato cancellato dopo il backup"))}">⚠ ${T("solo nel backup")}</div>` : ""}${who}${m.text ? hl(m.text) : `<span class="kind">[${esc(shown)}]</span>`}${avvisoHtml(ex)}
         ${(m.att || []).map(attHtml).join("")}
-        <div class="meta"><span>${fts(m.ts)}</span>${m.dir === "unk" ? `<span title="${esc(T("La fonte non indica se il messaggio è inviato o ricevuto"))}">${T("verso non indicato")}</span>` : ""}${m.status ? `<span>${esc(m.status)}</span>` : ""}${m.dir === "out" ? rcIcon(m.rc) : ""}${ex.fonte_chiamata ? `<span title="${esc(T("Chiamata letta dal database delle chiamate dell'app; è anche nella sezione Chiamate"))}">📞 ${esc(ex.fonte_chiamata)}</span>` : ""}${ex.orario_altra_fonte ? `<span title="${esc(T("Orario diverso nell'altra fonte della chiamata (per le chiamate in uscita il registro delle chiamate di WhatsApp può indicare un orario più tardi)"))}">⚠ ${esc(ex.orario_altra_fonte.fonte)}: ${fts(ex.orario_altra_fonte.ts)}</span>` : ""}${m.read_ts ? `<span${ex.letto_fonte ? ` title="${esc(TF("Ora in cui questo telefono ha letto il messaggio ({0}). Verificato sui dati di prova pubblici di due telefoni che si scrivevano: coincide entro 1 secondo con la conferma di lettura registrata dall'altro telefono in 8 casi su 10.", ex.letto_fonte))}"` : ""}>${TF("letto {0}", fts(m.read_ts))}</span>` : ""}${m.service ? `<span>${esc(m.service)}</span>` : ""}${ex.decifrato ? `<span title="${esc(ex.decifrato === "estrazione" ? T("portachiavi trovato nell'estrazione") : T("portachiavi fornito dall'operatore"))}">🔑 ${T("decifrato da iLEAPP con il portachiavi")}</span>` : ""}${ex.tipo && m.kind !== "testo" && ex.tipo !== shown ? `<span>${esc(ex.tipo)}</span>` : ""}${ex.verificato === false && m.kind !== "non gestito" && m.kind !== "testo" ? `<span title="${esc(TF("Valore {0} del database: la corrispondenza con questo tipo non è stata verificata sui dati di prova", ex.codice))}">⚠ ${T("tipo non verificato")}</span>` : ""}${(ex.altre_fonti || []).length ? `<span title="${esc((ex.altre_fonti || []).map(f => f.strumento + " «" + f.artefatto + "» #" + f.riga).join("\n"))}">${TF("+{0} fonti uguali", ex.altre_fonti.length)}</span>` : ""}
+        <div class="meta"><span>${fts(m.ts)}</span>${waOra(m, ex)}${m.dir === "unk" ? `<span title="${esc(T("La fonte non indica se il messaggio è inviato o ricevuto"))}">${T("verso non indicato")}</span>` : ""}${m.status ? `<span>${esc(m.status)}</span>` : ""}${m.dir === "out" ? rcIcon(m.rc) : ""}${ex.fonte_chiamata ? `<span title="${esc(T("Chiamata letta dal database delle chiamate dell'app; è anche nella sezione Chiamate"))}">📞 ${esc(ex.fonte_chiamata)}</span>` : ""}${ex.orario_altra_fonte ? `<span title="${esc(T("Orario diverso nell'altra fonte della chiamata (per le chiamate in uscita il registro delle chiamate di WhatsApp può indicare un orario più tardi)"))}">⚠ ${esc(ex.orario_altra_fonte.fonte)}: ${fts(ex.orario_altra_fonte.ts)}</span>` : ""}${m.read_ts ? `<span${ex.letto_fonte ? ` title="${esc(TF("Ora in cui questo telefono ha letto il messaggio ({0}). Verificato sui dati di prova pubblici di due telefoni che si scrivevano: coincide entro 1 secondo con la conferma di lettura registrata dall'altro telefono in 8 casi su 10.", ex.letto_fonte))}"` : ""}>${TF("letto {0}", fts(m.read_ts))}</span>` : ""}${m.service ? `<span>${esc(m.service)}</span>` : ""}${ex.decifrato ? `<span title="${esc(ex.decifrato === "estrazione" ? T("portachiavi trovato nell'estrazione") : T("portachiavi fornito dall'operatore"))}">🔑 ${T("decifrato da iLEAPP con il portachiavi")}</span>` : ""}${ex.tipo && m.kind !== "testo" && ex.tipo !== shown ? `<span>${esc(ex.tipo)}</span>` : ""}${ex.verificato === false && m.kind !== "non gestito" && m.kind !== "testo" ? `<span title="${esc(TF("Valore {0} del database: la corrispondenza con questo tipo non è stata verificata sui dati di prova", ex.codice))}">⚠ ${T("tipo non verificato")}</span>` : ""}${(ex.altre_fonti || []).length ? `<span title="${esc((ex.altre_fonti || []).map(f => f.strumento + " «" + f.artefatto + "» #" + f.riga).join("\n"))}">${TF("+{0} fonti uguali", ex.altre_fonti.length)}</span>` : ""}
           <a data-ref="1" title="${esc(T("Copia il riferimento al dato grezzo (database, tabella, riga)"))}">${esc(m.src_table)}#${m.src_row}</a>
           <a class="act" data-fav="1" title="${esc(T("Aggiungi il messaggio ai preferiti"))}">⭐</a><a class="act" data-find="1" title="${esc(T("Registra il messaggio come reperto"))}">📌 ${T("Reperto")}</a></div></div>`;
     }).join("");
@@ -722,6 +887,7 @@ body.chatopen .toast{z-index:80}
   let AV = null;
   function avItem(a, m){
     const lab = TF("allegato «{0}» del messaggio {1} ({2} UTC, {3}) nella conversazione «{4}»", a.name || base(a.path || ""), a.mid, (a.ts || "").replace("T", " "), a.dir === "out" ? T("inviato") : (a.sender_name || a.sender || T("ricevuto")), (CS.th || {}).title || "");
+    if (attX(a)) return {source: "x", id: +a.inode, path: a.path, name: base(a.path || a.name || ""), label: lab};
     return {source: "fs", part: a.part, inode: a.inode, path: a.path, name: base(a.path || a.name || ""), label: lab};
   }
   async function attShowFor(mid, k, tab, noPush){
@@ -941,14 +1107,16 @@ body.chatopen .toast{z-index:80}
     box.querySelectorAll("[data-om]").forEach(b => b.onclick = () => openChats({mid: +b.dataset.om}));
   }
   const CALL_LBL = {telefono: T("Telefono"), facetime: "FaceTime"};
-  const grpLbl = (cat, g) => cat === "messaggi" ? appLbl(g) : cat === "chiamate" ? (CALL_LBL[g] || g) : g;
+  // (3.0.6) conversazioni anche nella categoria delle chat esportate da WhatsApp
+  const isChatCat = c => c === "messaggi" || c === "chat_esportate";
+  const grpLbl = (cat, g) => isChatCat(cat) ? appLbl(g) : cat === "chiamate" ? (CALL_LBL[g] || g) : g;
   const VERSO = {out: T("in uscita"), in: T("in arrivo"), persa: T("persa"), rifiutata: T("rifiutata"), segreteria: T("segreteria")};
   const VICO = {out: "↗", in: "↙", persa: "✖", rifiutata: "⛔", segreteria: "📼"};
   const hms = s => { if (s == null) return ""; s = Math.round(s); return [Math.floor(s / 3600), Math.floor(s % 3600 / 60), s % 60].map(x => String(x).padStart(2, "0")).join(":"); };
   const artTitleDisk = artTitle, artDetailDisk = artDetail;
   artTitle = x => {
     const d = x.data || {};
-    if (x.cat === "messaggi" && d.chat_thread){
+    if (isChatCat(x.cat) && d.chat_thread){
       const loc = (d.locale || {}).id, al = d.altro || {}, g = d.gruppo;
       const me = `📱 ${T("questo dispositivo")}${loc ? ` <span class="mono">${esc(loc)}</span>` : ""}`;
       const other = g ? `👥 <b>${esc(g.nome || "")}</b> <span class="hint">${TF("{0} partecipanti", nf(g.n))}</span>`
@@ -967,7 +1135,7 @@ body.chatopen .toast{z-index:80}
   const wrapLong = v => String(v).split(/(\s+)/).map(w => w.length > 24 ? `<span class="lt">${esc(w)}</span>` : esc(w)).join("");
   artDetail = x => {
     const d = x.data || {};
-    if (x.cat === "messaggi" && d.chat_thread){
+    if (isChatCat(x.cat) && d.chat_thread){
       const lm = d.ultimo_msg;
       return `<div>${fts(d.primo)} → ${fts(d.ultimo)}</div><div>${TF("inviati {0} · ricevuti {1}", nf(d.inviati), nf(d.ricevuti))}${d.senza_verso ? " · " + TF("verso non indicato {0}", nf(d.senza_verso)) : ""}${d.eventi ? " · " + TF("eventi {0}", nf(d.eventi)) : ""} · ${TF("allegati {0}", nf(d.allegati))}${d.eliminati ? " · " + TF("eliminati {0}", nf(d.eliminati)) : ""}</div>` +
         (lm ? `<div class="hint">${lm.dir === "out" ? T("Ultimo (inviato):") : lm.dir === "sys" ? T("Ultimo (evento):") : T("Ultimo (ricevuto):")} ${esc((lm.testo || "[" + (lm.tipo || KIND[lm.kind] || lm.kind || "") + "]").slice(0, 160))}</div>` : "");
@@ -990,13 +1158,13 @@ body.chatopen .toast{z-index:80}
   const baseActionsDisk = baseActions, rowActionDisk = rowAction;
   baseActions = (kind, x) => {
     const a = baseActionsDisk(kind, x);
-    if (kind === "art" && x.cat === "messaggi" && (x.data || {}).chat_thread) a.unshift(["chat", "💬", T("Apri chat")]);
+    if (kind === "art" && isChatCat(x.cat) && (x.data || {}).chat_thread) a.unshift(["chat", "💬", T("Apri chat")]);
     if (kind === "meta" && x.chat_mid) a.unshift(["mchat", "💬", TF("Apri nella chat ({0})", x.chat)]);
     return a;
   };
   // pannello dei dettagli di una conversazione: «💬 Apri chat» accanto a Fonte, Reperto, Chiedi, Preferiti
   const extRefDisk = extRef;
-  extRef = (kind, x) => { const r = extRefDisk(kind, x); if (r && kind === "art" && x.cat === "messaggi" && (x.data || {}).chat_thread) r.chat = x.data.chat_thread; return r; };
+  extRef = (kind, x) => { const r = extRefDisk(kind, x); if (r && kind === "art" && isChatCat(x.cat) && (x.data || {}).chat_thread) r.chat = x.data.chat_thread; return r; };
   rowAction = (kind, a, x, i) => a === "chat" ? openChats({thread: x.data.chat_thread}) : a === "mchat" ? openChats({mid: x.chat_mid}) : rowActionDisk(kind, a, x, i);
   ART_LBL.leapp = T("Artefatti iLEAPP/ALEAPP (smartphone)");
   ART_LBL.chiamate = T("Chiamate");
@@ -1009,10 +1177,10 @@ body.chatopen .toast{z-index:80}
     fmt: T("Formati: zip, tar, tar.gz, cartella. Si leggono: registri TXT DJI fino alla versione 12, sottotitoli SRT, CSV di Litchi e Airdata, registri Autel, PX4 ULog (.ulg), ArduPilot tlog e BIN. Betaflight e .DAT DJI vengono elencati ma non letti."),
     auto: T("Voli, testo dei documenti e metadati delle foto vengono letti sempre, in automatico."), hash: T("Calcola subito lo SHA-256 dei dati")};
   const TESTI_LOGICA = {h1: T("Nuova analisi di una sorgente logica"), pick: T("Scegli l'archivio o l'AD1…"), ph: T("…oppure incolla qui il percorso, es. /Volumes/Prove/consegna.7z"),
-    fmt: T("Formati: zip, tar, tar.gz, 7z, rar, immagine logica AD1 di FTK Imager (scegli il primo segmento, .ad1: gli altri si trovano da soli), immagine di CD/DVD (ISO 9660 o UDF), cartella. 7z, rar e immagini di CD/DVD vengono estratti una volta in una copia derivata nella cartella del caso."),
+    fmt: T("Formati: zip, tar, tar.gz, 7z, rar, immagine logica AD1 di FTK Imager (scegli il primo segmento, .ad1: gli altri si trovano da soli), immagine di CD/DVD (ISO 9660 o UDF), cartella; anche lo zip (o la cartella estratta) di una chat esportata da WhatsApp con «Esporta chat», che si apre nel visualizzatore delle chat con gli allegati. 7z, rar e immagini di CD/DVD vengono estratti una volta in una copia derivata nella cartella del caso."),
     auto: T("Testo dei documenti e metadati vengono letti in automatico."), hash: T("Calcola subito lo SHA-256 dei dati")};
   const LEAD = {drone: T("Scegli la cartella, lo zip o il tar con i file della scheda o dell'app del drone: registri di volo, sottotitoli, foto e video."),
-    logica: T("Per i file già raccolti senza la copia del disco: archivi consegnati, produzioni documentali, immagini logiche. Contengono solo i file scelti da chi li ha acquisiti: niente file cancellati né spazio libero.")};
+    logica: T("Per i file già raccolti senza la copia del disco: archivi consegnati, produzioni documentali, immagini logiche, chat esportate da WhatsApp. Contengono solo i file scelti da chi li ha acquisiti: niente file cancellati né spazio libero.")};
   const setModo = m => {
     modoDrone = m === "drone"; modoLogica = m === "logica";
     const on = m !== "tel";
@@ -1031,7 +1199,7 @@ body.chatopen .toast{z-index:80}
   };
   const droneMode = on => setModo(on ? "drone" : "tel"), logicaMode = on => setModo(on ? "logica" : "tel");
   $("mobDisco").onclick = () => homeKind("disk");
-  window.RM = {grpLbl, mode: false, droneMode, logicaMode, home: () => { $("mobPath").focus(); }, caseRendered, openChats, closeChats, chatOpen, navState, navRestore, crumbs,
+  window.RM = {grpLbl, mode: false, droneMode, logicaMode, home: () => { $("mobPath").focus(); }, caseRendered, waAvviso, openChats, closeChats, chatOpen, navState, navRestore, crumbs,
                appLbl, grpLbl, attOpen: () => !!AV, pvSaved: () => AV ? AV.saved : null};
 })();
 </script>

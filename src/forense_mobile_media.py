@@ -45,7 +45,8 @@ HEIF = (b"heic", b"heix", b"hevc", b"heim", b"heis", b"mif1", b"msf1", b"avif", 
 AUDIO_FTYP = (b"M4A ", b"M4B ", b"F4A ", b"M4P ")
 FORMATI = {"jpg": "JPEG", "png": "PNG", "gif": "GIF", "webp": "WebP", "heic": "HEIC/HEIF", "avif": "AVIF", "tif": "TIFF",
            "mp4": "MP4", "mov": "QuickTime", "3gp": "3GP", "mkv": "Matroska/WebM", "avi": "AVI", "m4a": "M4A",
-           "wav": "WAV", "ogg": "Ogg/Opus", "amr": "AMR", "mp3": "MP3", "flac": "FLAC"}
+           "wav": "WAV", "ogg": "Ogg/Opus", "amr": "AMR", "mp3": "MP3", "flac": "FLAC", "ts": "MPEG-TS",
+           "m2ts": "MPEG-TS (M2TS)"}
 # le stesse estensioni delle sezioni Foto, Video e Audio dell'interfaccia (IMG_ALL, VIDEO_EXT, AUDIO_EXT di forense_gui)
 EXT_TIPO = {**{e: "foto" for e in (".jpg", ".jpeg", ".jpe", ".jfif", ".png", ".gif", ".webp", ".bmp", ".ico", ".avif", ".heic",
                                    ".heif", ".tif", ".tiff", ".dng", ".cr2", ".cr3", ".nef", ".arw", ".orf", ".raf", ".psd", ".tga")},
@@ -174,8 +175,26 @@ SISTEMA_DISCO = {"windows", "winnt", "system", "library", "usr", "bin", "sbin", 
 PROGRAMMI_DISCO = {"program files", "program files (x86)", "programdata", "applications", "opt"}
 
 
+TS_PACCHETTI = 4         # pacchetti MPEG-TS consecutivi da trovare (con meno byte, quelli che ci stanno, almeno 3)
+
+
+def mpegts(h):
+    """(3.0.6) «ts» (pacchetti da 188 byte) o «m2ts» (192: 4 byte di orario + 188, come .mts/.m2ts delle videocamere) se
+    i primi byte sono un flusso MPEG-TS: byte di sincronismo 0x47 all'inizio di ogni pacchetto. Si guarda il contenuto e
+    mai la sola estensione, perché «.ts» è anche TypeScript (e «.mts» un suo modulo). Servono almeno 3 pacchetti."""
+    for passo, primo, nome in ((188, 0, "ts"), (192, 4, "m2ts")):
+        n = min(TS_PACCHETTI, (len(h) - primo - 1) // passo + 1) if len(h) > primo else 0
+        if n >= 3 and all(h[primo + k * passo] == 0x47 for k in range(n)):
+            return nome
+    return None
+
+
 def firma(h):
-    """(tipo, formato) dai primi byte di un file; None se non è una foto, un video o un audio riconosciuto."""
+    """(tipo, formato) dai primi byte di un file; None se non è una foto, un video o un audio riconosciuto.
+    Il flusso MPEG-TS si riconosce solo con almeno 3 pacchetti (580 byte): `riconosci` legge di più se serve."""
+    t = mpegts(h)
+    if t:
+        return "video", t
     if h[:3] == b"\xff\xd8\xff":
         return "foto", "jpg"
     if h[:8] == b"\x89PNG\r\n\x1a\n":
@@ -228,6 +247,11 @@ def riconosci(case, part, inode, ext, leggi=None):
     except Exception:
         return None
     f = firma(h)
+    if not f and (h[:1] == b"\x47" or h[4:5] == b"\x47"):      # (3.0.6) forse MPEG-TS: servono più pacchetti
+        try:
+            f = firma(leggi(part, inode, 1024)[1] or h) or f
+        except Exception:
+            pass
     if f and f[1] in ("mp4", "3gp", "mov"):
         try:
             hb = leggi(part, inode, 262144)[1] or h
@@ -837,14 +861,21 @@ def prompt_extra(case):
     try:
         con = fa.db_ro(case)
         try:
-            r = con.execute("SELECT COUNT(*), SUM(metodo = 'contenuto'), SUM(area = 'cache') FROM media_file").fetchone() \
-                if presente(con) else (0, 0, 0)
+            r = con.execute("SELECT COUNT(*), SUM(metodo = 'contenuto'), SUM(area = 'cache'), "
+                            "SUM(formato IN ('ts', 'm2ts')) FROM media_file").fetchone() if presente(con) else (0, 0, 0, 0)
         finally:
             con.close()
     except Exception:
-        r = (0, 0, 0)
+        r = (0, 0, 0, 0)
     if not r[0]:
         return []
-    return [tr("- Foto, video e audio riconosciuti dal contenuto: {n} file ({c} dalla firma, {k} nelle cache), con l'app o la "
-               "cartella a cui appartengono: count_media, poi list_media. Molti non hanno l'estensione di una foto o di un "
-               "video: find_files per estensione non li trova.").format(n=r[0], c=r[1] or 0, k=r[2] or 0)]
+    out = [tr("- Foto, video e audio riconosciuti dal contenuto: {n} file ({c} dalla firma, {k} nelle cache), con l'app o la "
+              "cartella a cui appartengono: count_media, poi list_media. Molti non hanno l'estensione di una foto o di un "
+              "video: find_files per estensione non li trova.").format(n=r[0], c=r[1] or 0, k=r[2] or 0)]
+    if r[3]:                             # (3.0.6) anteprima dei video MPEG-TS: copia di lavoro, non il reperto
+        out.append(tr("- Video MPEG-TS (.ts, .mts, .m2ts, riconosciuti dal contenuto): {n}. Nell'interfaccia l'anteprima di "
+                      "quelli H.264 è una COPIA DI LAVORO riscritta in MP4 nella cache del caso (immagini copiate senza "
+                      "ricodifica, audio in AAC), solo per vederli nel browser: il reperto è il file originale, con il suo "
+                      "offset/inode e la sua impronta. Cita sempre il file originale, mai la copia dell'anteprima. Un file "
+                      ".ts può anche essere codice TypeScript: conta il formato riconosciuto dal contenuto.").format(n=r[3]))
+    return out

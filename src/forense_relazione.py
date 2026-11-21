@@ -377,14 +377,15 @@ def el_scheda(L, art_id, nota=""):
 def el_mail(L, mid, nota=""):
     con = fa.db_ro(L.case)
     try:
-        r = con.execute("SELECT id, date, sender, recipients, cc, subject, body, html, src_path, folder, fmt FROM mail WHERE id=?",
+        import forense_estesa as fe
+        r = con.execute(f"SELECT id, date, sender, recipients, cc, subject, body, html, src_path, folder, fmt, {fe.mail_bcc(con)} FROM mail WHERE id=?",
                         (int(mid),)).fetchone()
         atts = con.execute("SELECT id, name, size, relpath, sha256 FROM xitems WHERE mail=? ORDER BY id", (int(mid),)).fetchall()
     finally:
         con.close()
     if not r:
         return None
-    _id, date, snd, to, cc, subj, body, htm, src, folder, fmt = r
+    _id, date, snd, to, cc, subj, body, htm, src, folder, fmt, bcc = r
     testo = body or ""
     if not testo and htm:            # solo HTML: si mostra il testo, mai l'HTML della prova
         testo = html.unescape(re.sub(r"(?is)<(script|style)\b.*?</\1>|<[^<>]+>", " ", htm))
@@ -402,7 +403,7 @@ def el_mail(L, mid, nota=""):
                 rel, s2 = L.copia(k, sorgente=f, nome=nome)
                 sha = sha or s2
         allegati.append({"tipo": tipo, "nome": nome, "size": size, "thumb": th, "file": rel, "sha": sha, "righe": []})
-    righe = [(tr("Da"), snd), (tr("A"), to), (tr("Cc"), cc), (tr("Data ({tz})").format(tz=g.tz_label(L.case, L.tz)), L.ts(date)),
+    righe = [(tr("Da"), snd), (tr("A"), to), (tr("Cc"), cc), (tr("Ccn"), bcc), (tr("Data ({tz})").format(tz=g.tz_label(L.case, L.tz)), L.ts(date)),
              (tr("Fonte"), f"{src} › {folder}" if folder else src), (tr("Formato"), fmt)]
     return {"t": "mail", "titolo": subj or tr("(senza oggetto)"), "righe": [(a, v) for a, v in righe if v], "testo": testo[:200000],
             "allegati": allegati, "nota": nota}
@@ -1396,7 +1397,7 @@ def crea(case, o, progress=lambda m: None):
     t0 = time.time()
     formati = [f for f in (o.get("formati") or ["html", "pdf"]) if f in ("html", "pdf", "docx")] or ["html"]
     DFMT[0] = o.get("dfmt") if o.get("dfmt") in ("gma", "iso", "mga", "esteso") else "iso"
-    out = g.unique(case.export_dir / f"report_{g.stamp_now()}")
+    out = g.unique(case.export_dir / "report" / f"report_{g.stamp_now()}")      # (3.0.6) report in export/report
     out.mkdir(parents=True)
     L = Lavoro(case, o, out, progress)
     titolo = (o.get("titolo") or "").strip() or tr("Report di analisi forense – {name}").format(name=case.root.name)

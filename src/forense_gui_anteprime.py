@@ -222,7 +222,7 @@ def prune_cache(case, limit=None):
     files, total = [], 0
     # (2.20) le miniature (pochi KB l'una) non si tolgono: prima finivano via insieme alle copie dei video da cui erano
     # state fatte, e a ogni apertura di un caso con molti video si rifacevano tutte
-    for sub in ("file", "pdf", "pagine", "conv", "tmp"):
+    for sub in ("file", "pdf", "pagine", "conv", "video", "tmp"):
         d = base / sub
         if not d.is_dir():
             continue
@@ -251,7 +251,7 @@ def prune_cache(case, limit=None):
     return freed
 
 
-CACHE_SUBS = ("file", "pdf", "pagine", "conv", "miniature", "testo2", "evidenze", "libreoffice", "tmp")
+CACHE_SUBS = ("file", "pdf", "pagine", "conv", "video", "miniature", "testo2", "evidenze", "libreoffice", "tmp")
 
 
 def _tree_size(d):
@@ -814,7 +814,7 @@ def make_thumb(case, it, f, size, out):
                 if png:
                     shutil.move(str(png), out)
                     return True
-        if (ext in VIDEO_MIME or ext in VIDEO_OTHER) and tool("ffmpeg"):
+        if (ext in VIDEO_MIME or ext in VIDEO_OTHER or video_ts(open(f, "rb").read(1024))) and tool("ffmpeg"):
             if run_quiet([tool("ffmpeg"), "-v", "quiet", "-ss", "1", "-i", str(f), "-frames:v", "1",
                           "-vf", f"scale={size}:-2", "-y", str(td / "v.jpg")], 60) \
                     and (td / "v.jpg").exists():
@@ -1017,6 +1017,69 @@ def media_url(kind, it, **extra):
     return f"/api/{kind}?" + urlencode(q)
 
 
+# (3.0.6) video che il browser non riproduce (MPEG-TS, MTS/M2TS, MKV, AVI…): se la traccia video è H.264 (quasi tutte le
+# videocamere e le registrazioni recenti) si riscrive in MP4 SENZA ricodificare le immagini (ffmpeg -c:v copy; audio in
+# AAC, che ogni browser legge) nella cache del caso, cartella «video». È una copia di lavoro per guardarlo, ricostruibile;
+# l'originale resta quello del reperto. Con altri codec (MPEG-2, HEVC…) resta il fotogramma: niente ricodifica, che
+# richiederebbe codificatori diversi da un sistema all'altro e tempi lunghi.
+VIDEO_MP4_MAX = 4 << 30
+VIDEO_MP4_COPIA = {"h264"}
+VIDEO_MP4_LOCK = threading.Lock()
+
+
+def video_ts(head):
+    """«ts»/«m2ts» se il contenuto è un flusso MPEG-TS (qualunque estensione, anche nessuna)."""
+    import forense_mobile_media as fmm
+    return fmm.mpegts(head)
+
+
+def video_da_convertire(ext, head):
+    return ext in VIDEO_OTHER or bool(video_ts(head))
+
+
+def video_codec(f):
+    """Codec della prima traccia video secondo ffmpeg («h264», «mpeg2video», «hevc»…); None se non si legge."""
+    ff = tool("ffmpeg")
+    if not ff:
+        return None
+    try:
+        r = subprocess.run([ff, "-hide_banner", "-nostdin", "-i", str(f)], capture_output=True, timeout=30,
+                           stdin=subprocess.DEVNULL)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    m = re.search(rb"Stream #\d+:\d+[^\n]*?: Video: (\w+)", r.stderr)
+    return m.group(1).decode("ascii", "replace") if m else None
+
+
+def video_mp4(case, b):
+    """Percorso della copia MP4 (nella cache del caso) di un video da convertire; la fa la prima volta."""
+    it = file_ident(case, b)
+    out = cache_dir(case, "video") / f"{it['key']}.mp4"
+    if out.exists():
+        return out
+    size, f = file_size(case, it)
+    if not f or size > VIDEO_MP4_MAX:
+        raise ValueError(tr("Video troppo grande per la conversione."))
+    with VIDEO_MP4_LOCK:              # una conversione alla volta: il browser può chiedere lo stesso video più volte
+        if not out.exists():
+            riscrivi_mp4(f, out)
+    return out
+
+
+def riscrivi_mp4(f, out):
+    """Riscrive il video `f` in MP4 (`out`): immagini H.264 copiate così come sono, prima traccia audio in AAC."""
+    if video_codec(f) not in VIDEO_MP4_COPIA:
+        raise ValueError(tr("Il video non si può riscrivere in MP4 senza ricodificarlo."))
+    tmp = out.with_name(out.stem + ".parziale.mp4")
+    ok = run_quiet([tool("ffmpeg"), "-v", "error", "-nostdin", "-i", str(f), "-map", "0:v:0", "-map", "0:a:0?",
+                    "-c:v", "copy", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", "-y", str(tmp)], 1800)
+    if not ok or not tmp.exists() or tmp.stat().st_size == 0:
+        tmp.unlink(missing_ok=True)
+        raise ValueError(tr("Conversione del video non riuscita."))
+    tmp.replace(out)
+    return out
+
+
 def ext_contenuto(ext, head):
     """(3.0.1) Estensione dal contenuto (foto, video, audio) per i file senza l'estensione di un formato multimediale, come
     le cache delle app («.0», «.cnt», senza estensione); altrimenti l'estensione del nome."""
@@ -1116,11 +1179,19 @@ def view_info(case, b):
         with open(f, "rb") as fh:
             data = fh.read(300_000)
         return {**base, "type": "text", "text": decode_text(data), "truncated": size > len(data)}
-    if ext in VIDEO_OTHER:
+    if video_da_convertire(ext, head):
+        codec = video_codec(f)
+        tsn = tr(" (flusso MPEG-TS riconosciuto dal contenuto)") if video_ts(head) else ""
+        if codec in VIDEO_MP4_COPIA and size <= VIDEO_MP4_MAX:
+            return {**base, "type": "video", "src": media_url("video_mp4", it), "mime": "video/mp4",
+                    "note": tr("Video {c}{t}: riscritto in MP4 per il browser senza ricodificare le immagini (audio in AAC), "
+                               "in una copia di lavoro nella cache del caso; l'originale è il file del reperto. La prima "
+                               "volta può volerci qualche secondo.").format(c=codec.upper(), t=tsn)}
         t = thumb_bytes(case, {**b, "size": 900})
         if t:
             return {**base, "type": "image", "src": media_url("thumb", it, size=900),
-                    "note": tr("Fotogramma del video (il formato non si riproduce nel browser).")}
+                    "note": tr("Fotogramma del video{t}: il formato{c} non si riproduce nel browser.").format(
+                        t=tsn, c=f" {codec}" if codec else "")}
     t = thumb_bytes(case, {**b, "size": 1200}) if IS_MAC else None
     if t:
         return {**base, "type": "image", "src": media_url("thumb", it, size=1200)}

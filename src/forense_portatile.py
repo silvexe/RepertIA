@@ -686,7 +686,7 @@ def export_ext(case, out, dati, opts):
             mob = fa.is_mobile(case) and "grp" in {r[1] for r in con.execute("PRAGMA table_info(artifacts)")}
             ext["art"] = [list(r) for r in con.execute(
                 "SELECT cat, ts, title, detail, user, src_path, part, inode"
-                + (", grp, sub, CASE WHEN cat='messaggi' THEN data END" if mob else ", NULL, NULL, NULL")
+                + (", grp, sub, CASE WHEN cat IN ('messaggi', 'chat_esportate') THEN data END" if mob else ", NULL, NULL, NULL")
                 + ", data, id FROM artifacts ORDER BY ts IS NULL, ts DESC")]
             ext["segreti"] = art_segreti(case, con, ext["art"], bool(opts.get("segreti"))) if mob else 0
             for r in ext["art"]:
@@ -722,8 +722,9 @@ def export_ext(case, out, dati, opts):
                     ext["leapp_n"] = sum(x[2] for x in idx)
         if has("mail"):
             budget = 40 << 20
-            for r in con.execute("SELECT id, date, sender, recipients, cc, subject, n_att, fmt, folder, src_path, body "
-                                 "FROM mail ORDER BY date IS NULL, date DESC"):
+            import forense_estesa as fe
+            for r in con.execute("SELECT id, date, sender, recipients, cc, subject, n_att, fmt, folder, src_path, body, "
+                                 f"{fe.mail_bcc(con)} FROM mail ORDER BY date IS NULL, date DESC"):
                 r = list(r)
                 body = (r[10] or "")[:20000]
                 budget -= len(body)
@@ -827,7 +828,7 @@ def _export_portable(case, opts, progress, pstate):
     except Exception:
         pass
     wait_nav(case, progress)
-    out = g.unique(case.export_dir / f"report_portatile_{g.stamp_now()}")
+    out = g.unique(case.export_dir / "report" / f"report_portatile_{g.stamp_now()}")      # (3.0.6) in export/report
     pstate["out"] = out
     dati = out / "dati"
     for d in ("a", "eventi", "testi", "file", "allegati"):

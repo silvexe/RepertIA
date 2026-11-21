@@ -582,6 +582,16 @@ def controlli_preferiti_chat(case, con, check):
         check(tr("Preferiti: esportazione della chat limitata a un periodo, nel manifest"),
               righe >= n_giorno > 0 and (n_tot == n_giorno or n_giorno <= righe < n_tot + 200) and "[chat]" in (Path(res["path"]) / "manifest.csv").read_text(encoding="utf-8-sig"),
               f"{n_giorno}/{n_tot}", interno=True)
+        # (3.0.6) una sottocartella per tipo di evidenza e LEGGIMI.txt che le descrive
+        ex = Path(res["path"])
+        import csv as _csv
+        with open(ex / "manifest.csv", encoding="utf-8-sig", newline="") as fh:
+            cime = {Path(x[6]).parts[0] for x in list(_csv.reader(fh, delimiter=";"))[1:] if len(x) > 6 and x[6]}
+        leggimi = (ex / tr("LEGGIMI.txt")).read_text(encoding="utf-8-sig") if (ex / tr("LEGGIMI.txt")).is_file() else ""
+        check(tr("esportazione della selezione: file in sottocartelle per tipo (file, carving, estratti, chat, posta) "
+                 "descritte in LEGGIMI.txt"),
+              bool(cime) and cime <= {"file", "carving", "estratti", "chat", "posta"} and all(f"- {x}/ (" in leggimi for x in cime),
+              f"{sorted(cime)} {leggimi[:200]}", interno=True)
         p0 = c.meta.get("evidence")
         c.meta["evidence"] = c.meta["image"] = "/percorso/di/un/altro/computer/copia.dd"
         c.save()
@@ -1253,6 +1263,824 @@ def controlli_sorgente_logica(check):
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def controlli_chat_esportate(check):
+    """(3.0.6) Chat esportate da WhatsApp («Esporta chat»), con esportazioni inventate (nomi e testi finti): formati
+    iPhone (italiano, inglese USA) e Android (italiano, inglese USA a 12 ore); messaggi, allegati, chi ha esportato,
+    gruppo; orari senza fuso o adeguati al fuso dell'analisi (ore doppie e inesistenti del cambio dell'ora, mezzanotte
+    a 12 ore, giorno/mese e mese/giorno); lettura automatica nella sorgente logica, zip dentro il caso, esportazione
+    aggiunta da fuori del caso con l'impronta ricontrollata; categoria «chat_esportate»; rinvio dalla scheda Smartphone."""
+    import contextlib
+    import io
+    import sqlite3
+    import types
+    import forense_mobile as fm
+    import forense_mobile_chat as fmc
+    import forense_mobile_gui as fmg
+    import forense_mobile_waexport as fwe
+    L, S = "‎", " "                    # segno di direzione di WhatsApp; spazio stretto prima di AM/PM
+    tmp = Path(tempfile.mkdtemp(prefix="collaudo_waexp_"))
+    foto = {n: b"\xff\xd8\xff\xe0" + n.encode() + b"\xff\xd9" for n in
+            ("00000005-PHOTO-2026-03-13-10-02-00.jpg", "IMG-20260713-WA0001.jpg", "IMG-20260313-WA0002.jpg")}
+    # iPhone, italiano, chat a due: chi ha esportato dalla riga «Hai eliminato questo messaggio»
+    e1 = "\n".join([
+        f"[13/03/26, 09:59:30] Anna Verdi: {L}I messaggi e le chiamate sono crittografati end-to-end. Solo le persone "
+        "in questa chat possono leggerli, ascoltarli o condividerli.",
+        "[13/03/26, 10:00:44] Anna Verdi: Ciao Marco, ci vediamo domani?",
+        "[13/03/26, 10:01:05] Marco Neri: Sì, alle 9", "porto io i documenti",
+        f"{L}[13/03/26, 10:02:00] Marco Neri: {L}<allegato: 00000005-PHOTO-2026-03-13-10-02-00.jpg>",
+        f"{L}[13/03/26, 10:03:00] Anna Verdi: {L}immagine omessa",
+        f"[13/03/26, 10:04:00] Marco Neri: {L}Hai eliminato questo messaggio.",
+        f"[13/03/26, 10:05:00] Anna Verdi: A domani {L}<Questo messaggio è stato modificato>",
+        f"{L}[13/03/26, 10:06:00] Marco Neri: Posizione: https://maps.google.com/?q=41.9028,12.4964",
+        f"{L}[13/03/26, 10:07:00] Anna Verdi: {L}Chiamata. 2 min"]) + "\n"
+    # Android, italiano, chat a due: chi ha esportato dal nome del file (l'altro interlocutore); avviso del 2024
+    e2 = "\n".join([
+        "16/01/24, 10:00 - I messaggi e le chiamate sono crittografati end-to-end. Nessuno al di fuori di questa chat, "
+        "nemmeno WhatsApp, può leggerli o ascoltarli. Tocca per saperne di più.",
+        "13/07/26, 10:00 - Anna Verdi: Buongiorno",
+        "13/07/26, 10:01 - Marco Neri: IMG-20260713-WA0001.jpg (file allegato)",
+        "13/07/26, 10:02 - Marco Neri: <Media omessi>",
+        "13/07/26, 10:03 - Anna Verdi: Questo messaggio è stato eliminato",
+        "13/07/26, 10:04 - Anna Verdi:"]) + "\n"
+    # Android, inglese USA a 12 ore, gruppo: mese/giorno, 12:30 AM = 00:30 (a Roma il giorno prima in UTC)
+    e3_righe = [
+        f'3/13/26, 9:00{S}AM - Marco Neri created group "Gruppo Prova"',
+        f"3/13/26, 9:01{S}AM - Marco Neri added Anna Verdi and Luca Bianchi",
+        f"3/13/26, 2:05{S}PM - Luca Bianchi: Hello everyone",
+        f"3/13/26, 2:06{S}PM - Anna Verdi: IMG-20260313-WA0002.jpg (file attached)", "holiday photo",
+        f"3/13/26, 2:07{S}PM - Marco Neri: You deleted this message",
+        f"3/13/26, 12:30{S}AM - Luca Bianchi: late"]
+    e3 = "\n".join(e3_righe) + "\n"
+    try:
+        # ---------------------------------------------------------------- orari (nessuna conversione senza fuso)
+        o = lambda c, tz, ordine="gma": fwe.orario(c, ordine, tz)
+        c1 = ("19", "11", "26", "08", "00", "44", None)
+        got = [o(c1, None), o(c1, "Europe/Rome")[0], o(c1, "UTC")[0], o(c1, "America/New_York")[0],
+               o(("29", "03", "26", "02", "30", None, None), "Europe/Rome"),
+               o(("25", "10", "26", "02", "30", None, None), "Europe/Rome"),
+               o(("3", "13", "26", "12", "30", None, "A"), None, "mga")[1], o(("3", "13", "26", "12", "30", None, "P"), None, "mga")[1],
+               o(("2026", "03", "13", "10", "00", None, None), None, "agm")[1]]
+        att = [("2026-11-19T08:00:44 locale", "2026-11-19T08:00:44", None), "2026-11-19T07:00:44", "2026-11-19T08:00:44",
+               "2026-11-19T13:00:44", ("2026-03-29T01:30:00", "2026-03-29T02:30:00", "inesistente"),
+               ("2026-10-25T00:30:00", "2026-10-25T02:30:00", "doppia"),
+               "2026-03-13T00:30:00", "2026-03-13T12:30:00", "2026-03-13T10:00:00"]
+        check(tr("Chat esportate da WhatsApp: ora del telefono senza fuso lasciata com'è; adeguata a Europe/Rome, UTC e "
+                 "New York; ore inesistenti e doppie del cambio dell'ora segnate; 12 AM/PM e ordine della data giusti"),
+              got == att, str([(g, a) for g, a in zip(got, att) if g != a])[:300], interno=True)
+        # ---------------------------------------------------------------- lettura dei testi
+        a1, a2, a3 = fwe.analizza(e1, None, "Anna Verdi"), fwe.analizza(e2, None, "Anna Verdi"), fwe.analizza(e3, None, "Gruppo Prova")
+        us = fwe.analizza(f"[3/13/26, 2:05:09{S}PM] Anna Verdi: hello\n{L}[3/13/26, 2:06:00{S}PM] Marco Neri: {L}image omitted\n",
+                          None, "Anna Verdi")
+        amb = fwe.analizza("[01/02/26, 10:00:00] Anna Verdi: ciao\n[03/02/26, 11:00:00] Marco Neri: ok\n", None, None)
+        senza_io = fwe.analizza("\n".join(r for r in e3_righe if "deleted" not in r) + "\n", None, "Gruppo Prova")
+        k = lambda a: [m["kind"] for m in a["messaggi"]]
+        got = [(a["formato"], a["ordine"], a["ordine_dedotto"], a["io"], a["gruppo"], sorted(a["mittenti"]), k(a))
+               for a in (a1, a2, a3)]
+        got += [(us["ordine"], us["messaggi"][0]["locale"], us["messaggi"][1]["kind"], us["messaggi"][1]["tipo"]),
+                (amb["ordine"], amb["ordine_dedotto"]), (senza_io["io"], senza_io["gruppo"]),
+                (a1["messaggi"][2]["text"], a1["messaggi"][6]["text"], a1["messaggi"][6]["modificato"],
+                 a1["messaggi"][7]["lat"], a1["messaggi"][7]["lon"], a1["messaggi"][8]["durata_s"], a3["messaggi"][3]["text"])]
+        att = [("ios", "gma", True, "Marco Neri", False, ["Anna Verdi", "Marco Neri"],
+                ["sistema", "testo", "testo", "allegato", "allegato", "eliminato", "testo", "posizione", "chiamata"]),
+               ("android", "gma", True, "Marco Neri", False, ["Anna Verdi", "Marco Neri"],
+                ["sistema", "testo", "allegato", "allegato", "eliminato", "non gestito"]),
+               ("android", "mga", True, "Marco Neri", True, ["Anna Verdi", "Luca Bianchi", "Marco Neri"],
+                ["sistema", "sistema", "testo", "allegato", "eliminato", "testo"]),
+               ("mga", "2026-03-13T14:05:09", "allegato", tr("immagine")), ("gma", False), (None, True),
+               ("Sì, alle 9\nporto io i documenti", "A domani", True, 41.9028, 12.4964, 120, "holiday photo")]
+        check(tr("Chat esportate da WhatsApp: formati iPhone e Android in italiano e inglese letti (messaggi, allegati, "
+                 "posizione, chiamata, modificati, eliminati, avvisi, gruppo, chi ha esportato)"),
+              got == att, str([(g, a) for g, a in zip(got, att) if g != a])[:300], interno=True)
+
+        # ---------------------------------------------------------------- caso: sorgente logica con due esportazioni
+        dentro = tmp / "zip_interno.zip"
+        with zipfile.ZipFile(dentro, "w") as zf:
+            zf.writestr("Chat WhatsApp con Anna Verdi.txt", e2)
+            zf.writestr("IMG-20260713-WA0001.jpg", foto["IMG-20260713-WA0001.jpg"])
+        consegna = tmp / "consegna.zip"
+        with zipfile.ZipFile(consegna, "w") as zf:
+            zf.writestr("WhatsApp Chat - Anna Verdi/_chat.txt", e1)
+            zf.writestr("WhatsApp Chat - Anna Verdi/00000005-PHOTO-2026-03-13-10-02-00.jpg",
+                        foto["00000005-PHOTO-2026-03-13-10-02-00.jpg"])
+            zf.write(dentro, "Chat WhatsApp con Anna Verdi.zip")
+        fuori = tmp / "pendrive" / "WhatsApp Chat with Gruppo Prova"
+        fuori.mkdir(parents=True)
+        (fuori / "WhatsApp Chat with Gruppo Prova.txt").write_text(e3, encoding="utf-8")
+        (fuori / "IMG-20260313-WA0002.jpg").write_bytes(foto["IMG-20260313-WA0002.jpg"])
+        a = types.SimpleNamespace(case=str(tmp / "casi" / "consegna"), image=str(consegna), no_hash=True, no_indice=True,
+                                  hash_file=False, chat=True, leapp=False, drone=False, logica=True, decomprimi=False,
+                                  info=None, lingua=None, fuso="Europe/Rome", keychain=None, sysdiagnose=None,
+                                  wa_backup=False, trascrizione=None)
+        with contextlib.redirect_stdout(io.StringIO()):
+            fm.cmd_prepara(a)
+        case = fa.Case(a.case)
+
+        def stato():
+            con = sqlite3.connect(str(case.db_path))
+            try:
+                th = con.execute("SELECT id, title, local, participants, is_group, n_msg, first_ts, last_ts FROM chat_threads "
+                                 "WHERE app=? ORDER BY first_ts", (fwe.APP,)).fetchall()
+                out = []
+                for t in th:
+                    ms = con.execute("SELECT direction, ts, extra FROM chat_messages WHERE thread=? ORDER BY src_row", (t[0],)).fetchall()
+                    al = con.execute("SELECT a.name, a.metodo, a.lat IS NOT NULL, a.inode FROM chat_attachments a JOIN chat_messages m "
+                                     "ON m.id = a.msg WHERE m.thread=? ORDER BY a.id", (t[0],)).fetchall()
+                    cats = sorted({r[0] for r in con.execute("SELECT cat FROM artifacts WHERE json_extract(data, '$.chat_thread')=?",
+                                                             (t[0],))})
+                    det = " ".join(r[0] or "" for r in con.execute("SELECT detail FROM artifacts WHERE json_extract(data, "
+                                                                   "'$.chat_thread')=?", (t[0],)))
+                    estr = [(r[0] == fa.sha256_file(case.root / r[1]), (case.root / r[1]).read_bytes()) for i in al if i[1] == "estratto"
+                            for r in con.execute("SELECT sha256, relpath FROM xitems WHERE id=?", (int(i[3]),))]
+                    out.append({"t": (t[1], t[2], json.loads(t[3] or "[]"), t[4], t[5], t[6], t[7]),
+                                "versi": [m[0] for m in ms], "ts": [m[1] for m in ms],
+                                "extra": [json.loads(m[2] or "{}") for m in ms],
+                                "allegati": [i[:3] for i in al], "cat": cats, "det": det, "estratti": estr})
+                return out
+            finally:
+                con.close()
+
+        # lettura automatica alla preparazione: solo il testo non in zip, orari dell'ora del telefono, domanda in sospeso
+        ch = case.meta.get("chat") or {}
+        s0 = stato()
+        got = ([x["t"] for x in s0], s0[0]["versi"] if s0 else None, s0[0]["allegati"] if s0 else None,
+               ch.get("esportazioni_da_decidere"), any("Chat WhatsApp con Anna Verdi.zip" in v for v in ch.get("avvisi") or []),
+               (case.meta.get("logica_telefono") or {}).get("esportazioni_whatsapp"))
+        att = ([("Anna Verdi", "Marco Neri", ["Anna Verdi"], 0, 9, "2026-03-13T10:00:44 locale", "2026-03-13T10:07:00 locale")],
+               ["sys", "in", "out", "out", "in", "out", "in", "out", "in"],
+               [("00000005-PHOTO-2026-03-13-10-02-00.jpg", "percorso", 0), (tr("immagine"), None, 0), (tr("posizione"), None, 1)],
+               True, True, 1)
+        check(tr("Chat esportate da WhatsApp: lette alla preparazione della sorgente logica con l'ora del telefono senza fuso "
+                 "(chi ha esportato come «questo dispositivo», allegato trovato, zip interno segnalato, domanda sugli orari in sospeso)"),
+              got == att, str(got)[:300], interno=True)
+
+        # analisi aggiuntiva: zip nel caso ed esportazione da fuori del caso, orari adeguati al fuso dell'analisi
+        voce = fwe.registra_esterna(case, str(fuori), None)
+        case = fa.Case(a.case)
+
+        def scelte_da(case):
+            out = []
+            for c in fmg.waexport_cerca(case, {}, anteprime=False)["trovate"]:
+                out.append({**({k: c[k] for k in ("sha256", "nome", "origine", "byte", "ts") if k in c}), "tipo": c["tipo"],
+                            "part": c["part"], "inode": c["inode"], "path": c["path"], "cancellato": c.get("cancellato"), "io": None})
+            return out
+
+        def rifai(tz):
+            c = fa.Case(a.case)
+            con = sqlite3.connect(str(c.db_path))
+            try:
+                with contextlib.redirect_stdout(io.StringIO()):
+                    return c, fmc.run_esportazioni(c, con, scelte_da(c), tz)
+            finally:
+                con.close()
+
+        anteprime = sorted((x.get("tipo"), x.get("formato"), x.get("io"), x.get("gruppo"), x.get("messaggi"))
+                           for x in fmg.waexport_cerca(case, {}, anteprime=True)["trovate"])
+        case, out = rifai("Europe/Rome")
+        s1 = stato()
+        got = (anteprime, [x["t"] for x in s1], [x["versi"] for x in s1], [x["allegati"] for x in s1],
+               [x["estratti"] for x in s1], [x["cat"] for x in s1], out.get("esportazioni_da_decidere"),
+               s1[1]["extra"][1] if len(s1) > 1 else None, "2024-01-16 09:00:00 UTC" in (s1[2]["det"] if len(s1) > 2 else ""),
+               voce.get("sha256") == fa.sha256_file(fuori / "WhatsApp Chat with Gruppo Prova.txt"))
+        att = (sorted([("testo", "ios", "Marco Neri", False, 9), ("zip", "android", "Marco Neri", False, 6),
+                       ("esterna", "android", "Marco Neri", True, 6)]),
+               [("Gruppo Prova", "Marco Neri", ["Anna Verdi", "Luca Bianchi"], 1, 6, "2026-03-12T23:30:00", "2026-03-13T13:07:00"),
+                ("Anna Verdi", "Marco Neri", ["Anna Verdi"], 0, 9, "2026-03-13T09:00:44", "2026-03-13T09:07:00"),
+                ("Anna Verdi", "Marco Neri", ["Anna Verdi"], 0, 6, "2026-07-13T08:00:00", "2026-07-13T08:04:00")],
+               [["sys", "sys", "in", "in", "out", "in"], ["sys", "in", "out", "out", "in", "out", "in", "out", "in"],
+                ["sys", "in", "out", "out", "in", "in"]],
+               [[("IMG-20260313-WA0002.jpg", "estratto", 0)],
+                [("00000005-PHOTO-2026-03-13-10-02-00.jpg", "percorso", 0), (tr("immagine"), None, 0), (tr("posizione"), None, 1)],
+                [("IMG-20260713-WA0001.jpg", "estratto", 0), (tr("media"), None, 0)]],
+               [[(True, foto["IMG-20260313-WA0002.jpg"])], [], [(True, foto["IMG-20260713-WA0001.jpg"])]],
+               [["chat_esportate"]] * 3, False,
+               {"tipo": None, "riga": 2, "ora_locale": "2026-03-13T10:00:44", "fuso": "Europe/Rome",
+                "esportazione": "_chat.txt"}, True, True)
+        if got[7]:
+            got[7].pop("tipo", None)
+            att[7].pop("tipo", None)
+        check(tr("Chat esportate da WhatsApp: analisi aggiuntiva con zip nel caso ed esportazione da fuori del caso, orari "
+                 "adeguati a Europe/Rome (ora legale e solare, mezzanotte nel giorno prima in UTC), periodo senza l'avviso "
+                 "di WhatsApp, allegati copiati con impronta, categoria «chat esportate»"),
+              got == att, str([(i, g, t) for i, (g, t) in enumerate(zip(got, att)) if g != t])[:400], interno=True)
+
+        # «Lascia l'ora del telefono senza fuso»; poi l'esportazione esterna cambiata non si legge più
+        case, out = rifai(None)
+        s2 = stato()
+        (fuori / "WhatsApp Chat with Gruppo Prova.txt").write_text(e3 + f"3/13/26, 3:00{S}PM - Anna Verdi: aggiunta\n",
+                                                                   encoding="utf-8")
+        case, out3 = rifai("Europe/Rome")
+        s3 = stato()
+        got = ([x["t"][5] for x in s2], [("fuso" in e) for x in s2 for e in x["extra"]].count(True), len(s3),
+               any(fuori.name in v and "SHA-256" in v for v in out3.get("avvisi") or []))
+        att = (["2026-03-13T00:30:00 locale", "2026-03-13T10:00:44 locale", "2026-07-13T10:00:00 locale"], 0, 2, True)
+        check(tr("Chat esportate da WhatsApp: senza adeguamento gli orari restano l'ora del telefono senza fuso; "
+                 "un'esportazione esterna cambiata dopo la registrazione (SHA-256 diverso) non viene letta"),
+              got == att, str(got)[:300], interno=True)
+
+        # scheda Smartphone: un'esportazione si apre come sorgente logica
+        diretta = tmp / "WhatsApp Chat - Anna Verdi.zip"
+        with zipfile.ZipFile(diretta, "w") as zf:
+            zf.writestr("_chat.txt", e1)
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                fm.cmd_prepara(types.SimpleNamespace(case=str(tmp / "tel" / "x"), image=str(diretta), logica=False, lingua=None))
+            rinvio = False
+        except SystemExit:
+            rinvio = True
+        check(tr("Chat esportate da WhatsApp: uno zip di «Esporta chat» aperto come smartphone viene rinviato alla sorgente logica"),
+              fwe.e_esportazione(diretta) and not fwe.e_esportazione(consegna) and rinvio, f"{rinvio}", interno=True)
+    except Exception as e:
+        import traceback
+        check(tr("Chat esportate da WhatsApp: preparazione delle prove"), False,
+              f"{type(e).__name__}: {e} {traceback.format_exc()[-300:]}", interno=True)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def controlli_posta_eml(check):
+    """(3.0.6) Una mail come file .eml, con mail inventate: EML, EMLX e mbox (anche due messaggi con le stesse
+    intestazioni) danno i byte originali; PST/OST (con e senza intestazioni di trasporto) e MSG una ricostruzione
+    dichiarata, con le intestazioni originali riga per riga, testo, HTML, allegati con i byte identici e le avvertenze
+    (allegato non estratto); il .msg originale accanto; «Esporta file» della tabella Posta con il manifest."""
+    import contextlib
+    import email.policy
+    import mailbox
+    import sqlite3
+    import types
+    import forense_estesa as fe
+    import forense_gui as G
+    import forense_mobile as fm
+    import forense_posta_eml as fpe
+    tmp = Path(tempfile.mkdtemp(prefix="collaudo_eml_"))
+    pdf = b"%PDF-1.4\n% allegato di prova\n%%EOF\n"
+    eml = (b"From: Anna Verdi <anna.verdi@esempio.it>\r\nTo: Marco Neri <marco.neri@esempio.it>\r\n"
+           b"Subject: =?utf-8?q?Contratto_firmato_=E2=80=93_versione_2?=\r\nDate: Tue, 02 Jan 2024 15:30:00 +0100\r\n"
+           b"Message-ID: <prova-1@esempio.it>\r\nMIME-Version: 1.0\r\n"
+           b"Content-Type: multipart/mixed; boundary=\"XYZ\"\r\n\r\n--XYZ\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n"
+           b"In allegato il contratto.\r\n--XYZ\r\nContent-Type: application/pdf; name=\"contratto.pdf\"\r\n"
+           b"Content-Disposition: attachment; filename=\"contratto.pdf\"\r\nContent-Transfer-Encoding: base64\r\n\r\n"
+           + __import__("base64").encodebytes(pdf).replace(b"\n", b"\r\n") + b"--XYZ--\r\n")
+    voce = lambda corpo: ("From: Luca Bianchi <luca@esempio.it>\nTo: Anna Verdi <anna.verdi@esempio.it>\n"
+                          "Subject: Promemoria\nDate: Wed, 03 Jan 2024 09:00:00 +0000\n\n" + corpo + "\n")
+    mbox_txt = ("From luca@esempio.it Wed Jan  3 09:00:00 2024\n" + voce("primo messaggio uguale")
+                + "\nFrom luca@esempio.it Wed Jan  3 09:00:00 2024\n" + voce("secondo messaggio uguale")
+                + "\nFrom anna@esempio.it Thu Jan  4 10:00:00 2024\nFrom: Anna Verdi <anna.verdi@esempio.it>\n"
+                  "Subject: Risposta\nDate: Thu, 04 Jan 2024 10:00:00 +0000\n\nterzo\n")
+    apple = b"From: Marco Neri <marco.neri@esempio.it>\nSubject: Da Apple Mail\nDate: Fri, 05 Jan 2024 08:00:00 +0000\n\nciao\n"
+    emlx = str(len(apple)).encode() + b"\n" + apple + b'<?xml version="1.0"?><plist version="1.0"><dict/></plist>\n'
+    try:
+        z = tmp / "posta.zip"
+        with zipfile.ZipFile(z, "w") as zf:
+            zf.writestr("Posta/contratto.eml", eml)
+            zf.writestr("Posta/casella.mbox", mbox_txt)
+            zf.writestr("Posta/apple.emlx", emlx)
+        a = types.SimpleNamespace(case=str(tmp / "caso"), image=str(z), no_hash=True, no_indice=True, hash_file=False,
+                                  chat=False, leapp=False, drone=False, logica=True, decomprimi=False, info=None, lingua=None,
+                                  fuso="UTC", keychain=None, sysdiagnose=None, wa_backup=False, trascrizione=None)
+        with contextlib.redirect_stdout(io.StringIO()):
+            fm.cmd_prepara(a)
+            case = fa.Case(a.case)
+            con = sqlite3.connect(str(case.db_path))
+            fe.ensure_schema(con)
+            fe.run_archivi(case, con)
+            con.commit()
+        (tmp / "casella.mbox").write_bytes(mbox_txt.encode("utf-8"))      # senza CRLF di Windows, come nello zip
+        box = mailbox.mbox(str(tmp / "casella.mbox"), create=False)
+        attesi_mbox = [box.get_bytes(k) for k in box.iterkeys()]
+        box.close()
+        righe = con.execute("SELECT id, fmt, subject FROM mail ORDER BY id").fetchall()
+        got = sorted((f, fpe.mail_eml(case, con, i)["originale"], fpe.mail_eml(case, con, i)["dati"]) for i, f, _s in righe)
+        att = sorted([("EML", True, eml), ("EMLX", True, apple)] + [("mbox", True, x) for x in attesi_mbox])
+        check(tr("posta in .eml: EML, EMLX e mbox esportati con i byte originali (anche due messaggi con le stesse intestazioni)"),
+              got == att, str([(g[0], g[1], len(g[2])) for g in got])[:300], interno=True)
+
+        # PST/OST e MSG: righe come le scrive forense_posta.add_message, con un allegato estratto e uno no
+        trasporto = ("Received: from mx.esempio.it (mx.esempio.it [192.0.2.1])\r\n\tby posta.esempio.it with ESMTPS;\r\n"
+                     "\tTue, 02 Jan 2024 14:31:00 +0000\r\nFrom: Anna Verdi <anna.verdi@esempio.it>\r\n"
+                     "To: Marco Neri <marco.neri@esempio.it>\r\nSubject: Offerta riservata\r\n"
+                     "Date: Tue, 02 Jan 2024 15:30:00 +0100\r\nMessage-ID: <pst-1@esempio.it>\r\nMIME-Version: 1.0\r\n"
+                     "Content-Type: multipart/alternative; boundary=\"vecchio\"\r\n")
+        nuova = lambda fmt, hdr, xid=None: con.execute(
+            "INSERT INTO mail(part, inode, src_path, xid, fmt, folder, sender, recipients, cc, subject, date, body, html, "
+            "n_att, headers) VALUES (0, '1', 'Outlook/archivio.pst', ?, ?, 'Posta in arrivo', 'Anna Verdi <anna.verdi@esempio.it>', "
+            "'Marco Neri <marco.neri@esempio.it>', '', 'Offerta riservata – àèì', '2024-01-02T14:30:00', 'Testo della mail.', "
+            "'<p>Testo della <b>mail</b>.</p>', 2, ?)", (xid, fmt, hdr)).lastrowid
+        m1, m2 = nuova("PST/OST", trasporto), nuova("PST/OST", "")
+        (tmp / "offerta.pdf").write_bytes(pdf)
+        x1 = fe.new_xitem(con, kind="allegato", part=0, inode="1", mail=m1, inner="offerta.pdf", path="p", name="offerta.pdf")
+        rel = fe.store_extracted(case, tmp / "offerta.pdf", "posta", x1, "offerta.pdf")
+        con.execute("UPDATE xitems SET relpath=? WHERE id=?", (rel, x1))
+        fe.new_xitem(con, kind="allegato", part=0, inode="1", mail=m1, inner="video.mp4", path="p", name="video.mp4",
+                     note="non estratto (troppo grande)")
+        (tmp / "messaggio.msg").write_bytes(b"\xd0\xcf\x11\xe0 msg di prova")
+        xm = fe.new_xitem(con, kind="archivio", part=0, inode="1", inner="messaggio.msg", path="p", name="messaggio.msg")
+        con.execute("UPDATE xitems SET relpath=? WHERE id=?", (fe.store_extracted(case, tmp / "messaggio.msg", "archivi", xm,
+                                                                                  "messaggio.msg"), xm))
+        m3 = nuova("MSG", "", xm)
+        con.commit()
+        r1, r2, r3 = (fpe.mail_eml(case, con, i) for i in (m1, m2, m3))
+        e1 = email.message_from_bytes(r1["dati"], policy=email.policy.default)
+        e2 = email.message_from_bytes(r2["dati"], policy=email.policy.default)
+        pezzi = {p.get_content_type(): p for p in e1.walk()}
+        allegati = {p.get_filename(): p.get_payload(decode=True) for p in e1.iter_attachments()}
+        got = (r1["originale"], r1["dati"].startswith(trasporto.split("MIME-Version")[0].encode()),
+               len(e1.get_all("Content-Type") or []), e1.get_content_type(), e1.get_all("MIME-Version"),
+               "PST/OST" in str(e1["X-RepertIA-Ricostruzione"]), str(e1["Subject"]), "text/html" in pezzi,
+               (pezzi.get("text/plain") or e1).get_content().strip() if "text/plain" in pezzi else None, allegati,
+               any("video.mp4" in n for n in r1["note"]), any("PST/OST" in n for n in r1["note"]),
+               str(e2["From"]), str(e2["Subject"]), str(e2["Date"]), any("intestazioni di trasporto" in n or "transport" in n
+                                                                         for n in r2["note"]),
+               r3["altri"][0][1] if r3["altri"] else None)
+        att = (False, True, 1, "multipart/mixed", ["1.0"], True, "Offerta riservata", True, "Testo della mail.",
+               {"offerta.pdf": pdf}, True, True, "Anna Verdi <anna.verdi@esempio.it>", "Offerta riservata – àèì",
+               "Tue, 02 Jan 2024 14:30:00 +0000", True, b"\xd0\xcf\x11\xe0 msg di prova")
+        check(tr("posta in .eml: PST/OST e MSG ricostruiti e dichiarati (intestazioni originali riga per riga, testo, HTML, "
+                 "allegato con i byte identici, allegato non estratto segnalato, .msg originale accanto)"),
+              got == att, str([(i, g, t2) for i, (g, t2) in enumerate(zip(got, att)) if g != t2])[:400], interno=True)
+        con.close()
+
+        # «Esporta file» della tabella Posta: un .eml per mail (due file per il MSG), manifest con le impronte
+        with contextlib.redirect_stdout(io.StringIO()):
+            r = G.export_selection(case, {"kind": "mail", "all": True, "query": {"kind": "mail"}}, lambda s: None)
+        out = case.root / r["rel"]
+        import csv as _csv
+        with open(out / "manifest.csv", encoding="utf-8-sig") as fh:
+            man = list(_csv.reader(fh, delimiter=";"))[1:]
+        ok_sha = all(fa.sha256_file(out / x[6]) == x[5] for x in man)
+        nomi = sorted(Path(x[6]).suffix for x in man)
+        log = [json.loads(x) for x in open(case.root / "audit_log.jsonl", encoding="utf-8")]
+        n_log = sum(1 for x in log if x.get("event") == "mail_esportata")
+        got = (r["files"], nomi.count(".eml"), nomi.count(".msg"), nomi.count(".txt"), ok_sha, n_log >= 8)
+        check(tr("posta in .eml: «Esporta file» della tabella Posta scrive un .eml per mail (e il .msg originale) con SHA-256 "
+                 "nel manifest e nel registro"), got == (10, 8, 1, 1, True, True), str(got), interno=True)
+        # (3.0.6) il nome dice che cosa è originale; intestazioni originali accanto, citate nel .eml; LEGGIMI per cartella
+        s = fpe.suffissi()
+        fx = {Path(x[6]).name: out / x[6] for x in man}
+        orig = [n for n in fx if n.endswith(f"_{s['originale']}.eml")]
+        ricos = [n for n in fx if n.endswith(f"_{s['ricostruita']}.eml")]
+        txt = [n for n in fx if n.endswith(f"_{s['intestazioni']}.txt")]
+        msg = [n for n in fx if n.endswith(f"_{s['originale']}.msg")]
+        base_txt = txt[0][:-len(f"_{s['intestazioni']}.txt")] if txt else "?"
+        e_txt = email.message_from_bytes(fx[f"{base_txt}_{s['ricostruita']}.eml"].read_bytes(), policy=email.policy.default) \
+            if f"{base_txt}_{s['ricostruita']}.eml" in fx else None
+        dich = str(e_txt["X-RepertIA-Ricostruzione"]) if e_txt else ""
+        leggimi = out / tr("LEGGIMI.txt")
+        testo_l = leggimi.read_text(encoding="utf-8-sig") if leggimi.is_file() else ""
+        cima = sorted(x.name for x in out.iterdir())
+        got = (len(orig), len(ricos), len(txt), len(msg), fx[txt[0]].read_bytes() == trasporto.encode() if txt else None,
+               txt[0] in dich and fa.sha256_file(fx[txt[0]]) in dich if txt else None,
+               all(Path(x[6]).parts[0] == "posta" for x in man), cima == sorted(["posta", "manifest.csv", leggimi.name]),
+               "manifest.csv" in testo_l and f"- posta/ ({tr('{n} file').format(n=10)})" in testo_l
+               and f"_{s['intestazioni']}.txt" in testo_l)
+        check(tr("posta in .eml: nomi con ORIGINALE o RICOSTRUITA, intestazioni originali in un file accanto (byte come nel "
+                 "file, citato con SHA-256 nel .eml), tutto in posta/ con LEGGIMI"),
+              got == (5, 3, 1, 1, True, True, True, True, True), str(got) + " " + str(cima), interno=True)
+        # esportata di nuovo: i file della stessa mail restano insieme con lo stesso numero
+        con2 = sqlite3.connect(str(case.db_path))
+        try:
+            r2 = fpe.esporta(case, con2, m1, out / "posta")
+        finally:
+            con2.close()
+        n2 = sorted(x["file"].name for x in r2["file"])
+        check(tr("posta in .eml: la stessa mail esportata di nuovo ha tutti i suoi file con lo stesso nuovo nome iniziale"),
+              len(n2) == 2 and n2[0].startswith(base_txt + "_2_") and n2[1].startswith(base_txt + "_2_"), str(n2), interno=True)
+    except Exception as e:
+        import traceback
+        check(tr("posta in .eml: preparazione delle prove"), False, f"{type(e).__name__}: {e} {traceback.format_exc()[-300:]}",
+              interno=True)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def controlli_posta_destinatari(check):
+    """(3.0.6) Mittente e destinatari dei PST/OST come sono nel file, con messaggi finti fatti come li dà libpff: tabella
+    dei destinatari (un record set per destinatario, tipo A/Cc/Ccn), «Visualizza A/Cc/Ccn» quando la tabella manca,
+    indirizzo del mittente (SMTP o il nome X.500 di Exchange) senza intestazioni di trasporto, intestazioni che restano
+    la prima fonte quando ci sono; colonna Ccn aggiunta ai casi vecchi; il .eml ricostruito con Da, A, Cc e Ccn."""
+    import datetime as _dt
+    import email.policy
+    import sqlite3
+    import types
+    import forense_estesa as fe
+    import forense_posta_eml as fpe
+
+    class Voce:
+        def __init__(self, tipo, v):
+            self.entry_type, self.v = tipo, v
+
+        def get_data_as_string(self):
+            if not isinstance(self.v, str):
+                raise IOError("non è un testo")
+            return self.v
+
+        def get_data_as_integer(self):
+            if not isinstance(self.v, int):
+                raise IOError("non è un numero")
+            return self.v
+
+    class Rs:
+        def __init__(self, d):
+            self.voci = [Voce(k, v) for k, v in d.items()]
+            self.number_of_entries = len(self.voci)
+
+        def get_entry(self, i):
+            return self.voci[i]
+
+    class Elenco:                    # destinatari: record set (libpff attuale) o elementi (versioni precedenti)
+        def __init__(self, righe, come_elementi=False):
+            self.rs = [] if come_elementi else [Rs(r) for r in righe]
+            self.el = [types.SimpleNamespace(number_of_record_sets=1, get_record_set=lambda i, r=r: Rs(r))
+                       for r in righe] if come_elementi else []
+            self.number_of_record_sets, self.number_of_sub_items = len(self.rs), len(self.el)
+
+        def get_record_set(self, i):
+            return self.rs[i]
+
+        def get_sub_item(self, i):
+            return self.el[i]
+
+    def msg(oggetto, nome, props, dest, intest="", come_elementi=False):
+        rs = [Rs(props)]
+        return types.SimpleNamespace(
+            subject=oggetto, sender_name=nome, transport_headers=intest, number_of_record_sets=1,
+            get_record_set=lambda i: rs[i], recipients=None if dest is None else Elenco(dest, come_elementi),
+            client_submit_time=_dt.datetime(2008, 7, 20, 1, 28, 47), delivery_time=None, creation_time=None,
+            plain_text_body=b"testo", html_body=None, rtf_body=None, number_of_attachments=0)
+
+    x500 = "/o=ExchangeLabs/ou=Exchange Administrative Group (FYDIBOHF23SPDLT)/cn=Recipients/cn=25fb3fee-iaman"
+    messaggi = [
+        msg("inviata con tabella", "Jean", {0x0C1F: "jean@m57.biz", 0x0E04: "AlisonM57"},
+            [{0x0C15: 1, 0x3001: "AlisonM57", 0x3003: "alison@m57.biz"},
+             {0x0C15: 1, 0x3001: "alison@m57.biz", 0x3003: "tuckgorge@gmail.com"},   # come in M57-Jean: il nome inganna
+             {0x0C15: 2, 0x3001: "Bob", 0x3003: "/o=Org/cn=bob", 0x39FE: "bob@esempio.it"},
+             {0x0C15: 3, 0x3001: "Capo", 0x3003: "/o=Org/cn=Recipients/cn=capo"}]),
+        msg("inviata senza tabella", "iaman", {0x0C1F: x500, 0x5D01: "iaman@nist.gov", 0x0E04: "Alison; Bob",
+                                               0x0E03: "Carla", 0x0E02: "Dario"}, None),
+        msg("ricevuta", "Marco", {0x0C1F: "marco@esempio.it"},
+            [{0x0C15: 1, 0x3001: "altro", 0x3003: "altro@esempio.it"}, {0x0C15: 3, 0x3001: "io", 0x3003: "io@esempio.it"}],
+            intest="From: Marco Neri <marco@esempio.it>\r\nTo: Anna <anna@esempio.it>\r\nCc: Luca <luca@esempio.it>\r\n"
+                   "Subject: ricevuta\r\n"),
+        msg("libpff vecchio", "spy", {0x0C1F: x500}, [{0x0C15: 1, 0x3001: "iaman", 0x39FE: "iaman@nist.gov"}],
+            come_elementi=True)]
+    cartella = types.SimpleNamespace(name="Sent Items", number_of_sub_folders=0, number_of_sub_messages=len(messaggi),
+                                     get_sub_message=lambda i: messaggi[i])
+    radice = types.SimpleNamespace(name="", number_of_sub_folders=1, get_sub_folder=lambda i: cartella,
+                                   number_of_sub_messages=0)
+    finto = types.ModuleType("pypff")
+    finto.file = lambda: types.SimpleNamespace(open=lambda p: None, close=lambda: None, get_root_folder=lambda: radice)
+    tmp = Path(tempfile.mkdtemp(prefix="collaudo_dest_"))
+    prima = sys.modules.get("pypff")
+    try:
+        con = sqlite3.connect(":memory:")
+        con.execute("CREATE TABLE mail(id INTEGER PRIMARY KEY, part INTEGER, inode TEXT, src_path TEXT, xid INTEGER, fmt TEXT, "
+                    "folder TEXT, sender TEXT, recipients TEXT, cc TEXT, subject TEXT, date TEXT, body TEXT, html TEXT, "
+                    "n_att INTEGER, headers TEXT)")          # tabella come nei casi letti prima della 3.0.6
+        vecchio = fe.mail_bcc(con)
+        fe.ensure_schema(con)
+        case = types.SimpleNamespace(root=tmp)
+        ctx = fe.Ctx(case, con, "Archivi e posta")
+        sys.modules["pypff"] = finto
+        n = fe.process_pst(ctx, tmp / "finto.pst", "Outlook/finto.pst", (0, "5", "Outlook/finto.pst"), 0, None)
+        ctx.close()
+        got = {r[0]: r[1:] for r in con.execute("SELECT subject, sender, recipients, cc, bcc FROM mail")}
+        att = {"inviata con tabella": ("Jean <jean@m57.biz>", 'AlisonM57 <alison@m57.biz>, "alison@m57.biz" <tuckgorge@gmail.com>',
+                                       "Bob <bob@esempio.it>",
+                                       "Capo </o=Org/cn=Recipients/cn=capo>"),
+               "inviata senza tabella": ("iaman <iaman@nist.gov>", "Alison; Bob", "Carla", "Dario"),
+               "ricevuta": ("Marco Neri <marco@esempio.it>", "Anna <anna@esempio.it>", "Luca <luca@esempio.it>",
+                            "io <io@esempio.it>"),
+               "libpff vecchio": (f"spy <{x500}>", "iaman <iaman@nist.gov>", "", None)}
+        check(tr("posta PST/OST: mittente e destinatari come nel file (tabella dei destinatari con A, Cc e Ccn, «Visualizza "
+                 "A/Cc/Ccn» senza tabella, indirizzo del mittente anche X.500, intestazioni prima fonte)"),
+              (vecchio, n, got) == ("NULL", 4, att),
+              str((vecchio, n, [(k, v, att.get(k)) for k, v in got.items() if v != att.get(k)]))[:400], interno=True)
+        testo = con.execute("SELECT body FROM doc_text WHERE source='posta' AND body LIKE '%inviata con tabella%'").fetchone()
+        mid = con.execute("SELECT id FROM mail WHERE subject='inviata con tabella'").fetchone()[0]
+        e = email.message_from_bytes(fpe.mail_eml(case, con, mid)["dati"], policy=email.policy.default)
+        mid2 = con.execute("SELECT id FROM mail WHERE subject='inviata senza tabella'").fetchone()[0]
+        dati2 = fpe.mail_eml(case, con, mid2)["dati"]
+        e2 = email.message_from_bytes(dati2, policy=email.policy.default)
+        # «Visualizza A» ha solo nomi separati da «;»: nel .eml si scrive com'è (il «;» lo leggerebbe come un gruppo)
+        # un nome che è un indirizzo va tra virgolette, se no i programmi di posta leggono quello come indirizzo
+        got = (str(e["From"]), [(a.display_name, a.addr_spec) for a in e["To"].addresses], str(e["Cc"]),
+               "Capo" in str(e["Bcc"]), b"\r\nTo: Alison; Bob\r\n" in dati2, str(e2["Bcc"]),
+               bool(testo and "Ccn: Capo" in testo[0]))
+        att = ("Jean <jean@m57.biz>", [("AlisonM57", "alison@m57.biz"), ("alison@m57.biz", "tuckgorge@gmail.com")],
+               "Bob <bob@esempio.it>", True, True, "Dario", True)
+        check(tr("posta PST/OST: il .eml ricostruito e il testo cercabile riportano Da, A, Cc e Ccn letti dal file"),
+              got == att, str([(i, g, t2) for i, (g, t2) in enumerate(zip(got, att)) if g != t2])[:400], interno=True)
+        con.close()
+    except Exception as e:
+        import traceback
+        check(tr("posta PST/OST: preparazione delle prove su mittente e destinatari"), False,
+              f"{type(e).__name__}: {e} {traceback.format_exc()[-300:]}", interno=True)
+    finally:
+        if prima is not None:
+            sys.modules["pypff"] = prima
+        else:
+            sys.modules.pop("pypff", None)
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def controlli_posta_intestazioni(check):
+    """(3.0.6) Intestazioni di trasporto originali di una mail PST/OST: nel caso si salvano fino a 20.000 caratteri; se
+    troncate si rileggono dal PST (pypff finto: messaggio della stessa cartella che comincia con quelle salvate; due
+    candidati diversi = nessuna scelta, resta l'avvertenza); per MSG l'avvertenza rimanda al .msg originale."""
+    import email.policy
+    import sqlite3
+    import types
+    import forense_estesa as fe
+    import forense_posta_eml as fpe
+    lunghe = "".join(f"Received: from relay{i}.esempio.it by mx.esempio.it; Tue, 02 Jan 2024 14:31:00 +0000\r\n"
+                     for i in range(400)) + "Subject: lunga\r\nMessage-ID: <lunga@esempio.it>\r\n"
+    simile = lunghe[:fpe.INTEST_MAX] + "X-Diverso: si\r\n"
+    def pff(intestazioni):
+        mm = [types.SimpleNamespace(transport_headers=h) for h in intestazioni]
+        cart = types.SimpleNamespace(name="Posta in arrivo", number_of_sub_folders=0, number_of_sub_messages=len(mm),
+                                     get_sub_message=lambda i: mm[i])
+        altra = types.SimpleNamespace(name="Altro", number_of_sub_folders=0, number_of_sub_messages=1,
+                                      get_sub_message=lambda i: types.SimpleNamespace(transport_headers=simile))
+        top = types.SimpleNamespace(name="Top of Personal Folders", number_of_sub_folders=2,
+                                    get_sub_folder=lambda i: (cart, altra)[i], number_of_sub_messages=0)
+        radice = types.SimpleNamespace(name="", number_of_sub_folders=1, get_sub_folder=lambda i: top,
+                                       number_of_sub_messages=0)
+        finto = types.ModuleType("pypff")
+        finto.file = lambda: types.SimpleNamespace(open=lambda p: None, close=lambda: None, get_root_folder=lambda: radice)
+        return finto
+    tmp = Path(tempfile.mkdtemp(prefix="collaudo_intest_"))
+    prima, contenitore = sys.modules.get("pypff"), fpe._contenitore
+    try:
+        m = {"headers": lunghe[:fpe.INTEST_MAX], "folder": "Posta in arrivo"}
+        sys.modules["pypff"] = pff(["From: altro\r\n", lunghe])
+        unica = fpe._pst_intestazioni(tmp / "finto.pst", m)
+        sys.modules["pypff"] = pff([lunghe, simile])
+        doppia = fpe._pst_intestazioni(tmp / "finto.pst", m)
+        # mail completa nel caso: export con il .txt delle intestazioni intere e il .eml che lo cita
+        con = sqlite3.connect(":memory:")
+        fe.ensure_schema(con)
+        mid = con.execute("INSERT INTO mail(part, inode, src_path, fmt, folder, sender, recipients, cc, subject, date, body, "
+                          "n_att, headers) VALUES (0, '9', 'Outlook/archivio.pst', 'PST/OST', 'Posta in arrivo', 'a <a@esempio.it>', "
+                          "'b <b@esempio.it>', '', 'lunga', '2024-01-02T14:31:00', 'testo', 0, ?)",
+                          (lunghe[:fpe.INTEST_MAX],)).lastrowid
+        mid_msg = con.execute("INSERT INTO mail(part, inode, src_path, fmt, folder, sender, recipients, cc, subject, date, body, "
+                              "n_att, headers) VALUES (0, '9', 'Posta/m.msg', 'MSG', '', 'a <a@esempio.it>', 'b <b@esempio.it>', "
+                              "'', 'lunga msg', '2024-01-02T14:31:00', 'testo', 0, ?)", (lunghe[:fpe.INTEST_MAX],)).lastrowid
+        case = types.SimpleNamespace(root=tmp, log=lambda *a, **k: None)
+        (tmp / "finto.pst").write_bytes(b"!BDN")
+        fpe._contenitore = lambda case, con, m, tmpd: tmp / "finto.pst"
+        sys.modules["pypff"] = pff(["From: altro\r\n", lunghe])
+        r = fpe.esporta(case, con, mid, tmp / "posta")
+        s = fpe.suffissi()
+        f_txt = next((x["file"] for x in r["file"] if x["file"].name.endswith(f"_{s['intestazioni']}.txt")), None)
+        eml = next((x["file"] for x in r["file"] if x["file"].suffix == ".eml"), None)
+        dich = str(email.message_from_bytes(eml.read_bytes(), policy=email.policy.default)["X-RepertIA-Ricostruzione"]) if eml else ""
+        h_msg, note_msg = fpe.intestazioni_originali(case, con, fpe._riga(case, con, mid_msg))
+        sys.modules["pypff"] = pff([lunghe, simile])
+        h_dop, note_dop = fpe.intestazioni_originali(case, con, fpe._riga(case, con, mid))
+        con.close()
+        got = (unica == lunghe, doppia is None, f_txt.read_bytes() == lunghe.encode() if f_txt else None,
+               bool(f_txt) and f_txt.name in dich and fa.sha256_file(f_txt) in dich, r["note"] == [n for n in r["note"]
+                                                                                            if "troncat" not in n and "truncat" not in n],
+               eml.read_bytes().startswith(lunghe.split("Subject:")[0].encode()) if eml else None,
+               h_msg == lunghe[:fpe.INTEST_MAX] and any(".msg" in n for n in note_msg),
+               h_dop == lunghe[:fpe.INTEST_MAX] and len(note_dop) == 1)
+        check(tr("posta PST/OST: intestazioni originali troncate nel caso rilette intere dal PST (stessa cartella, un solo "
+                 "messaggio che corrisponde), esportate in un file accanto e citate nel .eml; avvertenza se non si può"),
+              got == (True,) * 8, str(got), interno=True)
+    except Exception as e:
+        import traceback
+        check(tr("posta PST/OST: preparazione delle prove sulle intestazioni originali"), False,
+              f"{type(e).__name__}: {e} {traceback.format_exc()[-300:]}", interno=True)
+    finally:
+        fpe._contenitore = contenitore
+        if prima is not None:
+            sys.modules["pypff"] = prima
+        else:
+            sys.modules.pop("pypff", None)
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def controlli_avviso_chat_esportate(check):
+    """(3.0.6) Copie di dischi e di telefoni: all'apertura del caso RepertIA dice quante chat esportate da WhatsApp ci
+    sono nell'elenco dei file (non le legge da sola). Casi finti con nomi inventati: la ricerca si fa una volta sola e
+    finisce nel caso e nel registro; l'avviso smette solo con «Non chiedere più»; non si cerca nelle sorgenti
+    logiche, nei dump della RAM, a preparazione non finita o a chat già lette."""
+    import sqlite3
+    import types
+    import forense_mobile_gui as fmg
+    tmp = Path(tempfile.mkdtemp(prefix="collaudo_avviso_wa_"))
+    G = types.SimpleNamespace(PREP=types.SimpleNamespace(running=False))
+    FILE = [("WhatsApp Chat - Anna Verdi.zip", "r/r"), ("consegna/Chat WhatsApp con Gita a Roma.txt", "r/r"),
+            ("consegna/WhatsApp Chat with Trip to Rome.txt", "r/r"), ("20260314-nota.zip", "r/r"), ("appunti.txt", "r/r"),
+            ("Chat WhatsApp con Cartella.txt", "d/d")]
+
+    def caso(nome, meta, righe=FILE):
+        d = tmp / nome
+        d.mkdir()
+        (d / "case.json").write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
+        con = sqlite3.connect(str(d / "caso.sqlite"))
+        con.execute("CREATE TABLE files (part, inode, deleted, type, path)")
+        con.executemany("INSERT INTO files VALUES (63, ?, 0, ?, ?)", [(str(i + 10), t, n) for i, (n, t) in enumerate(righe)])
+        con.commit()
+        con.close()
+        return fa.Case(d)
+
+    def eventi(c):
+        return [json.loads(r)["event"] for r in c.log_path.read_text(encoding="utf-8").splitlines()] if c.log_path.exists() else []
+
+    try:
+        pronto = {"timeline": {"tsk_events": 0, "plaso_events": 0}}
+        for tipo, extra in (("disco", {}), ("smartphone", {"tipo_caso": "smartphone"})):
+            c = caso(tipo, dict(pronto, **extra))
+            a, b = fmg.waexport_avviso(G, c, {}), fmg.waexport_avviso(G, c, {})
+            riletto = fa.Case(c.root)
+            dopo = fmg.waexport_avviso(G, riletto, {})                    # alla riapertura torna, senza cercare di nuovo
+            v = fmg.waexport_avviso(G, riletto, {"visto": "non chiedere più"})
+            fine = fmg.waexport_avviso(G, fa.Case(c.root), {})
+            ev = eventi(c)
+            got = (a == {"trovate": 3, "visto": False}, b == a, dopo == a, v == {"trovate": 3, "visto": True}, fine == v,
+                   ev.count("chat_esportate_trovate") == 1, ev.count("chat_esportate_avviso") == 1)
+            check(tr("chat esportate da WhatsApp in una copia di {tipo}: all'apertura l'avviso dice quante sono nell'elenco "
+                     "dei file, torna finché non si sceglie «Non chiedere più», ricerca e risposta nel registro").format(
+                         tipo=tr("disco") if tipo == "disco" else tr("smartphone")), got == (True,) * 7, str(got), interno=True)
+        senza = caso("senza", pronto, [("appunti.txt", "r/r"), ("20260314-nota.zip", "r/r")])
+        casi = [("logica", dict(pronto, logica=True)), ("ram", dict(pronto, ram_dump={"file": "x"})), ("non_finito", {}),
+                ("lette", dict(pronto, chat={"app": {"whatsapp_export": {"conversazioni": 1, "messaggi": 2}}}))]
+        esiti = [fmg.waexport_avviso(G, senza, {}) == {"trovate": 0, "visto": True}]
+        for nome, meta in casi:
+            c = caso(nome, meta)
+            esiti.append(fmg.waexport_avviso(G, c, {}) == {"trovate": 0, "visto": True}
+                         and "chat_esportate_avviso" not in fa.Case(c.root).meta and not eventi(c))
+        occupato = caso("occupato", pronto)
+        esiti.append(fmg.waexport_avviso(types.SimpleNamespace(PREP=types.SimpleNamespace(running=True)), occupato, {})
+                     == {"trovate": 0, "visto": True} and not eventi(occupato))
+        check(tr("chat esportate da WhatsApp: nessun avviso se non ce ne sono, e nessuna ricerca in sorgenti logiche, dump "
+                 "della RAM, casi non finiti di preparare, chat già lette o con una preparazione in corso"),
+              all(esiti), str(esiti), interno=True)
+    except Exception as e:
+        import traceback
+        check(tr("chat esportate da WhatsApp: prova dell'avviso in dischi e smartphone"), False,
+              f"{type(e).__name__}: {e} {traceback.format_exc()[-300:]}", interno=True)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def controlli_chiudi(check):
+    """(3.0.6) Pulsante «Chiudi»: con lavori in corso (agente, operazioni in background) li elenca e chiude solo con la
+    conferma; un RepertIA avviato davvero si ferma dalla pagina e esce con codice 0, quello che chiude la sua finestra
+    (il .bat su Windows, il terminale su Linux, avvia.command sul Mac)."""
+    import queue
+    import urllib.request
+    import forense_gui as G
+    spenti = []
+    vero_spegni, vero_busy, veri_task = G._spegni, G.SES.busy, dict(G.SES.tasks)
+    try:
+        G._spegni = lambda: spenti.append(1)
+        G.SES.busy = True
+        G.SES.tasks = {"collaudo_finto": {"done": False, "progress": ""}}
+        r1 = G.chiudi({})
+        lavori = len(r1.get("lavori") or [])
+        r2 = G.chiudi({"forza": True})
+        import time as _t
+        _t.sleep(0.2)
+        G.SES.busy, G.SES.tasks = False, {}
+        r3 = G.chiudi({})
+        _t.sleep(0.2)
+        got = (r1.get("chiuso"), lavori, r2.get("chiuso"), r3.get("chiuso"), r3.get("lavori"), len(spenti))
+        att = (False, 2, True, True, None, 2)
+        check(tr("pulsante «Chiudi»: con lavori in corso (agente, operazioni in background) li elenca e chiude solo con "
+                 "la conferma"), got == att, str(got), interno=True)
+    finally:
+        G._spegni, G.SES.busy, G.SES.tasks = vero_spegni, vero_busy, veri_task
+    # RepertIA vero, senza browser: «Chiudi» dalla pagina e uscita con codice 0
+    env = dict(os.environ, FORENSE_NO_BROWSER="1", PYTHONUTF8="1", PYTHONIOENCODING="utf-8", PYTHONDONTWRITEBYTECODE="1")
+    proc = subprocess.Popen([sys.executable, "-u", str(HERE / "forense_gui.py")], stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, env=env)
+    righe = queue.Queue()
+    threading_ = __import__("threading")
+    threading_.Thread(target=lambda: [righe.put(x.decode("utf-8", "replace")) for x in proc.stdout], daemon=True).start()
+    rc, dettaglio, url = None, "", None
+    try:
+        fine = time.time() + 60
+        while time.time() < fine and not url:
+            try:
+                x = righe.get(timeout=1)
+            except queue.Empty:
+                continue
+            m = re.search(r"http://127\.0\.0\.1:\d+/", x)
+            url = m.group(0) if m else None
+        if not url:
+            raise RuntimeError(tr("RepertIA non è partito"))
+        pagina = urllib.request.urlopen(url, timeout=20).read().decode("utf-8", "replace")
+        token = re.search(r'const TOKEN = "([^"]+)"', pagina).group(1)
+        rq = urllib.request.Request(url + "api/chiudi", data=b"{}", method="POST",
+                                    headers={"X-Token": token, "Content-Type": "application/json"})
+        risposta = json.loads(urllib.request.urlopen(rq, timeout=20).read().decode("utf-8"))
+        rc = proc.wait(timeout=30)
+        try:
+            urllib.request.urlopen(url, timeout=3)
+            fermo = False
+        except OSError:
+            fermo = True
+        dettaglio = str((risposta, rc, fermo))
+        ok = risposta.get("chiuso") is True and rc == 0 and fermo
+    except Exception as e:
+        ok, dettaglio = False, f"{type(e).__name__}: {e}"
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+            proc.wait(timeout=10)
+    check(tr("pulsante «Chiudi»: RepertIA avviato si ferma dalla pagina ed esce con codice 0 (si chiude la sua finestra)"),
+          ok, dettaglio, interno=True)
+
+
+# (3.0.6) video MPEG-TS di prova: 32x32, 3 fotogrammi H.264 e 0,6 s di audio AAC, fatto con ffmpeg (sorgenti lavfi
+# «color» e «sine», niente dati di nessuno); gzip + base64, 3.948 byte
+VIDEO_TS_PROVA = (
+    "H4sIAAAAAAAC/9VVeVDTSRbun+FUIIBIADk0IIIKkiCH4QpnNiAFAquDiAG5FDkcwMgAIQyOyhFQRCSIgIIIcsjlwKBiwirHiFw66HBJ"
+    "QOVGg7CQIQnZX3DLra3af3ZqypJXr7qrX3V1f9/r9/oj4OVkgQ17B4CaARBAAgDxEhT+Jg+JOTiEng4IknQPiCCf9AswwJyNs30m+LaM"
+    "gAeyAFRLr2EHEBvsqhGpFawPI7jC2DdUo9awjwI22CockKMwi712jbnfNnZrYBDuCkAGLR58rTvh92UBkJAguh1IYn2Fzy3JFo5BNkwF"
+    "2omrTHy0naarMHCiyzxBOAf8AkQkxzB4YBNmCiS2tAFo0xTuyiO4ZuTWcc3IreOawdDhbr1//+vVzJ8qLgb0n+LyZYF4fP53BGvIAMLD"
+    "ayaiZm2T+O++gvkQvB6JNwQO+JL9jA31MfoYAyzYsK/kyFT7eBk/YIlvdQy1q+qkVoQdEYXABKq20CMVff9Z5S30j6XLh4M/++rgEuMe"
+    "v2qeUe7svq+vztkLc3L8eP7JsiBMYF5aJdnEuKUkJyWvtka1iR79sCy+BZuOG84ZomikUf5wviftdefu4O6hmNeh08Oo4NcRFWG4JxHP"
+    "zsyWqKXVHA05vHVLawsBguQ8Kw+dOljVW9Vd1V12tcztrmPx7qsMXY9ityy7q8T/x1kloqaRe2o7/lrXzdTGM/+Xwdjlvyw4wozvJPHA"
+    "Yn5/je+ZHKSi33Yd/ef+5zVaqVzq3FzM22SyRXzBCnViufbDXBn/8ciqxspqYfDAAz4jnEudWHl6PTvGM8pNHMomaI1Fx7q6EymmaQh7"
+    "scIUnZu/HSScOtLxCYXmR+s3I36iVpg8tXi3iWZyVEPSpO3lpxiK+rHacXtayz35+kLKhU4Lt+UJ82rDCr2OTXVBtWbLs/0OqbN2ntWX"
+    "rr1/6D/pvZUUqAZj35xhXz0Xb79XsWUOzc7CXrIIU89fKAjLLn0yllnmQkS6qTekC2irhgG3yOdTjnm3HXuSGeAsZUDMWuwYmW5aPPWy"
+    "23yhq9gFV5Ln3m0+neeFNF/otrY+o7sxXtzSTL/58c7w0Nysd30x/d0frMqK7khnpy85em0t06MoKSll7GYy+yLlrA4uufBdcdjuvcLs"
+    "bWPwwNBC5WmbH/JsfCO7BMUeXCqVt1jv1Kh/9AjRgkL5mcT4PezGNIxdAb1jv4JqcptgZlmGSyZLbku6bF13qyePuzTyaalKcXTXNVQe"
+    "+gCdzdzlUbFb1x6z2UMFm19S4ra/ocH7/gfN1sd1HLljO5rpUGtT+UBTZtH3pLeVMdcODYamefT+o9PZ2Ukrx4Z4J0Vu+OPHm/6ckKDl"
+    "HmxcoAx3EsmLE+FyL65ailEpiJ2XmGdHeqzm2SsUfvOqpVQB9TSV1qq+yhrRgPS5P85f7kp9hjvsGPsmtddtta9QVuLisDeM3ega+Ca/"
+    "QF3L1IReBF5fUSpDIpkF3cj1U2KSAiP2KrVNbKOfTXQ1hbVJfh1rk/w61iasUJteD33b2rTJ6dZ/adNj/KpQm4z/rU3ozwI2vqZNavBP"
+    "OWBYGuKkuoXdZTg+c4kqKBfwF+8+JE10DLZV4dhjsfzA2vfARmRbbLXvBtntG42QpiLBU/euT23X1CSTq7J+e+0cxfRx09MbjXx5TVT1"
+    "xSupSQTOyyyLBpqM2wKKH6yQj3iV55Zf9wg42oe+ogu77YkUa1n7KG/YSEiVBw8eNMUFT09P4cUNRIMTp2dsHacnjRpvbsBrVgJ/0AUA"
+    "3KsoMSDN2tK7Tfom6hn4DkHyEVsdwO8DygmmufjDmecALg6IbwSHA4CqSxg+mKIE3gA6aATDhVBMggzDR2QBkSBkqyXgQWKGlaftml06"
+    "+6w4gq66A7eTteySJaEpFJLFKZDivnf/FJ/9PdU2KYzxaztJclYZxY5F5lj+4c+7Pqh93sG4rvcnzIfY0EZ0sp9pbER0iN1U/R6b9iKu"
+    "vvEKoRWpueL6JLvcIsKom+MV+0vFw+EsGLtSBlalocfHKJJV+kPjmE+SF04KucfHcuNOpuZtZpyCF0jPhNgHQ55G0a1EFYWx6BQ9ugbx"
+    "3JhOvQ9FG5lU2P/jIt0S/eo5subcmF4Ik6NkiTaiayDEnzrUIVg+nKRXPnEiLknpGQkcnQI5NU0EqzDOLoqGTEw9Dh/G0alH4w4gE5PZ"
+    "ElMG8Rv1EghEeF89pKYN7/t8cmqg+AsfzpdL/dZStd2KB2NXhuQNK2iOKlK1FQW9mJmZcX5DBFErKQONFo8XvI2meM17FrDNCTmP+X/n"
+    "XTL+Vf3nW/dd7rVrSM97arDNRO84vjN3e4RSrvxwpUDiySbeS0wauvN4aX8skjlzW6UNP3aoNv3COdvjpIHEC1fCzcZ7M/pzu3iy78iB"
+    "CwwRK5nnby6yLo725/bwZMfJgYv+iapdz9/QLtvm7h/sWfHtvDE32U6PDDKLwWqr9neFKm+WCfmY60BwMj7bWaQJY8eFftUuLc4VEngR"
+    "bsY+0T7bX8cQ2a+W8+hjswwhEA7ZfmE2EC8RaWYYo7FGBuZnWGdSpCU73m0Yg7WWCZkId7Bj/wttdAqnbA8AAA=="
+)
+
+
+def controlli_video_ts(check):
+    """(3.0.6) Video MPEG-TS (.ts delle microSD e delle videocamere, .mts/.m2ts): riconosciuti dal contenuto (sincronismo
+    0x47 ogni 188 o 192 byte) e mai dal solo nome, perché .ts è anche TypeScript; tra foto/video/audio e nelle anomalie
+    (estensione falsa); anteprima: riscritto in MP4 senza ricodificare le immagini H.264, audio in AAC."""
+    import base64
+    import gzip
+    import forense_estesa as fe
+    import forense_gui  # noqa: F401  (forense_gui_anteprime si carica attraverso forense_gui)
+    import forense_gui_anteprime as ga
+    import forense_mobile_media as fmm
+    ts = gzip.decompress(base64.b64decode("".join(VIDEO_TS_PROVA)))
+    pacchetti = lambda passo, primo, n: b"".join(bytes(primo) + b"\x47" + bytes(passo - primo - 1) for _ in range(n))
+    typescript = b"export function somma(a: number, b: number): number {\n  return a + b;\n}\n" * 20
+    letture = []
+
+    def leggi(part, inode, n):
+        letture.append(n)
+        return len(ts), ts[:n]
+    got = (fmm.mpegts(ts[:8192]), fmm.mpegts(pacchetti(188, 0, 4)), fmm.mpegts(pacchetti(192, 4, 4)),
+           fmm.mpegts(pacchetti(188, 0, 2)), fmm.mpegts(typescript), fmm.firma(ts[:32]),
+           fmm.riconosci(None, 0, 1, ".ts", leggi), max(letture or [0]) > 32, fmm.EXT_TIPO.get(".ts"),
+           fe.detect_sig(ts[:4096])[0], fe.detect_sig(typescript)[0], "ts" in fe.FAMILY_EXT["ts"] and "ts" in fe.MEDIA_FAM)
+    att = ("ts", "ts", "m2ts", None, None, None, ("video", "ts"), True, None, "ts", None, True)
+    check(tr("video MPEG-TS: riconosciuti dal contenuto (188 e 192 byte, anche senza estensione), non i file TypeScript .ts; "
+             "tra i video e nelle anomalie"),
+          got == att, str([(i, g, t2) for i, (g, t2) in enumerate(zip(got, att)) if g != t2])[:400], interno=True)
+    tmp = Path(tempfile.mkdtemp(prefix="collaudo_ts_"))
+    try:
+        f = tmp / "videocamera.ts"
+        f.write_bytes(ts)
+        (tmp / "programma.ts").write_bytes(typescript)
+        if not ga.tool("ffmpeg"):
+            check(tr("video MPEG-TS: anteprima riscritta in MP4 (H.264 copiato, audio AAC)"), False,
+                  tr("ffmpeg non trovato"), interno=True)
+            return
+        out = ga.riscrivi_mp4(f, tmp / "videocamera.mp4")
+        mp4 = out.read_bytes()
+        try:
+            ga.riscrivi_mp4(tmp / "programma.ts", tmp / "programma.mp4")
+            rifiuto = False
+        except ValueError:
+            rifiuto = True
+        got = (ga.video_codec(f), mp4[4:8], b"moov" in mp4, b"avc1" in mp4, b"mp4a" in mp4, mp4.index(b"moov") < mp4.index(b"mdat"),
+               rifiuto, (tmp / "programma.mp4").exists(), f.read_bytes() == ts)
+        att = ("h264", b"ftyp", True, True, True, True, True, False, True)
+        check(tr("video MPEG-TS: anteprima riscritta in MP4 (H.264 copiato, audio AAC), file del reperto invariato; "
+                 "un file che non è un video H.264 non si converte"),
+              got == att, str([(i, g, t2) for i, (g, t2) in enumerate(zip(got, att)) if g != t2])[:400], interno=True)
+    except Exception as e:
+        import traceback
+        check(tr("video MPEG-TS: preparazione delle prove"), False, f"{type(e).__name__}: {e} {traceback.format_exc()[-300:]}",
+              interno=True)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 class _RamVfs:
     """File system di MemProcFS finto: percorso -> byte; le cartelle si ricavano dai percorsi."""
     def __init__(self, files, cartelle=()):
@@ -1824,6 +2652,117 @@ def controlli_agente_turni(check):
         os.environ.pop("FORENSE_PASSI", None)
         if prima[2] is not None:
             os.environ["FORENSE_PASSI"] = prima[2]
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def controlli_agente_dati_306(check):
+    """(3.0.6) Che cosa l'agente IA riceve sui dati nuovi, senza modello, in un caso disco finto (nomi e testi inventati):
+    chat esportate da WhatsApp (copia di chi usa il telefono, chi ha esportato al posto di «TELEFONO», ora del telefono
+    con o senza fuso, verso non indicato, allegati non inclusi, strumenti delle chat anche nei dischi); posta (Ccn,
+    indirizzo dietro il nome visualizzato, intestazioni originali, .eml ricostruito); video MPEG-TS (anteprima = copia di
+    lavoro)."""
+    import sqlite3
+    import forense_estesa as fe
+    import forense_mobile_chat as fmc
+    import forense_mobile_media as fmm
+    tmp = Path(tempfile.mkdtemp(prefix="collaudo_agente306_"))
+    try:
+        come = tr("indicato dall'operatore")
+        meta = {"disk_type": "disco di prova", "timeline": {"tsk_events": 0, "plaso_events": 0},
+                "partitions": [{"offset": 63, "fs": "ntfs", "desc": "NTFS", "os": "Windows", "files": 3, "deleted": 0,
+                                "readable": True}],
+                "estese": {"archivi": {"messaggi": 2, "archivi": 0, "file in archivi": 0}},
+                "chat": {"app": {"whatsapp_export": {"conversazioni": 2, "messaggi": 4, "allegati": 1, "fonti": []}},
+                         "esportazioni": [{"file": "WhatsApp Chat - Anna Verdi.zip › _chat.txt", "formato": "ios",
+                                           "esportato_da": "Marco Neri", "esportato_da_come": come, "fuso": "Europe/Rome"},
+                                          {"file": "Chat WhatsApp con Gita.txt", "formato": "android", "esportato_da": None,
+                                           "fuso": None}]}}
+        (tmp / "case.json").write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
+        con = sqlite3.connect(str(tmp / "caso.sqlite"))
+        fmc.ensure_schema(con)
+        fe.ensure_schema(con)
+        con.executescript(fmm.SCHEMA)
+        con.execute("INSERT INTO chat_threads(id, app, title, participants, is_group, n_msg, first_ts, last_ts, src_path, local) "
+                    "VALUES (1, 'whatsapp_export', 'Anna Verdi', '[\"Anna Verdi\"]', 0, 3, '2026-03-14T08:12:40', "
+                    "'2026-03-14T08:20:00', 'WhatsApp Chat - Anna Verdi.zip', 'Marco Neri')")
+        con.execute("INSERT INTO chat_threads(id, app, title, participants, is_group, n_msg, first_ts, last_ts, src_path, local) "
+                    "VALUES (2, 'whatsapp_export', 'Gita', '[\"Luca Bianchi\"]', 1, 1, '2026-03-15T08:05:00 locale', "
+                    "'2026-03-15T08:05:00 locale', 'Chat WhatsApp con Gita.txt', NULL)")
+        x = lambda **k: json.dumps({"esportazione": "_chat.txt", **k})
+        msg = [(1, '2026-03-14T08:12:40', 'in', 'Anna Verdi', 'Ciao, sei partito?', 'testo', 0, '_chat.txt', 2,
+                x(riga=2, ora_locale="2026-03-14T09:12:40", fuso="Europe/Rome", ora_dubbia="doppia")),
+               (1, '2026-03-14T08:13:40', 'out', None, 'porto io le chiavi', 'testo', 0, '_chat.txt', 3,
+                x(riga=3, ora_locale="2026-03-14T09:13:40", fuso="Europe/Rome", modificato=True)),
+               (1, '2026-03-14T08:20:00', 'in', 'Anna Verdi', None, 'allegato', 1, '_chat.txt', 5,
+                x(riga=5, ora_locale="2026-03-14T09:20:00", fuso="Europe/Rome", tipo=tr("immagine"))),
+               (2, '2026-03-15T08:05:00 locale', 'unk', 'Luca Bianchi', 'Domani alle 7', 'testo', 0, 'Chat WhatsApp con Gita.txt',
+                4, json.dumps({"esportazione": "Chat WhatsApp con Gita.txt", "riga": 4, "ora_locale": "2026-03-15T08:05:00"}))]
+        for i, (th, ts, d, nome, testo, kind, na, tab, riga, ex) in enumerate(msg, 1):
+            con.execute("INSERT INTO chat_messages(id, thread, app, ts, direction, sender, sender_name, text, kind, n_att, "
+                        "src_table, src_row, extra) VALUES (?, ?, 'whatsapp_export', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        (i, th, ts, d, nome or "", nome, testo, kind, na, tab, riga, ex))
+        con.execute("INSERT INTO chat_attachments(msg, name) VALUES (3, ?)", (tr("immagine"),))
+        intest = "Received: from mx.esempio.it by posta.esempio.it\r\nMessage-ID: <prova306@esempio.it>\r\n"
+        con.execute("INSERT INTO mail(id, part, inode, src_path, fmt, folder, sender, recipients, cc, bcc, subject, date, "
+                    "body, n_att, headers) VALUES (1, 63, '9', 'Outlook/archivio.pst', 'PST/OST', 'Posta inviata', "
+                    "'Marco <marco@esempio.it>', '\"anna@esempio.it\" <altro@esterno.example>', '', 'Carla <carla@esempio.it>', "
+                    "'Dati richiesti', '2026-03-14T10:00:00', 'in allegato', 0, ?)", (intest,))
+        con.execute("INSERT INTO mail(id, part, inode, src_path, fmt, folder, sender, recipients, cc, subject, date, body, "
+                    "n_att, headers) VALUES (2, 63, '9', 'Outlook/archivio.pst', 'PST/OST', 'Posta inviata', "
+                    "'Marco <marco@esempio.it>', 'Anna <anna@esempio.it>', '', 'Senza intestazioni', '2026-03-14T11:00:00', "
+                    "'testo', 0, NULL)")
+        con.execute("INSERT INTO media_file VALUES (63, '20', 'DCIM/video.ts', 'video', 'ts', 'contenuto', '~dcim', 'condivisa', 1880)")
+        con.commit()
+        con.close()
+        case = fa.Case(tmp)
+        p = fa.system_prompt(case)
+        tools = fa.make_tools(case)
+        attesi = fmc.prompt_esportate(case)
+        got = (len(attesi) == 4 and all(r in p for r in attesi), any("Europe/Rome" in r for r in attesi),
+               any("Marco Neri" in r for r in attesi),
+               any(r in p for r in fe.prompt_extra(case) if tr("RICOSTRUITA") in r),
+               any(tr("RICOSTRUITA") in r for r in fe.prompt_extra(case)),
+               any("MPEG-TS" in r and r in p for r in fmm.prompt_extra(case)),
+               {"list_chats", "read_chat", "search_messages", "read_message"} <= set(tools))
+        check(tr("agente: nel prompt di un disco con chat esportate da WhatsApp le righe su copia, chi ha esportato e orari "
+                 "(con e senza fuso), sulla posta (indirizzi, Ccn, .eml ricostruito) e sui video MPEG-TS; strumenti delle chat "
+                 "anche nei dischi"), got == (True,) * 7, str(got), interno=True)
+        c1, c2, lc = tools["read_chat"](1), tools["read_chat"](2), tools["list_chats"]()
+        sm, rm = tools["search_messages"]("chiavi"), tools["read_message"](2)
+        attese = [tr("ora del telefono {o} {fuso}").format(o="2026-03-14 09:13:40", fuso="Europe/Rome") in c1,
+                  "2026-03-14 08:13:40 UTC" in c1, tr("{nome} (chi ha esportato)→").format(nome="Marco Neri") in c1,
+                  tr("TELEFONO→") not in c1 + c2 + sm + rm, tr("(modificato)") in c1,
+                  tr("ora da verificare: {d}").format(d=tr(fmc.ORA_DUBBIA["doppia"])) in c1,
+                  tr(" [non incluso nell'esportazione]") in c1, "_chat.txt " + tr("riga {n}").format(n=3) in c1,
+                  tr("{o} ora del telefono, fuso non indicato (non UTC)").format(o="2026-03-15 08:05:00") in c2,
+                  "locale UTC" not in c2 and "08:05:00 UTC" not in c2,
+                  tr("{nome} (verso non indicato)→").format(nome="Luca Bianchi") in c2,
+                  tr("esportata da {chi}").format(chi="Marco Neri") in lc, tr("orari: ora del telefono, fuso non indicato") in lc,
+                  tr("{nome} (chi ha esportato)→").format(nome="Marco Neri") in sm,
+                  tr("{nome} (chi ha esportato)→").format(nome="Marco Neri") in rm]
+        check(tr("agente: righe delle chat esportate da WhatsApp con chi ha esportato (non «TELEFONO»), ora del telefono "
+                 "accanto all'UTC o «fuso non indicato» senza UTC, ora da verificare, modificato, verso non indicato, "
+                 "allegato non incluso nell'esportazione, file e riga"),
+              all(attese), str([i for i, v in enumerate(attese) if not v]), interno=True)
+        e1, e2 = tools["read_email"](1), tools["read_email"](2)
+        s_ccn, s_ind = tools["search_emails"]("carla@esempio.it"), tools["search_emails"]("Dati richiesti")
+        attese = ["Ccn: Carla <carla@esempio.it>" in e1, tr("INTESTAZIONI ORIGINALI (come nel file):") in e1,
+                  "Message-ID: <prova306@esempio.it>" in e1,
+                  tr("Se esportata, questa mail diventa un .eml RICOSTRUITO da RepertIA (il formato {f} non contiene la mail "
+                     "come file): in cima riporta queste intestazioni, il resto lo ricompone RepertIA; la loro copia esatta va "
+                     "nel file _{intest}.txt accanto.").format(
+                      f="PST/OST", intest=tr("intestazioni_ORIGINALI")) in e1,
+                  tr("Intestazioni di trasporto originali: assenti nel file (Received, Message-ID e indirizzi IP non "
+                     "disponibili).") in e2, tr("intestazioni_ORIGINALI") not in e2,
+                  "id 1 |" in s_ccn and "id 2 |" not in s_ccn, "<altro@esterno.example>" in s_ind and "carla@esempio.it" in s_ind]
+        check(tr("agente: posta con Ccn cercato e mostrato, indirizzo dietro il nome visualizzato, intestazioni originali "
+                 "del file (o «assenti»), .eml di PST/OST dichiarato ricostruito"),
+              all(attese), str([i for i, v in enumerate(attese) if not v]), interno=True)
+    except Exception as e:
+        import traceback
+        check(tr("agente: prova dei testi sui dati nuovi della 3.0.6"), False,
+              f"{type(e).__name__}: {e} {traceback.format_exc()[-300:]}", interno=True)
+    finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
 
@@ -3402,6 +4341,48 @@ def controlli_artefatto(check):
           and gi.get("mac") == "00:0c:29:ff:24:29" and gi.get("data", "").startswith("2015-03-24 13:21:10"))
     check(tr("scheda Decodifica: collegamento LNK, indice del cestino, date NTFS dei due attributi e identificatore con indirizzo MAC letti correttamente"),
           ok, f"{tipi} {righe} {rc} {nt} {gi}"[:600], interno=True)
+    # (3.0.6) strumento decode_file dell'agente: stesso testo della scheda, a pezzi con «start», su un caso vero
+    import contextlib
+    import types
+    import forense_mobile as fm
+    tmp = Path(tempfile.mkdtemp(prefix="collaudo_decodifica_"))
+    try:
+        z = tmp / "artefatti.zip"
+        with zipfile.ZipFile(z, "w") as zf:
+            zf.writestr("Recent/prova.txt.lnk", lnk)
+            zf.writestr("$Recycle.Bin/S-1-5-21-1/$IKXD1U3.jpg", ci)
+            zf.writestr("Documenti/nota.txt", b"testo qualsiasi")
+        a = types.SimpleNamespace(case=str(tmp / "caso"), image=str(z), no_hash=True, no_indice=True, hash_file=False,
+                                  chat=False, leapp=False, drone=False, logica=True, decomprimi=False, info=None, lingua=None,
+                                  fuso="UTC", keychain=None, sysdiagnose=None, wa_backup=False, trascrizione=None)
+        with contextlib.redirect_stdout(io.StringIO()):
+            fm.cmd_prepara(a)
+        case = fa.Case(a.case)
+        con = fa.db_ro(case)
+        try:
+            ino = {pth.rsplit("/", 1)[-1]: (part, str(i)) for part, i, pth in con.execute(
+                "SELECT part, inode, path FROM files WHERE type NOT LIKE 'd%'")}
+        finally:
+            con.close()
+        dec = fa.make_tools(case)["decode_file"]
+        tl = dec(*ino["prova.txt.lnk"])
+        tc = dec(*ino["$IKXD1U3.jpg"])
+        tx = dec(*ino["nota.txt"])
+        pezzo = dec(*ino["prova.txt.lnk"], start=40)
+        oltre = dec(*ino["prova.txt.lnk"], start=10 ** 6)
+        import forense_gui_anteprime as fga
+        scheda = fga.file_artefatto(case, {"part": ino["prova.txt.lnk"][0], "inode": ino["prova.txt.lnk"][1]})["testo"]
+        got = (rel in tl and "2024-01-02 12:00:00 UTC" in tl, orig in tc and "2024-05-06 12:00:00 UTC" in tc,
+               tx == tr("Per questo tipo di file non c'è una decodifica."), len(scheda) <= fa.MAX_OUT and tl == scheda,
+               pezzo == scheda[40:40 + fa.MAX_OUT], oltre == tr("Nessun altro testo."))
+        ok = got == (True,) * 6
+        det = f"{got} {tl[:200]!r}"
+    except Exception as e:
+        ok, det = False, f"{type(e).__name__}: {e}"
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+    check(tr("agente: strumento decode_file con lo stesso testo della scheda Decodifica (collegamento LNK e indice del cestino), "
+             "a pezzi con «start», rifiuto dei file senza decodifica"), ok, det[:400], interno=True)
 
 
 def controlli_ricerca_veloce(case, con, check):
@@ -3835,8 +4816,16 @@ def controlli_smartphone(t, img, case, con, a, check):
         controlli_telegram_chiamate(check)
         controlli_droni(check)
         controlli_sorgente_logica(check)
+        controlli_chat_esportate(check)
+        controlli_avviso_chat_esportate(check)
+        controlli_posta_eml(check)
+        controlli_posta_destinatari(check)
+        controlli_posta_intestazioni(check)
+        controlli_video_ts(check)
+        controlli_chiudi(check)
         controlli_ram(check)
         controlli_agente_turni(check)
+        controlli_agente_dati_306(check)
         controlli_modelli(check)
         controlli_orari(check)
         controlli_artefatto(check)
@@ -4283,7 +5272,7 @@ def controlli_trascrizione(case, check):
         if ftr.exe() and ftr.ffmpeg() and mid and rows:
             import forense_estesa as fe
             ctx = fe.Ctx(case, con, N_("Trascrizione"))
-            testi, t0 = [], time.time()
+            testi, t0, errore = [], time.time(), None
             try:
                 for k, (part, inode, _d, path) in enumerate(rows):
                     src, wav = ctx.tmp / f"m{k}{Path(path).suffix}", ctx.tmp / f"m{k}.wav"
@@ -4291,11 +5280,19 @@ def controlli_trascrizione(case, check):
                     dur = ftr._wav(src, wav)
                     lingua, segs = ftr._whisper(Path(inst[mid]["path"]), wav, "auto", ctx.tmp / f"m{k}", 300)
                     testi.append(f"[{lingua}] " + " ".join(x[2] for x in segs))
+            except Exception as e:
+                # (3.0.6) ffmpeg o whisper-cli che non parte (es. programma di un'altra architettura: OSError) o che
+                # fallisce: misura non riuscita, il collaudo continua
+                errore = f"{type(e).__name__}: {e}"
             finally:
                 ctx.close()
-            check(tr("trascrizione vera delle {n} registrazioni pubbliche (modello {m}, {s} s)").format(
-                n=len(rows), m=inst[mid]["file"], s=round(time.time() - t0, 1)), all(len(x) > 8 for x in testi),
-                " | ".join(testi)[:400], misura=True)
+            if errore:
+                check(tr("trascrizione vera delle registrazioni pubbliche"), False,
+                      tr("non riuscita: ffmpeg o whisper-cli non parte o si ferma ({e})").format(e=errore[:200]), misura=True)
+            else:
+                check(tr("trascrizione vera delle {n} registrazioni pubbliche (modello {m}, {s} s)").format(
+                    n=len(rows), m=inst[mid]["file"], s=round(time.time() - t0, 1)), all(len(x) > 8 for x in testi),
+                    " | ".join(testi)[:400], misura=True)
         else:
             check(tr("trascrizione vera delle registrazioni pubbliche"), False,
                   tr("non eseguita: motore, ffmpeg o modello non presenti (il modello si installa con il consenso)"), misura=True)

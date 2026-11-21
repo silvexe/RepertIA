@@ -8,7 +8,7 @@ export PYTHONDONTWRITEBYTECODE=1
 printf '\033]0;RepertIA\007'
 echo "== RepertIA - By silvexe =="
 echo "Analisi forense con IA locale: i dati restano su questo computer."
-echo "Lascia aperta questa finestra mentre usi RepertIA; chiudila per uscire."
+echo "Lascia aperta questa finestra mentre usi RepertIA. Per uscire: pulsante Chiudi in alto a destra nella pagina (oppure chiudi questa finestra)."
 echo
 if [ ! -x "$DIR/python/bin/python3" ]; then
   echo "Primo avvio: eseguo l'installazione (installa.sh)."

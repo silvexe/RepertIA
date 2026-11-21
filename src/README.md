@@ -3,7 +3,7 @@
 *English: [docs/MANUAL.md](../docs/MANUAL.md).*
 
 **Analisi forense di copie di dischi e pendrive, estrazioni di smartphone e registri di volo dei droni, con intelligenza artificiale locale.**
-Versione 3.0.5 · macOS, Windows e Linux (sperimentale) · interfaccia in italiano o in inglese
+Versione 3.0.6 · macOS, Windows e Linux (sperimentale) · interfaccia in italiano o in inglese
 
 RepertIA prende una copia forense (raw, dd, img o E01), la indicizza con strumenti forensi
 riconosciuti e permette di esaminarla in due modi complementari:
@@ -152,7 +152,8 @@ Nel menu *Modello IA* scegli **Questo computer** (predefinito: il server viene c
 sulle porte 8080, 1234 e 11434) oppure **Server in rete**: inserisci l'indirizzo del server
 (es. `192.168.1.20`, oppure con la porta `http://192.168.1.20:8080`), se serve la chiave API, e
 premi **Collega**. Senza porta vengono provate 8080, 1234 e 11434. La scelta resta salvata
-(`~/Library/Application Support/RepertIA/impostazioni.json`) e vale per tutti i casi; si torna
+(`impostazioni.json` in `~/Library/Application Support/RepertIA` sul Mac, `%APPDATA%\RepertIA` su Windows,
+`~/.config/RepertIA` su Linux dalla 3.0.6) e vale per tutti i casi; si torna
 al server locale con un clic su *Questo computer*. Il server deve accettare connessioni dalla rete:
 llama-server con `--host 0.0.0.0`, LM Studio con *Serve on Local Network*, Ollama con
 `OLLAMA_HOST=0.0.0.0`, e la porta aperta nel firewall. Per una prova: dal Mac apri
@@ -323,6 +324,10 @@ della tastiera si passa al file successivo o precedente. Ha quattro schede:
     o la prima pagina con l'anteprima di sistema (Quick Look);
   - testo, log, CSV, email, codice: il testo;
   - video e audio riproducibili dal browser (mp4, mov, mp3, m4a, wav…);
+  - (3.0.6) video H.264 in contenitori che il browser non apre (`.ts` di videocamere e microSD, `.mts`/`.m2ts`,
+    `.mkv`, `.avi`): riscritti in MP4 senza ricodificare le immagini (audio in AAC) in una copia di lavoro nella
+    cache del caso, che l'anteprima dichiara; il file del reperto non cambia. Con altri codec (MPEG-2, HEVC) un
+    fotogramma con il motivo. I `.ts` si riconoscono dal contenuto e non dall'estensione (`.ts` è anche TypeScript);
 - **Testo**: il testo estratto (anche da documenti e file binari), **per intero** fino a due milioni
     di caratteri; oltre, la fine lo dice con quanti caratteri mancano. Per i file binari sono le stringhe leggibili;
 - **Esadecimale**: il contenuto byte per byte (vedi sotto);
@@ -361,9 +366,22 @@ valgono sia per il grafico sia per la tabella. (3.0) La fonte **Preferiti** most
 
 Con la barra della selezione:
 - **Esporta file** estrae i file (le cartelle con tutto il contenuto) in
-  `export/selezione_<data>/`, **conservando l'albero delle cartelle originale**, in sola
-  lettura, con `manifest.csv`: percorso originale, offset, inode, cancellato sì/no, byte e
-  SHA-256 di ogni file. Le esportazioni compaiono nel report.
+  `export/selezione_<data>/`, in sola lettura, con `manifest.csv`: percorso originale, offset,
+  inode, cancellato sì/no, byte e SHA-256 di ogni file. Dalla 3.0.6 c'è una sottocartella per
+  tipo di evidenza: `file/` (dalla copia forense, **con l'albero delle cartelle originale** sotto
+  `partizione_N`), `carving/`, `estratti/`, `chat/`, `posta/`; `LEGGIMI.txt` dice che cosa c'è in
+  ognuna, quanti file e, per la posta, quante mail sono originali e quante ricostruite. Le
+  esportazioni compaiono nel report.
+- **La posta esportata (3.0.6).** I file di una mail hanno lo stesso nome iniziale (data e ora
+  di invio, oggetto, numero) e un suffisso che dice che cosa sono: `…_ORIGINALE.eml` sono i byte
+  del file di posta (EML, EMLX, mbox); `…_RICOSTRUITA.eml` è rimontata dai dati di un PST/OST o
+  MSG, che non contengono la mail come file; accanto, `…_intestazioni_ORIGINALI.txt` riporta le
+  intestazioni di trasporto (Received, Message-ID, DKIM…) così come sono registrate nel file,
+  rilette per intero dal PST se nel caso erano troncate, e il `.eml` lo cita con il suo SHA-256;
+  per i MSG c'è anche `…_ORIGINALE.msg`. Le mail inviate e le bozze non hanno intestazioni di
+  trasporto: lo dicono il manifest e il messaggio a video. L'agente IA conosce questa differenza:
+  per citare indirizzi IP e catena Received indica il file delle intestazioni originali e il file
+  di posta, non il `.eml` ricostruito; le mail le esporta l'analista, non l'agente.
 - **Esporta elenco CSV** salva le righe selezionate in `export/elenchi/` (separatore `;`, si
   apre con Excel o Numbers).
 - **Reperto** registra un reperto con i riferimenti degli elementi scelti.
@@ -375,6 +393,10 @@ barra della selezione o dal riquadro di anteprima).
 
 ### Interfaccia
 - **Tema chiaro / scuro**: pulsante ☾ / ☀ in alto a destra (la scelta viene ricordata).
+- **⏻ Chiudi** (3.0.6), in alto a destra: chiude RepertIA. Chiede conferma e, se c'è un lavoro in corso (preparazione
+  o analisi, risposta dell'agente, report ed esportazioni, calcolo dello spazio non allocato), lo elenca prima; poi
+  ferma il programma e chiude la sua finestra (il prompt su Windows, il Terminale sul Mac, il terminale della voce di
+  menu su Linux). I casi restano salvati.
 - **◧** accanto al nome del caso nasconde o mostra il pannello laterale, per avere più spazio.
 - **Riquadri ridimensionabili** (2.20): un divisore sottile separa pannello del caso, albero dei Risultati, albero delle
   cartelle del File System, elenco, anteprima/dettagli a destra e, nella vista chat, elenco delle conversazioni. Si
@@ -511,7 +533,7 @@ audio, «testo OCR automatico» nell'elenco dei documenti e nel report. Vedi [AI
 
 ## Preferiti (categorie di file)
 
-**Report illustrato (3.0.1).** **Report** apre una finestra in cui si sceglie che cosa far confluire: le sezioni (dati del caso e della copia, analisi eseguite, reperti, cronologia dei preferiti, note metodologiche, ambiente e registro, testo completo), le categorie dei Preferiti (con **Scegli elementi…** si tolgono singoli elementi) e i **tipi interi** (tutte le chat, tutte le foto, tutti i video, tutti gli audio, tutta la posta, gli artefatti di una categoria o di una sezione di iLEAPP/ALEAPP, tutte le posizioni). Chi riceve il report vede gli elementi come nel caso: foto in miniatura (un clic apre l'originale copiato accanto, con il suo SHA-256), video con un fotogramma, documenti con la prima pagina, chat con fumetti, mittente, ora, fonte e allegati, artefatti e posta con tutti i campi. Escono in `export/report_<data>/` **report.html** (diviso in pagine), **report.pdf** e, a scelta, **report.docx** con lo stesso contenuto, più `impronte.csv` con lo SHA-256 di ogni file; tutto nel registro del caso. Si consegna l'intera cartella. Il PDF incorpora un carattere Unicode del sistema con i soli glifi usati; l'arabo e l'ebraico vi compaiono con le lettere staccate (nell'HTML sono corretti). PDF e Word portano al massimo 5.000 anteprime e 20.000 righe di tabella: il resto è nell'HTML. Opzioni: periodo delle chat; copia degli originali di foto, documenti e audio (predefinito) e, a scelta, anche di video e altri allegati.
+**Report illustrato (3.0.1).** **Report** apre una finestra in cui si sceglie che cosa far confluire: le sezioni (dati del caso e della copia, analisi eseguite, reperti, cronologia dei preferiti, note metodologiche, ambiente e registro, testo completo), le categorie dei Preferiti (con **Scegli elementi…** si tolgono singoli elementi) e i **tipi interi** (tutte le chat, tutte le foto, tutti i video, tutti gli audio, tutta la posta, gli artefatti di una categoria o di una sezione di iLEAPP/ALEAPP, tutte le posizioni). Chi riceve il report vede gli elementi come nel caso: foto in miniatura (un clic apre l'originale copiato accanto, con il suo SHA-256), video con un fotogramma, documenti con la prima pagina, chat con fumetti, mittente, ora, fonte e allegati, artefatti e posta con tutti i campi. Escono in `export/report/report_<data>/` **report.html** (diviso in pagine), **report.pdf** e, a scelta, **report.docx** con lo stesso contenuto, più `impronte.csv` con lo SHA-256 di ogni file; tutto nel registro del caso. Si consegna l'intera cartella. Il PDF incorpora un carattere Unicode del sistema con i soli glifi usati; l'arabo e l'ebraico vi compaiono con le lettere staccate (nell'HTML sono corretti). PDF e Word portano al massimo 5.000 anteprime e 20.000 righe di tabella: il resto è nell'HTML. Opzioni: periodo delle chat; copia degli originali di foto, documenti e audio (predefinito) e, a scelta, anche di video e altri allegati.
 
 **Chat nei Preferiti e cronologia (2.21).** Aprendo la scheda di una chat dai Preferiti compare **💬 Apri chat**. **Esporta file** dai Preferiti salva la chat intera (HTML, CSV, allegati, con SHA-256 nel manifest), limitabile a un periodo; i messaggi singoli vanno in `chat/messaggi_preferiti.csv`. Il report contiene il testo della chat (primi 2.000 messaggi; completa nel report portatile). **🕒 Cronologia dei preferiti** mette tutti gli elementi in ordine di data dell'evento, con la colonna *Evento* che dice a che cosa si riferisce la data: la cronologia è anche nel report ed è esportabile in CSV. Il report contiene solo le categorie «nel report». Una data di modifica non prova da sola quando un fatto è avvenuto.
 
@@ -615,6 +637,39 @@ Se la sorgente contiene database di telefoni (per esempio `msgstore.db` e `wa.db
 
 **Limiti.** Le L01 di EnCase non sono lette: non c'è un campione pubblico per provarle. Gli AD1 sono provati sui file pubblici dei test di dissect.evidence e su un AD1 segmentato pubblico; le immagini UDF con VAT sul CD-R «RM#3» del caso NIST CFReDS «Data Leakage» (file finali, 17 file delle VAT precedenti e ora della masterizzazione uguali alle risposte NIST), che è nei dati del collaudo.
 
+## Chat esportate da WhatsApp (3.0.6)
+
+Le chat salvate con **Esporta chat** di WhatsApp (su iPhone `_chat.txt`, su Android `Chat WhatsApp con ….txt`, con o
+senza media, spesso in uno zip) si leggono e si mostrano nel visualizzatore delle chat, con bolle, allegati, posizioni e
+chiamate, separate dalle chat lette dai database del telefono: categoria di artefatti **Chat esportate da WhatsApp**.
+
+- **Dove.** Aprendo lo zip o la cartella come **Sorgente logica** le chat si leggono alla preparazione. In ogni tipo di
+  caso (memorie di massa, smartphone, sorgente logica) **Analisi aggiuntive → 📤 Chat esportate da WhatsApp** le cerca
+  nel caso, anche dentro gli zip, e permette di aggiungere un'esportazione presa da fuori del caso (per esempio da una
+  pendrive): ne registra percorso, dimensione e SHA-256 e la ricontrolla prima di leggerla. Zip ed esportazioni aggiunte
+  sono copiati in `estratti/chat_esportate` come copia derivata, con le impronte. Nelle copie di dischi e di smartphone
+  le chat esportate non si leggono da sole: all'apertura del caso un avviso dice quante ce ne sono nell'elenco dei file
+  e apre la finestra di scelta; torna a ogni apertura finché le chat non sono lette o si spunta «Non chiedere più per
+  questo caso».
+- **Formati.** iPhone e Android, testi di sistema in italiano e in inglese, ordine giorno/mese o mese/giorno ricavato
+  dalle date, orari a 12 o 24 ore. Chi ha esportato è «questo dispositivo» (dal nome del file o dai messaggi che ha
+  eliminato); nei gruppi spesso non si ricava.
+- **Orari.** L'esportazione non dice il fuso. Di partenza gli orari restano l'ora del telefono, segnati «(ora locale,
+  fuso n.d.)»; RepertIA chiede se adeguarli al fuso del dispositivo indicato per il caso, e solo allora diventano istanti
+  confrontabili con il resto della Timeline. Le ore doppie o inesistenti del cambio dell'ora sono segnate con ⚠. In ogni
+  messaggio resta visibile l'ora scritta nel file (📱).
+- **Periodo.** Primo e ultimo messaggio non contano gli avvisi di WhatsApp: su Android l'avviso della crittografia ha la
+  data in cui è nata la chat, non quella dell'esportazione (che nessuno dei due formati scrive).
+- **Agente IA.** L'agente legge le chat esportate in ogni tipo di caso e le tratta come una copia fatta da chi usa il
+  telefono: chi ha esportato decide quali messaggi sono inviati; mancano numeri, stati di consegna e lettura e messaggi
+  cancellati, quindi a domande come «l'ha letto?» risponde che non si può dire. Ogni riga che legge riporta l'ora del
+  telefono («ora del telefono, fuso non indicato (non UTC)») oppure, dopo l'adeguamento, l'istante UTC con l'ora del telefono accanto, e il
+  file e la riga da cui viene il messaggio.
+- **Esporta chat** scrive l'HTML e il CSV, con gli allegati copiati e le loro impronte.
+
+**Limiti.** Su Android le chiamate compaiono nell'esportazione come righe senza testo. Provato su esportazioni di prova e
+su zip dentro una cartella, non ancora su un disco reale che contiene un'esportazione.
+
 ## Trascrizione degli audio (2.20)
 
 RepertIA trascrive il parlato degli audio (note vocali delle chat, registrazioni, messaggi della segreteria…) con
@@ -658,7 +713,7 @@ l'audio»**: non sostituisce una trascrizione certificata.
 
 ## Report portatile (per chi non ha la copia forense)
 
-Dal menu **Report → Report portatile** crea in `export/report_portatile_<data>/` una
+Dal menu **Report → Report portatile** crea in `export/report/report_portatile_<data>/` una
 cartella con `index.html` da consegnare (anche zippata): si apre con un doppio clic in qualsiasi
 browser, **offline**, senza RepertIA, senza la copia forense e senza IA.
 
@@ -757,6 +812,12 @@ browser, **offline**, senza RepertIA, senza la copia forense e senza IA.
   *Archivi e allegati*, entrano nella ricerca e nella chat. I file estratti finiscono in
   `<caso>/estratti/` in sola lettura, con MD5, SHA-1 e SHA-256, e con il percorso di origine
   (archivio → file interno). Gli archivi protetti da password vengono segnalati.
+  Dalla 3.0.6, per i PST/OST mittente e destinatari sono quelli registrati nel file: tabella dei destinatari divisa
+  in A, Cc e **Ccn**, oppure i campi «Visualizza A/Cc/Ccn» quando la tabella manca (posta inviata, bozze), indirizzo
+  del mittente anche nella forma X.500 di Exchange; le intestazioni di trasporto restano la prima fonte quando ci
+  sono. Un nome che contiene @ , ; < > si scrive tra virgolette, così non si confonde con l'indirizzo. **Esporta
+  .eml** (righe della Posta, della ricerca e dei documenti, anteprima della mail) salva la mail in `export/posta/`
+  (vedi «La posta esportata» nella Scheda Risultati).
 - **Anomalie** (attiva per default): estensione che non corrisponde al contenuto (es. un JPEG
   chiamato `.txt`), documenti Office, PDF e ZIP cifrati, contenitori ad alta entropia
   (possibili volumi VeraCrypt/TrueCrypt), volumi BitLocker, LUKS, FileVault e APFS cifrati.
@@ -1422,6 +1483,28 @@ scarica dal browser e si installa come sempre: il programma non scarica né inst
 non parte nessuna richiesta; il controllo non va nel registro di nessun caso (data ed esito restano nelle impostazioni).
 GitHub vede l'indirizzo IP del computer e la versione del programma. Senza rete compare solo «nessuna connessione».
 
+**Versione 3.0.6** - **Chat esportate da WhatsApp.** Le chat salvate con «Esporta chat» (iPhone e Android, con o senza media, anche in uno zip) si leggono e si mostrano nel visualizzatore delle chat, con allegati, posizioni e chiamate, in una categoria di artefatti a parte. Si leggono aprendo lo zip o la cartella come sorgente logica e, in ogni tipo di caso, con l'analisi aggiuntiva **📤 Chat esportate da WhatsApp**, che le cerca anche dentro gli zip e accetta un'esportazione presa da fuori del caso (percorso, dimensione e SHA-256 registrati e ricontrollati). Nelle copie di dischi e di smartphone non si leggono da sole, perché servono il fuso del telefono e chi ha esportato: all'apertura del caso un avviso dice quante ce ne sono nell'elenco dei file e apre la finestra di scelta; torna finché le chat non sono lette o si sceglie «Non chiedere più per questo caso». L'esportazione non dice il fuso: gli orari restano l'ora del telefono finché non si sceglie di adeguarli al fuso del dispositivo del caso; ore doppie e inesistenti del cambio dell'ora sono segnate. Vedi «Chat esportate da WhatsApp».
+
+**Posta PST/OST: mittente e destinatari come nel file.** Il lettore scorreva la tabella dei destinatari nel modo sbagliato e non la leggeva mai: i destinatari venivano solo dalle intestazioni di trasporto, che la posta inviata e le bozze non hanno, e i **Ccn** finivano in «A». Ora la tabella si legge per tipo (A, Cc, Ccn) con l'indirizzo SMTP o quello registrato (anche X.500 di Exchange); senza tabella si usano «Visualizza A/Cc/Ccn»; il mittente senza intestazioni ha anche l'indirizzo. Nuova colonna **Ccn** in tabella, anteprima, CSV, ricerca, relazione e report portatile. Un nome che contiene @ , ; < > va tra virgolette: senza, i programmi di posta leggono il nome come indirizzo. Nel caso M57-Jean (Digital Corpora) la mail del foglio di calcolo, nella posta inviata, risultava senza destinatari; ora ha il destinatario registrato nel PST, `tuckgorge@gmail.com`, con il nome visualizzato `alison@m57.biz`. I casi preparati con le versioni precedenti restano come erano finché la posta non viene riletta.
+
+**Una mail come file `.eml`.** **Esporta .eml** (righe della Posta, della ricerca e dei documenti, anteprima della mail) e **Esporta file** della selezione salvano la mail in `posta/`. EML, EMLX e mbox danno i byte originali (`…_ORIGINALE.eml`). PST/OST e MSG non contengono la mail come file: il `.eml` è ricostruito dai dati letti e lo dichiara nel nome (`…_RICOSTRUITA.eml`) e nell'intestazione «X-RepertIA-Ricostruzione»; accanto, `…_intestazioni_ORIGINALI.txt` riporta le intestazioni di trasporto come sono registrate nel file (rilette per intero dal PST se nel caso erano troncate) ed è citato con il suo SHA-256 nel `.eml`; per i MSG c'è anche il `.msg` originale. I file della stessa mail hanno lo stesso nome iniziale (data e ora di invio, oggetto, numero).
+
+**Esportazioni divise per tipo.** **Esporta file** scrive in `export/selezione_<data>/` una sottocartella per tipo di evidenza (`file/` con l'albero delle cartelle sotto `partizione_N`, `carving/`, `estratti/`, `chat/`, `posta/`) e un `LEGGIMI.txt` che dice che cosa c'è in ognuna, quanti file e, per la posta, quante mail sono originali e quante ricostruite. Report e report portatili vanno in `export/report/`, la cronologia dei Preferiti in `export/elenchi/`, i file esportati uno alla volta (anche dall'agente) in `export/file/`. Le esportazioni fatte prima restano dove sono.
+
+**Video `.ts` delle videocamere.** I video MPEG-TS (`.ts`, `.mts`, `.m2ts`) si riconoscono dal contenuto e non dall'estensione, perché `.ts` è anche l'estensione dei file TypeScript: compaiono tra i video anche rinominati o senza estensione, e un `.ts` con un'altra estensione è segnalato fra le anomalie. Se il video è H.264 (videocamere, microSD) l'anteprima lo riscrive in MP4 senza ricodificare le immagini, in una copia di lavoro nella cache del caso che l'anteprima dichiara; vale anche per `.mkv` e `.avi` H.264. Con MPEG-2 o HEVC resta un fotogramma con il motivo.
+
+**Pulsante «⏻ Chiudi».** In alto a destra chiude RepertIA: chiede conferma, elenca prima i lavori in corso (preparazione o analisi, agente, report ed esportazioni, spazio non allocato), poi ferma il programma e chiude la sua finestra (prompt di Windows, Terminale del Mac, terminale della voce di menu su Linux).
+
+**MemProcFS 5.19.4.** Il componente per i dump della RAM passa alla 5.19.4 sui tre sistemi (e su Linux ARM): rispetto alla 5.19.3 cambia la riga che su Mac e Linux non passava `-disable-symbolserver` alla libreria dei simboli (correzione della nostra segnalazione ufrisk/MemProcFS#433). La protezione di RepertIA contro lo scarico dei simboli a caso aperto resta come seconda sicurezza. Sorgente allegato: `MemProcFS-5.19.4-sorgenti.tar.gz`.
+
+**Linux e Windows.** Il pulsante che apre la cartella si chiama **Mostra nel file manager** su tutti i sistemi (su Linux usava i testi del Mac). Su Linux le impostazioni stanno in `~/.config/RepertIA` (o `$XDG_CONFIG_HOME`) e si spostano da sole dalla cartella usata prima; `installa.sh` aggiorna le librerie Python solo se l'elenco è cambiato; LEGGIMI e README_EN spiegano aggiornamento e rimozione. Il disinstallatore di Windows toglie anche `AI_ACT.md` e `AI_ACT.en.md`.
+
+**Agente IA sui dati nuovi.** L'agente legge le chat esportate in ogni tipo di caso. Sa che sono una copia fatta da chi usa il telefono con «Esporta chat» (scelta da chi esporta e modificabile, senza numeri, stati di consegna e lettura, messaggi cancellati), chi le ha esportate e quindi quali messaggi sono inviati, e che gli orari sono l'ora del telefono finché l'analista non li adegua al fuso del caso: ogni riga lo dice, con la riga del file e «ora da verificare» per le ore del cambio dell'ora. Nella posta cerca anche in Cc e Ccn, mostra le intestazioni originali come sono nel file (o dice che mancano) e sa che il `.eml` di una mail di PST/OST o MSG è ricostruito, con le intestazioni esatte nel file accanto; le mail non le esporta lui. Dei video MPEG-TS sa che l'anteprima è una copia di lavoro e che il reperto è il file originale.
+
+**Collaudo.** Se ffmpeg o whisper-cli non partono, la misura «trascrizione vera» risulta non riuscita con il motivo e il collaudo continua (prima si interrompeva). Controlli nuovi per chat esportate, destinatari dei PST/OST, mail in `.eml` con le intestazioni originali, video MPEG-TS, pulsante «Chiudi», esportazione per tipo, lo strumento `decode_file` e le risposte dell'agente sui dati nuovi.
+
+Provato: collaudo dai sorgenti su Windows 824/824 in italiano e in inglese (128/128 su immagini pubbliche), navigazione 525/525 in italiano e in inglese; sul Mac 820/821, navigazione 525/525: l'unico controllo non superato è l'MP4 dei `.ts`, fatto con l'ffmpeg del pacchetto 3.0.5 (con quello ricompilato è superato). Sul Mac, dai sorgenti: anteprima dei `.ts` con l'ffmpeg ricompilato, chiusura del Terminale, RAM con la 5.19.4. Agente con Qwen 3.8 27B (LM Studio) su chat esportate di prova e su M57-Jean: risposte corrette in italiano e in inglese. Posta confrontata con i PST riletti da soli con libpff: M57-Jean 260 mail su 260 uguali (intestazioni, testo, HTML, allegati, mittente e destinatari), NIST CFReDS «Data Leakage» 14 su 14. MemProcFS 5.19.4 e 5.19.3 sullo stesso dump pubblico danno gli stessi conteggi e gli stessi file estratti. Non provato: Linux vero (terminale della voce di menu, aggiornamento sopra la 3.0.5, RAM con la 5.19.4), chat esportate dentro un disco reale, Ccn su dati reali (nessuno nei casi di prova), agente con altri modelli sui dati nuovi.
+
 **Versione 3.0.5** - **Dump della memoria RAM: oggetti con lo stesso nome.** Nella copia dei file ancora presenti in memoria, più oggetti con lo stesso nome nella stessa cartella si distinguono con le ultime sei cifre dell'indirizzo dell'oggetto. Se due di essi avevano anche quelle cifre uguali, il secondo riceveva il nome del primo e la preparazione si fermava con «Permission denied» (segnalato su un dump di 19 GB). Ora il nome si allunga (indirizzo intero, poi un numero) finché è unico. Inoltre un file che il disco non lascia scrivere non ferma più la preparazione: resta nell'elenco con la nota «non copiato» e il loro numero è nell'esito della copia.
 
 **RAM su Linux ARM a 64 bit.** Il pacchetto Linux contiene anche la libreria MemProcFS 5.19.3 per ARM a 64 bit (aarch64), dalla stessa release dell'autore, in `strumenti/memprocfs/memprocfs_aarch64`; RepertIA sceglie la cartella in base al processore. Prima, su ARM, l'analisi della RAM non partiva. `installa.sh` installa anche le librerie di sistema che MemProcFS richiede (libusb e libssl).
@@ -1739,7 +1822,7 @@ ripreparati per indicizzare i PDF.
 
 ## Pacchetto per Mac Apple Silicon
 
-`RepertIA-3.0.5-Mac.zip` contiene **RepertIA.app** con Python 3.12, openai, Pillow e **plaso
+`RepertIA-3.0.6-Mac.zip` contiene **RepertIA.app** con Python 3.12, openai, Pillow e **plaso
 già inclusi** (niente Docker). Trascina l'app in Applicazioni; la prima volta: tasto destro →
 *Apri* (o *Impostazioni di Sistema → Privacy e sicurezza → Apri comunque*), perché non è firmata
 con un certificato Apple. L'app apre il Terminale, installa con Homebrew gli strumenti che mancano
@@ -1749,7 +1832,7 @@ c'è *Aggiorna strumenti.command* nello zip. Solo per Mac M1 o successivi.
 
 ## Versione Windows
 
-`RepertIA-3.0.5-Setup.exe` installa RepertIA per l'utente corrente (senza diritti di
+`RepertIA-3.0.6-Setup.exe` installa RepertIA per l'utente corrente (senza diritti di
 amministratore) in `%LOCALAPPDATA%\Programs\RepertIA`, con Python e gli strumenti già inclusi:
 plaso, The Sleuth Kit (legge gli E01 direttamente), ExifTool, Poppler, PhotoRec, bulk_extractor, 7-Zip,
 Tesseract OCR (italiano e inglese) e le librerie per posta Outlook, copie shadow e volumi cifrati. Si avvia dal menu
@@ -1770,11 +1853,11 @@ in `%USERPROFILE%\CasiForensi`, le impostazioni in `%APPDATA%\RepertIA`.
 
 ## Versione Linux (sperimentale)
 
-`RepertIA-3.0.5-Linux.tar.gz` è per **Linux x86_64** con Python 3.12 o successivo (Ubuntu 24.04 o
+`RepertIA-3.0.6-Linux.tar.gz` è per **Linux x86_64** con Python 3.12 o successivo (Ubuntu 24.04 o
 successivo, Debian 13). Il programma è lo stesso delle versioni Mac e Windows (stessa impronta dei sorgenti).
 
 ```
-tar -xzf RepertIA-3.0.5-Linux.tar.gz
+tar -xzf RepertIA-3.0.6-Linux.tar.gz
 cd RepertIA
 ./installa.sh          # una volta, con internet: chiede la password di amministratore
 ./RepertIA.sh          # oppure dal menu delle applicazioni

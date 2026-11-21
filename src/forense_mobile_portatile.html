@@ -48,7 +48,7 @@
   if (window.paneSplit) paneSplit(sec.querySelector("#pcSplit"), {key: "chat", el: () => sec.querySelector("#pcList"), dir: 1, min: 200, max: () => sec.clientWidth * 0.6 || 600,
     set: w => { const g = sec.querySelector(".pchat"); w ? g.style.setProperty("--chlw", w + "px") : g.style.removeProperty("--chlw"); }});
   const APP = {whatsapp: "WhatsApp", imessage: "iMessage/SMS", sms: "SMS/MMS", whatsapp_backup: T("WhatsApp (backup decifrato)"),
-    whatsapp_business: "WhatsApp Business", whatsapp_business_backup: T("WhatsApp Business (backup decifrato)")};
+    whatsapp_business: "WhatsApp Business", whatsapp_business_backup: T("WhatsApp Business (backup decifrato)"), whatsapp_export: T("WhatsApp (chat esportata)")};
   const appLbl = k => APP[k] || k;
   const KIND = {allegato: T("allegato"), sistema: T("evento"), reazione: T("reazione"), eliminato: T("messaggio eliminato (segnaposto dell'app: il testo non c'è più)"),
     posizione: T("posizione"), contatto: T("contatto"), link: T("link"), sondaggio: T("sondaggio"), chiamata: T("chiamata"), "non gestito": T("tipo non gestito")};

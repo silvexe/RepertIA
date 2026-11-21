@@ -38,7 +38,8 @@ import forense_mobile_chiamate as fmca  # noqa: E402
 PREF_CHAT_MAX = 2000           # (2.21) messaggi di ogni chat dei Preferiti scritti nel report
 APP_LBL = {"imessage": "iMessage/SMS", "whatsapp": "WhatsApp", "sms": "SMS/MMS",
            "whatsapp_backup": "WhatsApp (backup decifrato)", "whatsapp_business": "WhatsApp Business",
-           "whatsapp_business_backup": "WhatsApp Business (backup decifrato)"}
+           "whatsapp_business_backup": "WhatsApp Business (backup decifrato)",
+           "whatsapp_export": "WhatsApp (chat esportata)"}
 WA_APPS = ("whatsapp", "whatsapp_business")
 # (3.0.1) WhatsApp Business ha cartelle sue: com.whatsapp.w4b (Android) e «WhatsApp Business» nella memoria condivisa;
 # su iOS il gruppo di app condiviso group.net.whatsapp.WhatsAppSMB.shared (dal file di metadati del contenitore)
@@ -1267,7 +1268,7 @@ def run(case, con, chiamate=True):
     con.execute("DELETE FROM events WHERE origin='chat'")
     fe.ensure_schema(con)
     ensure_art_cols(con)
-    con.execute("DELETE FROM artifacts WHERE cat='messaggi' AND data LIKE '%\"chat_thread\"%'")
+    con.execute("DELETE FROM artifacts WHERE cat IN ('messaggi', 'chat_esportate') AND data LIKE '%\"chat_thread\"%'")
     out = {"app": {}, "rubriche": 0, "cifrati": [], "avvisi": [], "proprietario": {}}
     plat = (case.meta.get("mobile") or {}).get("piattaforma")
     names = {}
@@ -1317,8 +1318,12 @@ def run(case, con, chiamate=True):
                 con.commit()
         if case.meta.get("wa_backup_attivo"):        # (2.20) backup WhatsApp decifrati con la chiave dell'estrazione
             out["backup_whatsapp"] = leggi_backup(case, con, part, names, out)
+
     if out.get("backup_whatsapp") is not None:
         segna_backup(con)
+    if case.meta.get("logica"):                  # (3.0.6) chat esportate da WhatsApp («Esporta chat»)
+        if leggi_esportazioni(case, con, out):
+            out["esportazioni_da_decidere"] = True   # all'apertura la pagina chiede se adeguare gli orari
     # chat delle app che RepertIA non legge, dagli artefatti di iLEAPP/ALEAPP (se eseguiti)
     try:
         import forense_mobile_leapp_chat as fmlc
@@ -1361,6 +1366,114 @@ def run(case, con, chiamate=True):
             app=tr(APP_LBL.get(app, app)), c=a["conversazioni"], m=a["messaggi"], a=a["allegati"]), flush=True)
     if not out["app"]:
         print(tr("  Nessun database di chat riconosciuto nell'estrazione."), flush=True)
+    return out
+
+
+def leggi_esportazioni(case, con, out, scelte=None, tz=None):
+    """(3.0.6) Chat esportate da WhatsApp (forense_mobile_waexport) dall'elenco dei file del caso: una conversazione
+    per esportazione, app «whatsapp_export»; riepilogo in out["esportazioni"]. `scelte`: [{part, inode, path, io}]
+    dalla finestra dell'analisi aggiuntiva; None = tutte quelle trovate, con chi ha esportato ricavato dal file.
+    Restituisce gli id delle conversazioni scritte."""
+    import forense_mobile_waexport as fwe
+    trovati = fwe.cerca(con)
+    zip_ = [c for c in trovati if c["tipo"] == "zip" and not any(
+        s.get("tipo") == "zip" and str(s.get("inode")) == c["inode"] for s in scelte or [])]
+    if scelte is None:
+        scelte = [dict(c, io=None) for c in trovati if c["tipo"] == "testo"]
+    # (3.0.6) l'esportazione non dice il fuso: senza un fuso indicato dall'operatore gli orari restano l'ora del telefono
+    esp = out.setdefault("esportazioni", [])
+    ids, citati = [], set()
+    for c in scelte:
+        part = None if c.get("part") is None else int(c["part"])
+        inode, path = str(c["inode"]), c["path"]
+        print(tr("Chat esportata da WhatsApp: {path}…").format(path=path), flush=True)
+        W = Writer(con, fwe.APP, part, inode, path)
+        try:
+            say = lambda m: print(m, flush=True)
+            r = (fwe.leggi_zip(case, con, c, W, tz, c.get("io"), say) if c.get("tipo") == "zip"
+                 else fwe.leggi_esterna(case, con, c, W, tz, c.get("io"), say) if c.get("tipo") == "esterna"
+                 else fwe.leggi(case, con, part, inode, path, W, tz, c.get("io")))
+        except Exception as e:
+            out["avvisi"].append(tr("{path}: non letto ({vname}: {e})").format(path=path, vname=type(e).__name__, e=e))
+            continue
+        if not r:
+            out["avvisi"].append(tr("{path}: nessuna riga nel formato di «Esporta chat» di WhatsApp").format(path=path))
+            continue
+        esp.append(dict(r, part=part, inode=inode))
+        ids += list(W.threads.values())
+        for th, cnt in W.local.items():
+            con.execute("UPDATE chat_threads SET local=? WHERE id=?", (max(cnt, key=cnt.get), th))
+        citati.update(Path(x[0]).name for x in con.execute(
+            "SELECT a.device_path FROM chat_attachments a JOIN chat_messages c ON c.id = a.msg WHERE c.thread IN "
+            "(SELECT value FROM json_each(?)) AND a.device_path IS NOT NULL", (json.dumps(list(W.threads.values())),)))
+        a = out["app"].setdefault(fwe.APP, {"conversazioni": 0, "messaggi": 0, "allegati": 0, "fonti": []})
+        a["conversazioni"] += len(W.threads)
+        a["messaggi"] += W.n_msg
+        a["allegati"] += W.n_att
+        a["fonti"].append(path)
+        if not r["ordine_dedotto"]:
+            out["avvisi"].append(tr("{path}: ordine della data non deducibile dai valori (tutti i giorni fino al 12): "
+                                    "letto come giorno/mese").format(path=path))
+        if r.get("ore_dubbie"):
+            out["avvisi"].append(tr("{path}: {n} messaggi con un'ora doppia o inesistente nel fuso {tz} (cambio dell'ora "
+                                    "legale): orario da verificare, segnato nel messaggio").format(path=path, n=r["ore_dubbie"], tz=tz))
+        if not r["esportato_da"]:
+            out["avvisi"].append(tr("{path}: non si ricava chi ha esportato la chat: verso dei messaggi non indicato").format(
+                path=path))
+        con.commit()
+    for c in zip_:
+        if Path(c["path"]).name not in citati:
+            out["avvisi"].append(tr("{path}: sembra un'altra esportazione di WhatsApp in zip; si legge con l'analisi "
+                                    "aggiuntiva «Chat esportate da WhatsApp»").format(path=c["path"]))
+    if scelte:
+        print((tr("  Orari delle chat esportate: ora del telefono convertita dal fuso indicato {tz}.").format(tz=tz) if tz else
+               tr("  Orari delle chat esportate: ora del telefono così com'è (fuso non indicato, nessuna conversione).")),
+              flush=True)
+    return ids
+
+
+def run_esportazioni(case, con, scelte, tz=None):
+    """(3.0.6) Analisi aggiuntiva «Chat esportate da WhatsApp», in ogni tipo di caso: sostituisce solo le conversazioni
+    dell'app «whatsapp_export» (le chat lette dai database del telefono restano come sono)."""
+    import forense_agent as fa
+    import forense_estesa as fe
+    import forense_mobile_waexport as fwe
+    ensure_schema(con)
+    fe.ensure_schema(con)
+    ensure_art_cols(con)
+    vecchi = [r[0] for r in con.execute("SELECT id FROM chat_threads WHERE app=?", (fwe.APP,))]
+    if vecchi:
+        q = json.dumps(vecchi)
+        con.execute("DELETE FROM chat_attachments WHERE msg IN (SELECT id FROM chat_messages WHERE thread IN "
+                    "(SELECT value FROM json_each(?)))", (q,))
+        con.execute("DELETE FROM chat_messages WHERE thread IN (SELECT value FROM json_each(?))", (q,))
+        con.execute("DELETE FROM chat_threads WHERE id IN (SELECT value FROM json_each(?))", (q,))
+        con.execute("DELETE FROM artifacts WHERE cat IN ('messaggi', 'chat_esportate') AND data LIKE '%\"chat_thread\"%' AND "
+                    "json_extract(data, '$.chat_thread') IN (SELECT value FROM json_each(?))", (q,))
+    con.execute("DELETE FROM events WHERE origin='chat' AND source IN (?, ?)",
+                (APP_LBL[fwe.APP], "WhatsApp (exported chat)"))
+    out = case.meta.get("chat") or {"app": {}, "rubriche": 0, "cifrati": [], "avvisi": [], "proprietario": {}}
+    out.setdefault("app", {}).pop(fwe.APP, None)
+    out["avvisi"] = [a for a in out.get("avvisi", []) if "WhatsApp" not in a or "Esporta chat" not in a]
+    out["esportazioni"] = []
+    ids = leggi_esportazioni(case, con, out, scelte, tz)
+    if ids:
+        thread_stats(con, ids)
+        chat_events(con, ids)
+        thread_artifacts(con, name_map(con), ids)
+    con.commit()
+    out["ts"] = fa.now()
+    out["esportazioni_scelte"] = {"n": len(scelte), "fuso": tz, "ts": out["ts"]}
+    out["esportazioni_da_decidere"] = False
+    case.meta["chat"] = out
+    aggiorna_estese(case, con)
+    case.log("chat_esportate_whatsapp", {"scelte": [{k: c.get(k) for k in ("path", "inode", "io")} for c in scelte],
+                                         "fuso": tz, "esiti": out["esportazioni"]})
+    case.save()
+    a = out["app"].get(fwe.APP)
+    print(tr("  {app}: {c} conversazioni, {m} messaggi, {a} allegati").format(
+        app=tr(APP_LBL[fwe.APP]), c=a["conversazioni"], m=a["messaggi"], a=a["allegati"]) if a else
+        tr("  Nessuna chat esportata letta."), flush=True)
     return out
 
 
@@ -1457,6 +1570,12 @@ def thread_stats(con, ids=None):
     con.execute("UPDATE chat_threads SET n_msg = (SELECT COUNT(*) FROM chat_messages m WHERE m.thread = chat_threads.id),"
                 " first_ts = (SELECT MIN(ts) FROM chat_messages m WHERE m.thread = chat_threads.id),"
                 " last_ts = (SELECT MAX(ts) FROM chat_messages m WHERE m.thread = chat_threads.id)" + w, a)
+    # (3.0.6) chat esportate da WhatsApp: il periodo va dal primo all'ultimo messaggio, senza gli avvisi di WhatsApp
+    # (su Android l'avviso della crittografia porta la data in cui è nata la chat, anche anni prima)
+    con.execute("UPDATE chat_threads SET first_ts = COALESCE((SELECT MIN(ts) FROM chat_messages m WHERE m.thread = "
+                "chat_threads.id AND m.direction != 'sys'), first_ts), last_ts = COALESCE((SELECT MAX(ts) FROM chat_messages m "
+                "WHERE m.thread = chat_threads.id AND m.direction != 'sys'), last_ts) WHERE app = 'whatsapp_export'"
+                + (w.replace(" WHERE", " AND") if w else ""), a)
     con.execute("DELETE FROM chat_threads WHERE n_msg = 0" + (w.replace(" WHERE", " AND") if w else ""), a)
 
 
@@ -1513,15 +1632,24 @@ def thread_artifacts(con, names, ids=None):
         if lm and lm["kind"] == "non gestito":          # «tipo N non gestito» (la chiave c'è solo in questo caso)
             lm["tipo"] = fmw.etichetta(last[2], last[4])
         prev = " ".join((lm["testo"] or "[" + (lm.get("tipo") or tr(lm["kind"] or "")) + "]").split()) if lm else ""
-        detail = (tr("dal {a} al {b} (UTC)").format(a=(a or "?").replace("T", " "), b=(b or "?").replace("T", " "))
+        detail = ((tr("dal {a} al {b} (ora del telefono, fuso non indicato)").format(
+                       a=(a or "?").replace("T", " ").replace(" locale", ""), b=(b or "?").replace("T", " ").replace(" locale", ""))
+                   if str(a or "").endswith("locale") else
+                   tr("dal {a} al {b} (UTC)").format(a=(a or "?").replace("T", " "), b=(b or "?").replace("T", " ")))
                   + " · " + tr("inviati {o}, ricevuti {i}").format(o=out_n, i=in_n)
                   + (" · " + tr("verso non indicato {u}").format(u=unk_n) if unk_n else "")
                   + (" · " + tr("eventi {e}").format(e=sys_n) if sys_n else "")
                   + " · " + tr("allegati {a}").format(a=att_n)
+                  + (" · " + tr("avviso di WhatsApp del {d} (su Android: di solito il giorno in cui è nata la chat)").format(
+                      d=str(avv[0]).replace("T", " ").replace(" locale", " " + tr("(ora del telefono, fuso non indicato)"))
+                      + ("" if str(avv[0]).endswith("locale") else " UTC")) if (avv := (con.execute(
+                          "SELECT MIN(ts) FROM chat_messages WHERE thread=? AND direction='sys'", (tid,)).fetchone()
+                          if app == "whatsapp_export" else None)) and avv[0] and a and avv[0] < a else "")
                   + (" · " + tr("ultimo messaggio ({d}): «{t}»").format(
                       d=tr("inviato") if lm["dir"] == "out" else tr("evento") if lm["dir"] == "sys" else tr("ricevuto"),
                       t=prev[:120]) if lm else ""))
-        rows.append(("messaggi", b, (tr("{app}: {loc} ↔ {other} · {n} messaggio") if n == 1 else
+        rows.append(("chat_esportate" if app == "whatsapp_export" else "messaggi", b,
+                     (tr("{app}: {loc} ↔ {other} · {n} messaggio") if n == 1 else
                                      tr("{app}: {loc} ↔ {other} · {n} messaggi")).format(
             app=tr(APP_LBL.get(app, app)), loc=lbl_loc, other=other, n=n), detail, "", src, part, inode,
             json.dumps({"chat_thread": tid, "app": app, "locale": loc, "altro": altro, "gruppo": gruppo,
@@ -1779,7 +1907,7 @@ def report_md(case):
         try:
             con = fa.db_ro(case)
             rows = [json.loads(d) for (d,) in con.execute(
-                "SELECT data FROM artifacts WHERE cat='messaggi' AND data LIKE '%\"chat_thread\"%'")]
+                "SELECT data FROM artifacts WHERE cat IN ('messaggi', 'chat_esportate') AND data LIKE '%\"chat_thread\"%'")]
             n_link = con.execute("SELECT COUNT(*), COUNT(inode) FROM chat_attachments").fetchone()
             con.close()
         except Exception:
@@ -2020,16 +2148,7 @@ def prompt_extra(case):
         L = [tr("- Questo caso è l'ESTRAZIONE DI UNO SMARTPHONE ({os}), non un disco: non ci sono partizioni né file "
                 "cancellati del file system; l'«offset» {off} indica l'estrazione e l'«inode» è il numero della voce "
                 "nell'estrazione.").format(os=m.get("disk_type"), off=off)]
-    c = m.get("chat") or {}
-    if c.get("app"):
-        L.append(tr("- Chat lette ({app}): count_messages conta i messaggi, list_chats elenca le conversazioni, read_chat legge una conversazione "
-                    "(anche per periodo), search_messages cerca nel testo dei messaggi, find_contact trova un contatto "
-                    "nelle rubriche. Ogni messaggio cita database, tabella e riga di origine: citali.").format(
-            app=", ".join(f"{APP_LBL.get(k, k)} {v['messaggi']}" for k, v in c["app"].items())))
-        L.append(tr("- Sotto i messaggi, le righe «✓» danno l'ora di lettura su questo telefono (messaggi ricevuti) e le ricevute "
-                    "di consegna e lettura (messaggi inviati), con la fonte. Senza «letto» non si può concludere che il messaggio "
-                    "non sia stato letto: le conferme di lettura si possono disattivare. Se una ricevuta è «significato non "
-                    "verificato», dillo."))
+    L += prompt_chat(case)
     if m.get("leapp"):
         L.append(tr("- Artefatti di iLEAPP/ALEAPP importati: query_artifacts con categoria «leapp»."))
     if tipo == "smartphone" or (m.get("logica_telefono") or {}).get("struttura_telefono"):
@@ -2039,13 +2158,117 @@ def prompt_extra(case):
     return L
 
 
+def prompt_chat(case):
+    """Righe del prompt dell'agente sulle chat lette, in ogni tipo di caso (dalla 3.0.6 anche nei dischi: le chat
+    esportate da WhatsApp si leggono anche da una copia di un disco)."""
+    c = case.meta.get("chat") or {}
+    app = c.get("app") or {}
+    if not app:
+        return []
+    L = [tr("- Chat lette ({app}): count_messages conta i messaggi, list_chats elenca le conversazioni, read_chat legge una conversazione "
+            "(anche per periodo), search_messages cerca nel testo dei messaggi, find_contact trova un contatto "
+            "nelle rubriche. Ogni messaggio cita database, tabella e riga di origine: citali.").format(
+        app=", ".join(f"{tr(APP_LBL.get(k, k))} {v['messaggi']}" for k, v in app.items()))]
+    if any(k != "whatsapp_export" for k in app):
+        L.append(tr("- Sotto i messaggi, le righe «✓» danno l'ora di lettura su questo telefono (messaggi ricevuti) e le ricevute "
+                    "di consegna e lettura (messaggi inviati), con la fonte. Senza «letto» non si può concludere che il messaggio "
+                    "non sia stato letto: le conferme di lettura si possono disattivare. Se una ricevuta è «significato non "
+                    "verificato», dillo."))
+    return L + prompt_esportate(case)
+
+
+def prompt_esportate(case):
+    """(3.0.6) Righe del prompt dell'agente sulle chat esportate da WhatsApp («Esporta chat»): che cosa sono, chi ha
+    esportato, orari (ora del telefono o adeguati a un fuso), che cosa manca."""
+    c = case.meta.get("chat") or {}
+    a = (c.get("app") or {}).get("whatsapp_export")
+    if not a:
+        return []
+    esp = c.get("esportazioni") or []
+    L = [tr("- CHAT ESPORTATE DA WHATSAPP («Esporta chat», app whatsapp_export: {c} conversazioni, {m} messaggi): sono una "
+            "COPIA fatta da chi usa il telefono, non un'acquisizione del telefono: chi l'ha fatta ha scelto quali chat "
+            "esportare e il file può essere stato modificato prima di arrivare all'analisi; dillo quando le usi. Mancano "
+            "numeri di telefono (ci sono solo i nomi come li vede chi ha esportato), identificativi, stati di consegna e di "
+            "lettura, reazioni, risposte citate e messaggi cancellati: non dire mai che un messaggio è stato o non è stato "
+            "letto o consegnato e non attribuire numeri agli interlocutori. Cita il file dell'esportazione e la riga.").format(
+        c=a.get("conversazioni", 0), m=a.get("messaggi", 0))]
+    chi = sorted({f"{e['esportato_da']} ({e.get('esportato_da_come') or '?'})" for e in esp if e.get("esportato_da")})
+    L.append(tr("- Chi ha esportato: {chi}. I messaggi inviati sono quelli di chi ha esportato (nelle righe «Nome (chi ha "
+                "esportato)→»): se chi ha esportato fosse indicato male, inviati e ricevuti risulterebbero scambiati. Nelle "
+                "righe «verso non indicato» non attribuire il verso.").format(
+        chi=", ".join(chi) or tr("non ricavato (verso dei messaggi non indicato)")))
+    prec = ", ".join(sorted({tr("minuti (Android)") if e.get("formato") == "android" else tr("secondi (iPhone)")
+                             for e in esp})) or "?"
+    fusi = sorted({e["fuso"] for e in esp if e.get("fuso")})
+    senza = sum(1 for e in esp if not e.get("fuso"))
+    if fusi:
+        L.append(tr("- Orari delle chat esportate: il file scrive l'ora del telefono, senza fuso; l'analista l'ha adeguata al "
+                    "fuso {fusi} e l'orario in UTC è calcolato da lì (ogni riga mostra accanto l'ora del telefono). Se quel "
+                    "fuso non era quello del telefono, gli orari sono tutti spostati: tienine conto quando li confronti con "
+                    "altri orari. Precisione: {prec}. Le righe «ora da verificare» cadono nel cambio dell'ora legale.").format(
+            fusi=", ".join(fusi), prec=prec))
+    if senza or not esp:
+        L.append(tr("- Orari delle chat esportate NON adeguati al fuso del caso: sono l'ora del telefono come scritta nel file "
+                    "(nelle righe «ora del telefono, fuso non indicato»), NON sono UTC. Non confrontarli con gli altri orari "
+                    "del caso e non convertirli tu: dillo nella risposta (l'analista può adeguarli dalla scheda della "
+                    "sorgente). Precisione: {prec}.").format(prec=prec))
+    return L
+
+
+ORA_DUBBIA = {"doppia": N_("ora ripetuta al ritorno all'ora solare"),
+              "inesistente": N_("ora saltata al passaggio all'ora legale"),
+              "fuso non disponibile": N_("fuso non disponibile, convertita come UTC")}
+
+
+def _extra(x):
+    if isinstance(x, str):
+        try:
+            x = json.loads(x)
+        except ValueError:
+            x = None
+    return x if isinstance(x, dict) else {}
+
+
+def riga_esportata(r, local=None):
+    """(3.0.6) Riga di un messaggio di una chat esportata da WhatsApp per l'agente: ora del telefono (e UTC se adeguata
+    a un fuso), chi ha esportato al posto di «TELEFONO», verso non indicato, avvisi di WhatsApp, file e riga di origine."""
+    ts, d, sender, sname, text, kind, n_att, mid, table, row, src = r[:11]
+    ex = _extra(r[11] if len(r) > 11 else None)
+    ts = ts or "?"
+    if ts.endswith(" locale") or not ex.get("fuso"):
+        ora = tr("{o} ora del telefono, fuso non indicato (non UTC)").format(o=ts.replace(" locale", "").replace("T", " "))
+    else:
+        ora = f"{ts.replace('T', ' ')} UTC; " + tr("ora del telefono {o} {fuso}").format(
+            o=(ex.get("ora_locale") or "?").replace("T", " "), fuso=ex["fuso"])
+    if ex.get("ora_dubbia"):
+        ora += "; " + tr("ora da verificare: {d}").format(d=tr(ORA_DUBBIA.get(ex["ora_dubbia"], ex["ora_dubbia"])))
+    if d == "out":
+        who = tr("{nome} (chi ha esportato)→").format(nome=local) if local else tr("chi ha esportato→")
+    elif d == "sys":
+        who = tr("[avviso di WhatsApp]")
+    elif d == "in":
+        who = f"{sname or sender or '?'}→"
+    else:
+        who = tr("{nome} (verso non indicato)→").format(nome=sname or sender or "?")
+    lbl = fmw.etichetta(kind, ex)
+    if ex.get("tipo") and kind != "sistema":
+        lbl += ": " + str(ex["tipo"])
+    corpo = text or f"[{lbl}]"
+    if ex.get("modificato"):
+        corpo += " " + tr("(modificato)")
+    return f"[{ora}] {who} {corpo}" + (f" (+{n_att} " + tr("allegati") + ")" if n_att else "") + \
+        f"  ⟨msg {mid}; {src} › {table} " + tr("riga {n}").format(n=row) + "⟩"
+
+
 def agent_tools(case):
     import forense_agent as fa
 
     def _db():
         return fa.db_ro(case)
 
-    def _fmt(r):
+    def _fmt(r, local=None):
+        if _extra(r[11] if len(r) > 11 else None).get("esportazione"):     # (3.0.6) chat esportata da WhatsApp
+            return riga_esportata(r, local)
         ts, d, sender, sname, text, kind, n_att, mid, table, row, src = r[:11]
         extra = r[11] if len(r) > 11 else None
         who = tr("TELEFONO→") if d == "out" else f"{sname or sender or '?'}→"
@@ -2098,16 +2321,25 @@ def agent_tools(case):
             w.append("(title LIKE ? ESCAPE '\\' OR participants LIKE ? ESCAPE '\\')")
             a += [fa.like(contains)] * 2
         tot = con.execute("SELECT COUNT(*) FROM chat_threads" + (" WHERE " + " AND ".join(w) if w else ""), a).fetchone()[0]
-        rows = con.execute("SELECT id, app, title, participants, is_group, n_msg, first_ts, last_ts FROM chat_threads"
+        rows = con.execute("SELECT id, app, title, participants, is_group, n_msg, first_ts, last_ts, local, "
+                           "CASE WHEN app = 'whatsapp_export' THEN (SELECT json_extract(m.extra, '$.fuso') FROM chat_messages m "
+                           "WHERE m.thread = chat_threads.id LIMIT 1) END FROM chat_threads"
                            + (" WHERE " + " AND ".join(w) if w else "") + " ORDER BY last_ts DESC, id LIMIT ? OFFSET ?",
                            a + [max(1, min(int(limit), 500)), max(0, int(offset))]).fetchall()
         con.close()
-        return fa.pagina([f"#{i} {APP_LBL.get(ap, ap)} | {t} | {'gruppo' if g else 'singola'} | {n} msg | "
-                          f"{(f or '?')[:16]} → {(l or '?')[:16]} | {p}" for i, ap, t, p, g, n, f, l in rows], tot, offset)
+
+        def esportata(ap, loc, fuso):         # (3.0.6) chi ha esportato e orari di una chat esportata da WhatsApp
+            if ap != "whatsapp_export":
+                return ""
+            return " | " + tr("esportata da {chi}").format(chi=loc or tr("non ricavato")) + "; " + (
+                tr("orari adeguati al fuso {f}").format(f=fuso) if fuso else tr("orari: ora del telefono, fuso non indicato"))
+        return fa.pagina([f"#{i} {tr(APP_LBL.get(ap, ap))} | {t} | {tr('gruppo') if g else tr('singola')} | {n} msg | "
+                          f"{(f or '?')[:16]} → {(l or '?')[:16]} | {p}" + esportata(ap, loc, fz)
+                          for i, ap, t, p, g, n, f, l, loc, fz in rows], tot, offset)
 
     def read_chat(chat_id: int, start: str = "", end: str = "", offset: int = 0, limit: int = 200) -> str:
-        """Legge i messaggi di una conversazione in ordine di tempo (UTC), con mittente, testo, allegati e
-        riferimento al dato grezzo.
+        """Legge i messaggi di una conversazione in ordine di tempo (UTC; nelle chat esportate da WhatsApp non adeguate
+        a un fuso, l'ora del telefono), con mittente, testo, allegati e riferimento al dato grezzo.
 
         Args:
             chat_id: numero della conversazione (da list_chats)
@@ -2128,21 +2360,22 @@ def agent_tools(case):
             a.append(end if "T" in end else end + "T23:59:59")
         tot = con.execute("SELECT COUNT(*) FROM chat_messages m WHERE " + " AND ".join(w), a).fetchone()[0]
         rows = con.execute("SELECT m.ts, m.direction, m.sender, m.sender_name, m.text, m.kind, m.n_att, m.id, "
-                           "m.src_table, m.src_row, t.src_path, m.extra FROM chat_messages m JOIN chat_threads t ON t.id=m.thread "
+                           "m.src_table, m.src_row, t.src_path, m.extra, t.local FROM chat_messages m JOIN chat_threads t ON t.id=m.thread "
                            "WHERE " + " AND ".join(w) + " ORDER BY m.ts, m.id LIMIT ? OFFSET ?",
                            a + [max(1, min(int(limit), 500)), max(0, int(offset))]).fetchall()
         att = {}
         ids = [r[7] for r in rows]
+        esp = {r[7] for r in rows if _extra(r[11]).get("esportazione")}
         if ids:
             for mid, name, path, lat, lon in con.execute(
                     "SELECT msg, name, path, lat, lon FROM chat_attachments WHERE msg IN (SELECT value FROM json_each(?))",
                     (json.dumps(ids),)):
-                att.setdefault(mid, []).append(f"{name or ''}" + (f" [{path}]" if path else tr(" [file non presente "
-                                                                                                "nell'estrazione]"))
+                manca = tr(" [non incluso nell'esportazione]") if mid in esp else tr(" [file non presente nell'estrazione]")
+                att.setdefault(mid, []).append(f"{name or ''}" + (f" [{path}]" if path else ("" if lat else manca))
                                                + (f" GPS {lat},{lon}" if lat else ""))
         st = _stati(con, ids)
         con.close()
-        return fa.pagina(["\n".join([_fmt(r)] + ["    📎 " + x for x in att.get(r[7], [])] + ["    ✓ " + x for x in st.get(r[7], [])])
+        return fa.pagina(["\n".join([_fmt(r[:12], r[12])] + ["    📎 " + x for x in att.get(r[7], [])] + ["    ✓ " + x for x in st.get(r[7], [])])
                           for r in rows], tot, offset)
 
     def read_message(message_id: int) -> str:
@@ -2154,12 +2387,12 @@ def agent_tools(case):
         con = _db()
         try:
             r = con.execute("SELECT m.ts, m.direction, m.sender, m.sender_name, m.text, m.kind, m.n_att, m.id, m.src_table, m.src_row, "
-                            "t.src_path, m.extra, t.title FROM chat_messages m JOIN chat_threads t ON t.id = m.thread WHERE m.id=?",
+                            "t.src_path, m.extra, t.title, t.local FROM chat_messages m JOIN chat_threads t ON t.id = m.thread WHERE m.id=?",
                             (int(message_id),)).fetchone()
             st = _stati(con, [int(message_id)]) if r else {}
         finally:
             con.close()
-        return "\n".join([f"{r[12]}: {_fmt(r[:12])}"] + ["    ✓ " + x for x in st.get(r[7], [])]) if r \
+        return "\n".join([f"{r[12]}: {_fmt(r[:12], r[13])}"] + ["    ✓ " + x for x in st.get(r[7], [])]) if r \
             else tr("Messaggio {id} non trovato.").format(id=message_id)
 
     def search_messages(text: str, app: str = "", contact: str = "", start: str = "", end: str = "",
@@ -2192,12 +2425,12 @@ def agent_tools(case):
             a.append(end if "T" in end else end + "T23:59:59")
         tot = con.execute("SELECT COUNT(*) FROM chat_messages m JOIN chat_threads t ON t.id=m.thread WHERE " + " AND ".join(w), a).fetchone()[0]
         rows = con.execute("SELECT m.ts, m.direction, m.sender, m.sender_name, m.text, m.kind, m.n_att, m.id, m.src_table, "
-                           "m.src_row, t.src_path, t.id, t.title, m.extra FROM chat_messages m JOIN chat_threads t ON t.id=m.thread "
+                           "m.src_row, t.src_path, t.id, t.title, m.extra, t.local FROM chat_messages m JOIN chat_threads t ON t.id=m.thread "
                            "WHERE " + " AND ".join(w) + " ORDER BY m.ts, m.id LIMIT ? OFFSET ?",
                            a + [max(1, min(int(limit), 500)), max(0, int(offset))]).fetchall()
         st = _stati(con, [r[7] for r in rows])
         con.close()
-        return fa.pagina(["\n".join([f"chat #{r[11]} «{r[12]}»: " + _fmt(r[:11] + (r[13],))] + ["    ✓ " + x for x in st.get(r[7], [])])
+        return fa.pagina(["\n".join([f"chat #{r[11]} «{r[12]}»: " + _fmt(r[:11] + (r[13],), r[14])] + ["    ✓ " + x for x in st.get(r[7], [])])
                           for r in rows], tot, offset)
 
     def count_messages(by: str = "app", app: str = "", contains: str = "", start: str = "", end: str = "") -> str:

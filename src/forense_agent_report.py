@@ -30,7 +30,7 @@ def bm_threads(case):
     try:
         if not table_exists(con, "chat_threads"):
             return {}
-        return {str(a): t for a, t in con.execute("SELECT id, json_extract(data, '$.chat_thread') FROM artifacts WHERE cat='messaggi' "
+        return {str(a): t for a, t in con.execute("SELECT id, json_extract(data, '$.chat_thread') FROM artifacts WHERE cat IN ('messaggi', 'chat_esportate') "
                                                   "AND json_valid(data) AND json_extract(data, '$.chat_thread') IS NOT NULL")}
     finally:
         con.close()

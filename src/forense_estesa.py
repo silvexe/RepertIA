@@ -73,7 +73,7 @@ CREATE INDEX IF NOT EXISTS idx_x_mail ON xitems(mail);
 CREATE INDEX IF NOT EXISTS idx_x_sha ON xitems(sha256);
 CREATE TABLE IF NOT EXISTS mail(id INTEGER PRIMARY KEY, part INTEGER, inode TEXT, src_path TEXT,
     xid INTEGER, fmt TEXT, folder TEXT, sender TEXT, recipients TEXT, cc TEXT, subject TEXT,
-    date TEXT, body TEXT, html TEXT, n_att INTEGER, headers TEXT);
+    date TEXT, body TEXT, html TEXT, n_att INTEGER, headers TEXT, bcc TEXT);
 CREATE INDEX IF NOT EXISTS idx_mail_date ON mail(date);
 CREATE TABLE IF NOT EXISTS anomalies(id INTEGER PRIMARY KEY, kind TEXT, source TEXT, part INTEGER,
     inode TEXT, path TEXT, detail TEXT, ext TEXT, real TEXT, size INTEGER, deleted INTEGER,
@@ -91,7 +91,8 @@ ART_CATS = {"sistema": N_("Sistema"), "utenti": N_("Account utente"), "usb": N_(
             "programmi": N_("Programmi installati"), "esecuzioni": N_("Programmi eseguiti"),
             "recenti": N_("File e cartelle recenti"), "reti": N_("Reti"), "cestino": N_("Cestino"),
             "web": N_("Cronologia web"), "download": N_("Download"), "ricerche": N_("Ricerche"),
-            "comandi": N_("Comandi (shell)"), "messaggi": N_("Messaggi (iMessage/SMS)"), "avvio": N_("Avvio automatico"),
+            "comandi": N_("Comandi (shell)"), "messaggi": N_("Messaggi (iMessage/SMS)"),
+            "chat_esportate": N_("Chat esportate da WhatsApp"), "avvio": N_("Avvio automatico"),
             "permessi": N_("Permessi alle app (TCC)"), "uso": N_("Uso delle app"), "dispositivi": N_("Dispositivi e volumi"),
             "backup": N_("Backup (Time Machine)"), "cartelle": N_("Cartelle aperte (ShellBags)"),
             "journal": N_("Journal NTFS (creati, cancellati, rinominati)"), "eventi": N_("Eventi di sistema"),
@@ -126,7 +127,15 @@ def now():
 
 def ensure_schema(con):
     con.executescript(SCHEMA)
+    # (3.0.6) destinatari in copia nascosta (Ccn) letti dai PST/OST: colonna aggiunta ai casi delle versioni precedenti
+    if "bcc" not in {r[1] for r in con.execute("PRAGMA table_info(mail)")}:
+        con.execute("ALTER TABLE mail ADD COLUMN bcc TEXT")
     fa.ensure_index_schema(con)
+
+
+def mail_bcc(con):
+    """(3.0.6) Espressione SQL dei destinatari Ccn: «bcc», o NULL nei casi letti prima della 3.0.6 (colonna assente)."""
+    return "bcc" if "bcc" in {r[1] for r in con.execute("PRAGMA table_info(mail)")} else "NULL"
 
 
 def safe_name(s, n=90):
@@ -403,7 +412,7 @@ from forense_archivi import (  # noqa: E402,F401
 
 # ------------------------------------------------------------------ posta  → forense_posta.py (3.0.4)
 from forense_posta import (  # noqa: E402,F401
-    addr_list, add_message, parse_email_bytes, process_eml_file, process_mbox, pff_text, pff_recipients, process_pst,
+    addr_list, add_message, parse_email_bytes, process_eml_file, process_mbox, pff_text, pff_recipients, pff_props, pff_mittente, process_pst,
     process_msg_file, run_archivi)
 
 
@@ -523,12 +532,14 @@ FAMILY_EXT = {
     "cab": "cab msu", "psd": "psd psb", "vhd": "vhd", "vhdx": "vhdx", "vmdk": "vmdk", "luks": "luks img",
     "e01": "e01", "dmgenc": "dmg", "plist": "plist", "macho": "dylib bundle jnilib kext so o",
     "amr": "amr 3ga",
+    # (3.0.6) MPEG-TS (videocamere, microSD, registrazioni TV): riconosciuto solo dal contenuto (.ts è anche TypeScript)
+    "ts": "ts mts m2ts m2t trp tp tod",
 }
 FAMILY_EXT = {k: set(v.split()) for k, v in FAMILY_EXT.items()}
 KNOWN_EXT = set().union(*FAMILY_EXT.values()) | {"txt", "csv", "html", "htm", "xml", "json", "log",
                                                    "ini", "md", "eml", "vcf", "ics", "bmp", "ico", "svg"}
 MEDIA_FAM = {"jpg", "png", "gif", "tif", "psd", "webp", "heic", "mp3", "ogg", "flac", "wav", "avi",
-             "mov", "mp4", "m4a", "3gp", "mkv", "amr"}
+             "mov", "mp4", "m4a", "3gp", "mkv", "amr", "ts"}
 DOC_FAM = {"pdf", "zip", "ole", "rtf"}
 OOXML = {"docx", "docm", "dotx", "xlsx", "xlsm", "xltx", "pptx", "pptm", "potx", "ppsx"}
 SUSPECT_EXT = {"", "dat", "bin", "tc", "hc", "vc", "img", "raw", "tmp", "bak", "dmp", "enc", "crypt",
@@ -565,6 +576,10 @@ def detect_sig(head):
             return "exe", tr("eseguibile Windows (PE)")
     if head[:4] in (b"\xcf\xfa\xed\xfe", b"\xce\xfa\xed\xfe"):
         return "macho", tr("eseguibile macOS (Mach-O)")
+    if head[:1] == b"\x47" or head[4:5] == b"\x47":        # (3.0.6) MPEG-TS: sincronismo ogni 188 o 192 byte
+        import forense_mobile_media as fmm
+        if fmm.mpegts(head):
+            return "ts", tr("video MPEG-TS")
     for sig, off, fam, label in SIGS:
         if head[off:off + len(sig)] == sig:
             if fam == "bz2" and not (len(head) > 3 and 0x31 <= head[3] <= 0x39):
@@ -1355,23 +1370,27 @@ def agent_tools(case):
         """
         con = _db()
         w, a = ["1=1"], []
-        if contains:
-            w.append("(subject LIKE ? ESCAPE '\\' OR body LIKE ? ESCAPE '\\' OR recipients LIKE ? ESCAPE '\\')")
-            a += [fa.like(contains)] * 3
+        bcc = mail_bcc(con)
+        if contains:            # (3.0.6) anche in Cc e Ccn
+            w.append(f"(subject LIKE ? ESCAPE '\\' OR body LIKE ? ESCAPE '\\' OR recipients LIKE ? ESCAPE '\\' OR "
+                     f"cc LIKE ? ESCAPE '\\' OR {bcc} LIKE ? ESCAPE '\\')")
+            a += [fa.like(contains)] * 5
         if sender:
             w.append("sender LIKE ? ESCAPE '\\'"); a.append(fa.like(sender))
         try:
             tot = con.execute(f"SELECT COUNT(*) FROM mail WHERE {' AND '.join(w)}", a).fetchone()[0]
-            rows = con.execute(f"SELECT id, date, sender, recipients, subject, n_att, src_path, folder FROM mail "
+            rows = con.execute(f"SELECT id, date, sender, recipients, subject, n_att, src_path, folder, cc, {bcc} FROM mail "
                                f"WHERE {' AND '.join(w)} ORDER BY date DESC, id LIMIT {max(1, min(int(limit), 200))} OFFSET {max(0, int(offset))}", a).fetchall()
         finally:
             con.close()
-        out = [tr("- id {i} | {v1} | da {s} | a {r} | «{o}» | allegati {n} | {p} › {fo}").format(i=i, v1=(d or '').replace('T', ' '), s=s, r=r, o=o, n=n, p=p, fo=fo)
-                for i, d, s, r, o, n, p, fo in rows]
+        out = [tr("- id {i} | {v1} | da {s} | a {r} | «{o}» | allegati {n} | {p} › {fo}").format(
+            i=i, v1=(d or '').replace('T', ' '), s=s, r=(r or "") + (" | cc " + cc if cc else "") + (" | " + tr("ccn") + " " + b if b else ""),
+            o=o, n=n, p=p, fo=fo) for i, d, s, r, o, n, p, fo, cc, b in rows]
         return fa.pagina(out, tot, offset, tr("Leggi il testo con read_email(email_id)."))
 
     def read_email(email_id: int, max_chars: int = 8000) -> str:
-        """Testo completo di un messaggio di posta (intestazioni, corpo, elenco allegati).
+        """Testo completo di un messaggio di posta: mittente e destinatari come nel file (anche Ccn), corpo, elenco
+        allegati e intestazioni di trasporto originali se il file le conserva.
 
         Args:
             email_id: id del messaggio (da search_emails)
@@ -1379,17 +1398,32 @@ def agent_tools(case):
         """
         con = _db()
         try:
-            r = con.execute("SELECT date, sender, recipients, cc, subject, body, headers, src_path, folder FROM mail "
-                            "WHERE id=?", (int(email_id),)).fetchone()
+            r = con.execute(f"SELECT date, sender, recipients, cc, subject, body, headers, src_path, folder, {mail_bcc(con)}, fmt "
+                            "FROM mail WHERE id=?", (int(email_id),)).fetchone()
             att = con.execute("SELECT id, name, size, sha256 FROM xitems WHERE mail=?", (int(email_id),)).fetchall()
         finally:
             con.close()
         if not r:
             return tr("Messaggio non trovato.")
-        d, s, to, cc, subj, body, hdr, src, folder = r
+        d, s, to, cc, subj, body, hdr, src, folder, bcc, fmt = r
+        lim = max(500, min(int(max_chars), 60000))
         txt = (tr("Fonte: {src} › {folder}\nData (UTC): {d}\nDa: {s}\nA: {to}\nCc: {cc}\nOggetto: "
-                  "{subj}\nAllegati: ").format(src=src, folder=folder, d=d, s=s, to=to, cc=cc, subj=subj) + ("; ".join(f"[id {i}] {n} ({z} byte, SHA-256 {h})" for i, n, z, h in att) or "nessuno")
-               + f"\n\n{(body or '')[:max(500, min(int(max_chars), 60000))]}")
+                  "{subj}\nAllegati: ").format(src=src, folder=folder, d=d, s=s, to=to,
+                                               cc=(cc or "") + (f"\nCcn: {bcc}" if bcc else ""), subj=subj) + ("; ".join(f"[id {i}] {n} ({z} byte, SHA-256 {h})" for i, n, z, h in att) or "nessuno")
+               + f"\n\n{(body or '')[:lim]}")
+        # (3.0.6) intestazioni di trasporto come registrate nel file; per PST/OST e MSG l'esportazione è ricostruita
+        if (hdr or "").strip():
+            txt += "\n\n" + tr("INTESTAZIONI ORIGINALI (come nel file):") + "\n" + hdr.strip()[:lim]
+        else:
+            txt += "\n\n" + tr("Intestazioni di trasporto originali: assenti nel file (Received, Message-ID e indirizzi IP "
+                                "non disponibili).")
+        if any(x in str(fmt or "").upper() for x in ("PST", "OST", "MSG")):       # «PST/OST», «MSG»
+            txt += "\n" + (tr("Se esportata, questa mail diventa un .eml RICOSTRUITO da RepertIA (il formato {f} non contiene "
+                              "la mail come file): in cima riporta queste intestazioni, il resto lo ricompone RepertIA; la "
+                              "loro copia esatta va nel file _{intest}.txt accanto.") if (hdr or "").strip()
+                           else tr("Se esportata, questa mail diventa un .eml RICOSTRUITO da RepertIA (il formato {f} non contiene "
+                                   "la mail come file), senza intestazioni originali.")).format(
+                f=fmt, intest=tr("intestazioni_ORIGINALI"))
         return fa.clip(txt)
 
     def list_extracted(contains: str = "", kind: str = "", limit: int = 100, offset: int = 0) -> str:
@@ -1510,6 +1544,22 @@ def prompt_extra(case):
         a = est["archivi"]
         out.append(tr("- Posta: {v1} messaggi (search_emails, read_email); archivi aperti: {v2} con {v3} file "
                       "(list_extracted, read_extracted).").format(v1=a.get('messaggi', 0), v2=a.get('archivi', 0), v3=a.get('file in archivi', 0)))
+        if a.get("messaggi"):           # (3.0.6) mittente e destinatari come nel file, .eml ricostruiti
+            out.append(tr("- Posta: mittente e destinatari (A, Cc, Ccn) sono quelli scritti nel file. Nome visualizzato e "
+                          "indirizzo possono essere diversi (es. «alison@m57.biz» <tuckgorge@gmail.com>): riporta sempre "
+                          "l'indirizzo tra < >, che è quello a cui la mail è andata, e non dedurre il destinatario dal solo "
+                          "nome. Il Ccn c'è solo se il file lo conserva (di solito nella posta inviata). read_email mostra "
+                          "le intestazioni di trasporto originali quando il file le ha (nei PST/OST spesso mancano nella "
+                          "posta inviata): Received, Message-ID e indirizzi IP si leggono solo da lì. Una mail di PST/OST "
+                          "o MSG esportata dall'analista è un .eml RICOSTRUITO da RepertIA (nome con _{ric}), non il "
+                          "messaggio originale byte per byte: in cima riporta le intestazioni di trasporto originali, se il "
+                          "file le ha, mentre corpo, struttura MIME e allegati li ricompone RepertIA; la copia esatta delle "
+                          "intestazioni come registrate nel file è il _{intest}.txt accanto, citato con il suo SHA-256 nel "
+                          ".eml: per IP e catena Received cita quel file e il file di posta. _{orig} sono solo i file "
+                          "copiati così come sono nel reperto (.eml, .msg). Tu non esporti mail: le esporta l'analista "
+                          "dall'interfaccia («Esporta .eml»); export_file vuole offset e inode di un file, mai l'id di una "
+                          "mail.").format(
+                ric=tr("RICOSTRUITA"), intest=tr("intestazioni_ORIGINALI"), orig=tr("ORIGINALE")))
     if "vss" in est:
         out.append(tr("- Copie shadow: {v1} file cancellati o in versione precedente (list_extracted kind='vss').").format(v1=est['vss'].get('file', 0)))
     if "anomalie" in est or _righe(case, "anomalies"):

@@ -1801,7 +1801,7 @@ const EXV = {art: {}, mail: {}, x: {}, anom: {}};
 /* artefatti degli smartphone (2.20): r[8] gruppo (categoria di iLEAPP/ALEAPP o app), r[9] voce (artefatto), r[10] dati della
    conversazione; per iLEAPP/ALEAPP i Dettagli sono i campi in JSON, mostrati come «campo: valore» con le date nel fuso scelto */
 const APP_LBL = {whatsapp: "WhatsApp", imessage: "iMessage/SMS", sms: "SMS/MMS", whatsapp_backup: T("WhatsApp (backup decifrato)"),
-  whatsapp_business: "WhatsApp Business", whatsapp_business_backup: T("WhatsApp Business (backup decifrato)")};
+  whatsapp_business: "WhatsApp Business", whatsapp_business_backup: T("WhatsApp Business (backup decifrato)"), whatsapp_export: T("WhatsApp (chat esportata)")};
 function artFields(r){
   if (r[0] !== "leapp" || !r[3] || r[3][0] !== "{") return null;
   try{ return JSON.parse(r[3]); }catch(e){ return null; }
@@ -1891,13 +1891,13 @@ function initArt(){
     sel.classList.toggle("hidden", !c);
     if (!c){ sel.innerHTML = ""; return; }
     sel.innerHTML = `<option value="">${T("Tutte le voci")}</option>` + [...c.entries()].sort((a, b) => String(a[0]).localeCompare(String(b[0]))).map(([g, e]) =>
-      `<option value="${esc(JSON.stringify([g]))}">${esc(($("artCat").value === "messaggi" ? APP_LBL[g] || g : g) + " (" + nf(e.n) + ")")}</option>` +
+      `<option value="${esc(JSON.stringify([g]))}">${esc((["messaggi", "chat_esportate"].includes($("artCat").value) ? APP_LBL[g] || g : g) + " (" + nf(e.n) + ")")}</option>` +
       [...e.s.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([s, n]) => `<option value="${esc(JSON.stringify([g, s]))}">${"\u00a0\u00a0\u00a0\u00a0" + esc(s + " (" + nf(n) + ")")}</option>`).join("")).join("");
   };
   EXV.art.list = VList($("artList"), [[T("Data e ora (<span class=\"tzl\"></span>)"), "196px"], [T("Categoria"), "130px", "", 620], [T("Elemento"), "minmax(180px,1fr)"], [T("Dettagli"), "minmax(180px,1.4fr)", "", 760]],
     // (3.0.1) righe ad altezza fissa: tutto su una riga (gli a capo diventano « · »), il resto nella scheda che si apre col clic
     i => { const r = EXV.art.rows[i], ch = artChat(r), kv = ch ? null : artKv(r, 8);
-      return [`<span>${fts(r[1])}</span>`, `<span class="hint">${esc(cats[r[0]] || r[0])}${r[8] != null ? "<br>" + esc(r[0] === "messaggi" ? APP_LBL[r[8]] || r[8] : r[8]) : ""}</span>`,
+      return [`<span>${fts(r[1])}</span>`, `<span class="hint">${esc(cats[r[0]] || r[0])}${r[8] != null ? "<br>" + esc(["messaggi", "chat_esportate"].includes(r[0]) ? APP_LBL[r[8]] || r[8] : r[8]) : ""}</span>`,
         ch ? `<span>${ch.who}</span>` : `<span>${citedThumbP(r)}<b>${esc(r[2])}</b>${r[4] ? ` <span class="hint">· ${esc(r[4])}</span>` : ""}</span>`,
         ch ? `<span>${ch.det}</span>` : kv ? `<span>${kv}</span>` : `<span class="hint">${esc(r[3])}</span>`].map(c => c.replace(/<br\s*\/?>/g, " · ")); },
     i => EXV.art.open(EXV.art.rows[i]), null,
@@ -1907,7 +1907,7 @@ function initArt(){
       const acts = ci.map((c, k) => [ci.length > 1 ? TF("Apri il file citato {0}", k + 1) : T("Apri il file citato"), () => { openFile(KEY.get(keyOf(c[3], c[4]))); }])
         .concat(r[6] != null && KEY.get(keyOf(r[6], r[7])) != null ? [[T("Apri la fonte"), () => { openFile(KEY.get(keyOf(r[6], r[7]))); }]] : [])
         .concat(ch && window.PCHAT ? [[T("💬 Apri chat"), () => { PCHAT.open(d.chat_thread); }]] : []);
-      openSide(r[2], r[5] || "", `<table class="dt">${[[T("Categoria"), cats[r[0]] || r[0]], [T("Gruppo"), r[8] != null ? (r[0] === "messaggi" ? APP_LBL[r[8]] || r[8] : r[8]) : ""], [T("Artefatto"), r[9] || ""], [TF("Data ({0})", tzLbl()), fts(r[1])], [T("Dettagli"), kv || ch ? "" : r[3]], [T("Utente"), r[4]], [T("Fonte"), r[5] ? (X.art_sub && r[7] != null ? TF("{0} (percorso nell'estrazione)", r[5]) : `${r[5]}` + (r[7] != null ? ` (offset ${r[6]}, inode ${r[7]})` : "")) : ""]].filter(x => x[1]).map(([k, v]) => `<tr><th>${esc(k)}</th><td style="white-space:pre-wrap">${esc(v)}</td></tr>`).join("")}</table>` +
+      openSide(r[2], r[5] || "", `<table class="dt">${[[T("Categoria"), cats[r[0]] || r[0]], [T("Gruppo"), r[8] != null ? (["messaggi", "chat_esportate"].includes(r[0]) ? APP_LBL[r[8]] || r[8] : r[8]) : ""], [T("Artefatto"), r[9] || ""], [TF("Data ({0})", tzLbl()), fts(r[1])], [T("Dettagli"), kv || ch ? "" : r[3]], [T("Utente"), r[4]], [T("Fonte"), r[5] ? (X.art_sub && r[7] != null ? TF("{0} (percorso nell'estrazione)", r[5]) : `${r[5]}` + (r[7] != null ? ` (offset ${r[6]}, inode ${r[7]})` : "")) : ""]].filter(x => x[1]).map(([k, v]) => `<tr><th>${esc(k)}</th><td style="white-space:pre-wrap">${esc(v)}</td></tr>`).join("")}</table>` +
         (ch ? `<p>${ch.who}</p><p>${ch.det}</p>` : "") + citedBlockP(cl) + (kv || ""), acts); };
   EXV.art.getState = () => ({cat: $("artCat").value, sub: $("artSub").value, q: $("artQ").value});
   EXV.art.setState = s => { $("artCat").value = s.cat || ""; subOpts(); $("artSub").value = s.sub || ""; $("artQ").value = s.q || ""; f(); };
@@ -1943,7 +1943,7 @@ function initMail(){
   EXV.mail.list = VList($("mailList"), [[T("Data e ora (<span class=\"tzl\"></span>)"), "196px"], ["Da", "minmax(140px,0.8fr)", "", 620], [T("Oggetto"), "minmax(180px,1.4fr)"], [T("Cartella"), "minmax(120px,0.8fr)", "", 820]],
     i => { const r = EXV.mail.rows[i]; return [`<span>${fts(r[1])}</span>`, `<span>${esc(r[2])}</span>`, `<span><b>${esc(r[5])}</b>${r[6] ? ` <span class="hint">📎 ${r[6]}</span>` : ""}</span>`, `<span class="hint">${esc(r[7])} ${esc(r[8] || "")}</span>`]; },
     i => { const r = EXV.mail.rows[i], atts = (X.x || []).filter(x => x[9] === r[0]);
-      const m = openSide(r[5], `${r[9] || ""} › ${r[8] || ""}`, `<table class="dt">${[["Da", r[2]], ["A", r[3]], ["Cc", r[4]], [TF("Data ({0})", tzLbl()), fts(r[1])], [T("Fonte"), `${r[9]} › ${r[8] || ""}`]].filter(x => x[1]).map(([k, v]) => `<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>`).join("")}</table>
+      const m = openSide(r[5], `${r[9] || ""} › ${r[8] || ""}`, `<table class="dt">${[["Da", r[2]], ["A", r[3]], ["Cc", r[4]], ["Ccn", r[11]], [TF("Data ({0})", tzLbl()), fts(r[1])], [T("Fonte"), `${r[9]} › ${r[8] || ""}`]].filter(x => x[1]).map(([k, v]) => `<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>`).join("")}</table>
         ${atts.length ? TF("<p style=\"margin:10px 0 4px\"><b>Allegati</b></p>{0}", atts.map(a => `<button class="btn small" data-xa="${a[0]}">📎 ${esc(a[3])} <span class="hint">${fsize(a[4])}</span></button> `).join("")) : ""}
         <pre style="white-space:pre-wrap;max-height:50vh;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:10px;margin-top:10px">${esc(r[10] || T("(testo non incluso)"))}</pre>`, []);
       m.querySelectorAll("[data-xa]").forEach(b => b.onclick = () => xOpen(XB.get(+b.dataset.xa))); }, null,
@@ -2266,7 +2266,7 @@ document.addEventListener("click", e => {
   else if (v === "carv") csvDownload("file_recuperati", ["file", "tipo", "byte", "offset_immagine", "sha256", "file_nel_report"], CV.rows.map(r => [r[0], r[2], r[1], r[3], r[4], r[5] ? ATT.get(r[5]).file : ""]));
   else if (v === "trc") csvDownload("evidenze_di_interesse", ["tipo", "valore", "offset", "contesto"], TR.rows.map(t => [t[0], t[2], t[1], t[3]]));
   else if (v === "art") csvDownload("artefatti", ["categoria", "data_" + zsuf(), "elemento", "dettagli", "utente", "fonte", "partizione_offset", "inode", "file_citati"], EXV.art.rows.map(r => [FD.ext.art_cats[r[0]] || r[0], cvt(r[1]), ...r.slice(2, 8), (r[11] || []).map(c => c[1]).join("; ")]));
-  else if (v === "mail") csvDownload("posta", ["data_" + zsuf(), "mittente", "destinatari", "cc", "oggetto", "allegati", "formato", "cartella", "file_di_posta"], EXV.mail.rows.map(r => [cvt(r[1]), ...r.slice(2, 10)]));
+  else if (v === "mail") csvDownload("posta", ["data_" + zsuf(), "mittente", "destinatari", "cc", "oggetto", "allegati", "formato", "cartella", "file_di_posta", "ccn"], EXV.mail.rows.map(r => [cvt(r[1]), ...r.slice(2, 10), r[11] || ""]));
   else if (v === "xarch") csvDownload("archivi_allegati", ["tipo", "percorso", "byte", "data_" + zsuf(), "protetto", "sha256", "note", "file_nel_report"], EXV.x.rows.map(r => [r[1], r[2], r[4], cvt(r[5]), r[6] ? "si" : "no", r[7], r[8], r[10]]));
   else if (v === "anom") csvDownload("anomalie", ["tipo", "file", "dettaglio", "byte", "gravita", "partizione_offset", "inode"], EXV.anom.rows.map(r => [FD.ext.anom_kinds[r[0]] || r[0], r[1], r[2], r[3], r[4], r[5], r[6]]));
 });

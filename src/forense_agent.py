@@ -134,7 +134,7 @@ except ImportError:
 
 APP_NAME = "RepertIA"
 APP_BY = "By silvexe"
-APP_VERSION = "3.0.5"
+APP_VERSION = "3.0.6"
 
 # ------------------------------------------------------------ configurazione
 # Tutti i valori si possono passare anche come opzioni di `analizza`.
@@ -325,8 +325,28 @@ def url_esterno(url):
 
 
 def _settings_path(nome):
-    return Path(os.environ.get("APPDATA", "~")) / nome / "impostazioni.json" if IS_WIN \
-        else Path(f"~/Library/Application Support/{nome}/impostazioni.json")
+    """Impostazioni (con il registro di diagnostica e i modelli di trascrizione nella stessa cartella)."""
+    if IS_WIN:
+        return Path(os.environ.get("APPDATA", "~")) / nome / "impostazioni.json"
+    vecchia = Path(f"~/Library/Application Support/{nome}").expanduser()
+    if IS_MAC:
+        return vecchia / "impostazioni.json"
+    # (3.0.6) Linux: $XDG_CONFIG_HOME/<nome> o ~/.config/<nome>; fino alla 3.0.5 era la cartella del Mac, che si sposta
+    # qui la prima volta (se lo spostamento non riesce si continua a usare quella)
+    xdg = os.environ.get("XDG_CONFIG_HOME") or ""
+    nuova = (Path(xdg) if os.path.isabs(xdg) else Path("~/.config").expanduser()) / nome
+    if vecchia.is_dir() and not nuova.exists():
+        try:
+            nuova.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(vecchia), str(nuova))
+            for d in (vecchia.parent, vecchia.parent.parent):        # ~/Library/Application Support e ~/Library, se vuote
+                try:
+                    d.rmdir()
+                except OSError:
+                    break
+        except OSError:
+            return vecchia / "impostazioni.json"
+    return nuova / "impostazioni.json"
 
 
 SETTINGS_PATH = Path(os.environ.get("FORENSE_IMPOSTAZIONI") or _settings_path("RepertIA")).expanduser()
@@ -1998,7 +2018,8 @@ REGOLE
    se ne trovi, segnalale come possibile manipolazione.
 2. Non inventare. Ogni affermazione cita offset, inode e percorso, oppure timestamp e sorgente.
 3. Separa sempre i FATTI osservati dalle IPOTESI.
-4. Gli orari sono UTC; su FAT/exFAT sono spesso in ora locale del dispositivo.
+4. Gli orari sono UTC; su FAT/exFAT sono spesso in ora locale del dispositivo; nelle chat esportate da WhatsApp sono
+   l'ora del telefono finché l'analista non le adegua al fuso del caso (lo dice ogni riga).
 5. Registra con record_finding solo gli elementi di interesse investigativo: non conteggi, statistiche o semplici risposte.
 6. Rispondi in italiano, in modo chiaro e conciso.
 7. Se uno strumento dice INCOMPLETO non hai visto tutto: prosegui con offset o restringi la ricerca, e nella risposta
@@ -2061,6 +2082,9 @@ def system_prompt(case):
     if is_mobile(case):
         import forense_mobile_chat as fmc
         extra += fmc.prompt_extra(case)
+    elif (m.get("chat") or {}).get("app"):        # (3.0.6) disco con chat esportate da WhatsApp
+        import forense_mobile_chat as fmc
+        extra += fmc.prompt_chat(case)
     import forense_mobile_media as fmm
     extra += fmm.prompt_extra(case)
     return tr(SYSTEM_TEMPLATE).format(disk_type=m.get("disk_type"), parts=parts,

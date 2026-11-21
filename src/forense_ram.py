@@ -881,7 +881,7 @@ def simboli_stato():
             "byte": sum(p.stat().st_size for p in pdb), "accettate": (motore / "symsrv.yes").exists(), "scarichi": nota[-20:]}
 
 
-# (3.0.5) Linux: MemProcFS 5.19.3, caricato come libreria da Python, non usa la cartella Symbols accanto a vmm.so.
+# (3.0.5) Linux: MemProcFS (5.19.3 e 5.19.4), caricato come libreria da Python, non usa la cartella Symbols accanto a vmm.so.
 # vmm/pdb.c (PDB_Initialize_InitialValues) cerca «Symbols» accanto al programma in esecuzione (l'eseguibile di Python:
 # il nome del modulo ricavato in oscompatibility.c non porta a vmm.so) e, se lì non può scrivere, usa /tmp: i simboli
 # scaricati finivano in /tmp/<nome.pdb>/…, RepertIA vedeva «0 MB» e al riavvio andavano persi. Rimedio senza toccare la

@@ -531,10 +531,11 @@ def make_tools(case):
         """
         o, i = _off(offset), _ino(inode)
         name = re.sub(r"[^\w.\-]+", "_", Path(_name(o, i)).name)[:100] or "file"
-        dest = case.export_dir / f"p{o}_i{i}_{name}"
+        dest = case.export_dir / "file" / f"p{o}_i{i}_{name}"      # (3.0.6) file singoli in export/file
         if dest.exists():
             return tr("Già esportato: {dest}").format(dest=dest)
         h, n = hashlib.sha256(), 0
+        dest.parent.mkdir(parents=True, exist_ok=True)
         with open(dest, "wb") as f:
             for c in icat_stream(case, o, i):
                 f.write(c)
@@ -862,7 +863,9 @@ def make_tools(case):
         tools += fe.agent_tools(case)
     except ImportError:
         pass
-    if is_mobile(case):                  # smartphone: strumenti per chat, contatti e artefatti di iLEAPP/ALEAPP
+    if is_mobile(case) or (case.meta.get("chat") or {}).get("app"):
+        # smartphone: strumenti per chat, contatti e artefatti di iLEAPP/ALEAPP; (3.0.6) anche nei dischi con chat
+        # esportate da WhatsApp (analisi aggiuntiva)
         import forense_mobile_chat as fmc
         tools += fmc.agent_tools(case)
     import forense_mobile_media as fmm   # (3.0.1) foto, video e audio riconosciuti dal contenuto, dischi e telefoni

@@ -174,8 +174,9 @@ def _righe_grezze(con):
             tx = " ".join(x for x in (name, value, src) if x)
             yield tx, _tel(tx), "rub", i
     if "mail" in t:
-        for i, snd, rcp, cc, subj, folder in _blocchi(con, "sender, recipients, cc, subject, folder", "mail"):
-            tx = " ".join(x for x in (subj, snd, rcp, cc, folder) if x)
+        import forense_estesa as fe
+        for i, snd, rcp, cc, subj, folder, bcc in _blocchi(con, f"sender, recipients, cc, subject, folder, {fe.mail_bcc(con)}", "mail"):
+            tx = " ".join(x for x in (subj, snd, rcp, cc, bcc, folder) if x)
             yield tx, _tel(tx), "mail", i
 
 

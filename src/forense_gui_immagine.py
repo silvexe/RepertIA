@@ -244,7 +244,7 @@ def export_reveal(case, b):
     if not fa.INODE_RE.fullmatch(i):
         raise ValueError(tr("inode non valido."))
     msg = SES.case_tools["export_file"](o, i)
-    found = sorted(case.export_dir.glob(f"p{o}_i{i}_*"))
+    found = sorted((case.export_dir / "file").glob(f"p{o}_i{i}_*"))
     if found:
         reveal(found[0])
     return {"message": msg}

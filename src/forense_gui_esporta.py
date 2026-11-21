@@ -257,8 +257,9 @@ def chat_targets(case, kind, rows):
 
 
 def export_selection(case, b, progress):
-    """Estrae i file selezionati in export/selezione_<data>/ conservando l'albero delle
-    cartelle, in sola lettura, con manifest.csv (percorso originale, inode, SHA-256)."""
+    """Estrae i file selezionati in export/selezione_<data>/, in sola lettura, con manifest.csv (percorso originale,
+    inode, SHA-256). (3.0.6) Una sottocartella per tipo di evidenza: file/ (dalla copia forense, con l'albero delle
+    cartelle sotto partizione_N), carving/, estratti/, chat/, posta/; LEGGIMI.txt dice che cosa c'è in ognuna."""
     import csv, hashlib
     kind, rows = selected_rows(case, b)
     fs, carved, skipped = export_targets(case, kind, rows)
@@ -267,8 +268,9 @@ def export_selection(case, b, progress):
         del xs[i]
         skipped += 1
     chats, msgs = chat_targets(case, kind, rows)
-    skipped = max(0, skipped - len(chats) - len(msgs))
-    if not fs and not carved and not xs and not chats and not msgs:
+    mails = G.mail_targets(kind, rows)          # (3.0.6) mail come file .eml
+    skipped = max(0, skipped - len(chats) - len(msgs) - len(mails))
+    if not fs and not carved and not xs and not chats and not msgs and not mails:
         raise ValueError(tr("Nella selezione non ci sono file esportabili "
                          "(le tracce e gli eventi senza inode si esportano come elenco CSV)."))
     if fs and not Path(case.image).exists():
@@ -279,7 +281,7 @@ def export_selection(case, b, progress):
     for n, ((part, inode, path), deleted) in enumerate(sorted(fs.items(), key=lambda t: t[0][2]), 1):
         progress(f"{n} di {total}: {path}")
         segs = [safe_part(s) for s in path.split("/")]
-        dest = out.joinpath(f"partizione_{part}" if part >= 0 else "disco", *segs)
+        dest = out.joinpath("file", f"partizione_{part}" if part >= 0 else "disco", *segs)
         if str(dest).lower() in used or os.path.exists(lp(dest)):
             dest = dest.with_name(f"{dest.stem}__inode_{inode.replace('-', '_')}{dest.suffix}")
         used.add(str(dest).lower())
@@ -296,7 +298,7 @@ def export_selection(case, b, progress):
     for n, (name, rel) in enumerate(carved.items(), len(fs) + 1):
         progress(f"{n} di {total}: {name}")
         src = case.root / rel
-        dest = out / "recuperati_carving" / safe_part(name)
+        dest = out / "carving" / safe_part(name)
         os.makedirs(lp(dest.parent), exist_ok=True)
         h = hashlib.sha256()
         with open(src, "rb") as fi, open(lp(dest), "wb") as fo:
@@ -335,15 +337,84 @@ def export_selection(case, b, progress):
             fx = cd / "messaggi_preferiti.csv"
             fmg.preferiti_csv(case, fx, msgs)
             man.append([tr("[messaggi nei Preferiti]"), "", "", "", fx.stat().st_size, fa.sha256_file(fx), "chat/messaggi_preferiti.csv"])
+    posta = {"mail": 0, "originali": 0, "ricostruite": 0, "intestazioni": 0, "msg": 0}
+    if mails:                          # (3.0.6) una mail = un file .eml (originale o ricostruito: lo dice il nome)
+        import forense_posta_eml as fpe
+        con = fa.db_ro(case)
+        try:
+            for n, mid in enumerate(mails, 1):
+                progress(tr("Mail {n} di {t}").format(n=n, t=len(mails)))
+                try:
+                    r = fpe.esporta(case, con, mid, out / "posta")
+                except ValueError:
+                    skipped += 1
+                    continue
+                m = r["mail"]
+                posta["mail"] += 1
+                posta["originali" if r["originale"] else "ricostruite"] += 1
+                posta["intestazioni"] += sum(1 for fx in r["file"] if fx["file"].suffix == ".txt")
+                posta["msg"] += sum(1 for fx in r["file"] if fx["file"].suffix == ".msg")
+                for fx in r["file"]:
+                    stato = fx["descrizione"] + ("" if fx["originale"] else " (" + "; ".join(r["note"]) + ")")
+                    man.append([f"[{tr('posta')}] {m['src_path']}" + (f" › {m['folder']}" if m["folder"] else "")
+                                + f" › {m['subject']} — {stato}", "" if m["part"] is None else m["part"], m["inode"] or "",
+                                "", fx["byte"], fx["sha256"], str(fx["file"].relative_to(out))])
+        finally:
+            con.close()
     with open(out / "manifest.csv", "w", newline="", encoding="utf-8-sig") as f:
         wr = csv.writer(f, delimiter=";")
         wr.writerow([tr(h) for h in ["percorso_originale", "partizione_offset", "inode", "cancellato", "byte",
                      "sha256", "file_esportato"]])
         wr.writerows(man)
     (out / "manifest.csv").chmod(0o444)
+    scrivi_leggimi(case, out, man, posta)
     case.log("export_selezione", {"kind": kind, "file": len(man), "dest": str(out)})
     return {"path": str(out), "rel": str(out.relative_to(case.root)), "files": len(man),
             "skipped": skipped}
+
+
+def scrivi_leggimi(case, out, man, posta):
+    """(3.0.6) LEGGIMI.txt dell'esportazione: che cosa c'è in ogni sottocartella, quanti file, che cosa è originale e
+    che cosa è ricostruito. L'elenco completo con le impronte resta in manifest.csv."""
+    import datetime as _dt
+    import forense_posta_eml as fpe
+    conta = {}
+    for r in man:
+        cima = str(r[6]).replace("\\", "/").split("/", 1)[0]
+        conta[cima] = conta.get(cima, 0) + 1
+    s = fpe.suffissi()
+    descr = {
+        "file": tr("file copiati dalla copia forense, con l'albero delle cartelle originale (partizione_N: partizione che "
+                   "inizia al settore N; disco: copia senza partizioni)"),
+        "carving": tr("file recuperati col carving dallo spazio non allocato: senza nome né cartella originali"),
+        "estratti": tr("file estratti da archivi, allegati di posta e backup (x<n> è il numero dell'elemento nel caso)"),
+        "chat": tr("chat esportate (HTML e CSV) con i loro allegati, e i messaggi singoli dei Preferiti"),
+    }
+    righe = [f"RepertIA {fa.APP_VERSION} – " + tr("esportazione della selezione"),
+             tr("Caso: {c}").format(c=case.root.name),
+             tr("Creata: {d}").format(d=_dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")),
+             tr("Elenco completo, con percorso originale, inode e SHA-256 di ogni file: manifest.csv"), "",
+             tr("Cartelle:")]
+    for cima in sorted(conta):
+        if cima == "posta":
+            righe.append(f"- {cima}/ ({tr('{n} file').format(n=conta[cima])}): "
+                         + tr("mail: {n}. I file della stessa mail hanno lo stesso nome iniziale (data, ora, oggetto, "
+                              "numero).").format(n=posta["mail"]))
+            for k, suf, spiega in (
+                    ("originali", f"{s['originale']}.eml", tr("byte originali del file di posta (EML, EMLX, mbox)")),
+                    ("ricostruite", f"{s['ricostruita']}.eml",
+                     tr("ricostruite dai dati di un PST/OST o MSG, che non contengono la mail come file")),
+                    ("intestazioni", f"{s['intestazioni']}.txt",
+                     tr("intestazioni di trasporto (Received, Message-ID…) come registrate nel file")),
+                    ("msg", f"{s['originale']}.msg", tr("file .msg originali"))):
+                if posta[k]:
+                    righe.append(f"    …_{suf}: {posta[k]} – {spiega}")
+            continue
+        t = descr.get(cima, "")
+        righe.append(f"- {cima}/ ({tr('{n} file').format(n=conta[cima])})" + (f": {t}" if t else ""))
+    f = out / tr("LEGGIMI.txt")
+    f.write_text("\n".join(righe) + "\n", encoding="utf-8-sig")
+    f.chmod(0o444)
 
 
 def selection_refs(case, b, cap=60):

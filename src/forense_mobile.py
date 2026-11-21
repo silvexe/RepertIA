@@ -1278,6 +1278,11 @@ def cmd_prepara(args):
                     "l'estrazione del file system del telefono."))
     if kind in LOGICI and not logica:
         sys.exit(tr("7z, rar, AD1 e immagini di CD/DVD si aprono come «Sorgente logica» (nella Home), non come estrazione di un telefono."))
+    if not logica and not ram and not getattr(args, "drone", False):
+        import forense_mobile_waexport as fwe       # (3.0.6) «Esporta chat» di WhatsApp: non è un'estrazione
+        if fwe.e_esportazione(img):
+            sys.exit(tr("Questa è una chat esportata da WhatsApp («Esporta chat»), non un'estrazione del telefono: "
+                        "aprila come «Sorgente logica» (nella Home), che la mostra nel visualizzatore delle chat con gli allegati."))
     kind0 = kind
     case.root.mkdir(parents=True, exist_ok=True)
     case.export_dir.mkdir(exist_ok=True)
@@ -1510,6 +1515,9 @@ def _prepara_logica(case, args, con, part, p, n, nev, stats, kind0):
         print(tr("Database di telefoni trovati: {d}{p}.").format(
             d=", ".join(f"{tr(DB_LBL.get(k, k))} ({v})" for k, v in sorted(tel["database"].items())),
             p=(" — " + tr("piattaforma {p}").format(p=tel["piattaforma"])) if tel["piattaforma"] else ""), flush=True)
+    if tel.get("esportazioni_whatsapp"):        # (3.0.6) chat esportate da WhatsApp
+        print(tr("Chat esportate da WhatsApp trovate: {n}.").format(n=tel["esportazioni_whatsapp"]), flush=True)
+    if tel["database"] or tel.get("esportazioni_whatsapp"):
         if getattr(args, "chat", True):
             try:
                 import forense_mobile_chat as fmc
@@ -1538,9 +1546,11 @@ def riconosci_telefono(case, part):
     """(3.0.2) Sorgente logica: database noti di telefoni (per nome del file) e piattaforma che ne segue. La piattaforma
     serve a «Chat e rubriche» e a iLEAPP/ALEAPP, che per una sorgente logica si avviano come analisi aggiuntive."""
     import forense_mobile_chat as fmc
+    import forense_mobile_waexport as fwe
     m = mx(case)
     try:
         found, cifrati = fmc.trova_db(m, int(part), logica=True)
+        n_esp = fwe.conta_mobile(m, int(part))
         sample = [r[0] for r in m.execute("SELECT path FROM mobile_files WHERE part=? LIMIT 200000", (int(part),))]
     finally:
         m.close()
@@ -1550,7 +1560,7 @@ def riconosci_telefono(case, part):
     strutt = piattaforma(sample)
     plat = strutt or (max(voti, key=voti.get) if voti else None)
     tel = {"piattaforma": plat, "database": {k: len(v) for k, v in found.items()}, "cifrati": len(cifrati),
-           "struttura_telefono": bool(strutt)}
+           "struttura_telefono": bool(strutt), "esportazioni_whatsapp": n_esp}
     case.meta["logica_telefono"] = tel
     if plat:
         case.meta["mobile"]["piattaforma"] = plat
@@ -1593,11 +1603,14 @@ def main(argv=None):
                            "nel caso, letto con un secondo giro di iLEAPP"))
     a = sub.add_parser("aggiungi", help=tr("analisi aggiuntive su un caso smartphone"))
     a.add_argument("--case", required=True)
-    a.add_argument("cosa", nargs="+", choices=["chat", "leapp", "leapp-import", "sysdiagnose", "wa-backup"],
+    a.add_argument("cosa", nargs="+", choices=["chat", "leapp", "leapp-import", "sysdiagnose", "wa-backup", "chat-esportate"],
                    help=tr("leapp-import: rilegge le tabelle dell'ultimo rapporto di iLEAPP/ALEAPP senza rieseguirlo; "
                            "sysdiagnose: registra i file di --file e rilegge con iLEAPP i sysdiagnose del caso"))
     a.add_argument("--file", action="append", metavar="FILE", help=tr("sysdiagnose da aggiungere al caso (con «sysdiagnose»)"))
     a.add_argument("--sha256", help=tr("con «sysdiagnose»: legge solo il sysdiagnose con questo SHA-256"))
+    a.add_argument("--scelte", metavar="JSON", help=tr("con «chat-esportate»: esportazioni da leggere, [{part, inode, path, io}]; "
+                                                     "senza: tutte quelle trovate"))
+    a.add_argument("--fuso", help=tr("con «chat-esportate»: fuso del telefono che ha esportato (es. Europe/Rome)"))
     args = ap.parse_args(argv)
     if args.cmd == "prepara":
         return cmd_prepara(args)
@@ -1609,6 +1622,14 @@ def main(argv=None):
         if what == "chat":
             import forense_mobile_chat as fmc
             fmc.run(case, con)
+        elif what == "chat-esportate":      # (3.0.6) analisi aggiuntiva, in ogni tipo di caso
+            import forense_mobile_chat as fmc
+            import forense_mobile_waexport as fwe
+            fz = fa.fuso_valido(args.fuso) if args.fuso else None
+            if args.fuso and not fz:
+                sys.exit(tr("Fuso orario non riconosciuto: {fuso} (usa un nome come Europe/Rome o UTC).").format(fuso=args.fuso))
+            scelte = json.loads(args.scelte) if args.scelte else [dict(x, io=None) for x in fwe.cerca(con) if x["tipo"] == "testo"]
+            fmc.run_esportazioni(case, con, scelte, fz)
         elif what == "wa-backup":          # (2.20) attiva la decifratura dei backup WhatsApp e rilegge le chat
             import forense_mobile_chat as fmc
             case.meta["wa_backup_attivo"] = True

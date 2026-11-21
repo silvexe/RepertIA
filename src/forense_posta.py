@@ -23,28 +23,38 @@ from forense_estesa import (
 
 # ------------------------------------------------------------------ posta
 
+def nome_sicuro(n):
+    """(3.0.6) Nome visualizzato tra virgolette se contiene caratteri che lo farebbero leggere come un indirizzo o come
+    più destinatari (RFC 5322): «"alison@m57.biz" <tuckgorge@gmail.com>» e non «alison@m57.biz <…>», che i programmi di
+    posta leggono come l'indirizzo alison@m57.biz nascondendo quello vero."""
+    if n and re.search(r'[@,;:<>()\[\]"\\]', n) and not (n.startswith('"') and n.endswith('"') and len(n) > 1):
+        return '"' + n.replace("\\", "\\\\").replace('"', '\\"') + '"'
+    return n
+
+
 def addr_list(v):
     if not v:
         return ""
     try:
-        return ", ".join(f"{n} <{a}>" if n and a else (a or n)
+        return ", ".join(f"{nome_sicuro(n)} <{a}>" if n and a else (a or n)
                          for n, a in email.utils.getaddresses([str(v)]))
     except Exception:
         return str(v)
 
 
 def add_message(ctx, origin, parent, fmt, folder, disp, sender, to, cc, subject, date, body,
-                html_body, headers, attachments, depth, consegna=None):
-    """Registra un messaggio con i suoi allegati: [(nome, bytes)]. `consegna`: ora di consegna, se diversa da `date`."""
+                html_body, headers, attachments, depth, consegna=None, bcc=None):
+    """Registra un messaggio con i suoi allegati: [(nome, bytes)]. `consegna`: ora di consegna, se diversa da `date`;
+    `bcc`: destinatari in copia nascosta (3.0.6, dalla tabella dei destinatari dei PST/OST)."""
     con, case = ctx.con, ctx.case
     subject = (subject or "").strip() or tr("(senza oggetto)")
     mid = con.execute("INSERT INTO mail(part, inode, src_path, xid, fmt, folder, sender, recipients, "
-                      "cc, subject, date, body, html, n_att, headers) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                      "cc, subject, date, body, html, n_att, headers, bcc) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                       (origin[0], origin[1], origin[2], parent, fmt, folder, sender, to, cc, subject,
                        date, (body or "")[:fa.MAX_TEXT], (html_body or "")[:2_000_000] or None,
-                       len(attachments), (headers or "")[:20000])).lastrowid
+                       len(attachments), (headers or "")[:20000], bcc or None)).lastrowid
     mpath = f"{disp} › {folder + ' › ' if folder else ''}{subject[:100]}"
-    txt = (f"Da: {sender}\nA: {to}\n" + (f"Cc: {cc}\n" if cc else "") +
+    txt = (f"Da: {sender}\nA: {to}\n" + (f"Cc: {cc}\n" if cc else "") + (f"Ccn: {bcc}\n" if bcc else "") +
            tr("Oggetto: {subject}\nData: {v1}\n\n{v2}").format(
                subject=subject, v1=(date or '') + (tr(" (consegnato {v1})").format(v1=consegna) if consegna else ''),
                v2=body or ''))
@@ -180,30 +190,86 @@ def pff_text(m):
     return body, decode_bytes(h) if h else ""
 
 
+def _pff_valori(r, codici):
+    """Proprietà MAPI di un record set di libpff: {codice: testo o numero}, solo quelle richieste e leggibili."""
+    out = {}
+    try:
+        n = r.number_of_entries
+    except Exception:
+        return out
+    for e in range(n):
+        try:
+            en = r.get_entry(e)
+            if en.entry_type not in codici or en.entry_type in out:
+                continue
+            v = en.get_data_as_integer() if en.entry_type == 0x0C15 else en.get_data_as_string()
+            if v not in (None, ""):
+                out[en.entry_type] = v.strip("\x00 ") if isinstance(v, str) else v
+        except Exception:
+            pass
+    return out
+
+
+def pff_props(m, codici):
+    """Proprietà MAPI del messaggio (tutti i suoi record set)."""
+    out = {}
+    try:
+        n = m.number_of_record_sets
+    except Exception:
+        return out
+    for rsi in range(n):
+        try:
+            for k, v in _pff_valori(m.get_record_set(rsi), codici).items():
+                out.setdefault(k, v)
+        except Exception:
+            pass
+    return out
+
+
+def _nome_ind(nome, ind):
+    return f"{nome_sicuro(nome)} <{ind}>" if nome and ind and nome != ind else (ind or nome or "")
+
+
 def pff_recipients(m):
-    to = []
+    """(3.0.6) Tabella dei destinatari del messaggio → (A, Cc, Ccn). libpff la dà come un record set per destinatario
+    (prima si leggevano i «sub item», sempre zero: la tabella non si leggeva mai). Tipo 0x0C15: 1 A, 2 Cc, 3 Ccn;
+    nome 0x3001; indirizzo 0x39FE (SMTP) o 0x3003 (anche il nome X.500 di Exchange, come è scritto)."""
+    gruppi = {1: [], 2: [], 3: []}
     try:
         rc = m.recipients
-        n = rc.number_of_sub_items if rc is not None else 0
-        for i in range(n):
-            it = rc.get_sub_item(i)
-            name = addr = None
-            for rsi in range(it.number_of_record_sets):
-                r = it.get_record_set(rsi)
-                for e in range(r.number_of_entries):
-                    en = r.get_entry(e)
-                    try:
-                        if en.entry_type == 0x3001:
-                            name = en.get_data_as_string()
-                        elif en.entry_type in (0x39FE, 0x3003) and not addr:
-                            addr = en.get_data_as_string()
-                    except Exception:
-                        pass
-            if name or addr:
-                to.append(f"{name} <{addr}>" if name and addr and name != addr else (addr or name))
+    except Exception:
+        rc = None
+    if rc is None:
+        return "", "", ""
+    voci = []
+    try:
+        voci = [rc.get_record_set(i) for i in range(rc.number_of_record_sets)]
     except Exception:
         pass
-    return ", ".join(to)
+    try:                                 # versioni di libpff che danno un elemento per destinatario
+        for i in range(rc.number_of_sub_items):
+            it = rc.get_sub_item(i)
+            voci += [it.get_record_set(j) for j in range(it.number_of_record_sets)]
+    except Exception:
+        pass
+    for r in voci:
+        p = _pff_valori(r, (0x0C15, 0x3001, 0x3003, 0x39FE))
+        ind = p.get(0x39FE) or p.get(0x3003)
+        if not (p.get(0x3001) or ind):
+            continue
+        gruppi[p.get(0x0C15) if p.get(0x0C15) in (2, 3) else 1].append(_nome_ind(p.get(0x3001), ind))
+    return tuple(", ".join(gruppi[k]) for k in (1, 2, 3))
+
+
+def pff_mittente(m, p):
+    """(3.0.6) Mittente senza intestazioni di trasporto: nome (0x0C1A) e indirizzo (0x5D01 SMTP, se no 0x0C1F come è
+    scritto, anche il nome X.500 di Exchange). Prima si scriveva solo il nome."""
+    try:
+        nome = (m.sender_name or "").strip("\x00 ")
+    except Exception:
+        nome = ""
+    nome = nome or p.get(0x0C1A) or ""
+    return _nome_ind(nome, p.get(0x5D01) or p.get(0x0C1F))
 
 
 def process_pst(ctx, f, disp, origin, depth, parent):
@@ -234,9 +300,15 @@ def process_pst(ctx, f, disp, origin, depth, parent):
                     m = fo.get_sub_message(i)
                     headers = m.transport_headers or ""
                     hp = email.message_from_string(headers, policy=email.policy.default) if headers else None
-                    sender = (addr_list(hp["from"]) if hp is not None and hp["from"] else "") or (m.sender_name or "")
-                    to = (addr_list(hp["to"]) if hp is not None and hp["to"] else "") or pff_recipients(m)
-                    cc = addr_list(hp["cc"]) if hp is not None and hp["cc"] else ""
+                    # (3.0.6) senza intestazioni (posta inviata, bozze) o con intestazioni senza quei campi: tabella dei
+                    # destinatari, poi «Visualizza A/Cc/Ccn» (0x0E04/0x0E03/0x0E02, nomi separati da «;» come nel PST)
+                    p = pff_props(m, (0x0E02, 0x0E03, 0x0E04, 0x0C1A, 0x0C1F, 0x5D01))
+                    t_to, t_cc, t_bcc = pff_recipients(m)
+                    hv = lambda k: addr_list(hp[k]) if hp is not None and hp[k] else ""
+                    sender = hv("from") or pff_mittente(m, p)
+                    to = hv("to") or t_to or p.get(0x0E04, "")
+                    cc = hv("cc") or t_cc or p.get(0x0E03, "")
+                    bcc = hv("bcc") or t_bcc or p.get(0x0E02, "")
                     # (3.0.2) data = ora di invio (come l'intestazione Date e le risposte NIST); l'ora di consegna va nel
                     # testo: per i messaggi inviati Outlook la registra al minuto (es. 18:44:00 per un invio alle 18:44:31)
                     date = iso(m.client_submit_time) or iso(m.delivery_time) or iso(m.creation_time)
@@ -254,7 +326,7 @@ def process_pst(ctx, f, disp, origin, depth, parent):
                     folder = re.sub(r"^Top of (Outlook data file|Personal Folders)/?", "", path) or path
                     add_message(ctx, origin, parent, "PST/OST", folder, disp, sender, to, cc,
                                 m.subject, date, body, htm, headers, atts, depth,
-                                consegna=consegna if consegna and consegna != date else None)
+                                consegna=consegna if consegna and consegna != date else None, bcc=bcc)
                     n += 1
                 except Exception:
                     ctx.c["messaggi non leggibili"] += 1
@@ -321,8 +393,9 @@ def process_msg_file(ctx, f, disp, origin, depth, parent):
         htm = decode_bytes(htm) if isinstance(htm, bytes) else (htm or "")
         if not body and htm:
             body = html_to_text(htm)
+        bcc = (addr_list(hp["bcc"]) if hp is not None and hp["bcc"] else "") or g("0E02")
         add_message(ctx, origin, parent, "MSG", "", disp, sender, to, cc, g("0037"), date, body, htm,
-                    headers, atts, depth)
+                    headers, atts, depth, bcc=bcc)
         return 1
     finally:
         of.close()

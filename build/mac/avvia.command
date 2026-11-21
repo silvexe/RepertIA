@@ -12,7 +12,7 @@ printf '\033]0;RepertIA\007'
 clear
 echo "== RepertIA - By silvexe =="
 echo "Analisi forense con IA locale: i dati restano su questo computer."
-echo "Lascia aperta questa finestra mentre usi RepertIA; chiudila per uscire."
+echo "Lascia aperta questa finestra mentre usi RepertIA. Per uscire: pulsante Chiudi in alto a destra nella pagina (oppure chiudi questa finestra)."
 echo
 
 if [ "$(uname -m)" != "arm64" ]; then
@@ -37,4 +37,14 @@ if [ -n "$need" ]; then
   fi
 fi
 
-exec "$RES/python/bin/python3" "$RES/RepertIA/forense_gui.py"
+"$RES/python/bin/python3" "$RES/RepertIA/forense_gui.py"
+rc=$?
+# (3.0.6) uscita pulita (pulsante «Chiudi» o Ctrl+C): si chiude anche questa finestra del Terminale, che da sola
+# resterebbe aperta con «[Processo completato]». Si cerca la finestra dal suo terminale (tty), non la prima davanti;
+# la chiusura parte un attimo dopo l'uscita dello script, così il Terminale non chiede di interrompere processi.
+if [ $rc -eq 0 ] && T=$(tty 2>/dev/null); then
+  nohup /bin/sh -c "sleep 1; /usr/bin/osascript -e 'tell application \"Terminal\"' \
+    -e 'repeat with w in windows' -e 'if tty of selected tab of w is \"$T\" then' -e 'close w' -e 'exit repeat' \
+    -e 'end if' -e 'end repeat' -e 'end tell'" >/dev/null 2>&1 &
+fi
+exit $rc

@@ -65,14 +65,22 @@ if [ -z "$PY" ] || ! "$PY" -c 'import sys; sys.exit(0 if sys.version_info >= (3,
   read -r -p "Premi Invio per chiudere..." _; exit 1
 fi
 
+# (3.0.6) impronta dell'elenco delle librerie: dopo un aggiornamento del programma, se l'elenco è cambiato, pip
+# installa solo le versioni diverse (python/.requisiti_repertia è l'impronta dell'ultima installazione riuscita)
+impronta() { sha256sum "$1" 2>/dev/null | cut -d' ' -f1; }
+REQ="$(impronta "$DIR/requirements-linux.txt")"
 if [ ! -x "$DIR/python/bin/python3" ] || ! "$DIR/python/bin/python3" -c 'import plaso, pytsk3, pyewf' 2>/dev/null; then
   echo "Creo l'ambiente Python in $DIR/python con $("$PY" --version) (le librerie libyal si compilano:"
   echo "possono servire 10-20 minuti)..." | tee -a "$LOG"
   "$PY" -m venv "$DIR/python" || { echo "venv non riuscito: installa python3-venv"; exit 1; }
   "$DIR/python/bin/python3" -m pip install --prefer-binary -r "$DIR/requirements-linux.txt" 2>&1 | tee -a "$LOG"
+elif [ -n "$REQ" ] && [ "$(cat "$DIR/python/.requisiti_repertia" 2>/dev/null)" != "$REQ" ]; then
+  echo "Librerie Python cambiate con la versione nuova (requirements-linux.txt): aggiorno l'ambiente..." | tee -a "$LOG"
+  "$DIR/python/bin/python3" -m pip install --prefer-binary -r "$DIR/requirements-linux.txt" 2>&1 | tee -a "$LOG"
 fi
 if "$DIR/python/bin/python3" -c 'import plaso, pytsk3, pyewf, PIL' 2>/dev/null; then
   echo "Ambiente Python pronto." | tee -a "$LOG"
+  [ -n "$REQ" ] && echo "$REQ" > "$DIR/python/.requisiti_repertia"
 else
   echo "ATTENZIONE: alcuni moduli non si sono installati (vedi $LOG)." | tee -a "$LOG"
 fi
@@ -80,15 +88,26 @@ fi
 # 2.20: librerie di iLEAPP e ALEAPP (casi smartphone), ognuno nella sua cartella strumenti/<nome>/site, separate da
 # quelle di RepertIA e di plaso. I lettori senza pacchetto binario (biplist, PGPy, mister_skinnylegs, ccl_*) sono in
 # strumenti/wheels.
+# (3.0.6) se l'elenco di iLEAPP/ALEAPP è cambiato con la versione nuova, la cartella site si rifà da capo
 for T in ileapp aleapp; do
-  if [ -f "$DIR/strumenti/$T/requirements-repertia.txt" ] && [ ! -d "$DIR/strumenti/$T/site" ]; then
+  RT="$DIR/strumenti/$T/requirements-repertia.txt"
+  [ -f "$RT" ] || continue
+  HT="$(impronta "$RT")"
+  if [ -d "$DIR/strumenti/$T/site" ] && [ "$(cat "$DIR/strumenti/$T/site/.requisiti_repertia" 2>/dev/null)" != "$HT" ]; then
+    echo "Librerie di $T cambiate con la versione nuova: le reinstallo..." | tee -a "$LOG"
+    rm -rf "$DIR/strumenti/$T/site"
+  fi
+  if [ ! -d "$DIR/strumenti/$T/site" ]; then
     echo "Librerie di $T (smartphone)..." | tee -a "$LOG"
     "$DIR/python/bin/python3" -m pip install --prefer-binary --find-links "$DIR/strumenti/wheels" \
-      --target "$DIR/strumenti/$T/site" -r "$DIR/strumenti/$T/requirements-repertia.txt" 2>&1 | tee -a "$LOG"
-    if [ "$T" = "aleapp" ]; then
+      --target "$DIR/strumenti/$T/site" -r "$RT" 2>&1 | tee -a "$LOG"
+    ESITO=${PIPESTATUS[0]}
+    if [ "$T" = "aleapp" ] && [ "$ESITO" = 0 ]; then
       "$DIR/python/bin/python3" -m pip install --no-deps --target "$DIR/strumenti/$T/site" \
         "$DIR"/strumenti/wheels/mister_skinnylegs-*.whl "$DIR"/strumenti/wheels/ccl_*.whl 2>&1 | tee -a "$LOG"
+      ESITO=${PIPESTATUS[0]}
     fi
+    [ "$ESITO" = 0 ] && [ -n "$HT" ] && echo "$HT" > "$DIR/strumenti/$T/site/.requisiti_repertia"
   fi
 done
 

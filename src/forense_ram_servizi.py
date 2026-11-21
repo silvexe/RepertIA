@@ -4,7 +4,7 @@
 """RepertIA (3.0.4) - servizi di Windows con lo stato di esecuzione, letti dalla memoria di services.exe.
 
 Su Windows MemProcFS elenca i servizi (/sys/services/services.txt) quando i simboli di debug sono nella cartella
-locale. Su Mac e Linux lo stesso MemProcFS 5.19.3 non ci riesce: cerca in services.pdb il simbolo `ServiceDatabase`,
+locale. Su Mac e Linux lo stesso MemProcFS (5.19.3 e 5.19.4) non ci riesce: cerca in services.pdb il simbolo `ServiceDatabase`,
 che nei Windows recenti è scritto col nome completo del C++ (`?ServiceDatabase@@3VCServiceDatabase@@A`), e la libreria
 che su Mac e Linux legge i simboli (libpdbcrust) confronta i nomi così come sono. Questo file fa la stessa lettura
 che fa MemProcFS (vmm/vmmwinsvc.c, Ulf Frisk, AGPL-3.0: stesse strutture, stessi controlli), chiedendo il simbolo

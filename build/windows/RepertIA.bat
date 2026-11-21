@@ -9,7 +9,7 @@ set PYTHONIOENCODING=utf-8
 set PYTHONDONTWRITEBYTECODE=1
 echo == RepertIA - By silvexe ==
 echo Analisi forense con IA locale: i dati restano su questo computer.
-echo Lascia aperta questa finestra mentre usi RepertIA; chiudila per uscire.
+echo Lascia aperta questa finestra mentre usi RepertIA. Per uscire: pulsante Chiudi in alto a destra nella pagina (oppure chiudi questa finestra).
 echo.
 "%~dp0python\python.exe" "%~dp0RepertIA\forense_gui.py"
 if errorlevel 1 pause

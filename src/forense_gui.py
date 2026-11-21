@@ -412,6 +412,44 @@ class Session:
 
 PREP = Prep()
 SES = Session()
+SRV = None                 # (3.0.6) il server, per fermarlo dal pulsante «Chiudi»
+CHIUSO = threading.Event()
+
+
+def lavori_in_corso():
+    """(3.0.6) Lavori che il pulsante «Chiudi» interromperebbe: descrizioni per la conferma."""
+    out = []
+    if PREP.running:
+        out.append(tr("preparazione o analisi del caso"))
+    if SES.busy:
+        out.append(tr("risposta dell'agente"))
+    n = sum(1 for t in list(SES.tasks.values()) if t.get("done") is False)
+    if n:
+        out.append(tr("operazioni in background: {n} (report, esportazioni, ricerche, scaricamenti)").format(n=n))
+    if any(j.get("state") == "building" for j in list(UA_JOBS.values())):
+        out.append(tr("calcolo dello spazio non allocato"))
+    return out
+
+
+def chiudi(b):
+    """(3.0.6) Pulsante «Chiudi»: ferma RepertIA del tutto (server e programmi avviati). Con lavori in corso e senza
+    `forza` restituisce l'elenco, e la pagina chiede conferma. Uscendo con codice 0 si chiude anche la finestra da cui
+    RepertIA è partito: su Windows il .bat finisce, su Linux il terminale della voce di menu, sul Mac avvia.command chiude
+    la sua finestra del Terminale."""
+    lavori = lavori_in_corso()
+    if lavori and not b.get("forza"):
+        return {"chiuso": False, "lavori": lavori}
+    fd.evento("chiusura", lavori=lavori)
+    threading.Thread(target=_spegni, daemon=True).start()
+    return {"chiuso": True}
+
+
+def _spegni():
+    time.sleep(0.5)                 # la risposta arriva alla pagina prima che il server si fermi
+    CHIUSO.set()
+    SES.stop.set()                  # l'agente si ferma al prossimo passo
+    if SRV is not None:
+        SRV.shutdown()
 
 
 # ----------------------------------------------------------- utilità
@@ -681,7 +719,7 @@ def case_summary(c):
         "decifrate": m.get("decifrate") or [], "derivata": m.get("derivata"), "liste_hash": m.get("liste_hash"),
         "apfs_bloccati": apfs_bloccati(c),
         "tipo_caso": m.get("tipo_caso") or "disco", "drone": bool(m.get("drone")), "logica": bool(m.get("logica")), "ram": bool(m.get("ram_dump")),
-        **(_mobile_summary(c) if fa.is_mobile(c) else {}),
+        **(_mobile_summary(c) if fa.is_mobile(c) else {"chat": m.get("chat")}),  # (3.0.6) chat esportate anche nei dischi
     }
 
 
@@ -840,7 +878,7 @@ from forense_gui_anteprime import (  # noqa: E402,F401
     prune_cache, CACHE_SUBS, _tree_size, cache_info, _rm_force, cache_clear, cache_set, copy_case, UA_ID_BASE,
     UA_CACHE_MAX, UA_JOBS, UA_LOCK, ua_cache_file, ua_runs, ua_job, ua_name, ua_ident, ua_stream, item_stream,
     export_ua, ua_list, file_ident, key_lock, cached_file, file_size, read_range, iter_chunks, hex_page, hex_search,
-    sniff_mime, to_jpeg, make_thumb, thumb_bytes, thumb_put, office_pdf, pdf_pages, page_png, converted_image,
+    sniff_mime, to_jpeg, make_thumb, thumb_bytes, thumb_put, video_mp4, video_codec, video_ts, office_pdf, pdf_pages, page_png, converted_image,
     CSP_DOC, word_html, printable_ratio, decode_text, media_url, ext_contenuto, view_info, file_details, file_artefatto, export_artefatto,
     FULL_TEXT_MAX, carved_full_text, file_text)
 
@@ -903,7 +941,7 @@ from forense_gui_report import (  # noqa: E402,F401
 from forense_gui_estese import (  # noqa: E402,F401
     EXT_KINDS, X_COLS, ext_counts, ext_results, cited_ref, cited_rows, cited_info, ext_tree, x_ident, phash_simili,
     X_KIND_LBL, x_details, x_text, fe_mod, mail_view, art_view, art_campi, _art_campi, sqlite_view, export_x,
-    x_targets, ext_ref_label, EXT_CSV, x_search_items, raw_image_search, decrypt_task, hashlist_add, term_regex,
+    x_targets, export_mail, mail_targets, ext_ref_label, EXT_CSV, x_search_items, raw_image_search, decrypt_task, hashlist_add, term_regex,
     byte_regexes, snippet, byte_snippet, search_universe, carved_universe, file_chunks, local_chunks, run_search,
     hits_list, _occupato, fast_search, _fast_search, fast_search_gruppo, fast_search_save, search_list,
     search_delete, summary_cached, diag_testo, senza_caso, aggiornamenti_stato, aggiornamenti_post, run_task)
@@ -911,14 +949,14 @@ from forense_gui_estese import (  # noqa: E402,F401
 
 # ----------------------------------------------------------- HTTP
 
-BIN_PATHS = {"/api/thumb", "/api/page", "/api/conv", "/api/raw", "/api/mobile/leapp_media", "/api/mobile/att_thumb", "/api/mappa_pm"}
+BIN_PATHS = {"/api/thumb", "/api/page", "/api/conv", "/api/raw", "/api/video_mp4", "/api/mobile/leapp_media", "/api/mobile/att_thumb", "/api/mappa_pm"}
 MAPPA_FILE = {"maplibre-gl.mjs": "text/javascript", "maplibre-gl-worker.mjs": "text/javascript", "maplibre-gl-shared.mjs": "text/javascript",
               "maplibre-gl.css": "text/css", "pmtiles.js": "text/javascript", "ne_50m.geojson": "application/json"}
 
 
 # Richieste che producono testi del caso (report, esportazioni, riscontri, verifiche): nella lingua del caso,
 # scelta alla sua creazione; tutte le altre nella lingua dell'interfaccia.
-CASE_LANG_PATHS = {"/api/report", "/api/report_export", "/api/relazione", "/api/relazione_opzioni", "/api/export", "/api/export_x", "/api/portable", "/api/mobile/export_chat",
+CASE_LANG_PATHS = {"/api/report", "/api/report_export", "/api/relazione", "/api/relazione_opzioni", "/api/export", "/api/export_x", "/api/export_mail", "/api/portable", "/api/mobile/export_chat",
                    "/api/riscontro", "/api/verify", "/api/finding", "/api/case_info_set", "/api/hashlist_compare"}
 
 
@@ -1072,15 +1110,19 @@ class Handler(BaseHTTPRequestHandler):
             return self._bin(data, ctype)
         if path == "/api/conv":
             return self._bin(converted_image(SES.case, q), "image/jpeg")
-        if path == "/api/raw":
-            it = file_ident(SES.case, q)
-            size, f = file_size(SES.case, it)
-            if not f:
-                raise ValueError(tr("File troppo grande per l'anteprima."))
-            data_head = open(f, "rb").read(16)
-            # mai HTML/SVG/script: solo immagini e media dichiarati per tipo
-            ctype = RAW_MIME.get(ext_contenuto(it["ext"], data_head)) or sniff_mime(data_head) or \
-                VIDEO_MIME.get(video_brand(it["ext"], data_head) or "") or "application/octet-stream"
+        if path in ("/api/raw", "/api/video_mp4"):
+            if path == "/api/video_mp4":     # (3.0.6) copia MP4 (cache del caso) di un video che il browser non riproduce
+                f = video_mp4(SES.case, q)
+                size, ctype = f.stat().st_size, "video/mp4"
+            else:
+                it = file_ident(SES.case, q)
+                size, f = file_size(SES.case, it)
+                if not f:
+                    raise ValueError(tr("File troppo grande per l'anteprima."))
+                data_head = open(f, "rb").read(16)
+                # mai HTML/SVG/script: solo immagini e media dichiarati per tipo
+                ctype = RAW_MIME.get(ext_contenuto(it["ext"], data_head)) or sniff_mime(data_head) or \
+                    VIDEO_MIME.get(video_brand(it["ext"], data_head) or "") or "application/octet-stream"
             start, end = 0, size - 1
             m = re.match(r"bytes=(\d*)-(\d*)", self.headers.get("Range") or "")
             code = 200
@@ -1492,6 +1534,8 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/prep_answer":
             PREP.answer(b)
             return {"ok": True}
+        if path == "/api/chiudi":                       # (3.0.6) pulsante «Chiudi»: ferma RepertIA
+            return chiudi(b)
         if path == "/api/prep_stop":
             PREP.stop()
             return {"ok": True}
@@ -1559,6 +1603,8 @@ class Handler(BaseHTTPRequestHandler):
             return case_summary(c)
         if path == "/api/export_x":
             return export_x(SES.case, b)
+        if path == "/api/export_mail":            # (3.0.6) una mail come .eml
+            return export_mail(SES.case, b)
         if path == "/api/decrypt":
             root = b.get("root") or (str(SES.case.root) if SES.case else None)
             if not root:
@@ -1992,22 +2038,28 @@ def main():
     lg.segna_gui()
     fd.installa(fa.SETTINGS_PATH.parent / "diagnostica.log")
     fd.evento("avvio", versione=fa.APP_VERSION, sistema=platform.platform(terse=True), python=platform.python_version())
+    global SRV
     port = free_port()
-    srv = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    srv = SRV = ThreadingHTTPServer(("127.0.0.1", port), Handler)
     url = f"http://127.0.0.1:{port}/"
     print(tr("{APP_NAME} {APP_BY} - pronto su {url}").format(APP_NAME=fa.APP_NAME, APP_BY=fa.APP_BY, url=url))
-    print(tr("Lascia aperta questa finestra; per chiudere premi Ctrl+C."))
+    print(tr("Lascia aperta questa finestra; per chiudere usa «Chiudi» in alto a destra nella pagina, oppure premi Ctrl+C."))
     if not os.environ.get("FORENSE_NO_BROWSER"):
         threading.Timer(0.5, lambda: webbrowser.open(url)).start()
     try:
         srv.serve_forever()
     except KeyboardInterrupt:
-        print(tr("\nChiuso."))
-        try:
-            SES.save_conv()
-        except OSError:
-            pass
-        PREP.stop()
+        pass
+    print(tr("\nChiuso."))
+    try:
+        SES.save_conv()
+    except OSError:
+        pass
+    PREP.stop()
+    if CHIUSO.is_set():         # (3.0.6) pulsante «Chiudi»: uscita pulita anche con lavori in background (codice 0)
+        fd.evento("chiuso")
+        sys.stdout.flush()
+        os._exit(0)
 
 
 if __name__ == "__main__":

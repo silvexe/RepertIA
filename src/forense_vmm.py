@@ -51,8 +51,10 @@ def nome_cartella():
 
 
 # ------------------------------------------------------------------ nessuno scarico dei simboli (Mac e Linux)
-# Su Windows `-disable-symbolserver` basta. Su Mac e Linux MemProcFS 5.19.3 chiede comunque a libpdbcrust di scaricare
-# da Microsoft i simboli che non trova in locale (vmm/pdb.c: l'opzione non arriva a pdbcrust_pdb_download_ensure).
+# Su Windows `-disable-symbolserver` basta. Su Mac e Linux MemProcFS fino alla 5.19.3 chiedeva comunque a libpdbcrust di
+# scaricare da Microsoft i simboli che non trova in locale (vmm/pdb.c: l'opzione non arrivava a
+# pdbcrust_pdb_download_ensure); la 5.19.4 (3.0.6) la passa, dopo la nostra segnalazione (ufrisk/MemProcFS#433).
+# La protezione qui sotto resta come seconda sicurezza, indipendente dalla versione della libreria.
 # libpdbcrust legge il proxy dall'ambiente una volta sola, alla prima richiesta, e poi usa sempre quello: prima di
 # caricare vmm le si fa quindi fare una richiesta a vuoto con il proxy puntato su una porta locale chiusa, e subito
 # dopo l'ambiente torna com'era (il resto del programma non ne risente). Da lì in poi, in questo processo, ogni

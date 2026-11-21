@@ -1,4 +1,4 @@
-RepertIA 3.0.5 - By silvexe (Linux x86_64)
+RepertIA 3.0.6 - By silvexe (Linux x86_64)
 Forensic analysis of disk images, smartphone extractions and drone flight logs with a local language model (LLM).
 
 LINUX VERSION (EXPERIMENTAL)
@@ -24,7 +24,7 @@ On Linux their libraries are installed by installa.sh.
 
 INSTALLATION
 1. Extract the archive wherever you prefer (for example in your home folder):
-     tar -xzf RepertIA-3.0.5-Linux.tar.gz
+     tar -xzf RepertIA-3.0.6-Linux.tar.gz
 2. Open a terminal in the RepertIA folder and run:
      ./installa.sh
    Internet access and the administrator password are required. The script:
@@ -37,6 +37,27 @@ INSTALLATION
    - adds RepertIA to the applications menu.
    The installation log is in installa.log. The script can be run again.
 3. Start RepertIA from the applications menu or with ./RepertIA.sh: the browser opens.
+
+UPDATING TO A NEW VERSION
+1. Close RepertIA.
+2. Extract the new archive over the existing folder, giving the folder that contains RepertIA
+   (for example your home folder, ~):
+     tar -xzf RepertIA-<version>-Linux.tar.gz -C ~
+   Cases (~/CasiForensi) and settings are not touched.
+3. Run ./installa.sh again. It updates the Python libraries only if the new version uses different
+   ones (it recognises this from requirements-linux.txt and from the iLEAPP and ALEAPP lists) and, on
+   64-bit ARM, puts the ARM tools back in place. Internet access is required.
+Limit: files that a new version no longer has stay in the folder (they do no harm). For a clean
+folder: rename the old one, extract the new one, run ./installa.sh (the libyal libraries are compiled
+again: 10-20 minutes), then delete the old one.
+
+REMOVAL
+- the program folder (RepertIA);
+- the applications menu entry: ~/.local/share/applications/repertia.desktop;
+- settings, diagnostic log and downloaded transcription models: ~/.config/RepertIA
+  (up to 3.0.5: ~/Library/Application Support/RepertIA).
+The cases in ~/CasiForensi stay (delete them yourself when no longer needed) and so do the packages
+installed with apt, which other programs may also use (remove them with "sudo apt remove" if you wish).
 
 BULK_EXTRACTOR (optional)
 Debian and Ubuntu do not package it: build it from https://github.com/simsong/bulk_extractor

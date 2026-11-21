@@ -26,8 +26,8 @@ https://github.com/user-attachments/assets/68d625e6-56ce-40e6-846f-564f1489c70c
 
 RepertIA analyses forensic images (E01, raw/dd, dmg), from 2.20 full file system extractions of iPhones and Android
 phones, from 3.0 drone flight logs and, from 3.0.2, logical sources (zip, tar, 7z and rar archives, FTK Imager AD1
-logical images, ISO and UDF CD/DVD images or a folder) and, from 3.0.4, RAM memory dumps of Windows computers, from a
-single local web interface, on Apple Silicon Macs, Windows or Linux (experimental). It uses established forensic tools (The Sleuth Kit, libewf, plaso, PhotoRec, bulk_extractor,
+logical images, ISO and UDF CD/DVD images or a folder) and, from 3.0.4, RAM memory dumps of Windows computers and, from 3.0.6, chats exported from WhatsApp, from a
+single local web interface, on Apple Silicon Macs, Windows or Linux. It uses established forensic tools (The Sleuth Kit, libewf, plaso, PhotoRec, bulk_extractor,
 ExifTool, libyal) and gathers their results into a case you can browse with filters, timelines and previews. An optional
 language model running on the analyst's own computer answers questions in English or Italian, citing files, offsets and
 inodes.
@@ -66,6 +66,8 @@ This is not a certification: NIST and Joshua Hickman did not test RepertIA. We u
 
 From 3.0.2 also **🗂️ Logical source**: files already collected by others (zip, tar, tar.gz, 7z, rar, FTK Imager AD1 logical images with FTK's hashes checked file by file, ISO 9660 and UDF CD/DVD images, a folder).
 
+From 3.0.6 also **chats exported from WhatsApp** (iPhone and Android “Export chat”, zip or folder, with or without media): as a logical source or, in every type of case, with an additional analysis that also looks inside zips. In disk and smartphone images a notice when the case opens says how many there are and opens the selection window. Times stay as the phone's time until you choose to adjust them to the case time zone.
+
 From 3.0.4 also **RAM memory dumps** of Windows computers (raw, mem, vmem, crash dump), from the same page as mass storage: processes, network connections, modules, drivers, scheduled tasks, services and users read with MemProcFS, plus the Windows artifacts from the registry still in memory. Nothing is downloaded from the internet while a case is open.
 
 | Choosing the dump | Processes in memory |
@@ -89,6 +91,9 @@ From 3.0.4 also **RAM memory dumps** of Windows computers (raw, mem, vmem, crash
 **Chats**: conversations with database, table and row of each message. Here iMessage from a public test image.
 
 <img src="docs/img/en/chat.jpg" alt="Chat view" width="800">
+**Chats exported from WhatsApp** (3.0.6): chats saved with “Export chat”, with attachments, who exported them and the declared time zone. Here a made-up chat.
+
+<img src="docs/img/en/exported-chats.jpg" alt="Chat exported from WhatsApp" width="800">
 
 **iOS sysdiagnose**: acquired separately and read with iLEAPP.
 
@@ -111,7 +116,7 @@ From 3.0.4 also **RAM memory dumps** of Windows computers (raw, mem, vmem, crash
 | Windows (installer) | [RepertIA-3.0.5-Setup.exe](https://github.com/silvexe/RepertIA/releases/download/v3.0.5/RepertIA-3.0.5-Setup.exe) |
 | Windows (portable) | [RepertIA-3.0.5-Windows.zip](https://github.com/silvexe/RepertIA/releases/download/v3.0.5/RepertIA-3.0.5-Windows.zip) |
 | Mac (Apple Silicon) | [RepertIA-3.0.5-Mac.zip](https://github.com/silvexe/RepertIA/releases/download/v3.0.5/RepertIA-3.0.5-Mac.zip) |
-| Linux x86_64 (experimental) | [RepertIA-3.0.5-Linux.tar.gz](https://github.com/silvexe/RepertIA/releases/download/v3.0.5/RepertIA-3.0.5-Linux.tar.gz) |
+| Linux x86_64 | [RepertIA-3.0.5-Linux.tar.gz](https://github.com/silvexe/RepertIA/releases/download/v3.0.5/RepertIA-3.0.5-Linux.tar.gz) |
 | Acceptance test (*collaudo*) | [RepertIA-collaudo.zip](https://github.com/silvexe/RepertIA/releases/download/v3.0.5/RepertIA-collaudo.zip) |
 | SHA-256 checksums | [SHA256SUMS.txt](https://github.com/silvexe/RepertIA/releases/download/v3.0.5/SHA256SUMS.txt) |
 | Checksum signature | [SHA256SUMS.txt.minisig](https://github.com/silvexe/RepertIA/releases/download/v3.0.5/SHA256SUMS.txt.minisig) |
@@ -138,16 +143,18 @@ button downloads only the source code, not the program to install.
 | Decoded (3.0.5) | Preview tab for Windows `.lnk` shortcuts, jump lists, Prefetch files and Recycle Bin indexes (`$I`): the whole content of the file, with one entry for each folder of the path (names, dates, NTFS reference), volume and path, computer name and MAC address from the tracker data; it can be saved as text. In Metadata the NTFS dates of `$STANDARD_INFORMATION` and `$FILE_NAME` side by side |
 | macOS artifacts | Data volume, quarantine, launch items, TCC, iMessage, recent documents, Safari, KnowledgeC, Bluetooth, Time Machine |
 | RAM memory (3.0.4) | Memory dumps of Windows computers (raw, mem, vmem, crash dump) read with MemProcFS, the same engine on Mac, Windows and Linux: processes, network connections, loaded modules, drivers, scheduled tasks, services, users and the memory timeline; Windows artifacts from the registry hives still in memory; files still in memory copied into the case as derived copies. Debug symbols on request, with no case open and after consent, for the running state of services; no network request while a case is open |
+| Exported chats (3.0.6) | WhatsApp exports (“Export chat”) from iPhone and Android, in Italian and English, read in the chat viewer with attachments, locations and calls, in a category of their own; also zips inside disks and phones, flagged by a notice when the case opens, and exports taken from outside the case (SHA-256 recorded and checked again); phone time without time zone until it is adjusted to the case time zone, repeated and non-existent hours of the clock change flagged |
 | Logical source (3.0.2) | zip, tar, tar.gz, 7z, rar, FTK Imager AD1 (also segmented; FTK's MD5/SHA-1 recalculated for every file), ISO 9660 and UDF CD/DVD images including multi-session CD-Rs with VAT (files only in previous VATs shown as deleted), or a folder; phone databases recognised by name, KML/GPX as map layers |
 | Smartphones (2.20) | iPhone and Android full file system extractions (zip from Cellebrite, GrayKey and others, tar, tar.gz, folder) read without copying; WhatsApp, iMessage/SMS and SMS/MMS chats with a bubble view (also in the portable report), address books, attachments linked to the files and previewed over the chat, chat export (HTML/CSV with SHA-256); iLEAPP and ALEAPP included, with the chats of the other apps and a Calls view derived from their results; optional iOS keychain acquired separately (e.g. GrayKey) passed to iLEAPP, secret values hidden by default; iOS sysdiagnoses (one or more) read with a second iLEAPP run |
 | Cited files (2.20) | File paths and names cited by artifacts, chat attachments, timeline rows and agent answers found in the image or extraction (phone, Windows and macOS paths; folder and name fields joined; by path, hash or name and size), one box per file with the result in three levels (✅ found with certainty, ⚠️ probable with the candidates, ❌ not present) and a preview, also in the Word/PDF report; WhatsApp attachments verified with their SHA-256, thumbnail from the database when the file is missing |
 | Timeline | File system + plaso, from 3.0.4 on a page of its own; dates in UTC, Italian time or the device's time zone (detected), with the time zone label next to every value; FAT/exFAT converted correctly |
-| Content | Document text with full-text search, OCR (Tesseract), EXIF/GPS metadata, archives, PST/OST/MBOX/EML mail |
+| Content | Document text with full-text search, OCR (Tesseract), EXIF/GPS metadata, archives, PST/OST/MBOX/EML mail (from 3.0.6 sender and recipients, Bcc too, as recorded in the file; export as `.eml`: original for EML and mbox, reconstructed and declared for PST/OST and MSG with the original headers next to it); camcorder `.ts` videos recognised from their content and shown in the preview |
 | Recovery | Carving with PhotoRec, bulk_extractor features, File Explorer thumbnail cache |
 | Anomalies | Fake extensions and disguised executables (deleted files are verified to avoid false positives), encrypted files and containers |
 | Images and hash sets | Perceptual hashes (similar images), NSRL hash sets, Project VIC / CAID, folders of reference images |
-| Safeguards | The image is never modified; data hashes compared with the acquisition hashes; hash-chained audit log with entries and final hash in the report and *Verify log* (also from the terminal, `tools/verifica_registro.py`); tool versions and program fingerprint in the report |
+| Safeguards | The image is never modified; data hashes compared with the acquisition hashes; hash-chained audit log with entries and final hash in the report and *Verify log* (also from the terminal, `tools/verifica_registro.py`); tool versions and program fingerprint in the report; exports split by type of evidence, with the hash manifest and a `README.txt` saying what is original and what is reconstructed |
 | Reports | Case report (Markdown, Word, PDF) and a portable HTML report for readers who do not have the forensic image |
+| Closing (3.0.6) | “⏻ Close” button: asks for confirmation and first lists the jobs in progress |
 
 User interface, reports and case texts are **in English or Italian** (each case's language is chosen when it is
 created).
@@ -159,7 +166,7 @@ and known limitations: [VALIDATION.md](VALIDATION.md) (Italian original: [VALIDA
 
 After downloading the package for your system (see [Download](#download)):
 
-| | Mac (Apple Silicon) | Windows 10/11 64-bit | Linux x86_64 (experimental) |
+| | Mac (Apple Silicon) | Windows 10/11 64-bit | Linux x86_64 |
 |---|---|---|---|
 | Installation | unzip and move `RepertIA.app` (with Python, plaso and libraries) where you like; first start: see [First start on a Mac](#first-start-on-a-mac) | run the Setup.exe (no administrator rights needed) or unzip the portable zip | extract and run `./installa.sh` (Ubuntu 24.04+, Debian 13) |
 | External tools | installed with Homebrew on first start | included | installed with apt by `installa.sh`, which also sets up Python, plaso and the libraries |
@@ -212,8 +219,7 @@ xattr -dr com.apple.quarantine /Applications/RepertIA.app
 ### Requirements
 
 **Computer (without AI)**
-- **System**: Mac with Apple Silicon (M1 or later), Windows 10/11 64-bit, or Linux x86_64 with Ubuntu 24.04 or later
-  (experimental version).
+- **System**: Mac with Apple Silicon (M1 or later), Windows 10/11 64-bit, or Linux x86_64 with Ubuntu 24.04 or later.
 - **Memory (RAM)**: 8 GB is enough for USB drives and small disks; 16 GB is comfortable.
 - **Disk**: an SSD is better. The case is not a copy of the disk but a database with the indexes; add space for exported
   files, carving and the preview cache (at most about 5 GB per case). The forensic image can also be on an external disk,

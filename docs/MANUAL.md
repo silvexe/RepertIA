@@ -6,7 +6,7 @@
 and folder names created by the program (`estratti`, `export`, `CasiForensi`…) are in Italian whatever the language.*
 
 **Forensic analysis of disk and USB drive images, smartphone extractions and drone flight logs, with local artificial intelligence.**
-Version 3.0.5 · macOS, Windows and Linux (experimental) · interface in English or Italian
+Version 3.0.6 · macOS, Windows and Linux (experimental) · interface in English or Italian
 
 RepertIA takes a forensic image (raw, dd, img or E01), indexes it with established forensic tools and lets you examine
 it in two complementary ways:
@@ -139,7 +139,8 @@ English.
 In the *AI model* menu choose **This computer** (default: the server is looked for automatically on ports 8080, 1234
 and 11434) or **Network server**: enter the server's address (e.g. `192.168.1.20`, or with the port
 `http://192.168.1.20:8080`), the API key if needed, and press **Connect**. Without a port, 8080, 1234 and 11434 are
-tried. The choice is saved (`~/Library/Application Support/RepertIA/impostazioni.json` on the Mac) and applies to all
+tried. The choice is saved (`impostazioni.json` in `~/Library/Application Support/RepertIA` on the Mac,
+`%APPDATA%\RepertIA` on Windows, `~/.config/RepertIA` on Linux from 3.0.6) and applies to all
 cases; you go back to the local server with a click on *This computer*. The server must accept connections from the
 network: llama-server with `--host 0.0.0.0`, LM Studio with *Serve on Local Network*, Ollama with
 `OLLAMA_HOST=0.0.0.0`, and the port open in the firewall. To test: from your computer open
@@ -328,6 +329,10 @@ narrow it, close it with ✕ or Esc, and use the keyboard arrows to move to the 
     Look);
   - text, logs, CSV, email, code: the text;
   - video and audio the browser can play (mp4, mov, mp3, m4a, wav…);
+  - (3.0.6) H.264 videos in containers the browser does not open (`.ts` from camcorders and microSD, `.mts`/`.m2ts`,
+    `.mkv`, `.avi`): rewritten as MP4 without re-encoding the pictures (audio as AAC) in a working copy in the case
+    cache, which the preview declares; the evidence file does not change. With other codecs (MPEG-2, HEVC) a frame
+    with the reason. `.ts` files are recognised from their content, not from the extension (`.ts` is also TypeScript);
 - **Text**: the extracted text (from documents and binary files too), **in full** up to two million characters; beyond
   that, the end says how many characters are missing. For binary files these are the readable strings;
 - **Hex**: the content byte by byte (see below);
@@ -361,9 +366,20 @@ active periods* are shortcuts to the peaks. Text, event-type and source filters 
 - in File System you can select files from different folders and whole folders too.
 
 With the selection bar:
-- **Export files** extracts the files (folders with all their content) to `export/selezione_<date>/`, **keeping the
-  original folder tree**, read-only, with `manifest.csv`: original path, offset, inode, deleted yes/no, bytes and
-  SHA-256 of each file. Exports appear in the report.
+- **Export files** extracts the files (folders with all their content) to `export/selezione_<date>/`, read-only, with
+  `manifest.csv`: original path, offset, inode, deleted yes/no, bytes and SHA-256 of each file. From 3.0.6 there is one
+  subfolder per type of evidence: `file/` (from the forensic image, **keeping the original folder tree** under
+  `partizione_N`), `carving/`, `estratti/`, `chat/`, `posta/`; `README.txt` says what each one contains, how many files
+  and, for mail, how many messages are original and how many reconstructed. Exports appear in the report.
+- **Exported mail (3.0.6).** The files of one mail share the same name start (sending date and time, subject, number)
+  and a suffix saying what they are: `…_ORIGINAL.eml` are the bytes of the mail file (EML, EMLX, mbox);
+  `…_RECONSTRUCTED.eml` is reconstructed from the data of a PST/OST or MSG, which do not contain the mail as a file; next to
+  it, `…_ORIGINAL_headers.txt` carries the transport headers (Received, Message-ID, DKIM…) exactly as recorded in the
+  file, read again in full from the PST if they were truncated in the case, and the `.eml` cites it with its SHA-256;
+  for MSG there is also `…_ORIGINAL.msg`. Sent items and drafts have no transport headers: the manifest and the
+  on-screen message say so. The AI agent knows this difference: to cite IP addresses and the Received chain it points to
+  the original headers file and the mail file, not the reconstructed `.eml`; mails are exported by the analyst, not by
+  the agent.
 - **Export CSV list** saves the selected rows in `export/elenchi/` (separator `;`, opens with Excel or Numbers).
 - **Finding** records a finding with the references of the chosen items.
 - **Ask the agent** prepares a question about the selected items.
@@ -373,6 +389,10 @@ System: *Preview* and *Export*; findings and questions are made from the selecti
 
 ### Interface
 - **Light / dark theme**: ☾ / ☀ button at the top right (the choice is remembered).
+- **⏻ Close** (3.0.6), at the top right: closes RepertIA. It asks for confirmation and, if work is in progress
+  (preparation or analysis, agent answer, reports and exports, computing the unallocated space), lists it first; then
+  it stops the program and closes its window (the prompt on Windows, the Terminal on the Mac, the terminal of the menu
+  entry on Linux). Cases stay saved.
 - **◧** next to the case name hides or shows the side panel, for more space.
 - **Resizable panes** (2.20): a thin divider separates case panel, Results tree, folder tree of the File System, list,
   preview/details on the right and, in the chat view, the list of conversations. Drag it with the mouse; a
@@ -603,11 +623,43 @@ If the source contains phone databases (for example WhatsApp `msgstore.db` and `
 
 **Limits.** EnCase L01 files are not read: there is no public sample to test them with. AD1 is tested on the public files of the dissect.evidence tests and on a public segmented AD1; UDF with VAT on the «RM#3» CD-R of the NIST CFReDS «Data Leakage» case (final files, 17 files of the previous VATs and burning time equal to the NIST answers), which is in the test data.
 
+## Chats exported from WhatsApp (3.0.6)
+
+Chats saved with WhatsApp's **Export chat** (on iPhone `_chat.txt`, on Android `WhatsApp Chat with ….txt`, with or
+without media, often in a zip) are read and shown in the chat viewer, with bubbles, attachments, locations and calls,
+kept apart from the chats read from the phone's databases: artifact category **Chats exported from WhatsApp**.
+
+- **Where.** Opening the zip or folder as a **Logical source** reads the chats during preparation. In every type of case
+  (mass storage, smartphone, logical source) **Additional analyses → 📤 Chats exported from WhatsApp** looks for them in
+  the case, also inside zips, and lets you add an export taken from outside the case (for example from a USB stick): it
+  records path, size and SHA-256 and checks them again before reading. Zips and added exports are copied to
+  `estratti/chat_esportate` as a derived copy, with their hashes. In copies of disks and smartphones exported chats are
+  not read automatically: when the case is opened a notice says how many are in the file list and opens the selection
+  window; it comes back at every opening until the chats are read or you tick “Don't ask again for this case”.
+- **Formats.** iPhone and Android, system texts in Italian and English, day/month or month/day order worked out from the
+  dates, 12- or 24-hour times. Whoever exported is “this device” (from the file name or from the messages they deleted);
+  in groups it often cannot be worked out.
+- **Times.** The export does not state the time zone. At first the times stay as the phone's time, marked “(local time,
+  time zone n/a)”; RepertIA asks whether to adjust them to the device time zone set for the case, and only then do they
+  become instants comparable with the rest of the Timeline. Repeated or non-existent hours of the clock change are
+  flagged with ⚠. Every message keeps the time written in the file visible (📱).
+- **Period.** First and last message ignore WhatsApp's notices: on Android the encryption notice has the date the chat
+  was created, not the date of the export (which neither format writes).
+- **AI agent.** The agent reads exported chats in every type of case and treats them as a copy made by whoever uses the
+  phone: whoever exported decides which messages are sent; numbers, delivery and read status and deleted messages are
+  missing, so to questions such as “did they read it?” it answers that it cannot be said. Every row it reads gives the
+  phone's time (“phone time, time zone not indicated (not UTC)”) or, after the adjustment, the UTC instant with the phone's time next to
+  it, and the file and line the message comes from.
+- **Export chat** writes the HTML and the CSV, with the attachments copied and their hashes.
+
+**Limits.** On Android calls appear in the export as lines without text. Tested on test exports and on zips inside a
+folder, not yet on a real disk containing an export.
+
 ## RAM memory dumps (3.0.4)
 
 On the start page, **Mass storage and RAM** also accepts a dump of the memory of a **Windows** computer (raw, `.mem`, `.vmem`, `.dmp`, `.lime`). The option **It is a RAM memory dump** turns on by itself for the known extensions; for other names tick it by hand. The dump is read with **MemProcFS** (Ulf Frisk, AGPL-3.0), which is in the list of tools at the top of the window.
 
-**Packages.** The MemProcFS component is version 5.19.3, from the same release, in the Mac, Windows and Linux packages. RepertIA calls the library directly through its own adapter (`forense_vmm.py`), because the official Python module does not exist for macOS. Tested on Windows (adapter compared with the official module on the same public dump); tested on Mac on the same dump (same counts); on Linux it has not been tested in execution.
+**Packages.** The MemProcFS component is version 5.19.4, from the same release, in the Mac, Windows and Linux packages. RepertIA calls the library directly through its own adapter (`forense_vmm.py`), because the official Python module does not exist for macOS. Tested on Windows (adapter compared with the official module on the same public dump); tested on Mac on the same dump (same counts); on Linux it has not been tested in execution.
 
 What the case contains:
 
@@ -620,7 +672,7 @@ What the case contains:
 | Memory timeline | Timeline, source **RAM memory** | registry keys, event logs, processes, network, web history, Prefetch, Amcache; threads are not imported |
 | Time zone | case panel | read from memory |
 
-**No network during the analysis.** When a case is prepared or analysed MemProcFS is always started without the symbol server. On Mac and Linux MemProcFS 5.19.3 would ask Microsoft for missing symbols anyway: before loading the library RepertIA pins the proxy of its symbol library to a closed local address for the whole analysis process, so that request cannot leave the computer; if this cannot be done the library is not loaded. With the symbols already in the local folder (downloaded from the start page), the running state of the services is shown: on Windows from the MemProcFS list, on Mac and Linux read by RepertIA from the memory of `services.exe` (`forense_ram_servizi.py`; 64-bit Windows from build 15063). Without the Windows debug symbols the list of running services is not available: **services** are read from their configuration in the registry (name, program, start type, account), with the last write of the key as date, and the result of the analysis says so.
+**No network during the analysis.** When a case is prepared or analysed MemProcFS is always started without the symbol server. On Mac and Linux MemProcFS up to 5.19.3 asked Microsoft for missing symbols anyway (fixed in 5.19.4, which RepertIA includes from 3.0.6); as a second safeguard, before loading the library RepertIA pins the proxy of its symbol library to a closed local address for the whole analysis process, so that request cannot leave the computer; if this cannot be done the library is not loaded. With the symbols already in the local folder (downloaded from the start page), the running state of the services is shown: on Windows from the MemProcFS list, on Mac and Linux read by RepertIA from the memory of `services.exe` (`forense_ram_servizi.py`; 64-bit Windows from build 15063). Without the Windows debug symbols the list of running services is not available: **services** are read from their configuration in the registry (name, program, start type, account), with the last write of the key as date, and the result of the analysis says so.
 
 **Symbols on request, for the running state of services.** On the start page, with no case open, **🧩 Symbols for RAM** downloads from Microsoft's symbol server the debug symbols of the Windows version of the dump you indicate, after you accept Microsoft's license terms (the button *Open the terms* shows the file). Microsoft receives only the name and identifier of the requested symbol files, which say which Windows version it is, not the content of the dump; the dump is however opened read-only while the network is in use: if the case does not allow it, do not download them. The symbols stay in a local folder (`Symbols`, next to the engine; names, sizes and SHA-256 of what was downloaded are recorded there) and are never part of the packages. After that, a case prepared from a dump of that Windows version lists the services with their **running state and PID** at acquisition time, still with no network. When you press **Start the analysis** on a dump for which no download is recorded, a window explains the difference and offers **Download the symbols** (no case is open yet at that point) or **Start without symbols**.
 
@@ -680,7 +732,7 @@ all email, the artifacts of a category or of an iLEAPP/ALEAPP section, all map l
 sees the items as in the case: photo thumbnails (a click opens the original copied next to it, with its SHA-256; for
 HEIC, TIFF and RAW also a large JPEG), videos with a frame, documents with their first page, chats with bubbles, sender,
 time, source (table and row) and attachments, artifacts and email with all their fields. The output in
-`export/report_<date>/` is **report.html** (split into pages), **report.pdf** and, if chosen, **report.docx** with the
+`export/report/report_<date>/` is **report.html** (split into pages), **report.pdf** and, if chosen, **report.docx** with the
 same content, plus `impronte.csv` with the SHA-256 of every file; everything is recorded in the case log. Hand over the
 whole folder. The PDF embeds a Unicode system font (Arial on Mac and Windows, DejaVu on Linux) with only the glyphs used;
 Arabic and Hebrew appear there with unjoined letters (they are correct in the HTML). PDF and Word carry at most 5,000
@@ -689,7 +741,7 @@ documents and audio (default) and, if chosen, also of videos and other attachmen
 
 ## Portable report (for those who do not have the forensic image)
 
-From the **Report → Portable report** menu, RepertIA creates in `export/report_portatile_<date>/` a folder with
+From the **Report → Portable report** menu, RepertIA creates in `export/report/report_portatile_<date>/` a folder with
 `index.html` to hand over (zipped too): it opens with a double-click in any browser, **offline**, without RepertIA,
 without the forensic image and without AI.
 
@@ -780,7 +832,12 @@ without the forensic image and without AI.
   (Outlook), MSG, EML/EMLX and mbox mailboxes (Thunderbird without extension too). Messages and attachments appear in
   the *Mail* and *Archives and attachments* sections, and enter the search and the chat. Extracted files go to
   `<case>/estratti/` read-only, with MD5, SHA-1 and SHA-256, and with their origin path (archive → inner file).
-  Password-protected archives are reported.
+  Password-protected archives are reported. From 3.0.6, for PST/OST the sender and recipients are those recorded in
+  the file: recipient table split into To, Cc and **Bcc**, or the “Display To/Cc/Bcc” fields when the table is missing
+  (sent items, drafts), sender address also in the Exchange X.500 form; the transport headers stay the first source
+  when present. A name containing @ , ; < > is quoted, so it is not taken for the address. **Export .eml** (rows of
+  Mail, search and documents, mail preview) saves the mail in `export/posta/` (see “Exported mail” in the Results
+  tab).
 - **Anomalies** (on by default): extension that does not match the content (e.g. a JPEG named `.txt`), encrypted Office
   documents, PDFs and ZIPs, high-entropy containers (possible VeraCrypt/TrueCrypt volumes), BitLocker, LUKS, FileVault
   and encrypted APFS volumes. Since 2.17.2 **deleted files** are reported only if the content read is still theirs: if
@@ -1423,7 +1480,7 @@ The history of the versions is in [CHANGELOG.en.md](../CHANGELOG.en.md).
 
 ## Mac package (Apple Silicon)
 
-`RepertIA-3.0.5-Mac.zip` contains **RepertIA.app** with Python 3.12, openai, Pillow and **plaso already included** (no
+`RepertIA-3.0.6-Mac.zip` contains **RepertIA.app** with Python 3.12, openai, Pillow and **plaso already included** (no
 Docker). Drag the app into Applications; the first time: *Done* at the warning, then *System Settings → Privacy & Security
 → Open Anyway* and double-click again (right-click → *Open* is no longer enough on macOS 15 and later), because it is not signed with an Apple certificate. The app opens the Terminal, installs the missing
 tools with Homebrew (Sleuth Kit, libewf, exiftool, poppler, PhotoRec, bulk_extractor, Tesseract) and then the browser.
@@ -1432,7 +1489,7 @@ tools with Homebrew (Sleuth Kit, libewf, exiftool, poppler, PhotoRec, bulk_extra
 
 ## Windows version
 
-`RepertIA-3.0.5-Setup.exe` installs RepertIA for the current user (no administrator rights) in
+`RepertIA-3.0.6-Setup.exe` installs RepertIA for the current user (no administrator rights) in
 `%LOCALAPPDATA%\Programs\RepertIA`, with Python and the tools already included: plaso, The Sleuth Kit (reads E01 files
 directly), ExifTool, Poppler, PhotoRec, bulk_extractor, 7-Zip, Tesseract OCR (Italian and English) and the libraries for
 Outlook mail, shadow copies and encrypted volumes. It is started from the Start menu → **RepertIA**: a black window opens,
@@ -1450,11 +1507,11 @@ to be kept open, and the browser. Cases are in `%USERPROFILE%\CasiForensi`, sett
 
 ## Linux version (experimental)
 
-`RepertIA-3.0.5-Linux.tar.gz` is for **Linux x86_64** with Python 3.12 or later (Ubuntu 24.04 or later, Debian 13).
+`RepertIA-3.0.6-Linux.tar.gz` is for **Linux x86_64** with Python 3.12 or later (Ubuntu 24.04 or later, Debian 13).
 The program is the same as the Mac and Windows versions (same source fingerprint).
 
 ```
-tar -xzf RepertIA-3.0.5-Linux.tar.gz
+tar -xzf RepertIA-3.0.6-Linux.tar.gz
 cd RepertIA
 ./installa.sh          # once, with internet: asks for the administrator password
 ./RepertIA.sh          # or from the applications menu

@@ -305,7 +305,7 @@ def bm_timeline_csv(case, b):
     righe = fa.bookmarks_timeline(case, False, b.get("cid"))
     if not righe:
         raise ValueError(tr("Nessun preferito ancora."))
-    f = unique(case.export_dir / f"cronologia_preferiti_{G.stamp_now()}.csv")
+    f = unique(case.export_dir / "elenchi" / f"cronologia_preferiti_{G.stamp_now()}.csv")      # (3.0.6) con gli altri elenchi
     f.parent.mkdir(parents=True, exist_ok=True)
     tz = b.get("tz")
     with open(f, "w", newline="", encoding="utf-8-sig") as fo:

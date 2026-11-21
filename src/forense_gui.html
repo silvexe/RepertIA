@@ -41,6 +41,7 @@ header{display:flex;align-items:center;gap:16px;padding:12px 22px;border-bottom:
 .brand .by{font-weight:500;color:var(--accent)}
 .themebtn{border:1px solid var(--line);background:var(--panel2);border-radius:99px;width:34px;height:30px;cursor:pointer;font-size:15px;line-height:1;flex:none}
 .themebtn:hover{border-color:var(--accent)}
+.chiudibtn{width:auto;padding:0 11px;font-size:12.5px;color:var(--ink)}
 .langsel{border:1px solid var(--line);background:var(--panel2);color:var(--ink);border-radius:99px;height:30px;padding:0 8px;font-size:12.5px;cursor:pointer;flex:none}
 .chips{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;position:relative}
 .chipsum{cursor:pointer;font:inherit;font-size:12px;white-space:nowrap}
@@ -707,6 +708,7 @@ th.srt .sa{margin-left:5px;color:var(--accent);font-size:11px}
       <select class="langsel" id="langSel" title="Lingua dell'interfaccia / Interface language" aria-label="Lingua / Language"></select>
       <button class="themebtn" id="btnLic" title="Licenza e informazioni legali" aria-label="Licenza e informazioni legali">ⓘ</button>
       <button class="themebtn" id="btnTheme" title="Tema chiaro / scuro">☾</button>
+      <button class="themebtn chiudibtn" id="btnChiudi" title="Chiude RepertIA: ferma il programma e chiude la sua finestra (prompt o Terminale)">⏻ Chiudi</button>
     </div>
     <div class="srchdock hidden" id="srchDock"><span id="srchTags" style="display:contents"></span><button class="sbtn" id="btnSrch" title="Apre il pannello di ricerca: parole chiave, frasi, espressioni regolari, hash">🔎 Ricerca</button></div>
   </div>
@@ -764,7 +766,7 @@ th.srt .sa{margin-left:5px;color:var(--accent);font-size:11px}
         <button class="kindbtn" id="kindDisk"><span class="ico">💽 <span title="Dump della memoria RAM"><svg class="ramico" viewBox="0 0 34 20" aria-hidden="true"><rect x="1" y="2.5" width="32" height="12.5" rx="1.5" fill="#2e9e5b" stroke="#1c6b3c"/><rect x="4" y="5" width="5" height="6.5" rx=".6" fill="#20262b"/><rect x="11" y="5" width="5" height="6.5" rx=".6" fill="#20262b"/><rect x="18" y="5" width="5" height="6.5" rx=".6" fill="#20262b"/><rect x="25" y="5" width="5" height="6.5" rx=".6" fill="#20262b"/><rect x="3" y="15" width="12" height="3" fill="#e0b63a"/><rect x="18" y="15" width="13" height="3" fill="#e0b63a"/></svg></span></span><b>Memorie di massa e RAM</b><small>Copie di dischi, SSD, pendrive e schede: E01, dd/raw, img, dmg. Dump della memoria RAM di computer Windows</small></button>
         <button class="kindbtn" id="kindPhone"><span class="ico">📱</span><b>Smartphone</b><small>iPhone e Android: estrazioni del file system completo (Cellebrite, GrayKey, altri) in zip, tar o cartella</small></button>
         <button class="kindbtn" id="kindDrone"><span class="ico">🚁</span><b>Droni</b><small>Registri di volo (DJI, Autel, PX4, ArduPilot), sottotitoli e foto da una cartella, uno zip o un tar: voli sulla mappa</small></button>
-        <button class="kindbtn" id="kindLogica"><span class="ico">🗂️</span><b>Sorgente logica</b><small>File già raccolti: archivi zip, tar, tar.gz, 7z, rar, immagini logiche AD1 di FTK, immagini di CD/DVD o una cartella</small></button>
+        <button class="kindbtn" id="kindLogica"><span class="ico">🗂️ <span title="Chat esportate da WhatsApp">💬</span></span><b>Sorgente logica</b><small>File già raccolti: archivi zip, tar, tar.gz, 7z, rar, immagini logiche AD1 di FTK, immagini di CD/DVD o una cartella; anche chat esportate da WhatsApp («Esporta chat»), con gli allegati</small></button>
       </div>
       <div style="margin-top:12px"><button class="btn small" id="homeDiag" title="Prepara un file con gli errori tecnici del programma, senza dati dei casi">Esporta log diagnostici</button> <button class="btn small" id="homeMappe" title="Si scarica solo da qui, senza un caso aperto">🗺 Scarica mappe</button> <button class="btn small" id="homeModelli" title="Si scarica solo da qui o all'avvio dell'analisi, senza un caso aperto">🎙 Modelli di trascrizione</button> <button class="btn small" id="homeSimboli" title="Simboli di debug di Windows per i dump della memoria RAM: si scaricano solo da qui, senza un caso aperto">🧩 Simboli per la RAM</button> <button class="btn small" id="homeGuida" title="Guida illustrata in italiano e in inglese, in un unico file">📖 Guida</button> <button class="btn small" id="homeAgg" title="Controlla se è uscita una versione nuova di RepertIA: solo lettura da GitHub, nessun dato dei casi, senza un caso aperto">🔄 Aggiornamenti</button></div>
     </div>
@@ -963,12 +965,15 @@ document.documentElement.lang = LG.lingua || "it";
 const LOC = LG.lingua === "en" ? "en-GB" : "it-IT";
 trDom(document.body);
 const IS_WIN = /Win/i.test(navigator.platform || navigator.userAgent || "");
-const FM = IS_WIN ? T("Esplora file") : T("Finder");
+// (3.0.6) Il pulsante ha lo stesso nome su Windows, Mac e Linux (prima su Linux diceva «Mostra in Finder»).
+const IS_MAC = !IS_WIN && /Mac/i.test(navigator.platform || navigator.userAgent || "");
+const MOSTRA_FM = T("Mostra nel file manager");
 document.addEventListener("DOMContentLoaded", () => {
   const h = document.getElementById("pathHint");
   const pr = document.getElementById("plasoReq");
   if (pr && IS_WIN) pr.textContent = T("Consigliata per dischi Windows/macOS: registro, prefetch, log, browser. Inclusa in RepertIA; può durare ore.");
   if (h && IS_WIN) h.textContent = T("Formati: raw, dd, img, E01 (scegli il primo segmento). In Esplora file: Maiusc + tasto destro sul file → “Copia come percorso”.");
+  if (h && !IS_WIN && !IS_MAC) h.textContent = T("Formati: raw, dd, img, E01 (scegli il primo segmento).");
 });
 const TOKEN = "__TOKEN__";
 const APPVER = "__VERSIONE__";
@@ -979,9 +984,10 @@ const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt
    tabella compare subito e si aggiorna solo se il server risponde diversamente; qualsiasi POST la svuota */
 let RESMEMO = new Map(), WARMGEN = 0;
 function memoPut(k, r){ RESMEMO.delete(k); RESMEMO.set(k, r); while (RESMEMO.size > 40) RESMEMO.delete(RESMEMO.keys().next().value); }
-let caseInfo = null, CASO_BLOCCATO = false, TL_FULL = false;
+let caseInfo = null, CASO_BLOCCATO = false, TL_FULL = false, APP_CHIUSA = false;
 async function api(path, body){
   if (CASO_BLOCCATO) throw new Error(T("Questa scheda è rimasta su un altro caso."));
+  if (APP_CHIUSA) throw new Error(T("RepertIA è chiuso."));
   const inviato = caseInfo && caseInfo.root && path !== "/api/open" ? caseInfo.root : null;
   const opt = {headers:{"X-Token":TOKEN, ...(inviato ? {"X-Caso": encodeURIComponent(inviato)} : {})}};
   if (body !== undefined){ RESMEMO.clear(); opt.method="POST"; opt.headers["Content-Type"]="application/json"; opt.body=JSON.stringify(body); }
@@ -1506,6 +1512,7 @@ async function openCase(root, summary = "all"){
   }catch(e){ toast(e.message, "bad"); loadHome(); }
   finally{ ov.close(); }
   if (caseInfo && caseInfo.root === root) fusoAvviso();
+  if (window.RM && caseInfo && caseInfo.root === root) RM.waAvviso();      // (3.0.6) chat esportate trovate in dischi e telefoni
 }
 /* (3.0) all'apertura: se il dispositivo ha un fuso registrato e gli orari sono mostrati in un altro (es. caso di New York
    visto in ora italiana o in UTC), lo si dice e si può passare al fuso del dispositivo. «Non chiedere più» vale per il caso. */
@@ -2392,7 +2399,7 @@ async function creaRelazione(ESCL){
       [[T("Apri il report HTML"), () => api("/api/open_relazione", {rel: r.rel, file: "report.html"})],
        ...(r.file["report.pdf"] ? [[T("Apri il PDF"), () => api("/api/open_relazione", {rel: r.rel, file: "report.pdf"})]] : []),
        ...(r.file["report.docx"] ? [[T("Apri il Word"), () => api("/api/open_relazione", {rel: r.rel, file: "report.docx"})]] : []),
-       [T("Mostra in ") + FM, () => api("/api/reveal_path", {rel: r.rel})]]);
+       [MOSTRA_FM, () => api("/api/reveal_path", {rel: r.rel})]]);
   };
   tick();
 }
@@ -2406,7 +2413,7 @@ async function reportTesto(){
       await api("/api/reveal_path", {rel: x.rel});
     };
     openModal(T("Report"), TF("<p class=\"hint\" style=\"margin-top:0\">Salvalo anche in <b>PDF</b> o in <b>Word</b> (.docx, modificabile): stesso contenuto, nella cartella del caso con l'impronta SHA-256 nel registro.\n      Orari nel PDF e nel Word: <select id=\"repTz\" class=\"tzsel\"><option value=\"utc\">UTC</option><option value=\"rome\" {0}>ora italiana</option>{1}</select></p>", tzMode() === "rome" ? "selected" : "", devTz() ? `<option value="dev" ${tzMode() === "dev" ? "selected" : ""}>${esc(devTzLabel())}</option>` : "") + md(r.text),
-      [[T("📄 Salva PDF"), saveAs("pdf")], [T("📝 Salva Word"), saveAs("docx")], [T("Mostra in ") + FM, () => api("/api/reveal", {what:"report"})]]);
+      [[T("📄 Salva PDF"), saveAs("pdf")], [T("📝 Salva Word"), saveAs("docx")], [MOSTRA_FM, () => api("/api/reveal", {what:"report"})]]);
   }catch(e){ toast(e.message, "bad"); }
 }
 $("btnPortable").onclick = async () => {
@@ -2472,7 +2479,7 @@ async function startPortable(){
     if (t.error) return openModal(T("Report portatile"), `<p class="note">${esc(t.error)}</p>`, []);
     const r = t.result, k = r.counts;
     openModal(T("Report portatile creato"), TF("<p>Cartella del report ({0}):</p><pre>{1}</pre>{2}\n      <p>{3} voci del file system · {4} eventi · {5} documenti con testo · {6} file con metadati · <b>{7} file inclusi</b> con il contenuto ({8}) · {9} min.</p>\n      {10}{12}\n      <p><b>Impronta del report</b> (SHA-256 di <code>impronte.csv</code>), da comunicare a chi lo riceve per la verifica d'integrità:</p><pre>{11}</pre>\n      <p class=\"hint\">Si consegna l'intera cartella (o lo zip). Registrato nel registro del caso.</p>", fsize(r.size), esc(r.rel), r.zip ? `<p>Zip: <code>${esc(r.zip)}</code></p>` : "", nf(k.file), nf(k.eventi), nf(k.testi), nf(k.metadati), nf(k.allegati), fsize(k.allegati_byte), Math.round(r.elapsed / 60) || "<1", r.skipped_n ? TF("<p class=\"note\">{0} file non leggibili dalla copia e non inclusi (sono indicati nel riepilogo del report).</p>", nf(r.skipped_n)) : "", esc(r.fingerprint), r.zip_nota ? `<p class="note">${esc(r.zip_nota)}</p>` : ""),
-      [[T("Apri il report"), () => api("/api/open_portable", {rel: r.rel})], [T("Mostra in ") + FM, () => api("/api/reveal_path", {rel: r.rel})]]);
+      [[T("Apri il report"), () => api("/api/open_portable", {rel: r.rel})], [MOSTRA_FM, () => api("/api/reveal_path", {rel: r.rel})]]);
   };
   tick();
 }
@@ -3695,14 +3702,14 @@ const SECTIONS = [
 ];
 const VIEWABLE = new Set(["explore", "file", "doc", "meta", "carved", "hits", "arch", "vss"]);
 const ART_LBL = {sistema: T("Sistema"), utenti: T("Account utente"), usb: T("Dispositivi USB"), programmi: T("Programmi installati"), esecuzioni: T("Programmi eseguiti"),
-  recenti: T("File e cartelle recenti"), reti: T("Reti"), cestino: T("Cestino"), web: T("Cronologia web"), download: T("Download"), ricerche: T("Ricerche"), comandi: T("Comandi (shell)"), messaggi: T("Messaggi (iMessage/SMS)"), avvio: T("Avvio automatico"), permessi: T("Permessi alle app (TCC)"), uso: T("Uso delle app"), dispositivi: T("Dispositivi e volumi"), backup: T("Backup (Time Machine)"),
+  recenti: T("File e cartelle recenti"), reti: T("Reti"), cestino: T("Cestino"), web: T("Cronologia web"), download: T("Download"), ricerche: T("Ricerche"), comandi: T("Comandi (shell)"), messaggi: T("Messaggi (iMessage/SMS)"), chat_esportate: T("Chat esportate da WhatsApp"), avvio: T("Avvio automatico"), permessi: T("Permessi alle app (TCC)"), uso: T("Uso delle app"), dispositivi: T("Dispositivi e volumi"), backup: T("Backup (Time Machine)"),
   cartelle: T("Cartelle aperte (ShellBags)"), journal: T("Journal NTFS (creati, cancellati, rinominati)"), eventi: T("Eventi di sistema"),
   cloud: T("Servizi cloud (Google Drive)"), indice: T("Indice di Ricerca di Windows"), note: T("Note (Sticky Notes)"),
   processi: T("Processi (RAM)"), connessioni: T("Connessioni di rete (RAM)"), moduli: T("Moduli caricati (RAM)"), driver: T("Driver (RAM)"), attivita: T("Attività pianificate (RAM)"), servizi: T("Servizi (RAM)")};
 const ANOM_LBL = {volume: T("Volume cifrato"), estensione: T("Estensione falsa"), cifrato: T("Protetto da password"), contenitore: T("Possibile contenitore cifrato"), segnalato: T("Hash da segnalare")};
 const FILTERS = {
   search: [], bm: [],
-  art: [["cat", "select", T("Categoria"), [["", T("Tutte")], ...Object.entries({sistema: T("Sistema"), utenti: T("Account utente"), usb: T("Dispositivi USB"), programmi: T("Programmi installati"), esecuzioni: T("Programmi eseguiti"), recenti: T("File e cartelle recenti"), reti: T("Reti"), cestino: T("Cestino"), web: T("Cronologia web"), download: T("Download"), ricerche: T("Ricerche"), comandi: T("Comandi (shell)"), messaggi: T("Messaggi (iMessage/SMS)"), avvio: T("Avvio automatico"), permessi: T("Permessi alle app (TCC)"), uso: T("Uso delle app"), dispositivi: T("Dispositivi e volumi"), backup: T("Backup (Time Machine)")})]], ["q", "text", T("Cerca in elemento, dettagli, utente")], ["start", "date", T("Dal")], ["end", "date", T("Al")]],
+  art: [["cat", "select", T("Categoria"), [["", T("Tutte")], ...Object.entries({sistema: T("Sistema"), utenti: T("Account utente"), usb: T("Dispositivi USB"), programmi: T("Programmi installati"), esecuzioni: T("Programmi eseguiti"), recenti: T("File e cartelle recenti"), reti: T("Reti"), cestino: T("Cestino"), web: T("Cronologia web"), download: T("Download"), ricerche: T("Ricerche"), comandi: T("Comandi (shell)"), messaggi: T("Messaggi (iMessage/SMS)"), chat_esportate: T("Chat esportate da WhatsApp"), avvio: T("Avvio automatico"), permessi: T("Permessi alle app (TCC)"), uso: T("Uso delle app"), dispositivi: T("Dispositivi e volumi"), backup: T("Backup (Time Machine)")})]], ["q", "text", T("Cerca in elemento, dettagli, utente")], ["start", "date", T("Dal")], ["end", "date", T("Al")]],
   mail: [["q", "text", T("Cerca in oggetto, mittente, destinatari, testo")], ["fmt", "select", T("Formato"), [["", T("Tutti")], ["PST/OST", "Outlook PST/OST"], ["mbox", "mbox (Thunderbird…)"], ["EML", "EML"], ["EMLX", "Apple Mail"], ["MSG", "Outlook MSG"]]], ["att", "check", T("Solo con allegati")], ["start", "date", T("Dal")], ["end", "date", T("Al")]],
   arch: [["q", "text", T("Cerca nel percorso")], ["xk", "select", T("Tipo"), [["", T("Tutti")], ["archivio", T("Contenuto di archivi")], ["allegato", T("Allegati di posta")], ["miniatura", T("Miniature (thumbcache)")]]], ["ext", "text", T("Estensione")], ["enc", "check", T("Solo protetti da password")]],
   vss: [["q", "text", T("Cerca nel percorso")], ["ext", "text", T("Estensione")]],
@@ -3862,7 +3869,7 @@ function selectRes(sec){
   fetchRes();
 }
 // (3.0) sezioni delle chat (Timeline dei messaggi, artefatti «messaggi»): «Apri chat» anche in alto, oltre che su ogni riga
-function chatDaBarra(kind, st){ return !!window.RM && ((kind === "timeline" && String(st.origin || "").startsWith("msg:")) || (kind === "art" && st.cat === "messaggi")); }
+function chatDaBarra(kind, st){ return !!window.RM && ((kind === "timeline" && String(st.origin || "").startsWith("msg:")) || (kind === "art" && (st.cat === "messaggi" || st.cat === "chat_esportate"))); }
 function barChatApri(sec, kind, st){
   const righe = (lastRes && lastRes.rows) || [], s = selOf(sec);
   const scelta = !s.all && s.ids.size === 1 ? righe.find(x => String(x.id) === [...s.ids][0]) : righe[curRow];
@@ -4461,7 +4468,7 @@ function actions(kind, x){
 function baseActions(kind, x){
   const fs = x.source !== "carving";
   if (kind === "art") return [["open", T("Dettagli")]].concat(x.src_path ? [["srcloc", T("Fonte")]] : [], [["find", T("Reperto")], ["ask", T("Chiedi")]]);
-  if (kind === "mail") return [["open", T("Apri")], ["srcloc", T("File di posta")], ["find", T("Reperto")], ["ask", T("Chiedi")]];
+  if (kind === "mail") return [["open", T("Apri")], ["mexp", T("Esporta .eml")], ["srcloc", T("File di posta")], ["find", T("Reperto")], ["ask", T("Chiedi")]];
   if (kind === "arch" || kind === "vss") return [["open", T("Anteprima")]].concat(x.relpath ? [["xexp", T("Esporta")]] : [], kind === "arch" ? [["srcloc", T("Contenitore")]] : [], [["find", T("Reperto")], ["ask", T("Chiedi")]]);
   if (kind === "anom"){
     if (x.kind === "volume") return [["voltree", T("Mostra nel File System")]].concat(((caseInfo || {}).volumi_cifrati || []).some(v => +v.offset === +x.part && v.decifrabile) ? [["decrypt", T("🔓 Decifra…")]] : [], [["find", T("Reperto")], ["ask", T("Chiedi")]]);
@@ -4470,9 +4477,9 @@ function baseActions(kind, x){
   }
   if (kind === "hits" && x.source === "thr") return [["chatgo", "💬 " + T("Apri chat")]];
   if (kind === "hits" && x.source === "rub") return [["open", T("Anteprima")]];
-  if (kind === "hits" && ["x", "mail", "art", "chat"].includes(x.source)) return [["open", T("Anteprima")]].concat(x.source === "x" ? [["xexp", T("Esporta")]] : [], [["find", T("Reperto")], ["ask", T("Chiedi")]]);
+  if (kind === "hits" && ["x", "mail", "art", "chat"].includes(x.source)) return [["open", T("Anteprima")]].concat(x.source === "x" ? [["xexp", T("Esporta")]] : x.source === "mail" ? [["mexp", T("Esporta .eml")]] : [], [["find", T("Reperto")], ["ask", T("Chiedi")]]);
   if (kind === "hits" && x.source === "image") return [["open", T("Esadecimale")], ["find", T("Reperto")], ["ask", T("Chiedi")]];
-  if ((kind === "doc" || kind === "meta") && (x.source === "x" || x.source === "posta")) return [["open", T("Anteprima")]].concat(x.source === "x" ? [["xexp", T("Esporta")]] : [], [["find", T("Reperto")], ["ask", T("Chiedi")]]);
+  if ((kind === "doc" || kind === "meta") && (x.source === "x" || x.source === "posta")) return [["open", T("Anteprima")]].concat(x.source === "x" ? [["xexp", T("Esporta")]] : [["mexp", T("Esporta .eml")]], [["find", T("Reperto")], ["ask", T("Chiedi")]]);
   if (kind === "explore") return x.isdir ? [["opendir", T("Apri")]] : x.inode ? [["open", T("Anteprima")], ["exp", T("Esporta")]] : [];
   if (kind === "hits") return x.source === "carving" ? [["open", T("Anteprima")], ["find", T("Reperto")]] : [["open", T("Anteprima")], ["exp", T("Esporta")], ["find", T("Reperto")]];
   if (kind === "file") return x.type.endsWith("/r") ? [["open", T("Anteprima")], ["exp", T("Esporta")], ["find", T("Reperto")], ["ask", T("Chiedi")]] : [["tree", T("Mostra nel File System")], ["find", T("Reperto")], ["ask", T("Chiedi")]];
@@ -4480,8 +4487,8 @@ function baseActions(kind, x){
   // (3.0) Timeline per evidenza: la riga è un artefatto o un messaggio, non un file (in iLEAPP/ALEAPP il «percorso» è il nome dell'artefatto)
   if (kind === "timeline" && x.origin === "evidenze") return (x.chat != null ? [["chatgo", "💬 " + T("Apri chat")]] : []).concat([["open", T("Anteprima")], ["find", T("Reperto")], ["ask", T("Chiedi")]]);
   if (kind === "timeline") return (x.chat != null ? [["chatgo", "💬 " + T("Apri chat")]] : []).concat(x.inode ? [["open", T("Anteprima")]] : x.origin !== "tsk" && x.path ? EXT_ACTS : [], [["find", T("Reperto")], ["ask", T("Chiedi")]]);
-  if (kind === "doc" || kind === "meta") return [["open", T("Anteprima")], fs ? ["exp", T("Esporta")] : ["show", T("Mostra in ") + FM], ["find", T("Reperto")], ["ask", T("Chiedi")]].concat(x.lat != null ? [["mapgo", "🗺 " + T("Mappa")]] : []);
-  if (kind === "carved") return [["open", T("Anteprima")], ["show", T("Mostra in ") + FM], ["find", T("Reperto")], ["ask", T("Chiedi")]];
+  if (kind === "doc" || kind === "meta") return [["open", T("Anteprima")], fs ? ["exp", T("Esporta")] : ["show", MOSTRA_FM], ["find", T("Reperto")], ["ask", T("Chiedi")]].concat(x.lat != null ? [["mapgo", "🗺 " + T("Mappa")]] : []);
+  if (kind === "carved") return [["open", T("Anteprima")], ["show", MOSTRA_FM], ["find", T("Reperto")], ["ask", T("Chiedi")]];
   if (kind === "trace") return EXT_ACTS.concat([["find", T("Reperto")], ["ask", T("Chiedi")]]);
   return [["loc", T("Dove si trova")], ["find", T("Reperto")], ["ask", T("Chiedi")]];
 }
@@ -4534,6 +4541,7 @@ async function rowAction(kind, a, x, i){
   if (a === "fav") return bmAddDialog(resSec, itemRef(kind, x));
   if (a === "srcloc") return locate(locRef(kind, x)).catch(e => toast(e.message, "bad"));
   if (a === "xexp") return api("/api/export_x", {id: itemRef(kind, x).id, reveal: true}).then(r => toast(r.message, "good")).catch(e => toast(e.message, "bad"));
+  if (a === "mexp") return mailEml(kind === "mail" ? x.id : +x.inode);
   if (a === "decrypt") return decryptDialog(caseInfo.root, caseInfo.volumi_cifrati, x.part);
   if (a === "voltree") return showVolume(+x.part);
   const it = itemRef(kind, x);
@@ -4669,8 +4677,21 @@ function renderSelBar(){
   $("selAsk").onclick = () => askSel(sec);
   $("selClear").onclick = () => { clearSel(sec); resCache.rows && resCache.rows.forEach((x, i) => paintRow(sec, i)); updCkAll(sec); renderSelBar(); };
 }
+// (3.0.6) una mail come .eml: byte originali (EML, EMLX, mbox) o ricostruzione dichiarata (PST/OST, MSG)
+async function mailEml(id){
+  try{
+    const r = await api("/api/export_mail", {id});
+    if (r.originale) return toast(r.message, "good");
+    // (3.0.6) tutti i file della mail, con che cosa sono e la loro impronta
+    openModal(T("Mail esportata (ricostruita)"), `<p>${esc(T("Esportato in {dest}").replace("{dest}", r.cartella || ""))}:</p>
+      <ul>${(r.files || []).map(f => `<li><b>${esc(f.nome)}</b> – ${esc(f.descrizione)}<br><span style="color:var(--muted);font-size:12.5px;word-break:break-all">SHA-256 ${esc(f.sha256)}</span></li>`).join("")}</ul>
+      <p>${T("Il file .eml è ricostruito dai dati letti da RepertIA: non è un file originale. Lo dice anche la sua intestazione «X-RepertIA-Ricostruzione».")}
+      ${(r.files || []).length > 1 ? T("I file con «ORIGINALE» o «ORIGINALI» nel nome riportano i dati così come sono nel file di posta.") : ""}</p>
+      <ul>${(r.note || []).map(n => `<li>${esc(n)}</li>`).join("")}</ul>`, [[MOSTRA_FM, () => api("/api/reveal_path", {rel: r.rel})]]);
+  }catch(e){ toast(e.message, "bad"); }
+}
 function finderModal(title, html, rel){
-  openModal(title, html, [[T("Mostra in ") + FM, () => api("/api/reveal_path", {rel})]]);
+  openModal(title, html, [[MOSTRA_FM, () => api("/api/reveal_path", {rel})]]);
 }
 function exportSel(sec){
   if (!((resCache.rows || []).some(x => ["art", "chat"].includes(x.source)) && stOf(sec).cid)) return exportSelGo(sec);
@@ -4698,7 +4719,7 @@ async function exportSelGo(sec, chat){
 async function csvSel(sec){
   try{
     const r = await api("/api/sel_csv", selPayload(sec));
-    finderModal(T("Elenco esportato"), TF("<p><b>{0} righe</b> salvate in CSV (separatore punto e virgola, si apre con Excel{1}):</p><pre>{2}</pre>", nf(r.rows), IS_WIN ? "" : " o Numbers", esc(r.rel)), r.rel);
+    finderModal(T("Elenco esportato"), TF("<p><b>{0} righe</b> salvate in CSV (separatore punto e virgola, si apre con Excel{1}):</p><pre>{2}</pre>", nf(r.rows), IS_WIN ? "" : T(" o ") + (IS_MAC ? "Numbers" : "LibreOffice"), esc(r.rel)), r.rel);
   }catch(e){ toast(e.message, "bad"); }
 }
 async function findSel(sec){
@@ -5711,6 +5732,7 @@ function pvOpen(it, sec, tab){
   $("pvActs").innerHTML = (it.source === "fs" ? T("<button class=\"btn small\" data-pa=\"tree\" title=\"Apre l'albero in una nuova scheda\">Mostra nel File System</button><button class=\"btn small\" data-pa=\"exp\">Esporta</button>") : "") +
     (it.source === "ua" ? T("<button class=\"btn small\" data-pa=\"exp\" title=\"Salva i byte del tratto in export/non_allocato con SHA-256\">Esporta</button>") : "") +
     (it.source === "x" ? T("<button class=\"btn small\" data-pa=\"xexp\">Esporta</button>") + (it.src ? T("<button class=\"btn small\" data-pa=\"src\" title=\"File della copia da cui proviene\">Contenitore</button>") : "") : "") +
+    (it.source === "mail" ? `<button class="btn small" data-pa="mexp" title="${esc(T("Salva la mail in export/posta, con SHA-256: .eml originale per EML, EMLX e mbox; per PST/OST e MSG .eml ricostruito con accanto le intestazioni originali (e il .msg originale)"))}">${T("Esporta .eml")}</button>` : "") +
     ((it.source === "mail" || it.source === "art" || it.source === "rub") && it.src ? `<button class="btn small" data-pa="src">${it.source === "mail" ? T("File di posta") : T("Fonte")}</button>` : "") +
     (it.source === "rub" && it.valore ? `<button class="btn small" data-pa="rubq" title="${esc(T("Nuova ricerca veloce con il numero di questa voce"))}">🔎 ${T("Cerca questo numero")}</button>` : "") +
     (it.source === "chat" && window.RM ? `<button class="btn small" data-pa="chat">💬 ${T("Apri chat")}</button>` : "") +
@@ -5732,6 +5754,7 @@ function pvOpen(it, sec, tab){
       else if (b.dataset.pa === "find") findingForm(it);
       else if (b.dataset.pa === "fav") bmAddDialog(pvState.sec || resSec, it);
       else if (b.dataset.pa === "xexp"){ const r = await api("/api/export_x", {id: it.id, reveal: true}); toast(r.message, "good"); }
+      else if (b.dataset.pa === "mexp") await mailEml(it.id);
       else if (b.dataset.pa === "src") await locate(it.src);
       else if (b.dataset.pa === "sim") await similarDialog(it);
       else if (b.dataset.pa === "chat") RM.openChats({mid: it.id});
@@ -6680,6 +6703,23 @@ function licenzaInfo(){
   openModal(T("Licenza e informazioni legali"), `<p><b>${TF("Versione installata: {0}", esc(APPVER))}</b></p><p>${T("RepertIA, Copyright (C) 2026 silvexe - Antonio Silvestre. È software libero con licenza GNU Affero General Public License versione 3 o successiva (AGPL-3.0-or-later), con un permesso aggiuntivo per The Sleuth Kit descritto nel README.")}</p><p>${T("È fornito SENZA ALCUNA GARANZIA, nei limiti consentiti dalla legge.")}</p><p>${TF("Codice sorgente: {0}. Testo della licenza: {1}.", "<code>https://github.com/silvexe/RepertIA</code>", "<code>https://www.gnu.org/licenses/agpl-3.0.html</code>")}</p><p>${TF("I componenti di terze parti hanno le proprie licenze (THIRD_PARTY_LICENSES.md). Dati delle mappe: © OpenStreetMap contributors, licenza ODbL ({0}); Natural Earth, pubblico dominio.", "<code>openstreetmap.org/copyright</code>")}</p>`);
 }
 $("btnLic").onclick = licenzaInfo;
+/* (3.0.6) pulsante «Chiudi»: ferma RepertIA (server e programmi avviati) e chiude la finestra da cui è partito; con lavori
+   in corso (preparazione, agente, report, esportazioni…) li elenca e chiede conferma */
+async function chiudiApp(){
+  if (!await chiedi(T("Chiudere RepertIA? Il programma si ferma e la sua finestra (prompt o Terminale) si chiude. I casi restano salvati; per riaprirlo usa di nuovo l'icona di RepertIA."))) return;
+  let r = await api("/api/chiudi", {});
+  if (!r.chiuso){
+    if (!await chiedi(TF("Sono in corso:\n{0}\n\nChiudendo RepertIA si interrompono. Chiudere lo stesso?", r.lavori.map(x => "• " + x).join("\n")))) return;
+    r = await api("/api/chiudi", {forza: true});
+  }
+  APP_CHIUSA = true;
+  const d = document.createElement("div"); d.id = "appChiusa";
+  d.style.cssText = "position:fixed;inset:0;z-index:2000;display:grid;place-items:center;padding:20px;background:var(--bg)";
+  d.innerHTML = `<div class="card" style="max-width:520px;text-align:center"><h3 style="margin-top:0">⏻ ${esc(T("RepertIA è chiuso"))}</h3><p>${esc(T("Il programma si è fermato e la sua finestra si chiude da sola. Ora puoi chiudere questa scheda del browser."))}</p><p class="hint">${esc(T("Per riaprirlo usa l'icona di RepertIA."))}</p></div>`;
+  document.body.appendChild(d);
+  setTimeout(() => { try{ window.close(); }catch(e){} }, 800);     // riesce solo se la scheda l'ha aperta una pagina
+}
+$("btnChiudi").onclick = () => chiudiApp().catch(e => toast(e.message, "bad"));
   $("btnTheme").textContent = isDark() ? "☀" : "☾";
   $("btnTheme").title = isDark() ? T("Passa al tema chiaro") : T("Passa al tema scuro");
 }

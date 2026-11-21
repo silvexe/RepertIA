@@ -1,4 +1,4 @@
-RepertIA 3.0.5 - By silvexe (Linux x86_64)
+RepertIA 3.0.6 - By silvexe (Linux x86_64)
 Analisi forense di copie di dischi, estrazioni di smartphone e registri di volo dei droni con un modello linguistico (LLM) locale.
 
 VERSIONE LINUX (SPERIMENTALE)
@@ -24,7 +24,7 @@ Su Linux le loro librerie le installa installa.sh.
 
 INSTALLAZIONE
 1. Estrai l'archivio dove preferisci (ad esempio nella cartella personale):
-     tar -xzf RepertIA-3.0.5-Linux.tar.gz
+     tar -xzf RepertIA-3.0.6-Linux.tar.gz
 2. Apri un terminale nella cartella RepertIA ed esegui:
      ./installa.sh
    Serve internet e la password di amministratore. Lo script:
@@ -37,6 +37,27 @@ INSTALLAZIONE
    - aggiunge RepertIA al menu delle applicazioni.
    Il registro dell'installazione è in installa.log. Lo script si può rieseguire.
 3. Avvia RepertIA dal menu delle applicazioni oppure con ./RepertIA.sh: si apre il browser.
+
+AGGIORNAMENTO A UNA VERSIONE NUOVA
+1. Chiudi RepertIA.
+2. Estrai l'archivio nuovo sopra la cartella esistente, indicando la cartella che contiene RepertIA
+   (per esempio la cartella personale, ~):
+     tar -xzf RepertIA-<versione>-Linux.tar.gz -C ~
+   I casi (~/CasiForensi) e le impostazioni non si toccano.
+3. Riesegui ./installa.sh. Aggiorna le librerie Python solo se la versione nuova ne usa altre (lo
+   riconosce da requirements-linux.txt e dagli elenchi di iLEAPP e ALEAPP) e, su ARM a 64 bit, rimette
+   al loro posto gli strumenti per ARM. Serve internet.
+Limite: i file che una versione nuova non ha più restano nella cartella (non danno fastidio). Per una
+cartella pulita: rinomina la vecchia, estrai la nuova, esegui ./installa.sh (le librerie libyal si
+ricompilano: 10-20 minuti), poi cancella la vecchia.
+
+RIMOZIONE
+- la cartella del programma (RepertIA);
+- la voce del menu delle applicazioni: ~/.local/share/applications/repertia.desktop;
+- impostazioni, registro di diagnostica e modelli di trascrizione scaricati: ~/.config/RepertIA
+  (fino alla 3.0.5: ~/Library/Application Support/RepertIA).
+Restano i casi in ~/CasiForensi (cancellali tu quando non servono più) e i pacchetti installati con apt,
+che possono servire anche ad altri programmi (si tolgono con "sudo apt remove", se vuoi).
 
 BULK_EXTRACTOR (facoltativo)
 Debian e Ubuntu non lo hanno tra i loro pacchetti: si compila da https://github.com/simsong/bulk_extractor
